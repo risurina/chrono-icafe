@@ -78,3 +78,19 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `branches`' `apps/chrono-api/src/modules/branch/routes.ts` /
   `packages/agora/src/auth/permissions.ts` composition pattern for
   structure.
+- 2026-09-02 — Phase 3 (routes + permission gates) landed. `shift: ["open",
+  "close"]` was already registered in the per-app extension seam
+  (`apps/chrono-api/src/auth/permissions.ts`'s `CHRONO_PERMISSION_STATEMENTS`/
+  `CHRONO_STAFF_GRANTS`/`CHRONO_ADMIN_GRANTS` — both staff and admin hold it,
+  no split, per this file's own note above), so no permissions.ts edit was
+  needed this round. `routes.ts` (`GET /shifts`, `GET /shifts/current`,
+  `POST /shifts/open`, `POST /shifts/:id/close`) was found already written
+  but sitting uncommitted and unwired for several checks — reviewed against
+  the plan's exact spec (branch-scoped 404s, same-branch/caller 409 on
+  double-open, already-closed 409, `expectedCashAmount`/`differenceAmount`
+  correctly left `null`), wired into `rpc.ts` via `.route("/",
+  shiftRoutes())`, added the `shift` deny-by-default gate case to
+  `permissions.test.ts`. `pnpm --filter @agora/chrono-api typecheck` clean,
+  `test:permissions` → 333 passed, `rls:proof` → `RLS PROOF: PASS ✅`.
+  Committed (`3422731`). Phase 3 done — Phase 4 (web UI) is next, Jules-eligible
+  now that the backend is fully landed.
