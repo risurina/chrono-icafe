@@ -5,7 +5,7 @@ import { DashboardMeProvider as BaseDashboardMeProvider } from "agora/client/rea
 
 // The provider + `useDashboardMe` hook are foundation logic in
 // `agora/client/react`; this shim injects the app's typed `/rpc/me` fetch so the
-// package never imports `@agora/api`. `fetchMe` is module-level (stable) so the
+// package never imports `@agora/chrono-api`. `fetchMe` is module-level (stable) so the
 // provider's polling interval is not restarted on every render.
 export { useDashboardMe, POLL_INTERVAL_MS } from "agora/client/react";
 

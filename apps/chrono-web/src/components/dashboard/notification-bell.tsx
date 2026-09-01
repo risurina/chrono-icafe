@@ -5,7 +5,7 @@ import { api } from "@/lib/rpc";
 
 // The bell UI + logic is foundation code in `agora/ui`; this shim injects the
 // app's typed `/rpc/notification-feed` calls so the package never imports
-// `@agora/api`, exactly like `announcement-banner.tsx`'s `onRead` shim.
+// `@agora/chrono-api`, exactly like `announcement-banner.tsx`'s `onRead` shim.
 export function NotificationBell() {
   return (
     <BaseNotificationBell

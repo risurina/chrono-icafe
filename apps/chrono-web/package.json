@@ -1,5 +1,5 @@
 {
-  "name": "@agora/web",
+  "name": "@agora/chrono-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {
-    "@agora/api": "workspace:*",
+    "@agora/chrono-api": "workspace:*",
     "@sentry/nextjs": "^10.71.0",
     "hono": "4.13.2",
     "lucide-react": "1.31.0",

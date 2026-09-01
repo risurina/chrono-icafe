@@ -1,6 +1,6 @@
 import { hc } from "hono/client";
 import { adminFetch } from "agora/client";
-import type { AppType } from "@agora/api/app";
+import type { AppType } from "@agora/chrono-api/app";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
