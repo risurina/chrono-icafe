@@ -21,7 +21,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
-| 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
+| 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | `chronoWallet`/`chronoWalletTransaction`, both in `APP_TENANT_TABLES`, migration `0006_add_chrono_wallets.sql`, `rls:proof` PASS |
 | 2 — Contracts + money helper | jules | done | 12082141174603202875 | pulled, fixed single→double quote style in `money.ts` locally (cosmetic only), `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Service (locking) + routes + permission gates + concurrency proof | local | not started | — | resolve Open Question 1 (staff wallet:credit/:debit) first; concurrency proof must run against real Postgres, not pglite |
 | 4 — Web UI | jules | not started | — | |
@@ -55,3 +55,14 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `addMoney("10.50", "-3.25") === "7.25"`, `isNegativeMoney("-0.01") ===
   true`, `isNegativeMoney("0.00") === false`. `pnpm --filter @agora/chrono-api
   typecheck` clean. Committed (`a4ca2f5`). Phase 2 done.
+- 2026-09-01 — Phase 1 (schema, RLS, `APP_TENANT_TABLES`) built locally, per
+  Pass 2's exact table specs: `apps/chrono-api/src/modules/wallet/schema.ts`
+  (`chronoWallet` + `chronoWalletTransaction`), wired into `db/schema.ts` and
+  `APP_TENANT_TABLES` without clobbering the concurrently-landed `pos`
+  entries. `pnpm --filter @agora/chrono-api db:generate --name
+  add_chrono_wallets` produced a clean, non-destructive migration
+  (`0006_add_chrono_wallets.sql`); applied via `db:migrate`.
+  `pnpm --filter @agora/chrono-api typecheck` clean, `rls:proof` → `RLS PROOF:
+  PASS ✅` (non-vacuous). Committed (`f75da47`). Phase 1 done — Phase 3 (the
+  locking service + routes + permission gates + concurrency proof) is next,
+  and stays local per this file's own header note.
