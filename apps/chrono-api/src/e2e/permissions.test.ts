@@ -20,6 +20,13 @@ process.env.DB_DRIVER = "pglite";
 const { registerChronoPermissions } = await import("../auth/permissions");
 registerChronoPermissions();
 const { hasPermission, permissionsForRole } = await import("agora/auth");
+// Chrono's own typed wrapper (foundation + Chrono resources) — needed to
+// check the `reservation` resource with compile-time key/action checking,
+// since agora/auth's own PermissionRequest type only covers foundation
+// resources. See apps/chrono-api/src/auth/require-permission.ts.
+const { hasPermission: hasChronoPermission } = await import(
+  "../auth/require-permission"
+);
 const { hasPlatformPermission, permissionsForPlatformRole } = await import(
   "agora/auth"
 );
@@ -1237,6 +1244,28 @@ check(
   hasPlatformPermission("admin", { queue: ["retry"] }) &&
     !hasPlatformPermission("support", { queue: ["retry"] }) &&
     !hasPlatformPermission("viewer", { queue: ["retry"] }),
+);
+
+console.log("\n── chrono reservation permissions (reservations Phase 3) ──");
+// This pass grants staff/admin/owner the identical reservation:["read","manage"]
+// set (no split, see the reservations plan's Permission vocabulary). A gate
+// test must still fail if the permission were removed from a role — checking
+// it against `hasPermission("staff", ...)` (the tenant-role engine, not the
+// platform one above) proves the vocabulary is actually wired.
+check(
+  "staff holds reservation:read and reservation:manage",
+  hasChronoPermission("staff", { reservation: ["read"] }) &&
+    hasChronoPermission("staff", { reservation: ["manage"] }),
+);
+check(
+  "admin holds reservation:read and reservation:manage",
+  hasChronoPermission("admin", { reservation: ["read"] }) &&
+    hasChronoPermission("admin", { reservation: ["manage"] }),
+);
+check(
+  "owner holds reservation:read and reservation:manage",
+  hasChronoPermission("owner", { reservation: ["read"] }) &&
+    hasChronoPermission("owner", { reservation: ["manage"] }),
 );
 
 console.log("\n── platform system-health permissions (spec #17) ──");

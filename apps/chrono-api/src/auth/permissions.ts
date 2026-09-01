@@ -17,17 +17,23 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // Any staff/admin/owner may open or close a shift — not owner-restricted,
   // matches oikos. See .ai/plans/chrono/active/shifts/HANDOVER.md.
   shift: ["open", "close"],
+  // Booking/check-in/cancel/no-show is routine front-desk work, not a
+  // financial or configuration action — no staff/admin split (Open Question
+  // 7). See .ai/plans/chrono/active/reservations/README.md.
+  reservation: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
   station: ["create", "update"],
   shift: ["open", "close"],
+  reservation: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
   branch: ["create", "update"],
   station: ["create", "update", "delete"],
   shift: ["open", "close"],
+  reservation: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
