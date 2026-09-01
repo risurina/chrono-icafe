@@ -96,9 +96,20 @@ check(
   "staff may notificationFeed:read (every member reads their own feed)",
   hasPermission("staff", { notificationFeed: ["read"] }),
 );
+check(
+  "staff may customer:read (Chrono Members list — see .ai/plans/chrono/active/members/README.md)",
+  hasPermission("staff", { customer: ["read"] }),
+);
 for (const [resource, action] of [
   ["staff", "invite"],
-  ["customer", "read"],
+  ["customer", "create"],
+  ["customer", "update"],
+  ["customer", "suspend"],
+  ["customer", "reactivate"],
+  ["customer", "export"],
+  ["customer", "delete"],
+  ["customer", "approve"],
+  ["customer", "reject"],
   ["domain", "manage"],
   ["apiKey", "read"],
   ["webhook", "read"],
