@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Targeting-narrowing + read-ack coverage for the announcements extension
- * (`.ai/plans/active/platform-announcements/README.md`). The base
+ * (`.ai/plans/agora/active/platform-announcements/README.md`). The base
  * `tenant-visibility.spec.ts` predates targeting and asserts every tenant sees
  * the same set — that premise is now conditional. Here the new isolation
  * concern is proven directly: an announcement targeted at tenant A (by org id)

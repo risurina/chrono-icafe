@@ -7,7 +7,7 @@ import { ALLOWED_FILE_TYPES } from "agora";
  * (`/rpc/files/*`); `admin-org` is a platform admin already viewing one
  * org's detail page, uploading into THAT org's own file store
  * (`/rpc-admin/organizations/:id/files/*`) — see
- * `.ai/plans/archive/global-upload-drag-drop-paste/README.md`.
+ * `.ai/plans/agora/archive/global-upload-drag-drop-paste/README.md`.
  */
 export type UploadTarget =
   | { kind: "tenant"; feature: string; visibility: "public" | "private" }

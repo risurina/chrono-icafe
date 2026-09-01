@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
  * Browser coverage for the two `/api/auth/*` HTTP-surface blocks added in
  * Phase 3b (`apps/api/src/app.ts`, `normalizeAuthPath` in
  * `packages/agora/src/server/auth-path.ts`) — Blocker 1 of
- * `.ai/plans/archive/tenant-impersonation`:
+ * `.ai/plans/agora/archive/tenant-impersonation`:
  *
  *   1. The Better Auth `admin` plugin's own HTTP surface is blocked outright
  *      (404), for any session, under `//`-doubled, trailing-slash, and

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Browser + API coverage for platform-admin policy-acceptance versioning
- * (`.ai/plans/active/compliance-tooling/README.md`, Phase 6). Same
+ * (`.ai/plans/agora/active/compliance-tooling/README.md`, Phase 6). Same
  * conventions as `export.spec.ts` / `support-tooling.spec.ts`.
  */
 const PLATFORM_ADMIN_EMAIL = "platform@agora.test";

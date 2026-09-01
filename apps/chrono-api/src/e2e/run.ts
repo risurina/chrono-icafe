@@ -4419,7 +4419,7 @@ async function main() {
   );
 
   // ── W2b. Platform-wide security policy (twoFactorRequired,
-  //     sessionMaxAgeMinutes) — .ai/plans/archive/platform-security-policy. ──
+  //     sessionMaxAgeMinutes) — .ai/plans/agora/archive/platform-security-policy. ──
   const SP = "/rpc-admin/security-policy";
 
   const spNoHeader = await req("PATCH", SP, {
@@ -7096,7 +7096,7 @@ async function main() {
     "job is NOT RLS-scoped (absent from both tenant table sets) — the generic " +
       "queue table backing every named queue (email, webhooks, ...), written by " +
       "system-level dispatchers with no tenant context, only ever drained " +
-      "cross-tenant by each queue's poller (.ai/plans/active/general-job-queue)",
+      "cross-tenant by each queue's poller (.ai/plans/agora/active/general-job-queue)",
     !(APP_TENANT_TABLES as readonly string[]).includes("Jobs") &&
       !(BASE_TENANT_TABLES as readonly string[]).includes("Jobs"),
   );
@@ -7377,7 +7377,7 @@ async function main() {
   );
 
   // ── Generic job retry (any queue/type), general-job-queue follow-up
-  //    (.ai/plans/active/sms-provider-and-job-retry) ──
+  //    (.ai/plans/agora/active/sms-provider-and-job-retry) ──
   const [genJob1] = await withAdmin((tx) =>
     tx
       .insert(job)
@@ -7807,7 +7807,7 @@ async function main() {
     process.env.BILLING_PROVIDER = "paymongo";
 
     // Shape matches the real envelope empirically captured against a live PayMongo
-    // test account (see .ai/plans/active/paymongo-billing-driver/README.md,
+    // test account (see .ai/plans/agora/active/paymongo-billing-driver/README.md,
     // Precondition A) — the payment resource's own `id` lives on `data.id` (a
     // sibling of `attributes`, not nested inside it), which is what
     // parsePaymongoTransactionEvent reads as providerObjectId.
@@ -8030,7 +8030,7 @@ async function main() {
     `got ${acmeOwnerUserAfter.length}`,
   );
 
-  // ── Data retention sweep (.ai/plans/active/data-retention/README.md) ──
+  // ── Data retention sweep (.ai/plans/agora/active/data-retention/README.md) ──
   const { runRetentionSweepOnce } = await import("agora/server");
   const daysAgoDate = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 

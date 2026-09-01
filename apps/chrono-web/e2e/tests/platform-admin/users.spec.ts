@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Browser coverage for cross-tenant user search (`/admin/users`,
- * `/rpc-admin/users`) — see `.ai/plans/active/platform-user-search/README.md`.
+ * `/rpc-admin/users`) — see `.ai/plans/agora/active/platform-user-search/README.md`.
  * Under the platform-admin surface acting on the shared Better-Auth `user`
  * pool (platform staff + tenant org members), not an extension of the
  * tenant-scoped `user-management` feature — kept in its own

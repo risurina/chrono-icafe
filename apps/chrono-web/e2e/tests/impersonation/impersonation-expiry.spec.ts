@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Browser coverage for the impersonation grant's hard TTL (Condition 4,
- * `.ai/plans/archive/tenant-impersonation`): `enforceImpersonationGrant()` in
+ * `.ai/plans/agora/archive/tenant-impersonation`): `enforceImpersonationGrant()` in
  * `packages/agora/src/server/tenant.ts` closes an expired grant on the next
  * tenant request and 401s it, and does so exactly once — a second request
  * against the same already-closed grant must not write a second

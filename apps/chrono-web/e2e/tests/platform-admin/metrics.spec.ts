@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
  * `GET /rpc-admin/metrics/tenants`). Read-only — no mutating action, so this
  * is the platform-admin-appropriate equivalent of the tenant happy/role/
  * isolation triad: happy path + role gate + no cross-tenant leak (see
- * `.ai/plans/active/usage-growth-metrics/README.md`, E2E section).
+ * `.ai/plans/agora/active/usage-growth-metrics/README.md`, E2E section).
  *
  * The no-leak assertion depends on `apps/api/src/seed.ts` seeding `acme` with
  * 3 projects and `contoso` with 2 (a deliberate Phase 2 edit) — without that

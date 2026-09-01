@@ -27,7 +27,7 @@ const apiV1Limiter = createRateLimiter(60, 60 * 1000, "api-v1");
  * below delegates to the same permission-check + `withTenant` logic as the
  * equivalent `/rpc` route — this file adds only the envelope, never new
  * business logic. See `docs/api/v1.md` and
- * `.ai/plans/archive/generic-multitenant-extensibility/README.md` (Phase A).
+ * `.ai/plans/agora/archive/generic-multitenant-extensibility/README.md` (Phase A).
  */
 export const apiV1 = new Hono<{ Variables: TenantVars }>()
   .use("*", tenantMiddleware())

@@ -6,7 +6,7 @@ import { test, expect, type Page } from "@playwright/test";
  * `/rpc-admin/impersonation/:grantId/force-end`), the `/admin/impersonations`
  * page, and the restore path the extended `/impersonation/stop` handler
  * gains (`packages/agora/src/platform-admin/routes.ts`) — see
- * `.ai/plans/active/impersonation-force-end/README.md`.
+ * `.ai/plans/agora/active/impersonation-force-end/README.md`.
  *
  * Same conventions as `impersonation.spec.ts`: real dev DB,
  * `fullyParallel: false, workers: 1` (`apps/web/playwright.config.ts`),

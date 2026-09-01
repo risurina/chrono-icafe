@@ -54,7 +54,7 @@ async function uploadFile(
   { name, isPublic }: { name: string; isPublic: boolean },
 ) {
   // The Files page's Dropzone uploads immediately on file selection (no
-  // separate "Upload" button — see .ai/plans/archive/react-dropzone-upload),
+  // separate "Upload" button — see .ai/plans/agora/archive/react-dropzone-upload),
   // so the visibility toggle must be set BEFORE picking the file.
   const publicSwitch = page.getByLabel("Public file");
   if (isPublic) {

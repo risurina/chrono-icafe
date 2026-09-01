@@ -308,7 +308,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
     const mfaEnrolled = await isMfaEnrolled(t.userId);
 
     // Platform-wide, Agora-staff-authored announcements
-    // (.ai/plans/active/platform-announcements/README.md), folded into this
+    // (.ai/plans/agora/active/platform-announcements/README.md), folded into this
     // existing polled response rather than a second route + a second
     // poller. Read via adminDb — platformAnnouncement carries no tenant_id,
     // so there is nothing for withTenant/RLS to scope; this query does not

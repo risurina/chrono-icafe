@@ -3,7 +3,7 @@ import { faker } from "../../utils/faker";
 
 /**
  * Browser + API coverage for the public versioned API (`/api/v1`, Phase A of
- * `.ai/plans/archive/generic-multitenant-extensibility/README.md`): API-key
+ * `.ai/plans/agora/archive/generic-multitenant-extensibility/README.md`): API-key
  * auth, the envelope/error shape, cross-tenant isolation, and rate limiting.
  * `/api/v1/projects` and `/api/v1/files` delegate to the same
  * requirePermission/withTenant path as their `/rpc` equivalents — this spec

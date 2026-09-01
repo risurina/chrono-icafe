@@ -118,7 +118,7 @@ async function ensureMember(orgId: string, userId: string, role = "owner") {
 /**
  * A dedicated platform-admin user with no tenant membership — kept separate from
  * every tenant owner so the `platformRole` authorization dimension stays
- * independent of the `member.role` ladder (see `.ai/plans/archive/platform-admin-portal`).
+ * independent of the `member.role` ladder (see `.ai/plans/agora/archive/platform-admin-portal`).
  * Granted the "admin" platform role (every platform permission); "viewer" exists
  * as a read-only role but has no seeded holder.
  */

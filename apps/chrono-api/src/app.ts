@@ -364,7 +364,7 @@ export const app = new Hono()
   })
   // Block the Better Auth `admin` plugin's own HTTP surface outright, and
   // deny-by-default the ENTIRE rest of the `/api/auth/*` surface while
-  // impersonating (`.ai/plans/archive/tenant-impersonation` Blocker 1).
+  // impersonating (`.ai/plans/agora/archive/tenant-impersonation` Blocker 1).
   // Mounted on the same broad `/api/auth/*` pattern as the gates above —
   // Hono's router pattern-matches BEFORE any handler runs, so a narrower
   // pattern could never be trusted to discriminate a `//`-doubled or encoded
@@ -761,7 +761,7 @@ export const app = new Hono()
   .use("/api/v1/*", maintenanceReadOnlyGate)
   // Staff tenant-scoped RPC.
   .route("/rpc", rpc)
-  // Public versioned API (see .ai/plans/archive/generic-multitenant-extensibility)
+  // Public versioned API (see .ai/plans/agora/archive/generic-multitenant-extensibility)
   .route("/api/v1", apiV1)
   // Platform admin (Agora staff, cross-tenant, no tenant context). Gated
   // per-route by requirePlatformPermissionForRequest, not tenantMiddleware.

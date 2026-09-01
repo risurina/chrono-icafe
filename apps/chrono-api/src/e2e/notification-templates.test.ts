@@ -1,6 +1,6 @@
 /**
  * Unit tests for the notification-template resolver/renderer
- * (`.ai/plans/active/notification-template-management`). Standalone tsx
+ * (`.ai/plans/agora/active/notification-template-management`). Standalone tsx
  * script (`pnpm --filter @agora/api test:notification-templates`) — mirrors
  * the inline assertion style of `permissions.test.ts`/`sigv4.test.ts`, the
  * repo has no unit-test runner.

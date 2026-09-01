@@ -33,7 +33,7 @@ const stopSmsWorker = startQueueWorker("sms");
 const stopWebhooksWorker = startQueueWorker("webhooks");
 
 // Daily data-retention sweep: prunes old job rows + audit events per
-// .ai/plans/active/data-retention/README.md.
+// .ai/plans/agora/active/data-retention/README.md.
 const stopRetentionWorker = startRetentionWorker();
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {

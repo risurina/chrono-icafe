@@ -34,7 +34,7 @@ type FetchState = "loading" | "ok" | "error";
  * section tracks its own fetch state independently, so one failing fetch
  * (network/5xx — both code-defined platform roles hold every permission
  * this page's fetches use) degrades only that section, never the whole
- * page. See `.ai/plans/active/admin-dashboard-expansion/README.md`.
+ * page. See `.ai/plans/agora/active/admin-dashboard-expansion/README.md`.
  */
 export default function PlatformAdminDashboardPage() {
   const [overview, setOverview] = useState<PlatformMetricsOverview | null>(null);

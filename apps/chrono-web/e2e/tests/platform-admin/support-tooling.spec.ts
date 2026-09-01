@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Browser coverage for the platform admin support-tooling additions to the
  * org detail page (`/admin/organizations/:id`): the support ticket ref
  * (link/update/clear, admin-only) and the read-only "recent activity" glance
- * panel. See `.ai/plans/active/support-tooling/README.md`.
+ * panel. See `.ai/plans/agora/active/support-tooling/README.md`.
  *
  * Reuses the conventions established by `organizations.spec.ts` /
  * `staff.spec.ts`: `fullyParallel: false, workers: 1` against the real dev

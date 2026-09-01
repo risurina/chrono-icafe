@@ -1,6 +1,6 @@
 /**
  * Unit tests for the pure feature-flag resolution helpers
- * (`.ai/plans/archive/platform-feature-management`). Standalone tsx script
+ * (`.ai/plans/agora/archive/platform-feature-management`). Standalone tsx script
  * (`pnpm --filter @agora/api test:feature-resolution`) — mirrors the inline
  * assertion style of `permissions.test.ts`; the repo has no unit-test runner.
  *

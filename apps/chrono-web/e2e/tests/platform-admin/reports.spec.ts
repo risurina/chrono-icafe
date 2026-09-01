@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
  * 6/12 month windows, reading the new `tenantSubscriptionEvent` history
  * table. Read-only — no mutating action — so this is the platform-admin
  * happy path + role gate + aggregate-correctness triad (see
- * `.ai/plans/active/platform-reports/README.md`, E2E section).
+ * `.ai/plans/agora/active/platform-reports/README.md`, E2E section).
  *
  * The aggregate-correctness case depends on `apps/api/src/seed.ts` seeding
  * acme with a recorded plan change (free → pro) and contoso with a recorded

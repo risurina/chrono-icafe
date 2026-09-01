@@ -54,7 +54,7 @@ function statusVariant(status: PlatformJob["status"]) {
 
 /**
  * Platform-wide job queue — every named queue's `job` rows (email, webhooks,
- * and any future queue), read-only. See `.ai/plans/active/general-job-queue`.
+ * and any future queue), read-only. See `.ai/plans/agora/active/general-job-queue`.
  * Mirrors `admin/audit`'s DataTable/useListQuery stack (`.ai/rules/data-listing.md`).
  */
 export default function PlatformJobQueuePage() {

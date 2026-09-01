@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * The mandatory tenant-facing trio for the `activeAnnouncements` field folded
- * into `GET /rpc/me` (`.ai/plans/active/platform-announcements/README.md`).
+ * into `GET /rpc/me` (`.ai/plans/agora/active/platform-announcements/README.md`).
  * Not a per-tenant resource — the data has no tenant dimension by design —
  * so "isolation" here is narrower than the usual tenant-A-cannot-see-
  * tenant-B's-rows shape: an unauthenticated/non-member request must not

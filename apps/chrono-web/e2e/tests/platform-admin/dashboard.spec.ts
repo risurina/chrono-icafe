@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
  * mutating action lives on this page, so the platform-admin-appropriate
  * triad is: happy path + role gate + cross-tenant aggregate (not scoped to
  * one tenant) + independent per-section failure handling. See
- * `.ai/plans/active/admin-dashboard-expansion/README.md`.
+ * `.ai/plans/agora/active/admin-dashboard-expansion/README.md`.
  *
  * Relies on `apps/api/src/seed.ts` seeding three tenants with distinct
  * `tenantSubscription` statuses (acme: active, contoso: past_due, globex:

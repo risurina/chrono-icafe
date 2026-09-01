@@ -143,7 +143,7 @@ check(
 
 // ── PayMongo: checkout_session.payment.paid / payment.paid / payment.failed ──
 // Envelope shape mirrors what was empirically captured against a real PayMongo
-// test-mode webhook delivery (see .ai/plans/active/paymongo-billing-driver/README.md,
+// test-mode webhook delivery (see .ai/plans/agora/active/paymongo-billing-driver/README.md,
 // Precondition A) — NOT guessed from docs.
 function paymongoCheckoutPaidEvent(overrides?: { tenantId?: string; plan?: string }) {
   return {

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Browser + API coverage for platform-admin-triggered tenant data export
- * (`.ai/plans/active/compliance-tooling/README.md`, Phase 6). Reuses the
+ * (`.ai/plans/agora/active/compliance-tooling/README.md`, Phase 6). Reuses the
  * conventions established by `platform-admin/support-tooling.spec.ts`:
  * `fullyParallel: false, workers: 1` against the real dev DB, a seeded
  * `platform@agora.test` admin, a throwaway `test-<timestamp>` org per test,
