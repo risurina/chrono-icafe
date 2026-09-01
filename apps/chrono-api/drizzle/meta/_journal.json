@@ -43,6 +43,13 @@
       "when": 1788275988660,
       "tag": "0005_add_chrono_pos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788277896987,
+      "tag": "0006_add_chrono_wallets",
+      "breakpoints": true
     }
   ]
 }
