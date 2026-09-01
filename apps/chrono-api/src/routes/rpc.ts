@@ -58,6 +58,7 @@ import {
   tenantNotification,
 } from "../db/schema";
 import { recordStaffAudit } from "agora/audit";
+import { branchRoutes } from "../modules/branch/routes";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
 import { inviteRoutes } from "agora/invites";
 import { domainRoutes } from "agora/domains";
@@ -1342,6 +1343,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
     });
     return c.json({ ok: true });
   })
+
+  // ── Chrono: branches (RLS-protected, admin+ mutations) — apps/chrono-api/src/modules/branch ──
+  .route("/", branchRoutes())
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())

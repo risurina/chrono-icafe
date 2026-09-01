@@ -18,7 +18,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | not yet touched by this or any known session |
 | 2 — Contracts | local | not started | — | depends on Phase 1 |
 | 3 — Routes + permission gates | local | not started | — | depends on Phase 1 + 2 |
-| 4 — Web UI | jules | not started | — | depends on Phase 3 (see log — started as UI-only prep ahead of Phase 3) |
+| 4 — Web UI | jules | fired | 5134634266392641182 | depends on Phase 3 for backend routes; UI-only prep fired ahead of it (see log) |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
 ## Log
@@ -40,3 +40,20 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   clean end-to-end until Phase 3 lands elsewhere. This trades a temporarily
   non-typechecking UI branch for zero risk of colliding with whichever
   session builds Phases 1-3.
+- 2026-09-01 — Fired the Phase 4 Jules session: id `5134634266392641182`,
+  logged in `.ai/handover/jules-sessions.md` before firing. Prompt named
+  every file (`apps/chrono-web/src/app/dashboard/members/page.tsx`,
+  `apps/chrono-web/src/app/dashboard/layout.tsx`,
+  `apps/chrono-web/src/app/portal/page.tsx`,
+  `apps/chrono-web/src/lib/member-application.ts`), pinned every type/route/
+  default the plan's Phase 4 text left implicit, explicitly barred
+  `apps/chrono-api/**`/`drizzle/**`/`packages/agora/src/auth/permissions.ts`,
+  and told Jules the referenced `/rpc/members` + `/portal/members/*` routes
+  don't exist yet so a clean local typecheck is not expected this phase.
+  Launched the background poller per the `jules` skill; will pull + review
+  + verify + commit locally once it reports back. Note: an earlier
+  mis-invocation (`--session -` combined with piped stdin) created a
+  broken session (`12545266020927620735`, task body landed as literal
+  `-`) — logged in the ledger for traceability but left alone pending the
+  developer's explicit go-ahead to delete, per the `jules` skill's
+  deletion guardrail.

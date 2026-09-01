@@ -16,7 +16,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | verified: typecheck clean, `rls:proof` PASS |
 | 2 — Contracts | jules | done | 9478133839450940176 | pulled, fixed `socialLinks` missing `.optional()` locally, typecheck clean |
-| 3 — Routes + permission gates | local | not started | — | depends on Phase 1 + 2 |
+| 3 — Routes + permission gates | local | done | — | typecheck clean (whole monorepo), test:permissions 314/314 PASS, rls:proof PASS |
 | 4 — Web UI | jules | not started | — | depends on Phase 3 |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
@@ -49,3 +49,23 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 - 2026-09-01 — Phase 1 verified: `pnpm typecheck` clean, `pnpm db:migrate`
   applied `ChronoBranches` with forced RLS, `pnpm rls:proof` → `PASS ✅`.
   Phase 1 done. Starting Phase 2 (contracts) via Jules.
+- 2026-09-01 — Phase 2: Jules session 9478133839450940176 completed and was
+  pulled (`--apply`). One deviation from the plan fixed locally:
+  `branchSocialLinksSchema` was missing its `.optional()` wrapper (Jules
+  dropped it), which would have made `socialLinks` a required field on
+  create — restored per plan Pass 2. Typecheck clean. Phase 2 done.
+- 2026-09-01 — Phase 3 built locally: `packages/agora/src/auth/permissions.ts`
+  gets `branch: ["create", "update"]` added to `PERMISSION_STATEMENTS` and to
+  `adminRole` (Open Questions 1 & 2 resolved as the plan's stated default —
+  shared foundation file, admin+ tier; `staffRole` deliberately excluded, no
+  staff mutation exists). `apps/chrono-api/src/modules/branch/routes.ts`
+  mirrors `domainRoutes()`/`apiKeyRoutes()`'s composition pattern (no own
+  `tenantMiddleware()` call, composed via `.route("/", branchRoutes())`, full
+  internal paths) rather than the plan's literal
+  `.route("/branches", branchRoutes())` text, which would have double-prefixed
+  — this matches the actual dominant codebase convention the plan itself says
+  to follow ("exact structure of the project/customer blocks"). Added a
+  `branch` gate case (staff denied, admin/owner allowed, both actions) to
+  `apps/chrono-api/src/e2e/permissions.test.ts`. Verified: whole-monorepo
+  `pnpm typecheck` clean, `pnpm test:permissions` 314/314 PASS, `pnpm
+  rls:proof` → `PASS ✅`. Phase 3 done.

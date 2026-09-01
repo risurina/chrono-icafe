@@ -105,6 +105,8 @@ for (const [resource, action] of [
   ["security", "read"],
   ["audit", "read"],
   ["tenant", "read"],
+  ["branch", "create"],
+  ["branch", "update"],
 ] as const) {
   check(
     `staff may NOT ${resource}:${action}`,
@@ -136,6 +138,8 @@ for (const [resource, action] of [
   ["security", "manage"],
   ["audit", "read"],
   ["notificationFeed", "read"],
+  ["branch", "create"],
+  ["branch", "update"],
 ] as const) {
   check(`admin may ${resource}:${action}`, hasPermission("admin", { [resource]: [action] }));
 }
@@ -176,6 +180,8 @@ for (const [resource, action] of [
   ["tenant", "delete"],
   ["tenant", "transfer-ownership"],
   ["notificationFeed", "read"],
+  ["branch", "create"],
+  ["branch", "update"],
 ] as const) {
   check(`owner may ${resource}:${action}`, hasPermission("owner", { [resource]: [action] }));
 }
