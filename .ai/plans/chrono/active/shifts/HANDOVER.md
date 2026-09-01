@@ -15,7 +15,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
-| 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
+| 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | `ChronoShifts`, built in an isolated agent worktree, wired into `APP_TENANT_TABLES` + migrated centrally by the orchestrator |
 | 2 — Contracts | jules | done | 17681340080825818858 | discovered already fired + Completed by a concurrent session outside this run; pulled, matched spec verbatim, `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Routes + permission gates | local | not started | — | |
 | 4 — Web UI | jules | not started | — | |
@@ -47,3 +47,34 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `openShiftSchema`/`closeShiftSchema`/`listShiftsQuerySchema`, all four
   `z.infer` types). No local fixups needed. `pnpm --filter @agora/chrono-api
   typecheck` clean. Committed (`13f9271`). Phase 2 done.
+- 2026-09-01 — **Session stopping here — developer is switching machines.**
+  A background subagent (isolated worktree
+  `.claude/worktrees/agent-aa2bd02d9159cc42d`, branch
+  `worktree-agent-aa2bd02d9159cc42d`) built Phase 1
+  (`apps/chrono-api/src/modules/shift/schema.ts` — `ChronoShifts`,
+  `staffUserId` → `base.user.id` with `onDelete: "restrict"` (never
+  cascade/set-null — a shift's cash-accountability history must not
+  disappear), a partial unique index `chrono_shift_one_open_per_staff_idx`
+  as a DB-level backstop for "one open shift per staff per branch" beyond
+  the app-level check) but never wired it into `db/schema.ts` /
+  `APP_TENANT_TABLES` or migrated it — that's the orchestrator's job per
+  this round's safety split. The orchestrator: copied the schema file onto
+  `main`, wired the export + `APP_TENANT_TABLES` entries, generated +
+  reviewed + applied the migration
+  (`0003_add_chrono_stations_and_shifts.sql`, shared with `stations` since
+  both landed in the same pass — 3 tables total, FKs to
+  `ChronoBranches`/`Users`, no destructive statements), re-ran the full
+  verification gate (whole-monorepo typecheck clean, `rls:proof` PASS),
+  committed (`12cd72f`), and pushed. The worktree itself has since been
+  removed (its useful content is now on `main`; nothing else in it was
+  uncommitted). **Remaining for the next session**: Phase 3 (routes +
+  permission gates — build locally, never via Jules), Phase 4 (web UI,
+  Jules), Phase 5 (e2e spec). Permission tier: **both** `staffRole` and
+  `adminRole` get `shift: ["open", "close"]` (unlike `branch`/`station`,
+  this is a floor-level action every tenant role performs — no admin-only
+  split here). Shift open/close is deliberately unrestricted by branch in
+  this pass (any staff may open/close a shift at any branch the tenant
+  operates — see Pass 1). Read the plan's Pass 2 "Routes" section and copy
+  `branches`' `apps/chrono-api/src/modules/branch/routes.ts` /
+  `packages/agora/src/auth/permissions.ts` composition pattern for
+  structure.

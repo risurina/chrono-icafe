@@ -15,7 +15,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
-| 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
+| 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | `ChronoStationGroups`/`ChronoStations`, built in an isolated agent worktree, wired into `APP_TENANT_TABLES` + migrated centrally by the orchestrator |
 | 2 — Contracts | jules | done | 13241878054430550156 | discovered already fired + Completed by a concurrent session outside this run; pulled, matched spec verbatim, `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Routes + permission gates | local | not started | — | |
 | 4 — Web UI | jules | not started | — | |
@@ -47,3 +47,31 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `stationStatusSchema` accepts only `available`/`maintenance`/`offline`). No
   local fixups needed. `pnpm --filter @agora/chrono-api typecheck` clean.
   Committed (`20cbf1d`). Phase 2 done.
+- 2026-09-01 — **Session stopping here — developer is switching machines.**
+  A background subagent (isolated worktree
+  `.claude/worktrees/agent-a5849a17554c6e4c2`, branch
+  `worktree-agent-a5849a17554c6e4c2`) built Phase 1
+  (`apps/chrono-api/src/modules/station/schema.ts` — `ChronoStationGroups` +
+  `ChronoStations`, branch-scoped, flat hourly-rate baseline not the full
+  oikos pricing-rule engine, `status` free-text with `occupied` reserved for
+  `sessions`/`devices` later) but never wired it into `db/schema.ts` /
+  `APP_TENANT_TABLES` or migrated it — that's the orchestrator's job per this
+  round's safety split. The orchestrator: copied the schema file onto `main`,
+  wired the export + `APP_TENANT_TABLES` entries, generated + reviewed +
+  applied the migration (`0003_add_chrono_stations_and_shifts.sql`, shared
+  with `shifts` since both landed in the same pass — 3 tables, FKs to
+  `ChronoBranches`, no destructive statements), re-ran the full verification
+  gate (whole-monorepo typecheck clean, `rls:proof` PASS), committed
+  (`12cd72f`), and pushed. The worktree itself has since been removed (its
+  useful content is now on `main`; nothing else in it was uncommitted).
+  **Remaining for the next session**: Phase 3 (routes + permission gates —
+  build locally, never via Jules, per this file's own split), Phase 4 (web
+  UI, Jules), Phase 5 (e2e spec). Note the permission tier is DIFFERENT from
+  `branches`: staff gets `station: ["create", "update"]` (day-to-day floor
+  management, oikos precedent), admin+ adds `"delete"`. Unlike `branches`
+  (status-flip only, never deleted), stations **does** support a real
+  `DELETE /rpc/stations/:id` (admin+ only) — don't copy `branches`' no-delete
+  pattern here. Read the plan's Pass 2 "Routes" section and copy `branches`'
+  `apps/chrono-api/src/modules/branch/routes.ts` /
+  `packages/agora/src/auth/permissions.ts` composition pattern for structure
+  (not for permission tier — see above).
