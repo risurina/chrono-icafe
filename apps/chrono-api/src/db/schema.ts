@@ -13,6 +13,7 @@ import {
   chronoSalePayment,
 } from "../modules/pos/schema";
 import { chronoWallet, chronoWalletTransaction } from "../modules/wallet/schema";
+import { chronoDeviceProvisioningToken, chronoDevice } from "../modules/device/schema";
 
 export {
   chronoBranch,
@@ -27,6 +28,8 @@ export {
   chronoSalePayment,
   chronoWallet,
   chronoWalletTransaction,
+  chronoDeviceProvisioningToken,
+  chronoDevice,
 };
 
 /**
@@ -201,4 +204,6 @@ export const APP_TENANT_TABLES = [
   "ChronoSalePayments",
   "ChronoWallets",
   "ChronoWalletTransactions",
+  "ChronoDeviceProvisioningTokens",
+  "ChronoDevices",
 ] as const;
