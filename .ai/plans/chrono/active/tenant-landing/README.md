@@ -317,18 +317,30 @@ because this is brand/public-facing content, not day-to-day floor operations).
 
 **Step-by-Step Tasks**
 1. Build the public page per "Web UI" above, including the conditional `/stations` CTA.
-2. Build the settings editor with `<Can>` visibility gating + Sonner toast feedback.
+2. Build the settings editor at `apps/chrono-web/src/app/dashboard/settings/
+   landing-page/page.tsx`: a `Card` containing `Label`+`Input`/`Textarea` fields for
+   `heroTagline` (`Input`), `aboutBody` (`Textarea`), `amenitiesBody` (`Textarea`),
+   `contactOverride` (`Input`, placeholder noting it falls back to branch/org contact
+   when blank), `ctaLabel` (`Input`), `ctaHref` (`Input`) — matching
+   `chronoLandingPage`'s schema fields exactly — plus a `Button` submitting a single
+   upsert `PATCH`, gated visually with `<Can>`/`can()` on `landingPage:manage`, Sonner
+   `toast.success`/`toast.error` feedback.
 3. If `public-stations` already landed its own inline host-resolution, refactor it to
    use this plan's shared helper (or vice versa, whichever lands second).
 
 **Acceptance Criteria**
 - Editing content as `admin`/`owner` and reloading the public page (in an incognito/
-  no-session context) shows the new content.
+  no-session context) shows the new content for every field (`heroTagline`,
+  `aboutBody`, `amenitiesBody`, `contactOverride`, `ctaLabel`, `ctaHref`).
 - `staff` cannot see the editor form (visibility) and a direct API call 403s (server
   gate).
+- A tenant with a blank `contactOverride` falls back to branch/org contact info on
+  the public page, per the schema's own null-fallback semantics.
+- No raw HTML chrome introduced in `apps/chrono-web`.
 
 **Verification Commands**
-- `pnpm typecheck`
+- `pnpm --filter @agora/chrono-web typecheck`
+- `pnpm --filter @agora/chrono-web build`
 - Manual check in two tenant subdomains for isolation.
 
 **Out-of-Scope**
@@ -353,10 +365,13 @@ because this is brand/public-facing content, not day-to-day floor operations).
    content, even when both have content configured.
 
 **Acceptance Criteria**
-- All three specs pass.
+- All three specs pass locally against `pnpm dev` (manual/headed suite, no
+  `webServer` in the Playwright config, per `.ai/rules/rbac.md`'s Testing section).
+- No `.env` present in `apps/chrono-api` while running.
 
 **Verification Commands**
-- Chrono web Playwright suite (manual runner, per plan #1's Phase 2 note).
+- `pnpm --filter @agora/chrono-web exec playwright test e2e/tests/tenant-landing/public-page.spec.ts e2e/tests/tenant-landing/edit-role-gate.spec.ts`
+  (with `pnpm dev` already running).
 
 **Out-of-Scope**
 - Visual/design regression testing.
