@@ -75,3 +75,9 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `apps/chrono-api/src/modules/branch/routes.ts` /
   `packages/agora/src/auth/permissions.ts` composition pattern for structure
   (not for permission tier — see above).
+- 2026-09-01 — Phase 3 (routes + permission gates) landed, committed
+  (`c936ba3`). Phase 4 (web UI) delegated to Jules
+  (session `13641708150749953090`, see `.ai/handover/jules-sessions.md`):
+  `dashboard/stations/page.tsx` + `layout.tsx` nav entry, mirroring
+  `projects/page.tsx`/`branches/page.tsx`. Fired, not yet pulled — background
+  poller running. Phase 5 (e2e spec) still not started.
