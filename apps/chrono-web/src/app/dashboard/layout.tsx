@@ -9,6 +9,8 @@ import {
   Building2,
   Users,
   CalendarClock,
+  Clock,
+  Monitor,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -53,6 +55,8 @@ const BASE_NAV: NavItem[] = [
   { type: "label", name: "Workspace" },
   { type: "item", name: "Projects", href: "/projects", icon: FolderKanban },
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
+  { type: "item", name: "Stations", href: "/stations", icon: Monitor },
+  { type: "item", name: "Shifts", href: "/shifts", icon: Clock },
   { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Reservations", href: "/reservations", icon: CalendarClock },
 ];
@@ -80,6 +84,8 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/projects": "Projects",
   "/dashboard/branches": "Branches",
+  "/dashboard/stations": "Stations",
+  "/dashboard/shifts": "Shifts",
   "/dashboard/members": "Members",
   "/dashboard/reservations": "Reservations",
   "/dashboard/files": "Files",
