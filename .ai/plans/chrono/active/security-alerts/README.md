@@ -453,8 +453,12 @@ same `withTenant` transaction before use (no existence leak).
 ## Phase 4 — Web UI + E2E
 
 **Files to Update**
-- New: `apps/chrono-web/src/app/dashboard/security-alerts/page.tsx` (+ layout nav entry)
-- New: `apps/chrono-web/e2e/tests/security-alerts/*.spec.ts`
+- New: `apps/chrono-web/src/app/dashboard/security-alerts/page.tsx`
+- `apps/chrono-web/src/app/dashboard/layout.tsx` — add `{ type: "item", name:
+  "Security Alerts", href: "/security-alerts", icon: <a ShieldAlert-style
+  lucide-react icon> }` to `BASE_NAV`, and `"/dashboard/security-alerts": "Security
+  Alerts"` to `TITLES`.
+- New: `apps/chrono-web/e2e/tests/security-alerts/security-alerts.spec.ts`
 
 **Step-by-Step Tasks**
 1. Build the feed page using the shared `DataTableToolbar`/`DataTable`/
@@ -469,13 +473,22 @@ same `withTenant` transaction before use (no existence leak).
    tenant A's alert).
 
 **Acceptance Criteria**
-- Page renders, all actions work end to end against real routes.
-- e2e spec passes.
+- `/dashboard/security-alerts` renders the feed; status/severity/branchId filters and
+  search/sort/paginate update the URL via `useListQuery()`.
+- Acknowledge submits successfully and the row updates live.
+- Resolve requires a note (client-validated, server-enforced) and submits successfully.
+- Report Incident's manual-report form submits and the new alert appears in the feed.
+- A session lacking `securityAlert:manage` sees Acknowledge/Resolve/Report hidden
+  (visibility only) and a direct API call 403s (server gate).
+- No raw HTML chrome introduced in `apps/chrono-web`.
+- All three e2e cases (happy path, role gate, tenant isolation) pass.
 
 **Verification Commands**
-- `pnpm typecheck`
-- `pnpm --filter @agora/chrono-web test:e2e` (or equivalent script — confirm exact name
-  in `apps/chrono-web/package.json` before running)
+- `pnpm --filter @agora/chrono-web typecheck`
+- `pnpm --filter @agora/chrono-web build`
+- `pnpm --filter @agora/chrono-web exec playwright test e2e/tests/security-alerts/security-alerts.spec.ts`
+  (with `pnpm dev` already running, per `.ai/rules/rbac.md`'s manual Playwright
+  convention — no `.env` present in `apps/chrono-api` while running)
 
 **Out-of-Scope**
 - Any push/SMS notification beyond the existing `tenantNotification` bell
