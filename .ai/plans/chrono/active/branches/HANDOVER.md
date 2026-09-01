@@ -17,7 +17,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | verified: typecheck clean, `rls:proof` PASS |
 | 2 — Contracts | jules | done | 9478133839450940176 | pulled, fixed `socialLinks` missing `.optional()` locally, typecheck clean |
 | 3 — Routes + permission gates | local | done | — | typecheck clean (whole monorepo), test:permissions 314/314 PASS, rls:proof PASS |
-| 4 — Web UI | jules | not started | — | depends on Phase 3 |
+| 4 — Web UI | jules | fired | 2577307037069386547 | depends on Phase 3 (done) |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
 ## Log
