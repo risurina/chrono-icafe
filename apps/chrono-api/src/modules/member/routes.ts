@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { withTenant, schema as base, eq, count, asc, desc } from "agora/db";
-import { requirePermission } from "agora/auth";
+import { requirePermission } from "../../auth/require-permission";
 import {
   type TenantVars,
   HttpError,

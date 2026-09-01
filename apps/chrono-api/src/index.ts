@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./auth-bootstrap";
 import { serve } from "@hono/node-server";
 import {
   logger,

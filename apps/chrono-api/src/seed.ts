@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./auth-bootstrap";
 import { auth } from "agora/auth";
 import { adminDb, withTenant, withAdmin, schema, eq, pool, adminPool } from "agora/db";
 import { hashMemberPassword } from "agora/member-auth";

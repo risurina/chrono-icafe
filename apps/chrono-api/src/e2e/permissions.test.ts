@@ -15,6 +15,10 @@
 // dynamic import rather than a plain `import ... from`. The in-process driver
 // needs no DATABASE_URL; this test touches no DB.
 process.env.DB_DRIVER = "pglite";
+// Register Chrono's own permission resources (branch/station/shift) BEFORE
+// the first agora/auth import below, which freezes the shared registry.
+const { registerChronoPermissions } = await import("../auth/permissions");
+registerChronoPermissions();
 const { hasPermission, permissionsForRole } = await import("agora/auth");
 const { hasPlatformPermission, permissionsForPlatformRole } = await import(
   "agora/auth"

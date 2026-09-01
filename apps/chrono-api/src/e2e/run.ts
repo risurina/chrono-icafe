@@ -198,7 +198,13 @@ async function main() {
   process.env.QUEUE_WEBHOOKS_BACKOFF_MAX_MS = "2";
   process.env.QUEUE_WEBHOOKS_TIMEOUT_MS = "1000";
 
-  // 1. Import the app + foundation (this connects the db).
+  // 1. Register Chrono's own permission resources BEFORE anything imports
+  // agora/auth (which freezes the shared registry on first read) — the app
+  // import below is what triggers that freeze.
+  const { registerChronoPermissions } = await import("../auth/permissions");
+  registerChronoPermissions();
+
+  // 2. Import the app + foundation (this connects the db).
   const { app } = await import("../app");
   const { auth } = await import("agora/auth");
   const { setDnsResolver } = await import("agora/server");

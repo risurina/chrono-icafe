@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { withTenant, eq, and, asc, desc, count, ilike, type TenantTx } from "agora/db";
-import { requirePermission } from "agora/auth";
+import { requirePermission } from "../../auth/require-permission";
 import { type TenantVars, HttpError, zValidator } from "agora/server";
 import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
