@@ -24,7 +24,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
-| 2 — Contracts | jules | fired | (recorded once session id returned — see log) | |
+| 2 — Contracts | jules | fired | 3256782646737173899 | |
 | 3 — Device-auth middleware + device-facing routes | local | not started | — | genuinely novel design, confirm Open Question 1 with developer before starting — see plan's own opening warning |
 | 4 — Staff-facing routes + permission gates | local | not started | — | resolve Open Question 2 (staff vs admin+ tier) first |
 | 5 — Web UI | jules | not started | — | |
@@ -44,4 +44,5 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   explicitly barred `packages/agora/src/auth/permissions.ts`,
   `apps/chrono-api/src/db/schema.ts`, `apps/chrono-api/src/routes/rpc.ts`, the
   device-auth middleware, and any route file. Launched the background poller
-  per the `jules` skill immediately after firing.
+  per the `jules` skill immediately after firing. Session id:
+  `3256782646737173899`.
