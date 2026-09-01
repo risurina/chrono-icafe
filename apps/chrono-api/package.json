@@ -1,0 +1,49 @@
+{
+  "name": "@agora/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "seed": "tsx src/seed.ts",
+    "rls:proof": "tsx src/rls-proof.ts",
+    "test:e2e": "tsx src/e2e/run.ts",
+    "test:sigv4": "tsx src/e2e/sigv4.test.ts",
+    "test:permissions": "tsx src/e2e/permissions.test.ts",
+    "test:billing-transactions": "tsx src/e2e/billing-transactions.test.ts",
+    "test:billing-pricing": "DB_DRIVER=pglite tsx src/e2e/billing-pricing.test.ts",
+    "test:notification-templates": "tsx src/e2e/notification-templates.test.ts",
+    "test:feature-resolution": "tsx src/e2e/feature-resolution.test.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts && tsx src/db/rls.run.ts",
+    "db:push": "drizzle-kit push && tsx src/db/rls.run.ts",
+    "db:rls": "tsx src/db/rls.run.ts",
+    "db:app-role": "tsx src/db/app-role.run.ts",
+    "db:studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@hono/zod-validator": "0.9.0",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.2",
+    "agora": "workspace:*",
+    "pg": "8.23.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.5",
+    "@types/node": "26.2.0",
+    "@types/pg": "8.21.0",
+    "dotenv": "17.4.2",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3"
+  }
+}

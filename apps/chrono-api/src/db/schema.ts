@@ -1,0 +1,162 @@
+import { pgTable, text, timestamp, index, integer } from "drizzle-orm/pg-core";
+import { createId } from "agora";
+import * as base from "agora/db/schema";
+
+/**
+ * This app's database schema = the foundation's tenancy tables + this app's own
+ * tenant-scoped tables. drizzle-kit reads this file, so migrations cover both.
+ *
+ * To add a resource: define a table with a `tenantId` referencing
+ * base.organization.id, then add its name to APP_TENANT_TABLES (for RLS).
+ */
+
+// Re-export the foundation tables so migrations include them.
+export const {
+  user,
+  session,
+  account,
+  verification,
+  organization,
+  member,
+  invitation,
+  organizationRole,
+  platformAuthProvider,
+  notificationTemplate,
+  domain,
+  tenantBranding,
+  tenantFeatureFlag,
+  tenantMember,
+  tenantMemberSession,
+  tenantMemberToken,
+  apiKey,
+  webhookEndpoint,
+  twoFactor,
+  auditEvent,
+  tenantSubscription,
+  tenantSubscriptionEvent,
+  billingEvent,
+  paymentTransaction,
+  tenantSecurityPolicy,
+  tenantSsoConnection,
+  tenantIntegration,
+  platformAuditEvent,
+  platformImpersonationGrant,
+  platformCustomRole,
+  organizationPolicyAcceptance,
+  platformSecurityPolicy,
+  platformAnnouncement,
+  announcementDelivery,
+  platformSetting,
+  plan,
+  planPrice,
+  platformIntegration,
+  platformIntegrationAccount,
+  job,
+  featureDefinition,
+  supportTicket,
+  supportTicketMessage,
+  tenantUsageQuota,
+  tenantUsageCounter,
+} = base;
+
+/** EXAMPLE app resource — copy this pattern for your real tables. */
+export const project = pgTable(
+  "Projects",
+  {
+    id: text("id").primaryKey().$defaultFn(createId),
+    tenantId: text("tenantId")
+      .notNull()
+      .references(() => base.organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [index("project_tenant_idx").on(t.tenantId)],
+);
+
+export const storedFile = pgTable(
+  "StoredFiles",
+  {
+    id: text("id").primaryKey().$defaultFn(createId),
+    tenantId: text("tenantId")
+      .notNull()
+      .references(() => base.organization.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    storageKey: text("storageKey").notNull(),
+    // Optional caller-supplied namespace (e.g. "avatars", "invoices") — nested
+    // under the tenant's folder in the storage key. Null keeps a file at the
+    // tenant folder's root, matching the original (pre-feature) key shape.
+    feature: text("feature"),
+    visibility: text("visibility").notNull(),
+    originalName: text("originalName").notNull(),
+    contentType: text("contentType").notNull(),
+    sizeBytes: integer("sizeBytes").notNull().default(0),
+    status: text("status").notNull().default("pending"),
+    uploadedBy: text("uploadedBy").references(() => base.user.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    deletedAt: timestamp("deletedAt"),
+  },
+  (t) => [index("stored_file_tenant_idx").on(t.tenantId)],
+);
+
+/**
+ * Per-user notification feed (the dashboard bell). `type` is a free-text
+ * discriminator (e.g. "invite_accepted", "webhook_disabled"), not a DB enum,
+ * so a new trigger point never needs a migration. Reads are always scoped to
+ * BOTH tenantId (RLS) AND recipientUserId (in the route, never trust a
+ * client-supplied recipient) — this is per-user, not just per-tenant.
+ */
+export const tenantNotification = pgTable(
+  "TenantNotifications",
+  {
+    id: text("id").primaryKey().$defaultFn(createId),
+    tenantId: text("tenantId")
+      .notNull()
+      .references(() => base.organization.id, { onDelete: "cascade" }),
+    recipientUserId: text("recipientUserId")
+      .notNull()
+      .references(() => base.user.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    // Optional deep-link (e.g. "/dashboard/settings/roles"), rendered as a
+    // link if present. Never a full URL to another tenant.
+    href: text("href"),
+    // Who performed the action this notification is about (nullable — some
+    // events have no single actor, e.g. a system/cron-triggered one).
+    // `actorName` is denormalized (captured at write time), not just a join,
+    // so an actor account deleted later never breaks notification history —
+    // same pattern as `storedFile.uploadedBy`.
+    actorUserId: text("actorUserId").references(() => base.user.id, {
+      onDelete: "set null",
+    }),
+    actorName: text("actorName"),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [
+    index("tenant_notification_tenant_idx").on(t.tenantId),
+    index("tenant_notification_recipient_idx").on(t.recipientUserId),
+  ],
+);
+
+// `tenantUsageQuota` / `tenantUsageCounter` are generic multi-tenant usage
+// tables and now live in the foundation tenant schema (re-exported from `base`
+// above). Their RLS registration stays in APP_TENANT_TABLES below, matching how
+// other foundation tenant tables (tenant_subscription, tenant_integration, …)
+// are opted in here.
+
+/** This app's tenant-scoped tables that need RLS (added to the base ones). */
+export const APP_TENANT_TABLES = [
+  "Projects",
+  "StoredFiles",
+  "TenantNotifications",
+  "AuditEvents",
+  "TenantSubscriptions",
+  "TenantSubscriptionEvents",
+  "PaymentTransactions",
+  "TenantSecurityPolicies",
+  "TenantSsoConnections",
+  "TenantIntegrations",
+  "TenantUsageQuotas",
+  "TenantUsageCounters",
+] as const;
