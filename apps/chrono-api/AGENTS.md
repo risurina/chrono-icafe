@@ -11,10 +11,17 @@ applies to the scaffold — nothing here overrides them.
 
 ## Status
 
-Migrating from an existing implementation as of 2026-09-01. `apps/chrono-api` /
-`apps/chrono-web` are currently a byte-identical clone of `apps/agora-api` /
-`apps/agora-web` (package names already renamed to `@agora/chrono-api` /
-`@agora/chrono-web`) — no business-specific schema, routes, or pages have landed yet.
+Migrating from an existing implementation, started 2026-09-01. Wave 1 is in progress —
+`branches`, `stations` (+ station groups), `devices` (schema landed), `members`
+(`ChronoMemberProfiles` extending `tenantMember`), `wallet`/`credits`, and `shifts` have
+landed schema + RLS, with routes/permission gates and web UI landed for most (see
+`.ai/plans/chrono/active/*/README.md` for each module's exact phase status — some are
+schema-only, others are through web UI + e2e). `sessions` is schema/contracts in
+progress, not yet routed. `reservations` and `pos` (schema + Zod contracts) have also
+landed ahead of the originally planned Wave 1 order. See each module's plan folder under
+`.ai/plans/chrono/active/` (or `.ai/plans/chrono/archive/reservations/` once fully
+closed) for the authoritative per-module status — this section is a snapshot, not the
+source of truth.
 
 ## Business domain
 
@@ -49,13 +56,25 @@ there's a concrete reason to keep oikos's behavior.
 **Wave 1 (this migration pass)** — the operational spine, in dependency order:
 `branches` → `stations` → `devices` (kiosk pairing/auth) → `members` (customer pool) →
 `sessions` → `shifts` → `wallet`/`credits`. Each lands under
-`apps/chrono-api/src/modules/<domain>/` per `.ai/rules/business-app.md`.
+`apps/chrono-api/src/modules/<domain>/` per `.ai/rules/business-app.md`. Current state
+(see each `.ai/plans/chrono/active/<module>/README.md` for the authoritative phase-by-
+phase status):
 
-**Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`, `pos`,
-`reservations`, `reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
-`onboarding-checklist`, `app-versions`, `app-usage`, `public-stations`,
-`public-releases`, `tenant-landing`, `admin-station-client`. Present in the source
-implementation; not planned until Wave 1 is proven.
+- `branch`, `station`, `member` (`ChronoMemberProfiles`), `shift` — schema + routes +
+  permission gates landed; web UI landed for stations/shifts.
+- `device` — schema + RLS landed (kiosk pairing/bearer-auth routes not yet built).
+- `wallet` — schema + RLS landed (routes not yet built).
+- `session` — contracts + money helpers in progress; no schema/routes yet.
+- `pos` and `reservation` landed ahead of their originally planned wave (`pos`: schema +
+  contracts; `reservation`: schema, contracts, routes, web UI, e2e — plan archived at
+  `.ai/plans/chrono/archive/reservations/README.md`).
+
+**Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`,
+`reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
+`onboarding-checklist`, `app-versions`, `app-usage`, `public-releases`,
+`admin-station-client`. Present in the source implementation; not planned until Wave 1
+is proven. `public-stations` and `tenant-landing` are now actively planned (see
+`.ai/plans/chrono/active/`), ahead of the rest of this list.
 
 **Out of scope for this pass** — `apps/chrono-mobile`, `apps/chrono-pc-client` (+
 `-service`, `-tauri`), `apps/chrono-docs` from the source implementation. This pass is
