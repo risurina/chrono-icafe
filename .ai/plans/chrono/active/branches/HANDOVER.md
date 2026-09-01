@@ -17,7 +17,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | verified: typecheck clean, `rls:proof` PASS |
 | 2 — Contracts | jules | done | 9478133839450940176 | pulled, fixed `socialLinks` missing `.optional()` locally, typecheck clean |
 | 3 — Routes + permission gates | local | done | — | typecheck clean (whole monorepo), test:permissions 314/314 PASS, rls:proof PASS |
-| 4 — Web UI | local | in progress | 2577307037069386547 (abandoned — see log) | building locally after Jules stalled |
+| 4 — Web UI | local | done | 2577307037069386547 (abandoned — see log) | typecheck + build clean |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
 ## Log
@@ -95,3 +95,8 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   locally rather than debug it further; marked `Awaiting User Feedback` in
   the ledger (not deleted — no diff ever existed to lose). Building Phase 4
   locally instead, to the same spec that was in the abandoned prompt.
+  `apps/chrono-web/src/app/dashboard/branches/page.tsx` (list + create/edit
+  Dialog with every field from the plan + inline enable/disable status
+  toggle) and the `Branches` nav entry in `dashboard/layout.tsx`, mirroring
+  `dashboard/projects/page.tsx`'s pattern exactly. `pnpm --filter
+  @agora/chrono-web typecheck` and `build` both clean. Phase 4 done.
