@@ -17,7 +17,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | verified: typecheck clean, `rls:proof` PASS |
 | 2 — Contracts | jules | done | 9478133839450940176 | pulled, fixed `socialLinks` missing `.optional()` locally, typecheck clean |
 | 3 — Routes + permission gates | local | done | — | typecheck clean (whole monorepo), test:permissions 314/314 PASS, rls:proof PASS |
-| 4 — Web UI | jules | fired | 2577307037069386547 | depends on Phase 3 (done) |
+| 4 — Web UI | local | in progress | 2577307037069386547 (abandoned — see log) | building locally after Jules stalled |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
 ## Log
@@ -80,3 +80,18 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   after). Left the history as-is rather than rewriting shared `main` history
   other concurrent sessions may already be building on. Flagging for
   visibility only.
+- 2026-09-01 — Phase 4: fired Jules session 2577307037069386547 (the prompt
+  assumed the branch backend was visible to Jules since it's "already
+  implemented and merged to main" — true locally, but Jules clones GitHub
+  `main`, and nothing had been pushed yet). The session stalled at "Awaiting
+  User Feedback" with a clarifying question before producing any diff, and
+  no Playwright/browser MCP tool was available in this session to read or
+  answer it (the `jules` skill's documented workaround for replying to a
+  stalled session). Raised this as a broader operational question — pushing
+  to GitHub was local-only up to this point across every module — and the
+  developer confirmed: push now and after each phase going forward, for
+  every module. Pushed `main` (`5dea063..11bb2cf`) immediately after. For
+  this specific stalled session, the developer directed abandon-and-build-
+  locally rather than debug it further; marked `Awaiting User Feedback` in
+  the ledger (not deleted — no diff ever existed to lose). Building Phase 4
+  locally instead, to the same spec that was in the abandoned prompt.
