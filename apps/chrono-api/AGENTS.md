@@ -26,11 +26,23 @@ inquiries sit on top of that spine.
 
 **Source**: an existing mature implementation at
 `C:\Users\ronni\project\izur\oikos` (`apps/chrono-api` + `apps/chrono-web` +
-`packages/chrono`, built on a sibling foundation `@risurina/oikos`) is being migrated
-into this Agora-based pair, adapting to Agora's tenant/RLS/RBAC/DTO conventions rather
-than copied verbatim. Watch for the old implementation's own foundation-vs-business
+`packages/chrono`, built on a sibling foundation `@risurina/oikos`) is **prior art, not a
+spec.** This is a reimplementation on the Agora foundation, not a faithful port — oikos
+shows what the product needs to do, not how every detail must be built. Default to
+improving on oikos wherever its design is weak (dead/unused schema, missing constraints,
+awkward naming, no transactional atomicity, a workaround for a problem Agora's
+architecture doesn't have) rather than replicating it out of inertia. Match oikos's
+behavior only where it's genuinely the right call or the developer asks for parity —
+never as the default. Watch for the old implementation's own foundation-vs-business
 boundary mistakes before repeating them here (e.g. a prior bespoke member system that
-should have reused the foundation's tenant member pool instead of forking it).
+should have reused the foundation's tenant member pool instead of forking it — already
+corrected, see `.ai/plans/chrono/active/members/README.md`).
+
+Every landed plan under `.ai/plans/chrono/active/*/README.md` already exercises this
+judgment in places (see each plan's "deliberate differences from oikos" notes), but each
+also leaves some "match oikos or diverge" calls as open questions for the developer.
+Resolve those through this lens — lean toward the improvement, not toward parity — unless
+there's a concrete reason to keep oikos's behavior.
 
 ## Modules
 
