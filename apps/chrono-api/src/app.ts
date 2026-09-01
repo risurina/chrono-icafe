@@ -26,6 +26,7 @@ import {
 } from "agora/server";
 import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
+import { createCustomerAuthRoutes } from "agora/customer-auth";
 import { checkReadiness } from "agora/health";
 import { withAdmin, withTenant, eq, count, inArray } from "agora/db";
 import {
@@ -440,6 +441,9 @@ export const app = new Hono()
   .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
   // Customer ("member") auth — separate pool, tenant-scoped.
   .route("/portal/auth", createMemberAuthRoutes())
+  // Global customer auth — platform-wide identity, host-independent (see
+  // .ai/plans/agora/active/global-customers/README.md).
+  .route("/auth/customer", createCustomerAuthRoutes())
   // Chrono: customer-facing venue-membership self-service (apply / view own
   // status) — gated by memberMiddleware() inside memberPortalRoutes()
   // itself, mirroring how /portal/auth is mounted directly above.
