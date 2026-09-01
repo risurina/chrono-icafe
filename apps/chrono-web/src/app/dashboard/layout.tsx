@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderKanban, ScrollText, Settings, Building2 } from "lucide-react";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  ScrollText,
+  Settings,
+  Building2,
+  Users,
+} from "lucide-react";
 import { Fragment } from "react";
 import {
   cn,
@@ -46,6 +53,7 @@ const BASE_NAV: NavItem[] = [
   { type: "label", name: "Workspace" },
   { type: "item", name: "Projects", href: "/projects", icon: FolderKanban },
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
+  { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Files", href: "/files", icon: FolderKanban },
   { type: "item", name: "Audit Log", href: "/audit", icon: ScrollText },
 ];
@@ -73,6 +81,7 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/projects": "Projects",
   "/dashboard/branches": "Branches",
+  "/dashboard/members": "Members",
   "/dashboard/files": "Files",
   "/dashboard/audit": "Audit Log",
   "/dashboard/settings": "Settings",
