@@ -6,6 +6,12 @@ import { chronoMemberProfile } from "../modules/member/schema";
 import { chronoStationGroup, chronoStation } from "../modules/station/schema";
 import { chronoShift } from "../modules/shift/schema";
 import { chronoReservation } from "../modules/reservation/schema";
+import {
+  chronoProduct,
+  chronoSale,
+  chronoSaleItem,
+  chronoSalePayment,
+} from "../modules/pos/schema";
 
 export {
   chronoBranch,
@@ -14,6 +20,10 @@ export {
   chronoStation,
   chronoShift,
   chronoReservation,
+  chronoProduct,
+  chronoSale,
+  chronoSaleItem,
+  chronoSalePayment,
 };
 
 /**
@@ -179,4 +189,8 @@ export const APP_TENANT_TABLES = [
   "ChronoStations",
   "ChronoShifts",
   "ChronoReservations",
+  "ChronoProducts",
+  "ChronoSales",
+  "ChronoSaleItems",
+  "ChronoSalePayments",
 ] as const;

@@ -36,6 +36,13 @@
       "when": 1788274293966,
       "tag": "0004_add_chrono_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788275988660,
+      "tag": "0005_add_chrono_pos",
+      "breakpoints": true
     }
   ]
 }
