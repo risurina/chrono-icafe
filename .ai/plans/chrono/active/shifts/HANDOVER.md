@@ -94,3 +94,10 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `test:permissions` → 333 passed, `rls:proof` → `RLS PROOF: PASS ✅`.
   Committed (`3422731`). Phase 3 done — Phase 4 (web UI) is next, Jules-eligible
   now that the backend is fully landed.
+- 2026-09-02 — Phase 4 (web UI) delegated to Jules (session
+  `17199632847637106987`, see `.ai/handover/jules-sessions.md`):
+  `dashboard/shifts/page.tsx` + `layout.tsx` nav entry, mirroring
+  `branches/page.tsx`. `layout.tsx` is also touched by the still-unpulled
+  `stations` Phase 4 diff (parked in scratch, Failed session) and by an
+  in-flight local nav restructuring — expect a manual merge across all three
+  once they land. Background poller running. Phase 5 (e2e spec) not started.
