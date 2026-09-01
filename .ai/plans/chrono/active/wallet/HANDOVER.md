@@ -22,7 +22,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
-| 2 — Contracts + money helper | jules | fired | 12082141174603202875 | |
+| 2 — Contracts + money helper | jules | done | 12082141174603202875 | pulled, fixed single→double quote style in `money.ts` locally (cosmetic only), `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Service (locking) + routes + permission gates + concurrency proof | local | not started | — | resolve Open Question 1 (staff wallet:credit/:debit) first; concurrency proof must run against real Postgres, not pglite |
 | 4 — Web UI | jules | not started | — | |
 | 5 — E2E spec | jules | not started | — | |
@@ -43,3 +43,15 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   routes/rpc.ts`, `apps/chrono-api/src/app.ts`, and any other file. Launched
   the background poller per the `jules` skill immediately after firing.
   Session id: `12082141174603202875`.
+- 2026-09-01 — Session completed (~4 minutes after firing), poller woke this
+  session. Pulled with `jules remote pull --session 12082141174603202875
+  --apply`, reviewed the diff: `contracts.ts` matches Pass 2's spec verbatim.
+  `money.ts` matches the spec functionally (`toCents`/`fromCents`/`addMoney`/
+  `negateMoney`/`isNegativeMoney`, all string-in/string-out, BigInt-only, no
+  `Number()` arithmetic on a money value) but used single-quoted strings
+  throughout, inconsistent with the rest of the codebase's double-quote
+  convention — fixed locally (cosmetic only, no logic change). Manually
+  verified the plan's acceptance-criteria examples against the pulled code:
+  `addMoney("10.50", "-3.25") === "7.25"`, `isNegativeMoney("-0.01") ===
+  true`, `isNegativeMoney("0.00") === false`. `pnpm --filter @agora/chrono-api
+  typecheck` clean. Committed (`a4ca2f5`). Phase 2 done.

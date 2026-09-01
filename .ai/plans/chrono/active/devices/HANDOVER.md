@@ -24,7 +24,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
-| 2 — Contracts | jules | fired | 3256782646737173899 | |
+| 2 — Contracts | jules | done | 3256782646737173899 | pulled, matched spec verbatim (no local fixups needed), `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Device-auth middleware + device-facing routes | local | not started | — | genuinely novel design, confirm Open Question 1 with developer before starting — see plan's own opening warning |
 | 4 — Staff-facing routes + permission gates | local | not started | — | resolve Open Question 2 (staff vs admin+ tier) first |
 | 5 — Web UI | jules | not started | — | |
@@ -46,3 +46,11 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   device-auth middleware, and any route file. Launched the background poller
   per the `jules` skill immediately after firing. Session id:
   `3256782646737173899`.
+- 2026-09-01 — Session completed (~5 minutes after firing), poller woke this
+  session. Pulled with `jules remote pull --session 3256782646737173899
+  --apply`, reviewed the diff: `apps/chrono-api/src/modules/device/
+  contracts.ts` matches Pass 2's spec verbatim — all seven schemas, all seven
+  `z.infer` types, `approveDeviceSchema` correctly leaves `stationId`/
+  `newStationName`/`newStationNumber` all optional at the Zod layer. No local
+  fixups needed. `pnpm --filter @agora/chrono-api typecheck` clean. Committed
+  (`f39623e`). Phase 2 done.
