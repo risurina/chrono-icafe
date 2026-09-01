@@ -71,6 +71,14 @@ additional surface (e.g. a customer-facing `/portal/*`, distinct from tenant sta
 part of the first feature's planning — don't assume one exists until it's built and
 listed here.
 
+- **`APP_DOMAIN/customer/*`** — apex-level sign-up/sign-in for the foundation's
+  platform-wide global customer identity (`agora/customer-auth`, `customer` table,
+  cookie `agora_customer`). Distinct from `{tenantSlug}.APP_DOMAIN/portal/*`'s
+  tenant-only customer signup (`agora/member-auth`, `tenantMember`) — a global customer
+  signs up once here, then self-service "applies" from a given tenant's `/portal`
+  (`POST /portal/customer/apply`) to become a customer of that tenant. See
+  `.ai/rules/business-app.md`, "Global customers", and
+  `.ai/plans/agora/archive/global-customers/README.md`.
 - **`{tenantSlug}.APP_DOMAIN/stations`** (verified custom domains resolve the same way)
   — public, unauthenticated live station-availability page (planned:
   `.ai/plans/chrono/active/public-stations/README.md`). Resolved via
