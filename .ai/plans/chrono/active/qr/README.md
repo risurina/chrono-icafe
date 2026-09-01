@@ -422,7 +422,7 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
 - New: `apps/chrono-web/src/app/q/[token]/page.tsx` — the public scan-landing page
   (resolves via `GET /public/qr/resolve`, then either redirects to
   `/portal/login?next=...` or shows the confirm-and-start screen)
-- New: `apps/chrono-web/e2e/tests/qr/*.spec.ts`
+- New: `apps/chrono-web/e2e/tests/qr/qr.spec.ts`
 
 **Step-by-Step Tasks**
 1. Add the regenerate action to the station detail UI (component-first, `agora/ui`
@@ -439,11 +439,24 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
    tenant B's branding/host even if requested from tenant B's host).
 
 **Acceptance Criteria**
-- Full scan-to-confirm UX works manually; e2e spec passes.
+- A staff session can regenerate a station's QR from its detail view and the new
+  token image renders immediately.
+- Scanning (visiting) `/q/[token]` for a valid token resolves and either redirects a
+  logged-out visitor to `/portal/login?next=...` or shows the confirm-and-start
+  screen for a logged-in one.
+- A tampered/invalid token renders a clear failure state, not a 500 or a silent
+  redirect.
+- A token minted for tenant A's station never resolves against tenant B's
+  branding/host, even when the request is made from tenant B's host.
+- No raw HTML chrome introduced in `apps/chrono-web`.
+- All three e2e cases (happy path, tampered-token failure, tenant isolation) pass.
 
 **Verification Commands**
-- `pnpm typecheck`
-- `pnpm --filter @agora/chrono-web test:e2e` (confirm exact script name)
+- `pnpm --filter @agora/chrono-web typecheck`
+- `pnpm --filter @agora/chrono-web build`
+- `pnpm --filter @agora/chrono-web exec playwright test e2e/tests/qr/qr.spec.ts`
+  (with `pnpm dev` already running, per `.ai/rules/rbac.md`'s manual Playwright
+  convention — no `.env` present in `apps/chrono-api` while running)
 
 **Out-of-Scope**
 - Real session start UX (Phase 5).
