@@ -3,8 +3,16 @@ import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../modules/branch/schema";
 import { chronoMemberProfile } from "../modules/member/schema";
+import { chronoStationGroup, chronoStation } from "../modules/station/schema";
+import { chronoShift } from "../modules/shift/schema";
 
-export { chronoBranch, chronoMemberProfile };
+export {
+  chronoBranch,
+  chronoMemberProfile,
+  chronoStationGroup,
+  chronoStation,
+  chronoShift,
+};
 
 /**
  * This app's database schema = the foundation's tenancy tables + this app's own
@@ -165,4 +173,7 @@ export const APP_TENANT_TABLES = [
   "TenantUsageCounters",
   "ChronoBranches",
   "ChronoMemberProfiles",
+  "ChronoStationGroups",
+  "ChronoStations",
+  "ChronoShifts",
 ] as const;

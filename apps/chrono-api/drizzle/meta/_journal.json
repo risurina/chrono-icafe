@@ -22,6 +22,13 @@
       "when": 1788259305141,
       "tag": "0002_add_chrono_member_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788261782519,
+      "tag": "0003_add_chrono_stations_and_shifts",
+      "breakpoints": true
     }
   ]
 }
