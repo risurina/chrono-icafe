@@ -60,6 +60,7 @@ import {
 import { recordStaffAudit } from "agora/audit";
 import { branchRoutes } from "../modules/branch/routes";
 import { stationRoutes } from "../modules/station/routes";
+import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
 import { inviteRoutes } from "agora/invites";
 import { domainRoutes } from "agora/domains";
@@ -445,11 +446,11 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   // ── White-label branding — foundation factory (agora/server/routes) ──
   .route("/", brandingRoutes())
 
-  // ── Feature flags — foundation factory (agora/server/routes) ──
-  .route("/", featureFlagRoutes())
+  // ── Feature flags — foundation factory + Chrono's merged registry (apps/chrono-api/src/contracts/extensions.ts) ──
+  .route("/", featureFlagRoutes(CHRONO_FEATURE_FLAGS))
 
-  // ── Module registry — foundation factory (agora/server/routes) ──
-  .route("/", moduleRoutes())
+  // ── Module registry — foundation factory + Chrono's merged registry (apps/chrono-api/src/contracts/extensions.ts) ──
+  .route("/", moduleRoutes(CHRONO_MODULES))
 
   // ── Tenant-defined custom roles — foundation factory (agora/server/routes) ──
   .route("/", roleRoutes())

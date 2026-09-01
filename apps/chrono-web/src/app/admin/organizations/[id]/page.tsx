@@ -50,7 +50,6 @@ import type {
   PaginationMeta,
   PlatformOrgActivityItem,
   PlatformOrgInvoiceStatus,
-  FeatureFlagKey,
   PlatformTenantExportRecord,
   PolicyAcceptanceRecord,
   PolicyType,
@@ -141,7 +140,7 @@ export default function PlatformAdminOrganizationDetailPage() {
   const [overrideSaving, setOverrideSaving] = useState(false);
   const [removeOverrideConfirmOpen, setRemoveOverrideConfirmOpen] = useState(false);
   const [removeOverrideSaving, setRemoveOverrideSaving] = useState(false);
-  const [flagPending, setFlagPending] = useState<FeatureFlagKey | null>(null);
+  const [flagPending, setFlagPending] = useState<string | null>(null);
   const [flagError, setFlagError] = useState<string | null>(null);
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false);
   const [quotaResource, setQuotaResource] = useState<"seats" | "projects">("seats");
@@ -249,7 +248,7 @@ export default function PlatformAdminOrganizationDetailPage() {
     toast.error(body?.error ?? "Could not change the plan.");
   }
 
-  async function toggleFlag(key: FeatureFlagKey, enabled: boolean) {
+  async function toggleFlag(key: string, enabled: boolean) {
     setFlagError(null);
     setFlagPending(key);
     // Optimistic: reflect the new value while the request is in flight.

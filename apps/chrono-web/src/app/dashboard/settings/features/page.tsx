@@ -13,7 +13,7 @@ import {
   Stack,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
-import type { FeatureFlagKey, FeatureFlagState } from "agora";
+import type { FeatureFlagState } from "agora";
 
 /**
  * The switch reflects the fully-RESOLVED value (what is actually on for this
@@ -41,7 +41,7 @@ export default function FeaturesPage() {
     load();
   }, []);
 
-  async function toggle(key: FeatureFlagKey, enabled: boolean) {
+  async function toggle(key: string, enabled: boolean) {
     setMsg(null);
     setPending(key);
     // No optimistic flip: the resolved value can differ from the owner's intent
