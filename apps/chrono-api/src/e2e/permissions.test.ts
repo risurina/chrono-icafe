@@ -1268,6 +1268,23 @@ check(
     hasChronoPermission("owner", { reservation: ["manage"] }),
 );
 
+console.log("\n── chrono shift permissions (shifts Phase 3) ──");
+// Every system role holds shift:open/shift:close identically (no staff/admin
+// split — matches oikos). The real gate here is deny-by-default for an
+// unrecognized/customer-pool role value, not a staff-vs-admin split.
+check(
+  "staff/admin/owner all hold shift:open and shift:close",
+  ["staff", "admin", "owner"].every(
+    (role) =>
+      hasChronoPermission(role, { shift: ["open"] }) &&
+      hasChronoPermission(role, { shift: ["close"] }),
+  ),
+);
+check(
+  "an unrecognized role is denied shift:open (deny-by-default)",
+  hasChronoPermission("member", { shift: ["open"] }) === false,
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",
