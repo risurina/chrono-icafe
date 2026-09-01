@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderKanban,
-  ScrollText,
   Settings,
   Building2,
   Users,
@@ -56,8 +55,6 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
   { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Reservations", href: "/reservations", icon: CalendarClock },
-  { type: "item", name: "Files", href: "/files", icon: FolderKanban },
-  { type: "item", name: "Audit Log", href: "/audit", icon: ScrollText },
 ];
 
 // Settings is pinned to the bottom of the sidebar — all workspace configuration
@@ -86,7 +83,6 @@ const TITLES: Record<string, string> = {
   "/dashboard/members": "Members",
   "/dashboard/reservations": "Reservations",
   "/dashboard/files": "Files",
-  "/dashboard/audit": "Audit Log",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
   "/dashboard/settings/members": "Members",
@@ -101,6 +97,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/settings/security/mfa": "Two-factor authentication",
   "/dashboard/settings/customers": "Customers",
   "/dashboard/settings/danger": "Danger zone",
+  "/dashboard/settings/audit": "Audit Log",
 };
 
 function titleFor(path: string): string {

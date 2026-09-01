@@ -290,7 +290,7 @@ export default function BranchesPage() {
             <Button onClick={openCreate}>Add Branch</Button>
           </DialogTrigger>
         </Row>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit branch" : "Add branch"}</DialogTitle>
           </DialogHeader>

@@ -1,4 +1,4 @@
-import { Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, type LucideIcon } from "lucide-react";
 
 export type SettingsSection = {
   name: string;
@@ -94,6 +94,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Manage and export customer accounts.",
     href: "/dashboard/settings/customers",
     icon: Contact,
+    group: "Team",
+  },
+  {
+    name: "Audit Log",
+    description: "History of actions taken in this workspace.",
+    href: "/dashboard/settings/audit",
+    icon: ScrollText,
     group: "Team",
   },
   {
