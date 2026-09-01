@@ -92,3 +92,14 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `api.rpc["member-profiles"]`) since it was fired before this reconciliation
   — flagging so whoever pulls it fixes that reference rather than assuming
   it's correct.
+- 2026-09-01 — Attempted to pull Jules session 5134634266392641182 to fix the
+  mount-path bug myself; `jules remote pull --apply` failed because the
+  files already exist, uncommitted, in this working directory — another live
+  session is actively building Phase 4 right now (and has already fixed the
+  mount path to `api.rpc["member-profiles"]` correctly, no action needed
+  there). Standing down from `members` Phase 4/5 entirely rather than risk
+  clobbering in-progress uncommitted work belonging to that session — see
+  `git status` for the current uncommitted `dashboard/members/page.tsx`,
+  `portal/page.tsx`, `lib/member-application.ts`, `dashboard/layout.tsx`.
+  Whoever owns that session should commit + verify + continue to Phase 5
+  from here.
