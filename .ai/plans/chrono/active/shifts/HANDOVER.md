@@ -16,7 +16,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
-| 2 — Contracts | jules | fired | 17681340080825818858 | discovered already fired + Completed by a concurrent session outside this run (not created by this orchestration pass) — see log |
+| 2 — Contracts | jules | done | 17681340080825818858 | discovered already fired + Completed by a concurrent session outside this run; pulled, matched spec verbatim, `pnpm --filter @agora/chrono-api typecheck` clean |
 | 3 — Routes + permission gates | local | not started | — | |
 | 4 — Web UI | jules | not started | — | |
 | 5 — E2E spec | jules | not started | — | |
@@ -41,3 +41,9 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `jules remote pull --session 17681340080825818858`, review the diff against
   Pass 2's contract spec and this phase's acceptance criteria, run
   `pnpm --filter @agora/chrono-api typecheck`, then commit locally.
+- 2026-09-01 — Pulled with `jules remote pull --session 17681340080825818858
+  --apply`. `apps/chrono-api/src/modules/shift/contracts.ts` matches Pass 2's
+  spec byte-for-byte (`shiftStatusSchema`, `moneyStringSchema`,
+  `openShiftSchema`/`closeShiftSchema`/`listShiftsQuerySchema`, all four
+  `z.infer` types). No local fixups needed. `pnpm --filter @agora/chrono-api
+  typecheck` clean. Committed (`13f9271`). Phase 2 done.
