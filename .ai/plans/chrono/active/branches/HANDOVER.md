@@ -15,7 +15,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | verified: typecheck clean, `rls:proof` PASS |
-| 2 — Contracts | jules | not started | — | |
+| 2 — Contracts | jules | fired | 9478133839450940176 | https://jules.google.com/session/9478133839450940176 |
 | 3 — Routes + permission gates | local | not started | — | depends on Phase 1 + 2 |
 | 4 — Web UI | jules | not started | — | depends on Phase 3 |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
