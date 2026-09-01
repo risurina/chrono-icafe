@@ -242,10 +242,20 @@ export default function BranchesPage() {
   function renderActions(b: Branch) {
     return (
       <Row items="center">
-        <Button variant="ghost" size="sm" onClick={() => openEdit(b)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Edit ${b.name}`}
+          onClick={() => openEdit(b)}
+        >
           Edit
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => toggleStatus(b)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`${b.status === "active" ? "Disable" : "Enable"} ${b.name}`}
+          onClick={() => toggleStatus(b)}
+        >
           {b.status === "active" ? "Disable" : "Enable"}
         </Button>
       </Row>

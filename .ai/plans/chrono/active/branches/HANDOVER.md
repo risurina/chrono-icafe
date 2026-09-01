@@ -18,7 +18,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | 2 — Contracts | jules | done | 9478133839450940176 | pulled, fixed `socialLinks` missing `.optional()` locally, typecheck clean |
 | 3 — Routes + permission gates | local | done | — | typecheck clean (whole monorepo), test:permissions 314/314 PASS, rls:proof PASS |
 | 4 — Web UI | local | done | 2577307037069386547 (abandoned — see log) | typecheck + build clean |
-| 5 — E2E spec | jules | not started | — | depends on Phase 4 |
+| 5 — E2E spec | local | done | — | written locally (mechanical, no round-trip through Jules needed); not run — this suite is manual/headed per `.ai/rules/rbac.md`, requires `pnpm dev` |
 
 ## Log
 
@@ -100,3 +100,21 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   toggle) and the `Branches` nav entry in `dashboard/layout.tsx`, mirroring
   `dashboard/projects/page.tsx`'s pattern exactly. `pnpm --filter
   @agora/chrono-web typecheck` and `build` both clean. Phase 4 done.
+- 2026-09-01 — Phase 5: wrote
+  `apps/chrono-web/e2e/tests/branches/branches.spec.ts` locally (mechanical
+  adaptation of `data-listing/projects-listing.spec.ts`'s structure —
+  straightforward enough not to round-trip through Jules). Added
+  `aria-label`s to the Edit/Disable/Enable row action buttons in
+  `branches/page.tsx` for reliable multi-row selectors, matching the
+  `Delete ${p.name}` pattern on the Projects page. Four cases: happy path
+  (create with name-only → confirms auto-generated `code`, edit, disable —
+  row stays listed), search/sort/grid-view URL state, role gate (staff lists
+  but create is refused, no row added), tenant isolation. Uses `faker`
+  per `.ai/rules/e2e-testing.md`, not `Date.now()`. `pnpm --filter
+  @agora/chrono-web typecheck` clean. **Not run** — per
+  `.ai/rules/rbac.md`'s "Testing" section this suite is manual/headed with
+  no `webServer` in the Playwright config; running it needs `pnpm dev`
+  already up, which wasn't started here to avoid resource contention with
+  the other module agents' background builds running concurrently. Phase 5
+  written; execution is the developer's/next session's to run. All five
+  phases of `branches` are now done.
