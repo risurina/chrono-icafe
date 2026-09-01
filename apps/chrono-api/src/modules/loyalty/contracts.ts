@@ -1,0 +1,65 @@
+import { z } from "zod";
+import { listQuerySchema } from "agora";
+
+export const loyaltyTierSchema = z.enum(["bronze", "silver", "gold", "platinum"]);
+
+export const loyaltyAccountSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  memberId: z.string(),
+  pointsBalance: z.number().int(),
+  lifetimePoints: z.number().int(),
+  tier: loyaltyTierSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const loyaltyTransactionTypeSchema = z.enum(["earn", "redeem", "adjustment"]);
+
+export const loyaltyTransactionSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  accountId: z.string(),
+  memberId: z.string(),
+  type: loyaltyTransactionTypeSchema,
+  points: z.number().int(),
+  balanceBefore: z.number().int(),
+  balanceAfter: z.number().int(),
+  reason: z.string(),
+  referenceType: z.string().nullable(),
+  referenceId: z.string().nullable(),
+  performedByUserId: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const earnPointsSchema = z.object({
+  points: z.number().int().positive().max(1_000_000),
+  reason: z.string().min(1).max(255),
+});
+
+export const redeemPointsSchema = z.object({
+  points: z.number().int().positive().max(1_000_000),
+  reason: z.string().min(1).max(255),
+});
+
+export const adjustPointsSchema = z.object({
+  delta: z.number().int().refine((v) => v !== 0, "Delta must not be zero"),
+  reason: z.string().min(1).max(255),
+});
+
+export const loyaltyAccountListQuerySchema = listQuerySchema([
+  "pointsBalance",
+  "createdAt",
+]).extend({
+  tier: loyaltyTierSchema.optional(),
+  search: z.string().optional(),
+});
+
+export type LoyaltyTier = z.infer<typeof loyaltyTierSchema>;
+export type LoyaltyAccount = z.infer<typeof loyaltyAccountSchema>;
+export type LoyaltyTransactionType = z.infer<typeof loyaltyTransactionTypeSchema>;
+export type LoyaltyTransaction = z.infer<typeof loyaltyTransactionSchema>;
+export type EarnPointsInput = z.infer<typeof earnPointsSchema>;
+export type RedeemPointsInput = z.infer<typeof redeemPointsSchema>;
+export type AdjustPointsInput = z.infer<typeof adjustPointsSchema>;
+export type LoyaltyAccountListQuery = z.infer<typeof loyaltyAccountListQuerySchema>;
