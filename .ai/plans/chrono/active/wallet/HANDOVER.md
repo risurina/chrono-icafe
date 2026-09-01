@@ -22,7 +22,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
 | 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | |
-| 2 — Contracts + money helper | jules | fired | (recorded once session id returned — see log) | |
+| 2 — Contracts + money helper | jules | fired | 12082141174603202875 | |
 | 3 — Service (locking) + routes + permission gates + concurrency proof | local | not started | — | resolve Open Question 1 (staff wallet:credit/:debit) first; concurrency proof must run against real Postgres, not pglite |
 | 4 — Web UI | jules | not started | — | |
 | 5 — E2E spec | jules | not started | — | |
@@ -42,3 +42,4 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   permissions.ts`, `apps/chrono-api/src/db/schema.ts`, `apps/chrono-api/src/
   routes/rpc.ts`, `apps/chrono-api/src/app.ts`, and any other file. Launched
   the background poller per the `jules` skill immediately after firing.
+  Session id: `12082141174603202875`.
