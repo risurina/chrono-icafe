@@ -29,6 +29,13 @@
       "when": 1788261782519,
       "tag": "0003_add_chrono_stations_and_shifts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788274293966,
+      "tag": "0004_add_chrono_reservations",
+      "breakpoints": true
     }
   ]
 }

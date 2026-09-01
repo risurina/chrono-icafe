@@ -5,6 +5,7 @@ import { chronoBranch } from "../modules/branch/schema";
 import { chronoMemberProfile } from "../modules/member/schema";
 import { chronoStationGroup, chronoStation } from "../modules/station/schema";
 import { chronoShift } from "../modules/shift/schema";
+import { chronoReservation } from "../modules/reservation/schema";
 
 export {
   chronoBranch,
@@ -12,6 +13,7 @@ export {
   chronoStationGroup,
   chronoStation,
   chronoShift,
+  chronoReservation,
 };
 
 /**
@@ -176,4 +178,5 @@ export const APP_TENANT_TABLES = [
   "ChronoStationGroups",
   "ChronoStations",
   "ChronoShifts",
+  "ChronoReservations",
 ] as const;
