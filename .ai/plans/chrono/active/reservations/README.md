@@ -191,10 +191,11 @@ guessing at the shape prematurely.
 - `.ai/rules/business-app.md` — module folder convention:
   `apps/chrono-api/src/modules/reservation/` (singular domain noun, per its Naming
   section) with `schema.ts` + `contracts.ts` + `routes.ts`.
-- `.ai/rules/rbac.md` / `packages/agora/src/auth/permissions.ts` — `PERMISSION_STATEMENTS`
-  vocabulary; this plan adds `reservation` per the ratified precedent (add new Chrono
-  permission resources directly to this file — not an open question, an accepted
-  tradeoff per `.ai/rules/business-app.md`).
+- `.ai/rules/rbac.md` / `apps/chrono-api/src/auth/permissions.ts` —
+  `CHRONO_PERMISSION_STATEMENTS` vocabulary; this plan adds `reservation` there via the
+  per-app permission extension seam (`.ai/rules/business-app.md`, "Permissions: the
+  per-app extension seam" — supersedes this plan's original "add directly to
+  packages/agora" wording, see the "Permission vocabulary" section below).
 
 ### Schema — `ChronoReservations`
 
@@ -491,28 +492,42 @@ Question 6).
 
 ### Permission vocabulary
 
-Adds to `packages/agora/src/auth/permissions.ts` (ratified precedent — add directly here,
-not an open question):
+**Superseded 2026-09-01**: the "add directly to `packages/agora/src/auth/permissions.ts`"
+precedent this plan originally cited has been retired — see
+`.ai/plans/agora/active/permission-extension-seam/README.md` and
+`.ai/rules/business-app.md`, "Permissions: the per-app extension seam." `reservation`
+must be added to `apps/chrono-api/src/auth/permissions.ts` (alongside
+`branch`/`station`/`shift`) instead, following that file's existing pattern:
 
 ```ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   reservation: ["read", "manage"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
 
-- `staffRole` — `reservation: ["read", "manage"]` (booking/check-in/cancel is routine
-  front-desk work, the same tier `pos`'s `sell` action and `wallet`'s `credit`/`debit`
-  actions already established for staff-run counter operations — not a config or
-  financial-correction action that would warrant an admin+ split).
-- `adminRole` / `ownerRole` — inherit `reservation: ["read", "manage"]` too (every tier
-  gets the same actions in this pass — no staff/admin split for reservations, unlike
-  `pos`'s `sell` vs `manageProducts`/`void`). **Open Question 7** flags this for
-  confirmation: if the developer wants cancellation or a bulk/override action restricted
-  to admin+ (e.g. preventing a staff member from quietly cancelling a VIP's booking),
-  split a `reservation:cancel` action out — this plan's default keeps it simple because
-  nothing about cancelling a reservation is financially or configurationally sensitive the
-  way `pos:void`/`wallet:adjust` are.
+Add `reservation: ["read", "manage"]` to both `CHRONO_STAFF_GRANTS` and
+`CHRONO_ADMIN_GRANTS` in that same file — no code changes needed elsewhere;
+`registerChronoPermissions()` already registers whatever this file defines. Route files
+under `apps/chrono-api/src/modules/reservation/` should import `requirePermission` from
+`apps/chrono-api/src/auth/require-permission.ts` (the typed wrapper), not `agora/auth`
+directly, so `reservation:*` calls keep compile-time key/action checking — same as
+`branch`/`station`/`shift`'s route files already do.
+
+- `staffRole` grant — `reservation: ["read", "manage"]` (booking/check-in/cancel is
+  routine front-desk work, the same tier `pos`'s `sell` action and `wallet`'s
+  `credit`/`debit` actions already established for staff-run counter operations — not a
+  config or financial-correction action that would warrant an admin+ split).
+- `adminRole` grant — inherits `reservation: ["read", "manage"]` too (every tier gets the
+  same actions in this pass — no staff/admin split for reservations, unlike `pos`'s
+  `sell` vs `manageProducts`/`void`). `ownerRole` needs no explicit grant — it
+  automatically receives every registered app resource in full. **Open Question 7**
+  flags this for confirmation: if the developer wants cancellation or a bulk/override
+  action restricted to admin+ (e.g. preventing a staff member from quietly cancelling a
+  VIP's booking), split a `reservation:cancel` action out — this plan's default keeps it
+  simple because nothing about cancelling a reservation is financially or
+  configurationally sensitive the way `pos:void`/`wallet:adjust` are.
 
 ### CRUD & Feedback Contract
 
