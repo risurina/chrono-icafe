@@ -1,6 +1,9 @@
 import { pgTable, text, timestamp, index, integer } from "drizzle-orm/pg-core";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
+import { chronoBranch } from "../modules/branch/schema";
+
+export { chronoBranch };
 
 /**
  * This app's database schema = the foundation's tenancy tables + this app's own
@@ -159,4 +162,5 @@ export const APP_TENANT_TABLES = [
   "TenantIntegrations",
   "TenantUsageQuotas",
   "TenantUsageCounters",
+  "ChronoBranches",
 ] as const;
