@@ -101,3 +101,12 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `stations` Phase 4 diff (parked in scratch, Failed session) and by an
   in-flight local nav restructuring — expect a manual merge across all three
   once they land. Background poller running. Phase 5 (e2e spec) not started.
+- 2026-09-02 — Session Completed. Diff parked in scratch (same reason as
+  `stations`' own entry) until the local nav restructuring landed (`faa856d`).
+  Applied via `git apply --reject`: the icon import (`Clock`) and `TITLES`
+  entry applied cleanly, the `BASE_NAV` hunk conflicted with the restructured
+  file (context lines shifted) — added the `Shifts`/`Clock` nav item by hand,
+  in the same pass as `stations`' own nav entry (both landed in one merge
+  since they touch the identical file/region). `pnpm --filter
+  @agora/chrono-web typecheck` and `build` both clean. Committed (`ea201d3`,
+  combined with stations). Phase 4 done. Phase 5 (e2e spec) not started.
