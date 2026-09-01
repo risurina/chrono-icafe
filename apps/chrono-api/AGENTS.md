@@ -70,3 +70,12 @@ tenant admin, `APP_DOMAIN/admin/*` platform admin). Whether Chrono needs its own
 additional surface (e.g. a customer-facing `/portal/*`, distinct from tenant staff) is
 part of the first feature's planning — don't assume one exists until it's built and
 listed here.
+
+- **`{tenantSlug}.APP_DOMAIN/stations`** (verified custom domains resolve the same way)
+  — public, unauthenticated live station-availability page (planned:
+  `.ai/plans/chrono/active/public-stations/README.md`). Resolved via
+  `getRequestTenant()` (`agora/next`) on the incoming host, exactly like the
+  authenticated dashboard's own resolution — no session, no membership, no Next.js
+  middleware. An unknown host or a tenant in a terminal lifecycle status
+  (`suspended`/`cancelled`/`archived`/`deleting`) renders a 404, never stale or
+  cross-tenant data.
