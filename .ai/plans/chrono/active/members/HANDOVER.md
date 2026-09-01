@@ -125,3 +125,6 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `/dashboard/branches` both listed). Committed only the four intended files
   (`e1940bd feat(chrono/members): phase 4 — web UI (via Jules)`), pushed to
   `main` (`652c227..e1940bd`). Phase 4 done.
+- 2026-09-02 — Phase 5 (e2e spec) delegated to Jules, session
+  `3911224838386916225`. Background poller running (consolidated with 7 other
+  sessions fired the same round).
