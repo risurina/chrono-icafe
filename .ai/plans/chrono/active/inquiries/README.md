@@ -474,35 +474,57 @@ established mount convention before choosing), authenticated via the foundation'
 ## Phase 4 — Web UI (staff inbox + portal) + E2E
 
 **Files to Update**
-- New: `apps/chrono-web/src/app/dashboard/inquiries/page.tsx` (+ detail/thread view,
-  nav entry)
+- New: `apps/chrono-web/src/app/dashboard/inquiries/page.tsx` (list) +
+  `apps/chrono-web/src/app/dashboard/inquiries/[id]/page.tsx` (detail/thread view)
+- `apps/chrono-web/src/app/dashboard/layout.tsx` — add `{ type: "item", name:
+  "Inquiries", href: "/inquiries", icon: <a MessageSquare-style lucide-react icon> }`
+  to `BASE_NAV`, and `"/dashboard/inquiries": "Inquiries"` to `TITLES`.
 - New: `apps/chrono-web/src/app/portal/inquiries/page.tsx` (+ new-inquiry form,
   thread view)
 - New: a public contact form page (check whether `apps/chrono-web` has any existing
   public marketing page to attach this to before creating a new route — if none
   exists yet, a minimal `apps/chrono-web/src/app/contact/page.tsx` is in scope for
   this phase, styled minimally, not a full marketing page)
-- New: `apps/chrono-web/e2e/tests/inquiries/*.spec.ts`
+- New: `apps/chrono-web/e2e/tests/inquiries/inquiries.spec.ts`
 
 **Step-by-Step Tasks**
 1. Staff inbox: `DataTableToolbar`/`DataTable`/`DataTablePagination` stack, filters for
    status/category/assignee, `useListQuery()`.
-2. Detail/thread view: message list + reply box + status dropdown + assign control.
-3. Portal: new-inquiry form (category-gated to `portalInquiryCategorySchema`) + own
-   inquiry list + thread view.
-4. Public contact form: category-gated to `publicInquiryCategorySchema`, no
-   auth-gated fields shown.
-5. E2E: happy path (public submit → staff assign/reply/resolve/close), role gate (no
-   `inquiry:manage` blocks assign/reply/status-change server-side, hidden client-side),
-   cross-tenant isolation, cross-member isolation (member A cannot open member B's
-   inquiry by id).
+2. Detail/thread view: message list + reply box (`Textarea` + `Button`) + status
+   `Select` (`open`/`in_progress`/`resolved`/`closed`) + assignee `Select` (staff
+   list) — `agora/ui` primitives only, no raw HTML chrome.
+3. Portal: new-inquiry form (`Select` for `portalInquiryCategorySchema`, `Textarea`
+   for the message body) + own inquiry list + thread view (read + reply only, no
+   status/assign controls).
+4. Public contact form: `Select` for `publicInquiryCategorySchema`, name/email/
+   message `Input`/`Textarea` fields, no auth-gated fields shown.
+5. E2E (one spec file, three `test.describe` blocks per `.ai/rules/e2e-testing.md`):
+   happy path (anonymous public submit → staff assign/reply/resolve/close, status
+   visible updating live), role gate (a session with `inquiry:read` but not
+   `inquiry:manage` can see the inbox but assign/reply/status-change controls are
+   hidden client-side and 403 server-side if forced), tenant + cross-member isolation
+   (tenant B never sees tenant A's inquiries; `tenantMember` A's portal session
+   cannot open `tenantMember` B's inquiry by direct id — 404).
 
 **Acceptance Criteria**
-- All three surfaces (staff/portal/public) work end to end; e2e passes.
+- Staff inbox renders the list with working status/category/assignee filters;
+  search/sort/paginate update the URL via `useListQuery()`.
+- Staff detail view: replying appends to the thread, changing status/assignee
+  persists and reflects immediately, all via `toast.success`/`toast.error`.
+- Portal: a `tenantMember` can submit a new inquiry, see it in their own list, and
+  reply to their own thread — never another member's.
+- Public contact form: an anonymous visitor can submit without authentication and
+  sees a toast/confirmation message, no thread access afterward (per the CRUD &
+  Feedback Contract's Open Question 6 default).
+- All three e2e cases (happy path, role gate, tenant+cross-member isolation) pass.
+- No raw HTML chrome introduced in `apps/chrono-web`.
 
 **Verification Commands**
-- `pnpm typecheck`
-- `pnpm --filter @agora/chrono-web test:e2e`
+- `pnpm --filter @agora/chrono-web typecheck`
+- `pnpm --filter @agora/chrono-web build`
+- `pnpm --filter @agora/chrono-web exec playwright test e2e/tests/inquiries/inquiries.spec.ts`
+  (with `pnpm dev` already running, per `.ai/rules/rbac.md`'s manual Playwright
+  convention — no `.env` present in `apps/chrono-api` while running)
 
 **Out-of-Scope**
 - Customer-facing notification bell wiring if it doesn't already exist in the portal
