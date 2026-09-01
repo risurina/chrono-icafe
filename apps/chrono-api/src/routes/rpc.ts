@@ -86,6 +86,7 @@ import {
   type SignUploadInput,
   type ConfirmUploadInput,
 } from "agora/contracts";
+import { memberProfileRoutes } from "../modules/member/routes";
 
 // The app owns its table list, so it binds the foundation lifecycle ops to it.
 // Exported so app.ts can reuse this exact instance when wiring the
@@ -1115,6 +1116,18 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   .route("/", inviteRoutes())
 
   .route("/", tenantLifecycleRoutes({ lifecycle }))
+
+  // ── Chrono: venue-membership staff workflow (chrono/members module) ──
+  // Mounted at "/member-profiles", NOT "/members" as the module plan
+  // originally specified — this app already binds GET/PATCH/DELETE
+  // "/members" + POST "/members/:id/transfer-ownership" above to the
+  // foundation's Better Auth staff org-member management (a completely
+  // different resource: staff, not customers). Mounting the new
+  // ChronoMemberProfiles routes at "/members" would collide with those
+  // existing routes. Extends the existing `customer` permission resource
+  // (approve/reject are new actions on it) — see
+  // .ai/plans/chrono/active/members/README.md, "Permission vocabulary".
+  .route("/member-profiles", memberProfileRoutes())
 
   // ── Customers / DSAR (admin+): list, export, or delete one tenant_member ──
   // The customer pool is RLS-scoped, so all reads/writes go through withTenant.

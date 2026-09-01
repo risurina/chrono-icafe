@@ -186,6 +186,39 @@ for (const [resource, action] of [
   check(`owner may ${resource}:${action}`, hasPermission("owner", { [resource]: [action] }));
 }
 
+console.log("\n── chrono/members: customer:approve + customer:reject (new actions) ──");
+// Extends the existing `customer` resource rather than minting a new one
+// (.ai/plans/chrono/active/members/README.md, "Permission vocabulary" —
+// Open Question 2). Same admin+ tier as every other `customer` action.
+// PENDING: fails until the orchestrator merges the permissions.ts snippet
+// from .ai/plans/chrono/active/members/HANDOVER.md into
+// packages/agora/src/auth/permissions.ts (this module never edits that
+// shared file directly — see the migration's safety constraints).
+check(
+  "staff may NOT customer:approve",
+  hasPermission("staff", { customer: ["approve"] }) === false,
+);
+check(
+  "admin may customer:approve",
+  hasPermission("admin", { customer: ["approve"] }),
+);
+check(
+  "owner may customer:approve",
+  hasPermission("owner", { customer: ["approve"] }),
+);
+check(
+  "staff may NOT customer:reject",
+  hasPermission("staff", { customer: ["reject"] }) === false,
+);
+check(
+  "admin may customer:reject",
+  hasPermission("admin", { customer: ["reject"] }),
+);
+check(
+  "owner may customer:reject",
+  hasPermission("owner", { customer: ["reject"] }),
+);
+
 console.log("\n── Better Auth defaults survive the merge ──");
 // Passing a bare custom `ac` would override these and break
 // authClient.organization.create/.list on the sign-up and login pages.

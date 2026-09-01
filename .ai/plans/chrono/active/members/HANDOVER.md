@@ -15,10 +15,10 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
-| 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | not yet touched by this or any known session |
-| 2 — Contracts | local | not started | — | depends on Phase 1 |
-| 3 — Routes + permission gates | local | not started | — | depends on Phase 1 + 2 |
-| 4 — Web UI | jules | fired | 5134634266392641182 | depends on Phase 3 for backend routes; UI-only prep fired ahead of it (see log) |
+| 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | `ChronoMemberProfiles`, built in an isolated agent worktree, merged + migrated centrally by the orchestrator |
+| 2 — Contracts | jules | done | 15484427873239282496 | pulled, matched spec, committed |
+| 3 — Routes + permission gates | local | done | — | `customer:approve`/`:reject` added to `PERMISSION_STATEMENTS`/`adminRole` centrally; routes mounted at `/rpc/member-profiles` (not `/members` — collides with foundation staff-member routes, see log) |
+| 4 — Web UI | jules | fired (out of order) | 5134634266392641182 | fired as UI-only prep ahead of Phases 1-3 landing; **must be re-checked against the real mount path `api.rpc["member-profiles"]`, not `api.rpc.members`, once pulled** |
 | 5 — E2E spec | jules | not started | — | depends on Phase 4 |
 
 ## Log
@@ -57,3 +57,38 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `-`) — logged in the ledger for traceability but left alone pending the
   developer's explicit go-ahead to delete, per the `jules` skill's
   deletion guardrail.
+- 2026-09-01 — A separate Implementor agent built Phases 1-3 in an isolated
+  worktree (`.claude/worktrees/agent-a0788b6bc730a0a38`), following the same
+  local-schema/local-permissions / Jules-contracts split as `branches`, and
+  under the same safety constraint as every module agent this round: no
+  `db:generate`/`db:migrate`/`rls:proof` and no direct edit to
+  `packages/agora/src/auth/permissions.ts` (to avoid a repeat of the
+  same-day DB collision logged in `branches/HANDOVER.md`). It found a real
+  bug in the plan: mounting at `/rpc/members` as originally specified would
+  collide with this app's existing foundation staff org-member management
+  routes (GET/PATCH/DELETE `/members`, already bound in `rpc.ts` — a
+  different resource, staff not customers). Remounted at
+  `/rpc/member-profiles` instead. It also correctly extended the existing
+  `customer` permission resource with `approve`/`reject` actions rather than
+  minting a new resource, per the plan's Open Question 2 default.
+  The orchestrator (this session) then: diffed the worktree against its
+  actual merge-base with `main` (not a raw diff against current `main`,
+  which would have looked like a mass deletion given how far `main` moved
+  during the worktree's lifetime) to isolate exactly what the agent added;
+  reviewed `schema.ts`/`contracts.ts`/`routes.ts`/`portal-routes.ts`;
+  applied the patch onto `main` (one real conflict, in `db/schema.ts`,
+  resolved by hand alongside the `branches` module's own entry — both now
+  coexist); merged the `customer: [..., "approve", "reject"]` snippet into
+  `PERMISSION_STATEMENTS` and `adminRole` in
+  `packages/agora/src/auth/permissions.ts`; generated + reviewed + applied
+  the `ChronoMemberProfiles` migration
+  (`drizzle/0002_add_chrono_member_profiles.sql` — table + tenant FK +
+  member FK + tenant index + unique-on-memberId index, no destructive
+  statements); re-ran the full verification gate centrally: whole-monorepo
+  `pnpm typecheck` clean, `pnpm test:permissions` 320/320 PASS (including
+  the new `customer:approve`/`:reject` cases), `pnpm rls:proof` → `PASS ✅`.
+  Phases 1-3 done. Phase 4's already-fired session (`5134634266392641182`)
+  was written against the wrong mount path (`api.rpc.members` instead of
+  `api.rpc["member-profiles"]`) since it was fired before this reconciliation
+  — flagging so whoever pulls it fixes that reference rather than assuming
+  it's correct.

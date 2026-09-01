@@ -63,6 +63,7 @@ import {
   appFilesRoutes,
 } from "agora/platform-admin/routes";
 import { project } from "./db/schema";
+import { memberPortalRoutes } from "./modules/member/portal-routes";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -439,6 +440,10 @@ export const app = new Hono()
   .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
   // Customer ("member") auth — separate pool, tenant-scoped.
   .route("/portal/auth", createMemberAuthRoutes())
+  // Chrono: customer-facing venue-membership self-service (apply / view own
+  // status) — gated by memberMiddleware() inside memberPortalRoutes()
+  // itself, mirroring how /portal/auth is mounted directly above.
+  .route("/portal/members", memberPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);
