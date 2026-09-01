@@ -56,6 +56,37 @@ async function requireOwnBranch(tx: TenantTx, tenantId: string, branchId: string
   }
 }
 
+/**
+ * Resolve a station group inside the caller's own tenant AND the station's own
+ * branch, or 404. `withTenant` already scopes the SELECT to this tenant via
+ * RLS, but the explicit `tenantId` filter matches this codebase's existing
+ * defense-in-depth pattern (see `requireOwnBranch` above) rather than relying
+ * on RLS alone. The `branchId` filter is the actual bug fix: without it, a
+ * client could point a station at a group belonging to a different branch (or,
+ * before RLS narrows it, a different tenant).
+ */
+async function requireOwnGroupInBranch(
+  tx: TenantTx,
+  tenantId: string,
+  branchId: string,
+  stationGroupId: string,
+) {
+  const [group] = await tx
+    .select({ id: chronoStationGroup.id })
+    .from(chronoStationGroup)
+    .where(
+      and(
+        eq(chronoStationGroup.id, stationGroupId),
+        eq(chronoStationGroup.tenantId, tenantId),
+        eq(chronoStationGroup.branchId, branchId),
+      ),
+    )
+    .limit(1);
+  if (!group) {
+    throw new HttpError(404, "Station group not found.");
+  }
+}
+
 export function stationRoutes() {
   return new Hono<{ Variables: TenantVars }>()
     // No own tenantMiddleware() — composed into `rpc`, which already applies
@@ -277,6 +308,9 @@ export function stationRoutes() {
       try {
         created = await withTenant(tenantId, async (tx) => {
           await requireOwnBranch(tx, tenantId, input.branchId);
+          if (input.stationGroupId) {
+            await requireOwnGroupInBranch(tx, tenantId, input.branchId, input.stationGroupId);
+          }
           const [row] = await tx
             .insert(chronoStation)
             .values({
@@ -318,8 +352,19 @@ export function stationRoutes() {
 
       let updated;
       try {
-        [updated] = await withTenant(tenantId, (tx) =>
-          tx
+        [updated] = await withTenant(tenantId, async (tx) => {
+          if (input.stationGroupId !== undefined) {
+            const [station] = await tx
+              .select({ branchId: chronoStation.branchId })
+              .from(chronoStation)
+              .where(and(eq(chronoStation.id, id), eq(chronoStation.tenantId, tenantId)))
+              .limit(1);
+            if (!station) {
+              throw new HttpError(404, "Station not found.");
+            }
+            await requireOwnGroupInBranch(tx, tenantId, station.branchId, input.stationGroupId);
+          }
+          return tx
             .update(chronoStation)
             .set({
               ...(input.stationGroupId !== undefined && { stationGroupId: input.stationGroupId }),
@@ -332,8 +377,8 @@ export function stationRoutes() {
               updatedAt: new Date(),
             })
             .where(and(eq(chronoStation.id, id), eq(chronoStation.tenantId, tenantId)))
-            .returning(),
-        );
+            .returning();
+        });
       } catch (err) {
         if (isUniqueViolation(err)) {
           throw new HttpError(409, "A station with that number already exists in this branch.");
