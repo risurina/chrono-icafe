@@ -69,3 +69,14 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `apps/chrono-api/src/e2e/permissions.test.ts`. Verified: whole-monorepo
   `pnpm typecheck` clean, `pnpm test:permissions` 314/314 PASS, `pnpm
   rls:proof` → `PASS ✅`. Phase 3 done.
+- 2026-09-01 — Note: my `git commit` for Phase 3 raced with a concurrent
+  session also committing directly to this same `main` checkout (a
+  members-module reviewer/logger agent — see `members/HANDOVER.md`). My
+  staged Phase 3 files landed inside that session's own commit
+  (`559311f docs(chrono/members): record Phase 4 Jules session id
+  5134634266392641182`) instead of under my intended message — confirmed via
+  `git log --oneline -- apps/chrono-api/src/modules/branch/routes.ts`. No
+  content lost (re-verified typecheck/test:permissions/rls:proof all clean
+  after). Left the history as-is rather than rewriting shared `main` history
+  other concurrent sessions may already be building on. Flagging for
+  visibility only.
