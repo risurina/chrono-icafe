@@ -395,7 +395,7 @@ established mount convention before choosing), authenticated via the foundation'
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 
 **Out-of-Scope**
 - Notification wiring (Phase 3/4).
@@ -421,7 +421,7 @@ established mount convention before choosing), authenticated via the foundation'
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api test:permissions`
+- `pnpm --filter @agora/chrono-api test:permissions`
 
 **Out-of-Scope**
 - Routes (Phase 3).
@@ -459,7 +459,7 @@ established mount convention before choosing), authenticated via the foundation'
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 - A route/unit test for the status state machine (including the auto-reopen case).
 
 **Out-of-Scope**

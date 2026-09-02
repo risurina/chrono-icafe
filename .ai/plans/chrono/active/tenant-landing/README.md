@@ -308,7 +308,7 @@ this rejection explicitly.
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api test:permissions` equivalent for Chrono if one exists;
+- `pnpm --filter @agora/chrono-api test:permissions`;
   otherwise the module-local permission gate test pattern used by `branches`/`stations`.
 
 **Out-of-Scope**

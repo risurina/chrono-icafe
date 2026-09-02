@@ -388,7 +388,7 @@ destructive). No audit linkage (read-only, per Pass 1).
   an unrecognized role gets `false` on both (deny-by-default).
 
 **Verification Commands**
-- `pnpm --filter @agora/api test:permissions` (or the chrono-api equivalent script if
+- `pnpm --filter @agora/chrono-api test:permissions` (or the equivalent script if
   named differently — check `apps/chrono-api/package.json` scripts first)
 
 **Out-of-Scope**
@@ -443,7 +443,7 @@ destructive). No audit linkage (read-only, per Pass 1).
 - `pnpm --filter @agora/chrono-api typecheck`
 - `pnpm --filter @agora/chrono-api test:e2e` (or module-local test runner per
   `apps/chrono-api/src/e2e/run.ts`'s existing convention)
-- `pnpm --filter @agora/api rls:proof` — no schema changed, but re-run as a sanity check
+- `pnpm --filter @agora/chrono-api rls:proof` — no schema changed, but re-run as a sanity check
   per `.ai/rules/testing.md`'s "any change that touches withTenant" guidance, since this
   phase adds several new `withTenant` call sites.
 
