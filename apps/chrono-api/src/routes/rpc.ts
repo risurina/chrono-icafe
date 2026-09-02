@@ -62,6 +62,7 @@ import { branchRoutes } from "../modules/branch/routes";
 import { stationRoutes } from "../modules/station/routes";
 import { reservationRoutes } from "../modules/reservation/routes";
 import { shiftRoutes } from "../modules/shift/routes";
+import { staffDeviceRoutes } from "../modules/device/routes";
 import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
 import { inviteRoutes } from "agora/invites";
@@ -1372,6 +1373,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: shifts (RLS-protected, any staff/admin/owner may open/close) — apps/chrono-api/src/modules/shift ──
   .route("/", shiftRoutes())
+
+  // ── Chrono: devices, staff-facing (RLS-protected, list ungated, approve/revoke/manage admin+) — apps/chrono-api/src/modules/device ──
+  .route("/devices", staffDeviceRoutes())
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())

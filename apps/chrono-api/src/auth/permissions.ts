@@ -21,6 +21,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // financial or configuration action — no staff/admin split (Open Question
   // 7). See .ai/plans/chrono/active/reservations/README.md.
   reservation: ["read", "manage"],
+  // Device pairing/approval/revocation is a hardware-trust decision (closer
+  // in risk profile to `domain`/`branding`/`integration` than to `station`'s
+  // day-to-day floor reconfiguration) — admin+ only, no staff grant. GET
+  // stays ungated so staff retain read visibility. See Open Question 2 in
+  // .ai/plans/chrono/active/devices/README.md.
+  device: ["approve", "revoke", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -34,6 +40,7 @@ export const CHRONO_ADMIN_GRANTS = {
   station: ["create", "update", "delete"],
   shift: ["open", "close"],
   reservation: ["read", "manage"],
+  device: ["approve", "revoke", "manage"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

@@ -1268,6 +1268,37 @@ check(
     hasChronoPermission("owner", { reservation: ["manage"] }),
 );
 
+console.log("\n── chrono device permissions (devices Phase 4) ──");
+// Open Question 2 resolved to the STRICTER default: device pairing/approval
+// is a hardware-trust decision (closer to domain/branding/integration than
+// to station's day-to-day floor tier), so device:approve/revoke/manage is
+// admin+ only — staff holds none of them (GET / stays ungated, no
+// permission gate at all, so it isn't exercised here).
+check(
+  "staff is denied device:approve",
+  !hasChronoPermission("staff", { device: ["approve"] }),
+);
+check(
+  "staff is denied device:revoke",
+  !hasChronoPermission("staff", { device: ["revoke"] }),
+);
+check(
+  "staff is denied device:manage",
+  !hasChronoPermission("staff", { device: ["manage"] }),
+);
+check(
+  "admin holds device:approve, device:revoke, and device:manage",
+  hasChronoPermission("admin", { device: ["approve"] }) &&
+    hasChronoPermission("admin", { device: ["revoke"] }) &&
+    hasChronoPermission("admin", { device: ["manage"] }),
+);
+check(
+  "owner holds device:approve, device:revoke, and device:manage",
+  hasChronoPermission("owner", { device: ["approve"] }) &&
+    hasChronoPermission("owner", { device: ["revoke"] }) &&
+    hasChronoPermission("owner", { device: ["manage"] }),
+);
+
 console.log("\n── chrono shift permissions (shifts Phase 3) ──");
 // Every system role holds shift:open/shift:close identically (no staff/admin
 // split — matches oikos). The real gate here is deny-by-default for an
