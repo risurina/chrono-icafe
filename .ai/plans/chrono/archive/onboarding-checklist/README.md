@@ -623,7 +623,7 @@ committed, and update `.ai/handover/chrono-migration.md`'s deferred-modules list
 
 All five phases landed and verified.
 
-- **Phase 1** (foundation schema) — `458d7b9`... wait, `e610517`. `TenantOnboardingDismissals`
+- **Phase 1** (foundation schema) — `e610517`. `TenantOnboardingDismissals`
   live on both apps, RLS enabled+forced.
 - **Phase 2** (foundation contracts + registry seam) — `16f6aaf`. 24/24 unit tests.
 - **Phase 3** (Chrono item definitions, service, routes) — `67a1660`. 15/15 acceptance
