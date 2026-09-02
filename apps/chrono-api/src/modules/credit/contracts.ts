@@ -89,6 +89,10 @@ export const creditGrantListQuerySchema = listQuerySchema([
 
 export const creditLedgerListQuerySchema = listQuerySchema(["createdAt"]);
 
+export const creditPurchaseListQuerySchema = listQuerySchema(["createdAt"]).extend({
+  memberId: z.string().min(1).optional(),
+});
+
 export type CreateCreditProductInput = z.infer<typeof createCreditProductSchema>;
 export type UpdateCreditProductInput = z.infer<typeof updateCreditProductSchema>;
 export type PurchaseCreditProductInput = z.infer<typeof purchaseCreditProductSchema>;

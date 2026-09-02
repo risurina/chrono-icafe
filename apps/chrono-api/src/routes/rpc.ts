@@ -63,6 +63,7 @@ import { stationRoutes } from "../modules/station/routes";
 import { reservationRoutes } from "../modules/reservation/routes";
 import { shiftRoutes } from "../modules/shift/routes";
 import { walletRoutes } from "../modules/wallet/routes";
+import { creditRoutes } from "../modules/credit/routes";
 import { posRoutes } from "../modules/pos/routes";
 import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { staffDeviceRoutes } from "../modules/device/routes";
@@ -1382,6 +1383,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: wallets, staff-facing (RLS-protected, staff credit/debit, admin+ adjust) — apps/chrono-api/src/modules/wallet ──
   .route("/", walletRoutes())
+
+  // ── Chrono: credits, staff-facing (RLS-protected, staff sell/consume, admin+ grant/adjust/manageProducts) — apps/chrono-api/src/modules/credit ──
+  .route("/", creditRoutes())
 
   // ── Chrono: pos, staff-facing (RLS-protected, staff sell, admin+ void/manageProducts) — apps/chrono-api/src/modules/pos ──
   .route("/", posRoutes())

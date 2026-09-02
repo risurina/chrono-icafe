@@ -1394,6 +1394,40 @@ check(
     hasChronoPermission("owner", { loyalty: ["adjust"] }),
 );
 
+console.log("\n── chrono credit permissions (credits Phase 3) ──");
+// staff holds read/sell/consume (routine counter work — issue a pass, record
+// a manual spend-down, matching wallet's own credit/debit staff tier);
+// grant/adjust/manageProducts sit at admin+, per Open Question 1's
+// resolution in .ai/plans/chrono/active/credits/README.md.
+check(
+  "staff may credit:sell",
+  hasChronoPermission("staff", { credit: ["sell"] }),
+);
+check(
+  "staff may credit:consume",
+  hasChronoPermission("staff", { credit: ["consume"] }),
+);
+check(
+  "staff may NOT credit:grant",
+  hasChronoPermission("staff", { credit: ["grant"] }) === false,
+);
+check(
+  "staff may NOT credit:adjust",
+  hasChronoPermission("staff", { credit: ["adjust"] }) === false,
+);
+check(
+  "staff may NOT credit:manageProducts",
+  hasChronoPermission("staff", { credit: ["manageProducts"] }) === false,
+);
+check(
+  "admin may credit:manageProducts",
+  hasChronoPermission("admin", { credit: ["manageProducts"] }),
+);
+check(
+  "owner may credit:adjust",
+  hasChronoPermission("owner", { credit: ["adjust"] }),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

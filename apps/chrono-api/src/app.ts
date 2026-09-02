@@ -67,6 +67,7 @@ import {
 import { project } from "./db/schema";
 import { memberPortalRoutes } from "./modules/member/portal-routes";
 import { walletPortalRoutes } from "./modules/wallet/portal-routes";
+import { creditPortalRoutes } from "./modules/credit/portal-routes";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -456,6 +457,9 @@ export const app = new Hono()
   // Chrono: customer-facing wallet self-service (balance / history) — gated
   // by memberMiddleware() inside walletPortalRoutes() itself.
   .route("/portal/wallet", walletPortalRoutes())
+  // Chrono: customer-facing credit-lot self-service (balance / ledger) —
+  // gated by memberMiddleware() inside creditPortalRoutes() itself.
+  .route("/portal/credits", creditPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);

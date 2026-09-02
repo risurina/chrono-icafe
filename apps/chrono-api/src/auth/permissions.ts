@@ -46,6 +46,14 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // reasoning. See .ai/plans/chrono/active/loyalty/README.md, "Permission
   // vocabulary".
   loyalty: ["read", "manage", "adjust"],
+  // Selling/consuming a pre-purchased minutes lot is routine counter work,
+  // matching wallet's own credit/debit staff tier. Granting free minutes
+  // (a comp) and adjusting/voiding an existing lot are corrections, admin+
+  // only — mirroring wallet's own adjust gate exactly. manageProducts
+  // (catalog/pricing/policy config) sits at the same admin+ tier as
+  // branches' own configuration resources. See Open Question 1 in
+  // .ai/plans/chrono/active/credits/README.md.
+  credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -55,6 +63,7 @@ export const CHRONO_STAFF_GRANTS = {
   wallet: ["read", "credit", "debit"],
   pos: ["read", "sell"],
   loyalty: ["read", "manage"],
+  credit: ["read", "sell", "consume"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -66,6 +75,7 @@ export const CHRONO_ADMIN_GRANTS = {
   wallet: ["read", "credit", "debit", "adjust"],
   pos: ["read", "sell", "void", "manageProducts"],
   loyalty: ["read", "manage", "adjust"],
+  credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
