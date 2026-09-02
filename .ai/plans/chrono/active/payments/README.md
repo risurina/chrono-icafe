@@ -1,10 +1,21 @@
 # Chrono — `payment` module (reconciliation with oikos/karta-tenant)
 
-Status: **Draft** — written 2026-09-02 from a reconciliation review against the
-current karta-tenant reference (`/Users/risurina/karta/karta-tenant`,
-`apps/chrono-api/src/modules/payments/`). Not yet audited or accepted. Per
-`.ai/rules/feature-planning.md`, do not implement until this is reviewed and the
-open questions below are resolved.
+Status: **Concreteness-Gate ready** — written 2026-09-02 from a reconciliation
+review against the current karta-tenant reference (`/Users/risurina/karta/karta-tenant`,
+`apps/chrono-api/src/modules/payments/`). Open questions resolved 2026-09-02 (see
+"Resolved decisions" below). Not yet audited — send to `plan-auditor` before
+implementation per `.ai/rules/feature-planning.md`.
+
+## Resolved decisions
+
+1. **Refund permission tier: admin+** (not owner-only). Consistent with
+   `wallet:adjust`/`credit:adjust` — a refund here is not materially higher-risk than
+   those, both already admin+.
+2. **Wave placement: Wave 1.** A `wallet:credit` top-up today has no payment-method/
+   counter-audit trail — this closes a real gap under modules already shipped, not a
+   later-wave nice-to-have. `apps/chrono-api/AGENTS.md` is updated below to reflect it.
+3. **Reservation-deposit linkage: deferred.** No `reservationId` FK in this pass — add
+   it in a later phase if a reservation-deposit workflow is actually requested.
 
 ## Why this plan exists
 
@@ -117,10 +128,7 @@ and `apps/chrono-api/src/modules/credit/` — copy their schema/service/routes s
   customer identity is the foundation's `tenantMember` pool
   (`.ai/rules/business-app.md`, "Reuse the foundation's end-customer pool"), not a
   business-app-local `User` table.
-- No `reservationId`/`shiftId` FK columns yet — agora's `reservation` module has
-  landed (archived plan) but linking a payment to a reservation deposit is new scope
-  beyond what's being reconciled here; add the FK in a later phase if/when a
-  reservation-deposit workflow is actually requested. Flagged as Open Question 3.
+- No `reservationId`/`shiftId` FK columns yet — resolved decision 3 above (deferred).
 
 **Permission vocabulary** (`apps/chrono-api/src/auth/permissions.ts`,
 `CHRONO_PERMISSION_STATEMENTS`):
@@ -133,13 +141,8 @@ payment: ["read", "create", "void", "refund"],
   precedent (recording a manual payment is routine counter work, same tier as a
   wallet credit).
 - `void` at admin+ — mirrors `pos:void`'s existing tier exactly.
-- `refund` at admin+ — oikos gates this `OWNER`-only (stricter than `void`'s
-  `OWNER`+`STAFF`); agora's nearest precedent is `wallet:adjust`/`credit:adjust`,
-  both admin+ (not owner-only). **Open Question 1**: does this repo want a
-  `owner`-only `refund` tier (matching oikos) or does it fold into the standard
-  admin+ `adjust`-tier precedent used everywhere else in Chrono? Recommend the
-  latter for consistency unless there's a specific reason to diverge (a refund here
-  is not materially higher-risk than `wallet:adjust`, which is already admin+).
+- `refund` at admin+ — resolved decision 1 above (not owner-only, despite oikos
+  gating this `OWNER`-only).
 
 **Files to touch**:
 
@@ -168,38 +171,129 @@ module); reservation-deposit linkage (Open Question 3); anything in
 `apps/chrono-pc-client*` (out of scope for the whole Chrono migration per
 `AGENTS.md`).
 
-## Open Questions
+## Phase Design
 
-1. **Refund permission tier** — admin+ (consistent with `wallet:adjust`) vs.
-   owner-only (matching oikos's stricter gate)? See above. Recommend admin+.
-2. **Is this even needed now, or later-wave?** `AGENTS.md`'s Wave 1 list doesn't
-   include `payment` at all — it predates this reconciliation. Does the developer
-   want this scheduled now (Wave 1, since `wallet`/`credit`/`pos` already exist and
-   this closes a real audit-trail gap under them), or filed as a later wave alongside
-   `loyalty`/`vouchers`/`promos`? Recommend Wave 1 — a wallet top-up recorded via
-   `wallet:credit` today has **no** payment-method/counter-audit trail at all, which
-   is a real gap under the modules already shipped, not a nice-to-have.
-3. **Reservation-deposit linkage** — defer to a future phase, or fold in now since
-   `reservation` already exists? Recommend defer (no product requirement stated yet
-   for deposits).
-4. **`AGENTS.md` update** — once this plan is accepted, `apps/chrono-api/AGENTS.md`'s
-   module list should be updated to include `payment` (it currently has no mention of
-   it at all, in either the landed or deferred sections) so the next reconciliation
-   pass doesn't rediscover the same gap.
+### Phase 1 — Schema + RLS + contracts
 
-## Phase Design (pending acceptance of the Open Questions above)
+**Files to Update**:
+- New: `apps/chrono-api/src/modules/payment/schema.ts` (`chronoPayment`,
+  `chronoPaymentEvent` tables, per Pass 2 shape above)
+- New: `apps/chrono-api/src/modules/payment/contracts.ts` (Zod schemas:
+  `createPaymentSchema`, `payPaymentSchema`, `voidPaymentSchema`,
+  `refundPaymentSchema`, `paymentDtoSchema`)
+- Edit: `apps/chrono-api/src/db/schema.ts` (import + compose both tables, add
+  `"ChronoPayments"` and `"ChronoPaymentEvents"` to `APP_TENANT_TABLES`)
 
-Not yet broken into Concreteness-Gate-ready phases — that's the next step once the
-developer resolves Open Questions 1–3 above (they change the schema/permission
-shape). Sketch, subject to revision:
+**Step-by-Step Tasks**:
+1. Define `chronoPayment` and `chronoPaymentEvent` in `schema.ts` exactly per the
+   Pass 2 column list (free-text `method`/`status`/`eventType`, partial unique index
+   on `(tenantId, idempotencyKey)` for `chronoPaymentEvent`, `*_tenant_idx` on both).
+2. Add both table names to `APP_TENANT_TABLES` in `db/schema.ts`.
+3. Write `contracts.ts` Zod schemas matching the columns; derive DTO types with
+   `z.infer` per `.ai/rules/dto.md`.
+4. `pnpm db:generate --name chrono_payment_module` then `pnpm db:migrate`.
 
-- **Phase 1** — schema + RLS (`ChronoPayments`, `ChronoPaymentEvents`,
-  `APP_TENANT_TABLES`), contracts.
-- **Phase 2** — service + routes (create/pay/void/refund), permission gates,
-  `concurrency.test.ts` (row-lock double-completion/double-refund).
-- **Phase 3** — web UI (`/dashboard/payments`) + e2e spec.
+**Acceptance Criteria**: both tables exist with forced RLS; migration applied
+cleanly; contracts export from the module, no Drizzle model leaked as a transport
+type.
+
+**Verification Commands**: `pnpm typecheck`; `pnpm --filter @agora/api rls:proof`
+(must print `RLS PROOF: PASS ✅`).
+
+**Out-of-Scope**: routes, service logic, permissions — Phase 2.
+
+**Execution Start Point**: `apps/chrono-api/src/modules/wallet/schema.ts` (copy its
+shape) and `apps/chrono-api/src/db/schema.ts`'s existing `APP_TENANT_TABLES` array.
+
+### Phase 2 — Service + routes + permission gates
+
+**Files to Update**:
+- New: `apps/chrono-api/src/modules/payment/service.ts` (`createPayment`,
+  `markAsPaid`, `voidPayment`, `refundPayment`, `reverseSideEffects` helper)
+- New: `apps/chrono-api/src/modules/payment/routes.ts` (`paymentRoutes()` Hono
+  factory typed on `TenantVars`)
+- New: `apps/chrono-api/src/modules/payment/concurrency.test.ts` (row-lock
+  double-completion / double-refund tests, copy `wallet/concurrency.test.ts`'s
+  pattern)
+- Edit: `apps/chrono-api/src/auth/permissions.ts` — add
+  `payment: ["read", "create", "void", "refund"]` to
+  `CHRONO_PERMISSION_STATEMENTS`; `payment: ["read", "create"]` to
+  `CHRONO_STAFF_GRANTS`; `payment: ["read", "create", "void", "refund"]` to
+  `CHRONO_ADMIN_GRANTS`.
+- Edit: `apps/chrono-api/src/routes/rpc.ts` — mount `paymentRoutes()`.
+- Edit: `apps/chrono-api/src/modules/wallet/service.ts` — accept an optional
+  `paymentId` in `topUp`/`debit`'s metadata param (no schema change) so a wallet
+  transaction traces back to the payment that caused it.
+
+**Step-by-Step Tasks**:
+1. `createPayment` — `status: "pending"`, validated via `createPaymentSchema`.
+2. `markAsPaid` — `for update` row lock on `chronoPayment` (mirrors
+   `wallet`/`credit` concurrency pattern), idempotent on already-`paid` (return
+   existing, no double-credit), inserts a `chronoPaymentEvent` row with
+   `idempotencyKey: "manual:${id}:paid"`, calls `walletService.topUp` when
+   `memberId` is set and `sessionId` is null.
+3. `voidPayment`/`refundPayment` — `for update` lock, reject if not `"paid"`,
+   flip to `"cancelled"`, insert the event row, call `reverseSideEffects` (debits
+   the wallet top-up via `walletService.debit` when applicable; no-op if the
+   payment funded nothing).
+4. Routes: `POST /payments`, `GET /payments`, `GET /payments/:id`,
+   `POST /payments/:id/pay`, `POST /payments/:id/void`,
+   `POST /payments/:id/refund` — `requirePermission` before any DB work on every
+   mutating route, `withTenant` for every query.
+5. `concurrency.test.ts`: two concurrent `markAsPaid` calls on the same payment
+   credit the wallet exactly once; two concurrent `refundPayment` calls debit
+   exactly once.
+
+**Acceptance Criteria**: every mutating route gated by `requirePermission`; no
+route trusts client-supplied `tenantId`; concurrency tests pass; a `refund` on a
+non-`paid` payment 400s; a double-refund is a no-op on the second call, not an
+error and not a double-debit.
+
+**Verification Commands**: `pnpm typecheck`;
+`pnpm --filter @agora/api test:permissions` (gate test fails when `payment`
+permission is removed from the role — required per `.ai/rules/rbac.md`);
+`pnpm --filter @agora/api rls:proof`.
+
+**Out-of-Scope**: web UI, e2e — Phase 3.
+
+**Execution Start Point**: `apps/chrono-api/src/modules/wallet/{service,routes}.ts`
+and `apps/chrono-api/src/modules/pos/routes.ts`'s `void` action for the permission
+pattern.
+
+### Phase 3 — Web UI + e2e
+
+**Files to Update**:
+- New: `apps/chrono-web/src/app/dashboard/payments/page.tsx` (list view, using the
+  `DataTable`/`DataTableToolbar`/`DataTablePagination` stack per
+  `.ai/rules/data-listing.md`; void/refund row actions gated by `<Can>` from
+  `agora/ui`)
+- New: `apps/chrono-web/e2e/tests/payments/payments.spec.ts` — happy path (staff
+  creates + marks paid), role gate (staff blocked from `void`/`refund`, admin
+  allowed), cross-tenant isolation (tenant A cannot see/mutate tenant B's payment)
+
+**Step-by-Step Tasks**:
+1. Build the list page via the typed `api` client, server-paginated per
+   `.ai/rules/pagination.md`/`.ai/rules/admin-table.md`.
+2. Wire void/refund actions as row-level buttons (icon-action standard,
+   `.ai/rules/styling.md`), gated visually by `can()` — server remains the real
+   gate.
+3. Write the three e2e scenarios per `.ai/rules/e2e-testing.md`.
+4. Update `apps/chrono-api/AGENTS.md`: add `payment` to the landed Wave 1 module
+   list (schema + routes + web UI status per whatever lands).
+
+**Acceptance Criteria**: page renders with no raw HTML chrome (`.ai/rules/
+component-first-ui.md`); e2e spec passes headed (`pnpm dev` running, no
+`apps/chrono-api/.env` present per `.ai/rules/rbac.md`'s testing note).
+
+**Verification Commands**: `pnpm typecheck`; the new e2e spec; `pnpm build`.
+
+**Out-of-Scope**: reservation-deposit linkage, payment-gateway/provider
+integration — remain out of scope per Pass 2.
+
+**Execution Start Point**: `apps/chrono-web/src/app/dashboard/reservations/` (an
+already-archived, structurally similar list+action page) as the copy target.
 
 ## Next recommended action
 
-Developer review of Open Questions 1–2 (permission tier, wave placement) before this
-is broken into implementation-ready phases and audited.
+Send to `plan-auditor` for a fresh-eyes review against `.ai/rules/*` before
+starting Phase 1.
