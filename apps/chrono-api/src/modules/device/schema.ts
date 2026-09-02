@@ -36,11 +36,17 @@ export const chronoDeviceProvisioningToken = pgTable(
   (t) => [
     index("chrono_device_prov_token_tenant_idx").on(t.tenantId),
     index("chrono_device_prov_token_branch_idx").on(t.branchId),
-    // Not globally unique on purpose — pairing codes are short-lived and
-    // scoped by (status=active AND expiresAt>now) at lookup time, not by DB
-    // uniqueness; a plain index is enough to make the cross-tenant lookup
-    // (Open Question 1, step 2) an index scan instead of a table scan.
+    // Plain index for the cross-tenant lookup (Open Question 1, step 2) so it
+    // stays an index scan, not a table scan.
     index("chrono_device_prov_token_pairing_code_idx").on(t.pairingCode),
+    // security-hardening Phase 1: at most one ACTIVE row may hold a given
+    // pairing code at a time — closes the cross-tenant collision where two
+    // tenants' concurrently active codes could match and a device pairs into
+    // the wrong tenant. Partial (status = 'active') so revoked/expired rows
+    // never block reuse of a code once it's no longer live.
+    uniqueIndex("chrono_device_prov_token_pairing_code_active_idx")
+      .on(t.pairingCode)
+      .where(sql`${t.status} = 'active'`),
     uniqueIndex("chrono_device_prov_token_hash_idx").on(t.tokenHash),
   ],
 );

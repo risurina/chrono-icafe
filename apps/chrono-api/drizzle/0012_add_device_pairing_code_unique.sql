@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "chrono_device_prov_token_pairing_code_active_idx" ON "ChronoDeviceProvisioningTokens" USING btree ("pairingCode") WHERE "ChronoDeviceProvisioningTokens"."status" = 'active';

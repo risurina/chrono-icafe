@@ -23,6 +23,7 @@ import {
   normalizeAuthPath,
   getStorage,
   localAssetPath,
+  hashApiKey,
 } from "agora/server";
 import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
@@ -136,6 +137,19 @@ async function providerForAuthRequest(
 // Per-IP throttles for staff credential endpoints (Better Auth).
 const staffSignInLimiter = createRateLimiter(5, 15 * 60 * 1000, "staff-signin"); // 5 / 15min
 const staffSignUpLimiter = createRateLimiter(10, 60 * 60 * 1000, "staff-signup"); // 10 / hour
+
+// Device pairing/auth throttles (security-hardening Phase 1). Unauthenticated,
+// low-entropy-code surface — keyed BOTH per-IP and per-secret-being-guessed:
+// per-IP alone doesn't stop a distributed guess against one code/token, and
+// per-code/per-token alone doesn't stop one IP enumerating across many codes.
+// Numbers pinned in the same order of magnitude as the staff-signin limiter
+// above (5/15min); /pair's per-IP bucket is a little wider than per-code
+// because a single venue's staff can legitimately retry a few times while
+// re-typing the human-read-aloud code.
+const devicePairIpLimiter = createRateLimiter(10, 15 * 60 * 1000, "device-pair-ip"); // 10 / 15min
+const devicePairCodeLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-pair-code"); // 5 / 15min
+const deviceAuthIpLimiter = createRateLimiter(10, 15 * 60 * 1000, "device-auth-ip"); // 10 / 15min
+const deviceAuthTokenLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-auth-token"); // 5 / 15min
 
 // Platform Maintenance / global read-only enforcement (System Settings, spec
 // #14), shared by both tenant surfaces: the internal `/rpc/*` client and the
@@ -768,6 +782,74 @@ export const app = new Hono()
       });
     }
     return c.json({ received: true });
+  })
+  // Throttle the unauthenticated device pairing/auth endpoints
+  // (security-hardening Phase 1). Keyed per-IP AND per-secret-being-guessed
+  // (pairingCode for /pair, the presented provisioning-token hash for /auth)
+  // — see the limiter declarations above for the reasoning and numbers.
+  // Reads the body via a clone so the downstream zValidator still sees an
+  // unread stream (mirrors the /sign-in/social provider-sniff above — NEVER
+  // use c.req.json() here).
+  .use("/api/v1/device/pair", async (c, next) => {
+    if (c.req.method !== "POST") return next();
+    const ip = clientIp(c);
+    const ipRetryAfter = await devicePairIpLimiter.blockedFor(ip);
+    if (ipRetryAfter !== null) {
+      return c.json({ error: "Too many pairing attempts. Try again later." }, 429, {
+        "Retry-After": String(ipRetryAfter),
+      });
+    }
+    let pairingCode: string | undefined;
+    try {
+      const body = (await c.req.raw.clone().json()) as { pairingCode?: unknown };
+      pairingCode = typeof body?.pairingCode === "string" ? body.pairingCode : undefined;
+    } catch {
+      // Unparseable body — let zValidator reject it with its own error.
+    }
+    if (pairingCode) {
+      const codeRetryAfter = await devicePairCodeLimiter.blockedFor(pairingCode);
+      if (codeRetryAfter !== null) {
+        return c.json(
+          { error: "Too many attempts for this pairing code. Try again later." },
+          429,
+          { "Retry-After": String(codeRetryAfter) },
+        );
+      }
+    }
+    await next();
+    await devicePairIpLimiter.record(ip);
+    if (pairingCode) await devicePairCodeLimiter.record(pairingCode);
+  })
+  .use("/api/v1/device/auth", async (c, next) => {
+    if (c.req.method !== "POST") return next();
+    const ip = clientIp(c);
+    const ipRetryAfter = await deviceAuthIpLimiter.blockedFor(ip);
+    if (ipRetryAfter !== null) {
+      return c.json({ error: "Too many attempts. Try again later." }, 429, {
+        "Retry-After": String(ipRetryAfter),
+      });
+    }
+    let tokenKey: string | undefined;
+    try {
+      const body = (await c.req.raw.clone().json()) as { provisioningToken?: unknown };
+      tokenKey =
+        typeof body?.provisioningToken === "string"
+          ? hashApiKey(body.provisioningToken)
+          : undefined;
+    } catch {
+      // Unparseable body — let zValidator reject it with its own error.
+    }
+    if (tokenKey) {
+      const tokenRetryAfter = await deviceAuthTokenLimiter.blockedFor(tokenKey);
+      if (tokenRetryAfter !== null) {
+        return c.json({ error: "Too many attempts for this token. Try again later." }, 429, {
+          "Retry-After": String(tokenRetryAfter),
+        });
+      }
+    }
+    await next();
+    await deviceAuthIpLimiter.record(ip);
+    if (tokenKey) await deviceAuthTokenLimiter.record(tokenKey);
   })
   // Device-facing pairing/auth/heartbeat (Chrono `devices` module, Phase 3).
   // No Better Auth session, no tenant membership row — the device itself

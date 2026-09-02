@@ -539,6 +539,27 @@ A Hono factory `deviceAuthRoutes()`, mounted directly on `app` in
 - `device-commands` (remote lock/unlock/reboot/shutdown dispatch) — confirmed separate
   concept, confirmed out of scope, see "What exists today" above.
 
+**Decision recorded (`security-hardening` Phase 1, 2026-09-02) — `/pair` is
+single-redemption, not concurrently multi-PC:** the original `/pair` handler
+overwrote `ChronoDeviceProvisioningTokens.tokenHash` on every redemption, which
+meant a second PC re-pairing with the same code (the stated `maxUses > 1`
+golden-image flow) silently invalidated the first PC's already-issued
+credential. Resolved as **enforce single-redemption**: once a `/pair` call has
+set `tokenHash` and no `/auth` call has yet consumed it (`useCount` still `0`,
+`tokenExpiresAt` not passed), a second `/pair` for the same `pairingCode` is
+refused with `409` ("This pairing code has already been redeemed and is
+awaiting device authentication.") instead of overwriting the hash. Once `/auth`
+successfully consumes it — or the code/token expires — a fresh `/pair` call
+(same code) is allowed again. **True simultaneous multi-PC pairing from one
+still-unconsumed code is NOT supported in this pass** — that is an accepted,
+documented limitation, not a bug to route around. The reusability
+`maxUses`/`useCount` was designed for continues to work exactly as before
+*after* the first `/auth` call: multiple already-`/auth`'d PCs share the
+golden-image token; it is only the pre-`/auth` `/pair` step that is now
+single-shot. Implemented via a conditional `UPDATE ... WHERE` (not the earlier
+`SELECT`) so a concurrent `/pair` race can't both win — see
+`apps/chrono-api/src/modules/device/routes.ts`'s `/pair` handler.
+
 ### Forward references for `sessions`
 
 - `sessions`' own plan will need to extend `POST /heartbeat`'s response (and likely add

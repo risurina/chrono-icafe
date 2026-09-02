@@ -1,6 +1,20 @@
 import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
-import { withTenant, withAdmin, eq, and, asc, desc, count, gte, type TenantTx } from "agora/db";
+import {
+  withTenant,
+  withAdmin,
+  eq,
+  and,
+  or,
+  not,
+  isNull,
+  lt,
+  asc,
+  desc,
+  count,
+  gte,
+  type TenantTx,
+} from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
 import { type TenantVars, HttpError, zValidator, hashApiKey, verifyApiKey } from "agora/server";
 import { createId } from "agora";
@@ -24,6 +38,21 @@ function isUniqueViolation(err: unknown): boolean {
   return (
     typeof err === "object" && err !== null && "code" in err && err.code === "23505"
   );
+}
+
+// Unambiguous uppercase alphabet — excludes O/0 and I/1, which are read aloud
+// at a physical PC and easily confused (security-hardening Phase 1).
+const PAIRING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PAIRING_CODE_LENGTH = 10;
+
+/** Cryptographically random pairing code, ≥10 chars, no ambiguous glyphs. */
+function generatePairingCode(): string {
+  const bytes = randomBytes(PAIRING_CODE_LENGTH);
+  let out = "";
+  for (let i = 0; i < PAIRING_CODE_LENGTH; i++) {
+    out += PAIRING_CODE_ALPHABET[bytes[i]! % PAIRING_CODE_ALPHABET.length];
+  }
+  return out;
 }
 
 function buildPaginationMeta(
@@ -221,28 +250,46 @@ export function staffDeviceRoutes() {
         requirePermission(c.var.tenant.permissions, { device: ["manage"] });
         const input = c.req.valid("json");
 
-        const pairingCode = createId().slice(0, 8).toUpperCase();
         const pairingCodeExpiresAt = new Date(
           Date.now() + input.pairingCodeTtlMinutes * 60_000,
         );
 
-        const created = await withTenant(tenantId, async (tx) => {
-          await requireOwnBranch(tx, tenantId, input.branchId);
-          const [row] = await tx
-            .insert(chronoDeviceProvisioningToken)
-            .values({
-              id: createId(),
-              tenantId,
-              branchId: input.branchId,
-              name: input.name,
-              pairingCode,
-              pairingCodeExpiresAt,
-              status: "active",
-              maxUses: input.maxUses,
-            })
-            .returning();
-          return row;
-        });
+        // Retry on a unique-violation against the partial (status='active')
+        // index instead of surfacing the collision to the caller — the
+        // generator has ~1.6e14 possible codes, so a collision against the
+        // small set of currently-active codes is exceedingly rare, but must
+        // never silently mint a duplicate.
+        const MAX_ATTEMPTS = 5;
+        let created: typeof chronoDeviceProvisioningToken.$inferSelect | undefined;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const pairingCode = generatePairingCode();
+          try {
+            created = await withTenant(tenantId, async (tx) => {
+              await requireOwnBranch(tx, tenantId, input.branchId);
+              const [row] = await tx
+                .insert(chronoDeviceProvisioningToken)
+                .values({
+                  id: createId(),
+                  tenantId,
+                  branchId: input.branchId,
+                  name: input.name,
+                  pairingCode,
+                  pairingCodeExpiresAt,
+                  status: "active",
+                  maxUses: input.maxUses,
+                })
+                .returning();
+              return row;
+            });
+            break;
+          } catch (err) {
+            if (isUniqueViolation(err) && attempt < MAX_ATTEMPTS - 1) continue;
+            throw err;
+          }
+        }
+        if (!created) {
+          throw new Error("Failed to generate a unique pairing code.");
+        }
 
         await recordStaffAudit(c, {
           action: "device.pairing_token_created",
@@ -455,13 +502,41 @@ export function deviceAuthRoutes() {
       // golden image (maxUses/useCount) — 24h is long enough to cover a
       // realistic image-cloning/rollout window without being indefinite.
       const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60_000);
+      const now = new Date();
 
-      await withTenant(row.tenantId, (tx) =>
+      // Single-redemption enforcement (security-hardening Phase 1, decision
+      // recorded in .ai/plans/chrono/archive/devices/README.md): once /pair
+      // has minted a tokenHash that /auth has NOT yet consumed (useCount
+      // still 0) and that hasn't expired, a second /pair for the same code is
+      // refused rather than overwriting the live credential out from under a
+      // PC that already redeemed it. True simultaneous multi-PC pairing from
+      // one code is not supported — /auth's own useCount/maxUses reuse is the
+      // supported golden-image path, once a PC has authenticated. The WHERE
+      // clause is the single source of truth (not the earlier SELECT), so a
+      // concurrent /pair race can't both win.
+      const [claimed] = await withTenant(row.tenantId, (tx) =>
         tx
           .update(chronoDeviceProvisioningToken)
-          .set({ tokenHash: hash, tokenExpiresAt, updatedAt: new Date() })
-          .where(eq(chronoDeviceProvisioningToken.id, row.id)),
+          .set({ tokenHash: hash, tokenExpiresAt, updatedAt: now })
+          .where(
+            and(
+              eq(chronoDeviceProvisioningToken.id, row.id),
+              or(
+                isNull(chronoDeviceProvisioningToken.tokenHash),
+                not(eq(chronoDeviceProvisioningToken.useCount, 0)),
+                isNull(chronoDeviceProvisioningToken.tokenExpiresAt),
+                lt(chronoDeviceProvisioningToken.tokenExpiresAt, now),
+              ),
+            ),
+          )
+          .returning({ id: chronoDeviceProvisioningToken.id }),
       );
+      if (!claimed) {
+        throw new HttpError(
+          409,
+          "This pairing code has already been redeemed and is awaiting device authentication.",
+        );
+      }
 
       // The one place the provisioning token secret is returned — once, to
       // the PC being paired.
