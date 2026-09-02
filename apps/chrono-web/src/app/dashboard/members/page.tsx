@@ -178,9 +178,9 @@ export default function MembersPage() {
         loadAll();
         loadPendingCount();
       } else if ((res.status as number) === 409) {
-        toast.error("A customer with that email already exists.");
+        toast.error("A player with that email already exists.");
       } else if ((res.status as number) === 403) {
-        toast.error("Only admins can invite customers.");
+        toast.error("Only admins can invite players.");
       } else {
         toast.error("Could not send the invite.");
       }
@@ -201,9 +201,9 @@ export default function MembersPage() {
       setEditPhoneFor(null);
       loadAll();
     } else if ((res.status as number) === 403) {
-      toast.error("Only admins can edit members.");
+      toast.error("Only admins can edit players.");
     } else {
-      toast.error("Could not update the member.");
+      toast.error("Could not update the player.");
     }
   }
 
@@ -211,21 +211,21 @@ export default function MembersPage() {
     <Stack gap={8}>
       <div>
         <Row items="center" gap={2}>
-          <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Players</h1>
           {pendingCount ? (
             <Badge variant="warning">{pendingCount} pending</Badge>
           ) : null}
         </Row>
         <p className="text-sm text-muted-foreground">
-          Review business membership applications and manage member details.
+          Review player membership applications and manage player details.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
+          <CardTitle>Players</CardTitle>
           <CardDescription>
-            Review business membership applications and manage member details.
+            Review player membership applications and manage player details.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -233,12 +233,12 @@ export default function MembersPage() {
             <DataTableToolbar
               q={query.q}
               onQChange={query.setQ}
-              searchPlaceholder="Search members…"
+              searchPlaceholder="Search players…"
               view={query.view}
               onViewChange={query.setView}
             />
             <Can permissions={me?.permissions} resource="memberProfile" action="invite">
-              <Button onClick={() => setInviteOpen(true)}>Invite</Button>
+              <Button onClick={() => setInviteOpen(true)}>Invite player</Button>
             </Can>
           </Row>
 
@@ -348,7 +348,7 @@ export default function MembersPage() {
               <DataTableGrid
                 rows={members}
                 rowKey={(member) => member.memberId}
-                emptyMessage="No members yet."
+                emptyMessage="No players yet."
                 renderCard={(member) => (
                   <div className="space-y-2">
                     <div className="min-w-0">
@@ -369,7 +369,7 @@ export default function MembersPage() {
                 sort={query.sort}
                 order={query.order}
                 onSortChange={query.setSort}
-                emptyMessage="No members yet."
+                emptyMessage="No players yet."
               />
             );
           })()}
@@ -387,7 +387,7 @@ export default function MembersPage() {
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Invite a customer</DialogTitle>
+            <DialogTitle>Invite a player</DialogTitle>
           </DialogHeader>
           <form onSubmit={inviteMember} className="space-y-4">
             <Field>
