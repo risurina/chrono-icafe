@@ -134,3 +134,38 @@ export const validateChronoScopes: ValidateScopes = async (
     .filter((entry) => ownedBranchIds.has(entry.parsed.branchId))
     .map((entry) => entry.scope);
 };
+
+// ---------------------------------------------------------------------------
+// Device scope grammar (realtime-updates Phase 3) — the device mount's own
+// `ValidateScopes`, disjoint from the staff scope vocabulary above. A device
+// connects requesting its OWN private channel via `?scope=device:{deviceId}`
+// (its own id, per `resolveDeviceActor`'s `actorKey`) — this is the only
+// mechanism `createRealtimeRoute` exposes for a mount to grant a per-actor
+// channel, so the device client's connect call is expected to always send
+// this scope. A request naming any OTHER device's id is a well-formed scope
+// that is simply never granted (never included in the accepted subset) —
+// the same "malformed fails the upgrade, well-formed-but-rejected just gets
+// no channel" split `agora/realtime`'s own `ValidateScopes` doc describes,
+// applied here as the actor-isolation boundary (a device can never subscribe
+// to another device's private channel, no matter what it asks for).
+// ---------------------------------------------------------------------------
+
+const CHRONO_DEVICE_SCOPE_PATTERN = /^device:([A-Za-z0-9_-]{1,64})$/;
+
+export const chronoDeviceScopeSchema = z.string().regex(CHRONO_DEVICE_SCOPE_PATTERN);
+
+/**
+ * Chrono's `ValidateScopes` for the device realtime mount. No DB query
+ * needed — the only fact that matters is already on the resolved actor
+ * (`actor.actorKey` IS the device's own id), so this is a pure string
+ * comparison, not a batched lookup like the staff validator above.
+ */
+export const validateChronoDeviceScopes: ValidateScopes = async (
+  scopes: string[],
+  actor: ResolvedActor,
+): Promise<string[]> => {
+  return scopes.filter((scope) => {
+    const match = CHRONO_DEVICE_SCOPE_PATTERN.exec(scope);
+    return match !== null && match[1] === actor.actorKey;
+  });
+};

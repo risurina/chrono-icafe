@@ -33,6 +33,7 @@ import {
   heartbeatSchema,
 } from "./contracts";
 import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-middleware";
+import { closeConnections } from "agora/realtime";
 import { createRateLimiter } from "agora/server";
 import { chronoSecurityAlert } from "../security-alert/schema";
 import { deviceReportSecurityAlertSchema } from "../security-alert/contracts";
@@ -454,6 +455,12 @@ export function staffDeviceRoutes() {
         targetId: updated?.id,
         targetLabel: updated?.hostname,
       });
+      // Fast path: close the device's live socket immediately rather than
+      // waiting for the next revalidateEveryMs re-validation tick to catch
+      // the now-non-approved status (realtime-updates plan, Phase 3).
+      if (updated) {
+        await closeConnections({ tenantId, actorKey: updated.id });
+      }
       return c.json({ device: updated });
     })
 
@@ -483,6 +490,14 @@ export function staffDeviceRoutes() {
         targetId: updated?.id,
         targetLabel: updated?.hostname,
       });
+      // Force a reconnect so the device's next resolveActor pass (immediate,
+      // since it is still approved) picks up its new station linkage — the
+      // channel identity (device:{deviceId}) is unchanged, but this keeps the
+      // "a mutation to this device closes its stale connection" rule uniform
+      // across revoke/relink rather than special-casing relink as exempt.
+      if (updated) {
+        await closeConnections({ tenantId, actorKey: updated.id });
+      }
       return c.json({ device: updated });
     });
 }
