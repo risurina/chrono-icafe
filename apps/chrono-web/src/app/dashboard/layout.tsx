@@ -134,6 +134,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/files": "Files",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
+  "/dashboard/settings/landing-page": "Landing page",
   "/dashboard/settings/members": "Members",
   "/dashboard/settings/roles": "Roles",
   "/dashboard/settings/domains": "Domains",

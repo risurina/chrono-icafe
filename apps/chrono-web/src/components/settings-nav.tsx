@@ -1,4 +1,4 @@
-import { Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, type LucideIcon } from "lucide-react";
+import { Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, FileText, type LucideIcon } from "lucide-react";
 
 export type SettingsSection = {
   name: string;
@@ -24,6 +24,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Logo, colors, and workspace identity.",
     href: "/dashboard/settings/branding",
     icon: Palette,
+    group: "Workspace",
+  },
+  {
+    name: "Landing page",
+    description: "Public /about content shown at your workspace's host.",
+    href: "/dashboard/settings/landing-page",
+    icon: FileText,
     group: "Workspace",
   },
   {
