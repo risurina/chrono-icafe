@@ -5,15 +5,14 @@ Split mirrors `branches`'/`members`' own precedent, with one addition specific
 to this module: Phase 1 (schema/RLS) is local, never delegated to Jules, per
 the `jules` skill's guardrail against delegating RLS/tenant-isolation design.
 Phase 3 here is **"Service (locking) + routes + permission gates + concurrency
-proof"** — it is kept local for two independent reasons, not just the usual
-permission-gate guardrail: it edits `packages/agora/src/auth/permissions.ts`
-AND it is the money-moving row-lock/transaction-integrity mechanism the whole
-module exists to get right (see the plan's own "Transaction integrity
-mechanism" section) — exactly the kind of correctness Jules cannot prove for
-itself. (The first of those two reasons was written before the per-app
-permission seam was applied: Phase 3 registers `wallet` in
-`apps/chrono-api/src/auth/permissions.ts`, not `packages/agora` — see
-`.ai/rules/business-app.md`. It stays local on the second reason alone.) Phase 2 (contracts + money helper) and Phase 4 (web UI) and Phase 5
+proof"** — it is kept local because it is the money-moving row-lock/
+transaction-integrity mechanism the whole module exists to get right (see the
+plan's own "Transaction integrity mechanism" section), exactly the kind of
+correctness Jules cannot prove for itself. It also adds a permission resource,
+but through the per-app extension seam (`apps/chrono-api/src/auth/
+permissions.ts` + `registerAppPermissions()`) — this module never edits
+`packages/agora`, per `.ai/rules/business-app.md`.
+Phase 2 (contracts + money helper) and Phase 4 (web UI) and Phase 5
 (e2e spec) are delegated to Jules, one session per phase, pulled + verified
 locally before the next phase starts.
 

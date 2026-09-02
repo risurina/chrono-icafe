@@ -262,6 +262,22 @@ unit — never two separate calls, exactly per this plan's brief. All three func
 require an already-open `tx` (never open their own transaction) specifically so a
 calling module can compose them into a larger atomic operation.
 
+**Lock-ordering rule for callers (non-negotiable).** A composing module's transaction
+will hold other row locks — `sessions` locks a station/session row in the same `tx` that
+debits the wallet. Two transactions acquiring the same pair in opposite orders deadlock,
+and `lockWalletForUpdate`'s `onConflictDoNothing` vivify path **blocks on the inserting
+transaction until it commits**, so a long transaction that first-touches a wallet stalls
+every concurrent counter top-up for that member. Therefore:
+
+1. **Acquire the wallet lock last** — after every other row lock the transaction needs.
+   Fixing one global order across all callers is what makes the ABBA deadlock impossible.
+2. **Never hold a wallet lock across an external call** (payment provider, device/kiosk
+   round-trip, e-mail). Do that work before the debit or after the commit, never between
+   the lock and the commit.
+
+`sessions` adopts this rule when it is built; it is not enforceable in the wallet code
+itself, which is why it is documented here as part of the exported surface's contract.
+
 **Money math**: a new small helper, `apps/chrono-api/src/modules/wallet/money.ts`,
 BigInt-cents arithmetic on decimal strings (`addMoney`, `negateMoney`,
 `isNegativeMoney`) — ported from oikos's `core/money.ts` pattern, module-local per
@@ -472,7 +488,9 @@ export type AdjustWalletInput = z.infer<typeof adjustWalletSchema>;
 
 **Staff-facing — `apps/chrono-api/src/modules/wallet/routes.ts`, `walletRoutes()`**
 (`TenantVars`, composed into `apps/chrono-api/src/routes/rpc.ts` via
-`.route("/wallets", walletRoutes())`):
+`.route("/", walletRoutes())` — the factory declares its own full `/wallets/...` paths
+internally rather than being mounted under a `/wallets` prefix; the resulting endpoints
+are identical either way):
 
 - `GET /` — `requirePermission(c.var.tenant.permissions, { wallet: ["read"] })`.
   `zValidator("query", listQuerySchema(["balance", "createdAt"]))`, `withTenant`, joins
@@ -519,16 +537,40 @@ Unlike `members` (which extended the existing `customer` resource because
 granting `customer:update` should not implicitly grant "may move money." This plan adds
 a wholly new resource, matching `branches`' own precedent:
 
+The resource is registered through the **per-app extension seam**, never by editing
+`packages/agora` — see `.ai/rules/business-app.md` ("Permissions: the per-app extension
+seam") and root `AGENTS.md` non-negotiable #6. **This module does not touch
+`packages/agora` at all.**
+
 ```ts
-// packages/agora/src/auth/permissions.ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   wallet: ["read", "credit", "debit", "adjust"],
-} as const;
+} satisfies Record<string, string[]>;
+
+export const CHRONO_STAFF_GRANTS = {
+  ...
+  wallet: ["read", "credit", "debit"],
+} satisfies Record<string, string[]>;
+
+export const CHRONO_ADMIN_GRANTS = {
+  ...
+  wallet: ["read", "credit", "debit", "adjust"],
+} satisfies Record<string, string[]>;
 ```
 
-**Open Question 1 (resolve before Phase 3) — should `staff` hold `wallet:credit`/
-`:debit`?** oikos gates its manual top-up/debit routes `requireRole(['OWNER','STAFF'])`
+These are registered via `registerAppPermissions()` from
+`apps/chrono-api/src/auth-bootstrap.ts`, which every process entrypoint imports before
+anything imports `agora/auth`. Route files gate through the app-local typed wrapper
+`apps/chrono-api/src/auth/require-permission.ts` (a type-only layer over the identical
+runtime `requirePermission`), so `wallet`'s own resource keys are compile-time checked.
+
+**Open Question 1 — RESOLVED (shipped in `74a6881`): `staff` holds
+`wallet: ["read", "credit", "debit"]`; `admin`+ additionally holds `adjust`.** The
+reasoning that produced that answer is kept below for the record.
+
+**Original question — should `staff` hold `wallet:credit`/`:debit`?** oikos gates its manual top-up/debit routes `requireRole(['OWNER','STAFF'])`
 — i.e. **staff can top-up and debit** (this is the day-to-day counter operation at a
 gaming café; staff run the till). Only the separate refund/reversal path
 (`/payments/:id/refund`) is `OWNER`-only. Every prior Chrono plan (`branches`,
@@ -724,9 +766,12 @@ layer in Phase 3 a straightforward composition).
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `wallet: ["read", "credit", "debit",
-  "adjust"]` to `PERMISSION_STATEMENTS`, `staffRole` (`read`/`credit`/`debit` only), and
-  `adminRole` (all four) — resolve Open Question 1 first (Pass 2).
+- `apps/chrono-api/src/auth/permissions.ts` — add `wallet: ["read", "credit", "debit",
+  "adjust"]` to `CHRONO_PERMISSION_STATEMENTS`, `CHRONO_STAFF_GRANTS`
+  (`read`/`credit`/`debit` only), and `CHRONO_ADMIN_GRANTS` (all four), registered via
+  `registerAppPermissions()` in `apps/chrono-api/src/auth-bootstrap.ts`. **Never
+  `packages/agora`** — see `.ai/rules/business-app.md`, "Permissions: the per-app
+  extension seam". (Open Question 1 is resolved in Pass 2.)
 - `apps/chrono-api/src/modules/wallet/service.ts` (new) — `lockWalletForUpdate`,
   `applyWalletDelta`, `creditWallet`, `debitWallet`, `adjustWalletBalance` (Pass 2).
 - `apps/chrono-api/src/modules/wallet/routes.ts` (new) — `walletRoutes()` factory
@@ -736,7 +781,8 @@ layer in Phase 3 a straightforward composition).
 - `apps/chrono-api/src/modules/wallet/concurrency.test.ts` (new) — standalone `tsx`
   script proving the row lock, mirroring the existing `test:*` scripts' inline-assertion
   style (`billing-pricing.test.ts`'s `check()` helper pattern).
-- `apps/chrono-api/src/routes/rpc.ts` — `.route("/wallets", walletRoutes())`.
+- `apps/chrono-api/src/routes/rpc.ts` — `.route("/", walletRoutes())` (the factory
+  declares its own full `/wallets/...` paths internally).
 - `apps/chrono-api/src/app.ts` — `.route("/portal/wallet", walletPortalRoutes())`.
 - `apps/chrono-api/package.json` — add `"test:wallet-concurrency": "tsx
   src/modules/wallet/concurrency.test.ts"`.
@@ -810,7 +856,7 @@ layer in Phase 3 a straightforward composition).
 
 **Out of scope:** UI, e2e browser spec (Phase 5).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 route files reference the new resource, so the vocabulary must exist before either
 typechecks).
 
