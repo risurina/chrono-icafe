@@ -373,7 +373,7 @@ same `withTenant` transaction before use (no existence leak).
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof` → must print `RLS PROOF: PASS ✅`
+- `pnpm --filter @agora/chrono-api rls:proof` → must print `RLS PROOF: PASS ✅`
 
 **Out-of-Scope**
 - The `chronoDevice` FK on `deviceId` (added once `devices` Phase 1 lands, Phase 5
@@ -404,7 +404,7 @@ same `withTenant` transaction before use (no existence leak).
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api test:permissions` (if a drift-guard test enumerates
+- `pnpm --filter @agora/chrono-api test:permissions` (if a drift-guard test enumerates
   resources, confirm it doesn't need a manual update — check the test file first)
 
 **Out-of-Scope**
@@ -436,7 +436,7 @@ same `withTenant` transaction before use (no existence leak).
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 - A focused route/unit test for the state-machine transitions (open→acknowledged→resolved,
   and the two 409 cases), following `reservation`'s `overlap.test.ts` style.
 
@@ -530,7 +530,7 @@ same `withTenant` transaction before use (no existence leak).
 - Rate limit enforced and tested.
 
 **Verification Commands**
-- `pnpm typecheck`, `pnpm --filter @agora/api rls:proof`, a concurrency/rate-limit test.
+- `pnpm typecheck`, `pnpm --filter @agora/chrono-api rls:proof`, a concurrency/rate-limit test.
 
 **Out-of-Scope**
 - Everything else — this phase is additive only.

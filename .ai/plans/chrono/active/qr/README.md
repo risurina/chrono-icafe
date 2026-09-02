@@ -318,7 +318,7 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 
 **Out-of-Scope**
 - Any session-start wiring (Phase 5, blocked on `sessions`).
@@ -349,7 +349,7 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api test` (or the module's own test script — confirm exact name)
+- `pnpm --filter @agora/chrono-api test:qr` (or the module's own test script)
 
 **Out-of-Scope**
 - Routes (Phase 3).
@@ -397,7 +397,7 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
 
 **Verification Commands**
 - `pnpm typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 - A route-level test covering the failure matrix above.
 
 **Out-of-Scope**
@@ -489,7 +489,7 @@ prior tenant context, and it must never accept a client-supplied `tenantId`.
   starts a session on that station.
 
 **Verification Commands**
-- `pnpm typecheck`, `pnpm --filter @agora/api rls:proof`, updated e2e spec.
+- `pnpm typecheck`, `pnpm --filter @agora/chrono-api rls:proof`, updated e2e spec.
 
 **Out-of-Scope**
 - Billing-method selection nuances — deferred to `sessions`' own plan, this phase only

@@ -449,7 +449,7 @@ no new audit action.
 
 **Verification Commands**
 - `pnpm --filter @agora/chrono-api typecheck`
-- `pnpm --filter @agora/api rls:proof` — must still print `RLS PROOF: PASS ✅`; this is a
+- `pnpm --filter @agora/chrono-api rls:proof` — must still print `RLS PROOF: PASS ✅`; this is a
   schema change to an already-RLS-forced table, so re-proof per `.ai/rules/database.md`'s
   "after any schema/RLS/tenancy change" rule even though no new table/policy is added.
 
@@ -547,7 +547,7 @@ no new audit action.
 **Verification Commands**
 - `pnpm --filter @agora/chrono-api typecheck`
 - `pnpm --filter @agora/chrono-api test`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 
 **Out-of-Scope**
 - The new `/reconciliation/shifts/:id` read route (Phase 4) and permission registration
@@ -591,8 +591,8 @@ no new audit action.
 **Verification Commands**
 - `pnpm --filter @agora/chrono-api typecheck`
 - `pnpm --filter @agora/chrono-api test`
-- `pnpm --filter @agora/api test:permissions` (or the chrono equivalent)
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api test:permissions`
+- `pnpm --filter @agora/chrono-api rls:proof`
 
 **Out-of-Scope**
 - Web UI (Phase 5).
