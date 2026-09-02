@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   ShoppingCart,
   BarChart3,
+  MessageSquare,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -76,6 +77,7 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Reservations", href: "/reservations", icon: CalendarClock },
   { type: "item", name: "Loyalty", href: "/loyalty", icon: Award },
+  { type: "item", name: "Inquiries", href: "/inquiries", icon: MessageSquare },
 
   { type: "label", name: "Money" },
   { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
@@ -119,6 +121,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/sessions": "Sessions",
   "/dashboard/members": "Members",
   "/dashboard/reservations": "Reservations",
+  "/dashboard/inquiries": "Inquiries",
   "/dashboard/wallets": "Wallets",
   "/dashboard/credits": "Credits",
   "/dashboard/pos": "POS",
