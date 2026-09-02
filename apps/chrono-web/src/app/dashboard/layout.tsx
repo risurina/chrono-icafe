@@ -17,6 +17,7 @@ import {
   Percent,
   Timer,
   Coins,
+  ShieldAlert,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -78,6 +79,9 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Credits", href: "/credits", icon: Coins },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
   { type: "item", name: "Promos", href: "/promos", icon: Percent },
+
+  { type: "label", name: "Security" },
+  { type: "item", name: "Security Alerts", href: "/security-alerts", icon: ShieldAlert },
 ];
 
 // Settings is pinned to the bottom of the sidebar — all workspace configuration
@@ -113,6 +117,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/loyalty": "Loyalty",
   "/dashboard/vouchers": "Vouchers",
   "/dashboard/promos": "Promos",
+  "/dashboard/security-alerts": "Security Alerts",
   "/dashboard/files": "Files",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
