@@ -80,3 +80,28 @@ reference below stay valid.
   same lines in `shift/routes.ts:194`, and that ambiguity is what let the
   `shifts` plan keep asserting `expectedCashAmount` is "always null" after
   `a69b5cc` made it real. One owner per finding.
+- 2026-09-02 — Phase 2 (reservations exclusion constraint) landed
+  (`dea32e8`): real Postgres EXCLUDE USING gist constraint added
+  (btree_gist), 23P01 mapped to 409, boundary behavior confirmed
+  ([start,end) half-open), overlap.test.ts's own schema setup fixed to
+  actually exercise the constraint (it previously couldn't). Reservations
+  plan moved back to active/ pending a real e2e run.
+- 2026-09-02 — Phase 4 (shift close ownership) landed (`4b6b018`):
+  `shift:closeAny` admin-only, row lock added to the close handler,
+  4/4 integration checks passed against real Postgres.
+- 2026-09-02 — Phase 5 (move customer permissions out of the foundation)
+  landed (`546b7c2`): `memberProfile` resource now owns approve/reject/
+  read/update in apps/chrono-api's own permissions file; foundation
+  `customer` resource reverted to generic-only. Both scaffold and Chrono
+  permission test suites pass (314 and 377 cases respectively).
+- 2026-09-02 — Phase 7 (money helpers, float removal, loyalty overflow
+  guard) landed (`cc3b90b`): multiplyMoney/subtractMoney/compareMoney
+  added, zero remaining Number() money arithmetic in pos/service.ts,
+  loyalty overflow returns 409 not 500.
+- 2026-09-02 — Phase 9a (permission-seam doc fixes) landed (`e9d2993`),
+  partial — 9b-9e (status tables, stale BLOCKED banners, wrong
+  verification targets, plan closure) still not started.
+- 2026-09-02 — Final combined verification after all four code phases
+  landed together: whole-workspace typecheck clean (7/7), chrono-api
+  rls:proof PASS. **Phases 2, 4, 5, 7 all done. Remaining: Phase 9b-9e
+  (docs only).**
