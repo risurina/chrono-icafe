@@ -99,3 +99,6 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 - 2026-09-02 — Phase 5 (e2e spec) delegated to Jules, session
   `16761946068983619882`. Background poller running (consolidated with 7
   other sessions fired the same round).
+- 2026-09-02 — Phase 5 (e2e spec) landed. **All phases of stations are now done**
+  (e2e not yet headed-run, same caveat as every other spec this session).
+  Archived.

@@ -128,3 +128,4 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   checked). typecheck+build clean. **All 5 phases of wallet are now done**
   except Phase 5's e2e spec still needs a real headed run (same caveat as
   every other Jules-built spec this session).
+- 2026-09-02 — Archived (all phases complete).

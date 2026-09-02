@@ -84,3 +84,4 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   @agora/chrono-web typecheck` clean. Committed (`8201663`). **All 6 phases
   of the devices module are now done.** Not yet headed-run against a live
   server — same caveat as every other Jules-built e2e spec this session.
+- 2026-09-02 — Archived (all phases complete).
