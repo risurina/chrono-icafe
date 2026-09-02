@@ -21,6 +21,7 @@ import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
+import { publishStationTransition } from "../station/routes";
 import { chronoDevice, chronoDeviceProvisioningToken } from "./schema";
 import {
   createProvisioningTokenSchema,
@@ -388,7 +389,7 @@ export function staffDeviceRoutes() {
       const id = c.req.param("id");
       const input = c.req.valid("json");
 
-      const updated = await withTenant(tenantId, async (tx) => {
+      const { device: updated, station: approvedStation } = await withTenant(tenantId, async (tx) => {
         const device = await requireOwnDevice(tx, tenantId, id);
         const stationId = await resolveTargetStation(tx, tenantId, device.branchId, input);
         await assertStationNotAlreadyApproved(tx, tenantId, stationId, device.id);
@@ -404,7 +405,17 @@ export function staffDeviceRoutes() {
           })
           .where(and(eq(chronoDevice.id, id), eq(chronoDevice.tenantId, tenantId)))
           .returning();
-        return row;
+
+        // The station linked above may be pre-existing (relink) or just
+        // created by resolveTargetStation (a brand-new kiosk) — either way,
+        // its current row is what the realtime publish below announces.
+        const [station] = await tx
+          .select({ id: chronoStation.id, branchId: chronoStation.branchId, status: chronoStation.status })
+          .from(chronoStation)
+          .where(and(eq(chronoStation.id, stationId), eq(chronoStation.tenantId, tenantId)))
+          .limit(1);
+
+        return { device: row, station };
       });
 
       await recordStaffAudit(c, {
@@ -413,6 +424,9 @@ export function staffDeviceRoutes() {
         targetId: updated?.id,
         targetLabel: updated?.hostname,
       });
+      if (approvedStation) {
+        await publishStationTransition(tenantId, approvedStation);
+      }
       return c.json({ device: updated });
     })
 

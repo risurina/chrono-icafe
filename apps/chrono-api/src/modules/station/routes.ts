@@ -6,6 +6,9 @@ import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation, chronoStationGroup } from "./schema";
+import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
+import { computeBranchSummary } from "../realtime/service";
+import { chronoStationStatusSchema, type StationStatusEvent } from "../realtime/contracts";
 import {
   createStationSchema,
   updateStationSchema,
@@ -15,6 +18,8 @@ import {
   stationGroupListQuerySchema,
   type StationDto,
   type StationGroupDto,
+  type PublicStationsResponse,
+  type StationStatus,
 } from "./contracts";
 
 /** Explicit column list — never `qrSecret`/`qrSecretVersion` (`.ai/rules/dto.md`). */
@@ -63,6 +68,47 @@ function toStationDto(row: StationRow): StationDto {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Publishes `station.status` + the recomputed `branch.summary` for a station
+ * that just transitioned (create/update). Called AFTER the write's own
+ * `withTenant` transaction has committed — a publish is not transactional and
+ * must not roll back with the write it announces. `computeBranchSummary` runs
+ * in its own fresh `withTenant` read here, reflecting the just-committed
+ * state (read-committed isolation is sufficient — this is a best-effort
+ * announcement, the poll remains the source of truth).
+ *
+ * Shared by `station/routes.ts` and `device/routes.ts` (device-approve can
+ * also create/link a station) so both call sites publish identically — see
+ * `.ai/plans/chrono/active/realtime-updates/README.md`, Phase 2a.
+ */
+export async function publishStationTransition(
+  tenantId: string,
+  station: { id: string; branchId: string; status: string },
+): Promise<void> {
+  const parsedStatus = chronoStationStatusSchema.safeParse(station.status);
+  if (!parsedStatus.success) return;
+
+  const provider = getRealtimeProvider();
+  await provider.publish(
+    tenantScopeChannel(tenantId, `branch:${station.branchId}`),
+    "station.status",
+    {
+      stationId: station.id,
+      branchId: station.branchId,
+      status: parsedStatus.data,
+    } satisfies StationStatusEvent,
+  );
+
+  const summary = await withTenant(tenantId, (tx) =>
+    computeBranchSummary(tx, station.branchId),
+  );
+  await provider.publish(
+    tenantScopeChannel(tenantId, `branch-summary:${station.branchId}`),
+    "branch.summary",
+    summary,
+  );
 }
 
 type StationGroupRow = {
@@ -169,17 +215,10 @@ async function requireOwnGroupInBranch(
 const publicStationsLimiter = createRateLimiter(20, 60 * 1000, "public-stations");
 
 // 5-10s in-memory cache keyed by tenantId to avoid a DB hit on every client poll
-type PublicStationsPayload = {
-  aggregate: { total: number; available: number; inUse: number };
-  stations: {
-    id: string;
-    name: string;
-    stationNumber: string;
-    stationType: string;
-    status: string;
-  }[];
-};
-const publicStationsCache = new Map<string, { data: PublicStationsPayload; at: number }>();
+const publicStationsCache = new Map<
+  string,
+  { data: PublicStationsResponse; at: number }
+>();
 
 export function publicStationRoutes() {
   return new Hono()
@@ -220,29 +259,53 @@ export function publicStationRoutes() {
         return c.json(cached.data);
       }
 
-      // 3. Read stations via withTenant (RLS enforced)
+      // 3. Read branches + stations via withTenant (RLS enforced), grouped by branch.
       const data = await withTenant(tenantId, async (tx) => {
+        // Only active branches show on the live public page.
+        const branches = await tx
+          .select({ id: chronoBranch.id, name: chronoBranch.name, code: chronoBranch.code })
+          .from(chronoBranch)
+          .where(eq(chronoBranch.status, "active"))
+          .orderBy(asc(chronoBranch.name));
+
         // We read all stations for the public aggregate view. (Pagination left out as this is an aggregate + full grid).
         const stations = await tx
           .select()
           .from(chronoStation)
-          .orderBy(asc(chronoStation.name));
+          .orderBy(asc(chronoStation.stationNumber));
 
-        const aggregate = {
-          total: stations.length,
-          available: stations.filter(s => s.status === "available").length,
-          inUse: stations.filter(s => s.status === "maintenance" || s.status === "offline").length, // Will be refined when sessions exist
-        };
+        const toAggregate = (rows: typeof stations) => ({
+          total: rows.length,
+          available: rows.filter((s) => s.status === "available").length,
+          inUse: rows.filter((s) => s.status === "maintenance" || s.status === "offline").length, // Will be refined when sessions exist
+        });
+
+        const branchesWithStations = branches.map((branch) => {
+          const branchStations = stations.filter((s) => s.branchId === branch.id);
+          return {
+            id: branch.id,
+            name: branch.name,
+            code: branch.code,
+            aggregate: toAggregate(branchStations),
+            stations: branchStations.map((s) => ({
+              id: s.id,
+              name: s.name,
+              stationNumber: s.stationNumber,
+              stationType: s.stationType,
+              status: s.status as StationStatus,
+            })),
+          };
+        });
+
+        // Top-level aggregate reflects only stations under visible (active) branches —
+        // must match what the grouped view below actually shows.
+        const visibleStations = stations.filter((s) =>
+          branches.some((b) => b.id === s.branchId),
+        );
 
         return {
-          aggregate,
-          stations: stations.map(s => ({
-            id: s.id,
-            name: s.name,
-            stationNumber: s.stationNumber,
-            stationType: s.stationType,
-            status: s.status,
-          }))
+          aggregate: toAggregate(visibleStations),
+          branches: branchesWithStations,
         };
       });
 
@@ -507,6 +570,9 @@ export function stationRoutes() {
         targetId: created?.id,
         targetLabel: created?.name,
       });
+      if (created) {
+        await publishStationTransition(tenantId, created);
+      }
       return c.json({ station: created ? toStationDto(created) : null }, 201);
     })
 
@@ -562,6 +628,7 @@ export function stationRoutes() {
         targetId: updated.id,
         targetLabel: updated.name,
       });
+      await publishStationTransition(tenantId, updated);
       return c.json({ station: toStationDto(updated) });
     })
 

@@ -34,6 +34,8 @@ import {
 } from "agora/ui";
 import { api } from "@/lib/rpc";
 import type { PaginationMeta } from "agora";
+import { connectChronoRealtime, onStationStatus } from "@/lib/realtime";
+import type { StationStatusEvent } from "@agora/chrono-api/realtime";
 
 type StationQrStatus = {
   stationId: string;
@@ -43,8 +45,7 @@ type StationQrStatus = {
   expiresAt: string;
 };
 
-// Note: If a type doesn't exist, we'll infer from the API response
-type StationStatus = "available" | "maintenance" | "offline";
+type StationStatus = "available" | "occupied" | "maintenance" | "offline";
 
 type StationGroup = {
   id: string;
@@ -208,6 +209,26 @@ export default function StationsPage() {
   useEffect(() => {
     loadStations();
   }, [loadStations]);
+
+  // Live station-status updates for the currently-filtered branch (Phase 2a,
+  // .ai/plans/chrono/active/realtime-updates/README.md). Purely additive —
+  // this page has no existing poll/interval to preserve (it fetches on mount
+  // and on filter change only), so the socket is the only live-update path
+  // here; a page reload or filter change still gets the authoritative list
+  // from `loadStations()` above.
+  useEffect(() => {
+    if (activeTab !== "stations" || !branchId) return;
+    const connection = connectChronoRealtime([`branch:${branchId}`]);
+    const offStatus = onStationStatus(connection, (event: StationStatusEvent) => {
+      setStations((prev) =>
+        prev.map((s) => (s.id === event.stationId ? { ...s, status: event.status } : s)),
+      );
+    });
+    return () => {
+      offStatus();
+      connection.close();
+    };
+  }, [activeTab, branchId]);
 
 
   // Station Dialog State
