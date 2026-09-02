@@ -9,10 +9,11 @@ import {
   sendTransactionalEmail,
   escapeHtml,
 } from "agora/server";
-import { listQuerySchema, type PaginationMeta } from "agora";
+import { listQuerySchema, createId, type PaginationMeta } from "agora";
 import { recordStaffAudit } from "agora/audit";
+import { inviteTenantMember } from "agora/member-auth";
 import { chronoMemberProfile } from "./schema";
-import { updateMemberProfileSchema, toMemberProfile } from "./contracts";
+import { inviteMemberSchema, updateMemberProfileSchema, toMemberProfile } from "./contracts";
 import { approveMemberProfile, rejectMemberProfile } from "./service";
 
 /**
@@ -326,5 +327,51 @@ export function memberProfileRoutes() {
       });
       await notifyMemberOfDecision(tenantId, memberId, "rejected");
       return c.json({ profile: toMemberProfile(row) });
+    })
+    // customer-invite: staff proactively brings a customer in — mints a
+    // tenantMember invite (agora/member-auth's `inviteTenantMember`, which
+    // creates the tenantMember row on first invite) and approves the
+    // ChronoMemberProfiles row immediately, since an invite is itself the
+    // approval decision (no separate approve step). See
+    // .ai/plans/chrono/active/customer-invite/README.md.
+    .post("/invite", zValidator("json", inviteMemberSchema), async (c) => {
+      const { tenantId, tenantSlug } = c.var.tenant;
+      requirePermission(c.var.tenant.permissions, { memberProfile: ["invite"] });
+      const { email, name } = c.req.valid("json");
+
+      const { member, resent } = await inviteTenantMember({
+        tenantId,
+        tenantSlug,
+        email,
+        name,
+      });
+
+      const now = new Date();
+      await withTenant(tenantId, async (tx) => {
+        const [existing] = await tx
+          .select({ id: chronoMemberProfile.id })
+          .from(chronoMemberProfile)
+          .where(eq(chronoMemberProfile.memberId, member.id))
+          .limit(1);
+        if (existing) return;
+        await tx.insert(chronoMemberProfile).values({
+          id: createId(),
+          tenantId,
+          memberId: member.id,
+          applicationStatus: "approved",
+          appliedAt: now,
+          approvedAt: now,
+        });
+      });
+
+      await recordStaffAudit(c, {
+        action: "chronoMemberProfile.invited",
+        targetType: "tenantMember",
+        targetId: member.id,
+        targetLabel: member.email,
+        metadata: { resent },
+      });
+
+      return c.json({ memberId: member.id, email: member.email, name: member.name, resent }, 201);
     });
 }

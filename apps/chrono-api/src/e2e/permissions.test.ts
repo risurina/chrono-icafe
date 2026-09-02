@@ -231,6 +231,12 @@ check(
   hasChronoPermission("staff", { memberProfile: ["reject"] }) === false,
 );
 check(
+  // customer-invite: inviting a customer is admin+-only, same tier as
+  // approve/reject — see .ai/plans/chrono/active/customer-invite/README.md.
+  "staff may NOT memberProfile:invite",
+  hasChronoPermission("staff", { memberProfile: ["invite"] }) === false,
+);
+check(
   "admin may memberProfile:read",
   hasChronoPermission("admin", { memberProfile: ["read"] }),
 );
@@ -247,12 +253,20 @@ check(
   hasChronoPermission("admin", { memberProfile: ["reject"] }),
 );
 check(
+  "admin may memberProfile:invite",
+  hasChronoPermission("admin", { memberProfile: ["invite"] }),
+);
+check(
   "owner may memberProfile:approve",
   hasChronoPermission("owner", { memberProfile: ["approve"] }),
 );
 check(
   "owner may memberProfile:reject",
   hasChronoPermission("owner", { memberProfile: ["reject"] }),
+);
+check(
+  "owner may memberProfile:invite",
+  hasChronoPermission("owner", { memberProfile: ["invite"] }),
 );
 
 console.log("\n── Better Auth defaults survive the merge ──");

@@ -89,7 +89,11 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // match the removed foundation admin `customer` approve/reject + this
   // module's own update gate. See
   // apps/chrono-api/src/modules/member/routes.ts.
-  memberProfile: ["read", "update", "approve", "reject"],
+  // `invite` (admin+ only, like approve/reject) lets staff proactively bring
+  // a customer in: mints a tenantMember invite (agora/member-auth) and
+  // approves the ChronoMemberProfiles row on send. See
+  // .ai/plans/chrono/active/customer-invite/README.md.
+  memberProfile: ["read", "update", "approve", "reject", "invite"],
   // A read-only aggregation layer over existing sales/shift/wallet data — no
   // new domain, no mutation. Staff sees branch-scoped summaries only;
   // `readFinancial` (the tenant-wide unscoped rollup + wallet activity) is
@@ -161,7 +165,7 @@ export const CHRONO_ADMIN_GRANTS = {
   voucher: ["read", "manage"],
   promo: ["read", "manage"],
   session: ["create", "update"],
-  memberProfile: ["read", "update", "approve", "reject"],
+  memberProfile: ["read", "update", "approve", "reject", "invite"],
   report: ["read", "readFinancial"],
   securityAlert: ["read", "manage"],
   inquiry: ["read", "manage"],

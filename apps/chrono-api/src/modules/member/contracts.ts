@@ -10,9 +10,15 @@ export const updateMemberProfileSchema = z.object({
   phone: z.string().min(1).max(50).optional(),
 });
 
+export const inviteMemberSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(200),
+});
+
 export type MemberApplicationStatus = z.infer<typeof memberApplicationStatusSchema>;
 export type ApplyForMembershipInput = z.infer<typeof applyForMembershipSchema>;
 export type UpdateMemberProfileInput = z.infer<typeof updateMemberProfileSchema>;
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
 
 // Response DTO for a `chronoMemberProfile` row — explicit column list, dates
 // as ISO strings (.ai/rules/dto.md). Never the raw Drizzle `$inferSelect` row.
