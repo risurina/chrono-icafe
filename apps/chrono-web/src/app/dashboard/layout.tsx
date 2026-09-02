@@ -15,6 +15,7 @@ import {
   Wallet,
   Award,
   Ticket,
+  Percent,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -67,6 +68,7 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
   { type: "item", name: "Loyalty", href: "/loyalty", icon: Award },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
+  { type: "item", name: "Promos", href: "/promos", icon: Percent },
 ];
 
 // Settings is pinned to the bottom of the sidebar — all workspace configuration
@@ -100,6 +102,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/wallets": "Wallets",
   "/dashboard/loyalty": "Loyalty",
   "/dashboard/vouchers": "Vouchers",
+  "/dashboard/promos": "Promos",
   "/dashboard/files": "Files",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
