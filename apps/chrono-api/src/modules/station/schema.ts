@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, index, uniqueIndex, jsonb, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, index, uniqueIndex, jsonb, numeric, integer } from "drizzle-orm/pg-core";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../branch/schema";
@@ -59,6 +59,13 @@ export const chronoStation = pgTable(
       ram?: string | null;
       monitorHz?: number | null;
     } | null>(),
+    // Per-station rotating HMAC signing material for the `qr` module's scan-to-
+    // check-in tokens — null/0 until a station's QR is generated for the first
+    // time. Deliberately per-station (not a single global secret) so a leaked
+    // code is invalidated by regenerating one station, not redeploying a
+    // service-wide secret. See qr plan Pass 2, Divergence 2.
+    qrSecret: text("qrSecret"),
+    qrSecretVersion: integer("qrSecretVersion").notNull().default(0),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },

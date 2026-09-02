@@ -14,6 +14,20 @@ import {
 } from "../modules/pos/schema";
 import { chronoWallet, chronoWalletTransaction } from "../modules/wallet/schema";
 import { chronoDeviceProvisioningToken, chronoDevice } from "../modules/device/schema";
+import { chronoLoyaltyAccount, chronoLoyaltyTransaction } from "../modules/loyalty/schema";
+import { chronoSession } from "../modules/session/schema";
+import {
+  chronoCreditProduct,
+  chronoCreditGrant,
+  chronoCreditPurchase,
+  chronoCreditGrantLedgerEntry,
+} from "../modules/credit/schema";
+import { chronoVoucher } from "../modules/voucher/schema";
+import { chronoPromo, chronoPromoRedemption } from "../modules/promo/schema";
+import { chronoSecurityAlert } from "../modules/security-alert/schema";
+import { chronoQrTokenUse } from "../modules/qr/schema";
+import { chronoInquiry, chronoInquiryMessage } from "../modules/inquiry/schema";
+import { chronoLandingPage } from "../modules/landing-page/schema";
 
 export {
   chronoBranch,
@@ -30,6 +44,21 @@ export {
   chronoWalletTransaction,
   chronoDeviceProvisioningToken,
   chronoDevice,
+  chronoLoyaltyAccount,
+  chronoLoyaltyTransaction,
+  chronoSession,
+  chronoCreditProduct,
+  chronoCreditGrant,
+  chronoCreditPurchase,
+  chronoCreditGrantLedgerEntry,
+  chronoVoucher,
+  chronoPromo,
+  chronoPromoRedemption,
+  chronoSecurityAlert,
+  chronoQrTokenUse,
+  chronoInquiry,
+  chronoInquiryMessage,
+  chronoLandingPage,
 };
 
 /**
@@ -206,4 +235,19 @@ export const APP_TENANT_TABLES = [
   "ChronoWalletTransactions",
   "ChronoDeviceProvisioningTokens",
   "ChronoDevices",
+  "ChronoLoyaltyAccounts",
+  "ChronoLoyaltyTransactions",
+  "ChronoSessions",
+  "ChronoCreditProducts",
+  "ChronoCreditGrants",
+  "ChronoCreditPurchases",
+  "ChronoCreditGrantLedgerEntries",
+  "ChronoVouchers",
+  "ChronoPromos",
+  "ChronoPromoRedemptions",
+  "ChronoSecurityAlerts",
+  "ChronoQrTokenUses",
+  "ChronoInquiries",
+  "ChronoInquiryMessages",
+  "ChronoLandingPages",
 ] as const;
