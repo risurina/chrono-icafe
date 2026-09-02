@@ -49,22 +49,49 @@ profile in any state is overwritten unconditionally.
    from a first-time decision. A reversal of a venue's earlier decision should be legible
    as a reversal.
 4. **Concurrent double-approve both succeed**, writing two audit events for one
-   transition.
+   transition. Under READ COMMITTED the two unconditional updates serialize on the row
+   lock and both succeed — there is no predicate to re-evaluate.
 5. **Latent, activates later:** `customer-onboarding` adds a customer-facing email inside
    these handlers. With no guard, every duplicate call re-sends the approval email to the
    customer. This is why the fix must land *before* that plan, not inside it.
 
-### Blast radius — accurate scope
+### What is actually reachable today — read this before triaging urgency
 
-`applicationStatus` has **no access enforcement anywhere**. Verified: the only consumer
-outside these handlers is `session/routes.ts:161-165`, which uses it to choose
-`group.memberRate` over `group.hourlyRate` — a **pricing** decision. The schema comment
-says so explicitly (`member/schema.ts:20`: *"this field carries no enforcement yet"*).
+**Consequence 3 is not reachable through the shipped UI.**
+`apps/chrono-web/src/app/dashboard/members/page.tsx:187` renders the Approve/Reject
+buttons **only** when `applicationStatus === "pending"`. So `approved → rejected` and
+`rejected → approved` cannot be produced by a staff member clicking the dashboard — only
+by a direct API call, or by the double-submit race on a genuinely pending row.
 
-So this is **not** an access-control vulnerability, and should not be filed as one. A
-pending customer can already start a session; they simply pay the standard rate. The
-damage is to audit integrity (1–4) plus mispriced sessions if a status is flipped by
-accident.
+**The live exposure is therefore (4), the double-submit race**, with (1) and (2) as its
+consequence. That is still worth fixing — a double-click is easy and the timestamp damage
+is unrecoverable — but this is not a burning production incident, and the plan should not
+be read as claiming one. Phase 1's acceptance criteria deliberately cover the
+UI-unreachable transitions anyway, because the API accepts them and
+`customer-onboarding` will add an email to that path.
+
+### Blast radius — no access enforcement, but six consumers, not one
+
+`applicationStatus` has **no access enforcement anywhere** — that conclusion is verified
+and holds. But an earlier draft of this plan claimed the session pricing read was "the
+only consumer outside these handlers", which is false. The full set:
+
+| Consumer | Kind | Enforces access? |
+|---|---|---|
+| `session/routes.ts:156-170` | reads it to pick `group.memberRate` over `hourlyRate` | no — **pricing** |
+| `member/portal-routes.ts:56` | **writes** `"pending"` on self-service apply | no |
+| `member/routes.ts:95,119` | list projection | no |
+| `chrono-web/portal/page.tsx:119-127` | customer-facing status badge | no |
+| `chrono-web/dashboard/members/page.tsx:32,176-187` | status badge + approve/reject button visibility | no — display |
+| `member/routes.ts:171,197` | the two handlers this plan fixes | no |
+
+Session *start* gates on `base.tenantMember.status !== "active"`
+(`session/routes.ts:150-153`), **not** on `applicationStatus`. The schema comment is at
+`member/schema.ts:21`: *"this field carries no enforcement yet."*
+
+So this is **not** an access-control vulnerability and must not be filed as one. A pending
+customer can already start a session; they simply pay the standard rate. The damage is
+audit integrity plus a mispriced session if a status is flipped by accident.
 
 ---
 
@@ -76,18 +103,43 @@ unconditional-and-silent.
 ```ts
 .where(and(
   eq(chronoMemberProfile.memberId, memberId),
-  ne(chronoMemberProfile.applicationStatus, "approved"),   // "rejected" in the reject handler
+  // NOT ne(...) — `ne` is not exported from `agora/db` (see the export note below).
+  not(eq(chronoMemberProfile.applicationStatus, "approved")),  // "rejected" in the reject handler
 ))
 ```
+
+**`ne` does not exist in `agora/db`.** `packages/agora/src/db/index.ts:11-30` re-exports
+`eq`/`and`/`not`/… but **no `ne`**, and deep-importing from `drizzle-orm` in an app
+violates `.ai/rules/monorepo.md` ("Apps import public package exports only"). Use
+`not(eq(...))`, which is already exported. The alternative — re-exporting `ne` from the
+foundation — is *also* fine but makes this no longer a single-app-file change, so it is
+not the default here.
 
 Then distinguish the two zero-row cases, which the current 404 conflates:
 
 - profile does not exist → **404** (unchanged behaviour)
 - profile exists but is already in the target state → **409**, no audit event, no write
 
-A conditional `UPDATE … WHERE status <> target` is atomic under Postgres row locking, so
-the guard also resolves consequence 4 for free: the second concurrent caller matches zero
-rows and gets the 409. No advisory lock or transaction-isolation change is needed.
+### Why a conditional update here, when wallet/pos/credit all use explicit locks
+
+This case **deliberately diverges** from the repo's other concurrency guards, and the
+divergence needs stating or the next reviewer will read it as an oversight.
+
+`refundSale` (`pos/service.ts:286-297`) and `lockWalletForUpdate`
+(`wallet/service.ts:22-41`) both take an explicit pessimistic lock — `.for("update")` —
+then re-check status while holding it. They **must**: each reads a balance or status,
+computes a derived value from it, and writes that value back, sometimes across several
+rows. A conditional update cannot express that safely.
+
+This transition is different in kind: **a single statement, over a single row, writing
+constants** (`"approved"`, `new Date()`), with no read-then-compute-then-write. So
+`UPDATE … WHERE memberId = ? AND NOT (status = target)` is sufficient on its own. Under
+READ COMMITTED the second concurrent caller blocks on the row lock, re-evaluates the
+predicate after the first commits (`EvalPlanQual`), matches zero rows, and gets the 409.
+Consequence 4 is resolved with no advisory lock and no isolation change.
+
+If the handler ever grows a computed value (a fee, a counted quota), this reasoning stops
+holding and it should move to the `refundSale` lock idiom.
 
 **Audit events record the transition, not just the destination.** Add the previous status
 to the event metadata (`from: row.applicationStatus` captured before the write, `to:
@@ -122,37 +174,72 @@ No notification exists yet — `customer-onboarding` adds it later, on top of th
 
 ## Pass 2 — Technical Planning
 
-**Files to change:** `apps/chrono-api/src/modules/member/routes.ts` only.
+**Files to change:** `apps/chrono-api/src/modules/member/routes.ts` **and a new
+`apps/chrono-api/src/modules/member/service.ts`** — the module has no service layer today
+(only `contracts.ts`, `portal-routes.ts`, `routes.ts`, `schema.ts`), and Phase 2's test
+cannot exercise the real code path without one. See Phase 1 step 2.
 **No schema change.** No migration, no `APP_TENANT_TABLES` edit, no RLS impact — so
 `.ai/rules/database.md`'s plan-first schema gate does not apply, and `rls:proof` is
 unaffected (run it anyway; it is cheap and this touches a tenant-scoped write).
 **No contract change.** The response shape is unchanged; only a new status code.
 **No permission change.**
 
-**Pattern to copy:** the repo's existing atomic-guard idiom — `pos`'s void path and
-`wallet`'s adjust path both use a conditional update to make a state change
-single-shot. Read `apps/chrono-api/src/modules/pos/routes.ts` (the `pos:void` handler,
-~line 399) before writing, and match its 409 shape and error message style rather than
-inventing one.
+**But there IS a small UI consequence, contrary to an earlier draft's "no UI change".**
+`apps/chrono-web/src/app/dashboard/members/page.tsx:70-96` handles only `res.ok`, `403`,
+and else → a generic *"Could not update the application."* toast. A 409 therefore surfaces
+as that generic error. Phase 1 adds a 409 branch to both handlers (a ~4-line change) so a
+double-click reads as *"This application has already been approved."* rather than an
+apparent failure — otherwise the fix makes a benign repeat look broken, which is a worse
+experience than the silent success it replaces.
+
+**Pattern to copy — for the 409 *shape* only, not the mechanism.** An earlier draft of
+this plan claimed `pos`'s void path and `wallet`'s adjust path "both use a conditional
+update". **Neither does** — both use `SELECT … FOR UPDATE` plus a status re-check (see
+"Why a conditional update here" above). Copying their mechanism would contradict this
+plan's own prescription.
+
+What to actually copy: the **error contract** in `refundSale`
+(`apps/chrono-api/src/modules/pos/service.ts:293-297`) — `404` for a missing row, then
+`throw new HttpError(409, "This sale has already been refunded.")` for the already-in-state
+case. Match that message style (`"This application has already been approved."`), not its
+locking.
 
 ---
 
 ## Phase 1 — Guard both transitions
 
 **Files to update**
+- `apps/chrono-api/src/modules/member/service.ts` (**new**)
 - `apps/chrono-api/src/modules/member/routes.ts` (approve ~162, reject ~188)
 
 **Step-by-step tasks**
-1. Read the `pos:void` handler first and match its conflict-handling shape.
-2. In the approve handler: capture the pre-write status, add
-   `ne(applicationStatus, "approved")` to the `.where(...)`, and import `ne`/`and` if not
-   already imported in that file.
-3. Distinguish the zero-row cases: re-select the profile on zero rows; absent → 404
-   (unchanged), present → 409 with a message naming the current state.
-4. Pass `from`/`to` into `recordStaffAudit`'s metadata; ensure the audit call happens only
-   on a real transition (after the guard, not before it).
-5. Repeat 2–4 for the reject handler with `"rejected"`.
-6. Confirm `requirePermission` still runs **before** any DB work in both handlers.
+1. Read `refundSale` (`pos/service.ts:277-300`) for the 404/409 **error contract** — not
+   its locking, which this plan deliberately does not copy.
+2. **Extract `approveMemberProfile(tx, { tenantId, memberId })` and
+   `rejectMemberProfile(tx, …)` into the new `service.ts`**, mirroring `pos/service.ts`'s
+   shape (takes a `TenantTx`, throws `HttpError`, returns the updated row plus the
+   previous status). This is required, not tidiness: `recordStaffAudit(c, …)` needs a Hono
+   `Context`, so as long as the logic lives inline in the handler, Phase 2's test cannot
+   call the same code path the route does — and its acceptance criterion becomes
+   unmeetable. The audit write **stays in the route**; only the guarded transition moves.
+3. In the service: capture the pre-write status, and guard the update with
+   `not(eq(chronoMemberProfile.applicationStatus, "approved"))` — **not** `ne`, which
+   `agora/db` does not export.
+4. Distinguish the zero-row cases **inside the same `withTenant` callback**: on zero rows,
+   `SELECT` the profile in that same transaction; absent → 404 (unchanged), present → 409
+   naming the current state. Keeping it in one callback avoids a second-transaction race
+   (see "The re-select" note below).
+5. In the route: call the service, then pass `from`/`to` into `recordStaffAudit`'s
+   metadata. The audit call must run only on a real transition — after the service
+   returns, never before the guard.
+6. Repeat 2–5 for reject with `"rejected"`.
+7. Confirm `requirePermission` still runs **before** any DB work in both handlers.
+
+**The re-select — benign, and why.** Even inside one transaction the split is a second
+statement; across transactions it would be racy (row deleted between → stale 409; row
+inserted → stale 404). Both are harmless misreports of an already-failed call, and no
+state is corrupted either way. Step 4 keeps it in one callback so the window closes to
+nothing that matters. Do not add a lock for this.
 
 **Acceptance criteria**
 - Approving a pending profile succeeds and stamps `approvedAt` once.
@@ -164,6 +251,10 @@ inventing one.
 - A missing profile still returns 404, not 409.
 - Permission gates unchanged: a `staff` user without `customer:approve` still gets 403.
 
+(The `rejected → approved` and `approved → rejected` criteria are exercised via direct API
+call — the dashboard hides those buttons on non-pending rows, per "What is actually
+reachable today". They are still specified because the API accepts them.)
+
 **Verification commands**
 - `pnpm typecheck`
 - `pnpm --filter @agora/chrono-api rls:proof`
@@ -171,32 +262,46 @@ inventing one.
 **Out of scope:** the concurrency test (Phase 2); notifications (that is
 `customer-onboarding`'s).
 
-**Execution start point:** `apps/chrono-api/src/modules/pos/routes.ts`, the `pos:void`
-handler — copy its conflict shape, then apply it at `member/routes.ts:162`.
+**Execution start point:** `apps/chrono-api/src/modules/pos/service.ts` — read
+`refundSale` (lines 277-300) for its 404/409 error contract and its route↔service split,
+then build `member/service.ts` on that shape. **Do not copy its `.for("update")` lock**;
+see "Why a conditional update here" above.
 
 ---
 
 ## Phase 2 — Concurrency + regression test
 
 **Files to update**
-- `apps/chrono-api/src/modules/member/approval-concurrency.test.ts` (new)
-- `apps/chrono-api/package.json` — add `"test:member-approval": "tsx
-  src/modules/member/approval-concurrency.test.ts"`, matching the 17 existing `test:*`
-  entries.
+- `apps/chrono-api/src/modules/member/concurrency.test.ts` (new)
+- `apps/chrono-api/package.json` — add `"test:member-concurrency": "tsx
+  src/modules/member/concurrency.test.ts"`.
+
+**Naming:** there are **12** `test:*` entries today, and four follow the convention
+`test:<module>-concurrency` → `src/modules/<module>/concurrency.test.ts` (wallet, pos,
+credit, session). Match it exactly. An earlier draft proposed
+`test:member-approval` → `approval-concurrency.test.ts`, diverging on both halves.
 
 **Step-by-step tasks**
-1. Copy the harness from an existing concurrency test —
-   `apps/chrono-api/src/modules/wallet/concurrency.test.ts` is the closest precedent
-   (`test:wallet-concurrency`).
-2. Fire N concurrent approves at one pending profile; assert **exactly one** succeeds,
-   N−1 return 409, exactly one audit event exists, and `approvedAt` was written once.
-3. Add the plain regression cases: re-approve → 409 + unchanged timestamp; reject an
-   approved profile → succeeds with `from: "approved"`.
+1. Copy the harness from `apps/chrono-api/src/modules/wallet/concurrency.test.ts` — a
+   standalone tsx script firing concurrent calls at **service functions** over real
+   Postgres connections.
+2. Point it at `approveMemberProfile` from Phase 1's `service.ts` — this is why the
+   extraction is a Phase 1 deliverable. Calling the route would need a Hono `Context`;
+   re-implementing the SQL in the test would mean removing the guard from `service.ts`
+   **would not fail the test**, which is exactly the "testing plumbing, not the gate"
+   failure the criterion below forbids.
+3. Fire N concurrent approves at one pending profile; assert **exactly one** succeeds and
+   N−1 raise 409, and that `approvedAt` was written once.
+4. Add the regression cases: re-approve → 409 + byte-identical timestamp; reject an
+   approved profile → succeeds, reporting `from: "approved"`.
 
 **Acceptance criteria**
-- The test **fails** if the `ne(...)` predicate is removed from either handler. A guard
-  test that passes either way is testing plumbing, not the guard
-  (`.ai/rules/rbac.md`'s standard, applied here to a state guard).
+- The test **fails** if the `not(eq(...))` predicate is removed from `service.ts`. Verify
+  this by actually deleting the predicate and watching it go red — a guard test that
+  passes either way is testing plumbing, not the guard (`.ai/rules/rbac.md`'s standard,
+  applied here to a state guard).
+- Audit-event counting is **not** asserted here — `recordStaffAudit` stays in the route,
+  outside this harness's reach. It is covered by Phase 1's manual acceptance instead.
 
 **Verification commands**
 - `pnpm --filter @agora/chrono-api test:member-approval`
@@ -205,22 +310,32 @@ handler — copy its conflict shape, then apply it at `member/routes.ts:162`.
 **Out of scope:** browser e2e — this is a server-side state guard with no UI change; the
 existing member e2e coverage is unaffected.
 
-**Execution start point:** `apps/chrono-api/src/modules/wallet/concurrency.test.ts`.
+**Execution start point:** `apps/chrono-api/src/modules/wallet/concurrency.test.ts` —
+confirm Phase 1's `service.ts` exists first; without it this phase cannot be built.
 
 ---
 
 ## Phase 3 — Decouple `customer-onboarding`
 
 **Files to update**
-- `.ai/plans/chrono/active/customer-onboarding/README.md`
+- `.ai/plans/chrono/active/customer-onboarding/README.md` — **already done** (verified: it
+  references this plan as a dependency at its header and Decision 4, and duplicates no fix
+  instruction). Confirm, do not redo.
+- `.ai/plans/chrono/active/members/README.md:305-310` — **still stale.** It specifies the
+  landed behaviour verbatim (*"Sets `applicationStatus: "approved"`, `approvedAt: now()`.
+  404 if not found/wrong tenant"*) with no guard and no 409, and its line 245 carries the
+  "nothing reads `applicationStatus` to block an action" note. That plan is in `active/`
+  and will contradict shipped code once this lands.
 
 **Step-by-step tasks**
-1. Replace Decision 4's inline fix instruction with a dependency reference to this plan.
-2. Remove the guard step from that plan's Phase 1 task list; leave its notification step,
-   noting it requires this plan to have landed.
+1. Confirm `customer-onboarding`'s dependency reference is intact.
+2. Add a note at `members/README.md:305-310` that the approve/reject route spec is
+   superseded by this plan (guarded transition, 409 on no-op, `from`/`to` in the audit
+   event).
 
 **Acceptance criteria**
-- The guard is specified in exactly one place across all plans.
+- `grep -rn "applicationStatus" .ai/plans/chrono/active/` shows the guard specified in
+  exactly one place, with every other mention being a dependency or superseded-by pointer.
 
 **Verification commands** — none (docs only).
 
@@ -244,6 +359,9 @@ existing member e2e coverage is unaffected.
 ---
 
 ## Open Questions (developer to confirm)
+
+> **Question 1 is BLOCKING.** Phase 2's assertions are written against the 409 form, so it
+> must be answered before Phase 1 starts — not resolved alongside it.
 
 1. **409 vs. silent success on a redundant call.** This plan chooses 409 because a caller
    should know its write did nothing. The alternative (200 with the existing row, no
