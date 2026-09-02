@@ -145,7 +145,7 @@ export default async function Home() {
       },
       {
         title: "Add branches & stations",
-        description: "Draw your floor plans and set your hourly pricing tiers.",
+        description: "Register each location and the stations customers sit at.",
       },
       {
         title: "Open the floor",
@@ -374,7 +374,7 @@ export default async function Home() {
                   Roles
                 </span>
                 <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  Designed around real tenant roles.
+                  Designed around everyone on your floor.
                 </h2>
                 <p className="text-muted-foreground">
                   Four distinct audiences, each with a tailored surface and the exact permissions they need.
