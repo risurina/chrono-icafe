@@ -13,9 +13,9 @@ more than writing it.
 | Phase | Owner | Status | Notes |
 |---|---|---|---|
 | 1 — Correct the `wallet` plan + handover | local | done | committed `a5377c5` |
-| 2 — Bound money amounts (contract + cumulative) | local | not started | `numeric(12,2)` max is `9999999999.99` |
-| 3 — Route correctness (audit metadata, `q` search, portal sort) | local | not started | |
-| 4 — Ledger integrity constraints (migration) | local | not started | run the pre-flight violation query BEFORE editing the schema |
+| 2 — Bound money amounts (contract + cumulative) | local | done | committed `f9b3736` |
+| 3 — Route correctness (audit metadata, `q` search, portal sort) | local | done | committed `beab675` |
+| 4 — Ledger integrity constraints (migration) | local | done | committed `ac9a7cc`, migration `0010_add_wallet_ledger_checks.sql`. **`test:wallet-concurrency` could not be re-run to completion — see the log entry below; not a defect in this phase** |
 
 ## Log
 
@@ -58,6 +58,45 @@ more than writing it.
   annotated, and a log entry recording the audit's real findings and the two
   false ones. Verified: `grep -rn "packages/agora/src/auth/permissions"` over
   the wallet plan folder returns nothing.
+- 2026-09-02 — Phases 2–4 implemented and committed. **Phase 2** (`f9b3736`):
+  both amount regexes bounded to 10 integer digits with `MAX_BALANCE`
+  (`"9999999999.99"`, the `numeric(12,2)` ceiling) exported from `contracts.ts`,
+  plus a cumulative magnitude guard on `balanceAfter` in `applyWalletDelta`
+  — checked as a magnitude because an `adjustment` may legitimately drive the
+  balance negative. Verified with an 11-assertion script: 11-digit amounts
+  rejected, `9999999999.99` still accepted, zero/3dp still rejected, signed
+  variants likewise, and cumulative overflow detectable at the cent boundary.
+  **Phase 3** (`beab675`): `walletAuditMetadata()` helper feeding all three
+  `recordStaffAudit` calls (member id, transaction id, amount, both balances,
+  reason); `q` applied via `or(ilike(name), ilike(email))` to BOTH the rows
+  query and the count query — the count needed the `innerJoin` added, without
+  which `meta.totalItems` would have described the unfiltered set; portal
+  history now applies the requested `order` instead of hardcoding `desc()`.
+  **Phase 4** (`ac9a7cc`): pre-flight query first confirmed 0 invariant
+  violations and 0 unknown-type rows, so `ADD CONSTRAINT` was safe; two
+  `check()` constraints added to `chronoWalletTransaction`, migration
+  `0010_add_wallet_ledger_checks.sql` reviewed before applying (exactly two
+  `ADD CONSTRAINT` statements, no drops) and applied via `db:migrate`. Both
+  constraints verified live against Postgres: a hand-written INSERT with a
+  wrong `balanceAfter`, and one with `type = 'transfer'`, are each rejected by
+  name.
+- 2026-09-02 — **Verification gap to close: `test:wallet-concurrency` could
+  not be re-run after Phase 4.** It passed cleanly twice during Phase 2 (4/4),
+  then began failing with a *different* missing relation on each attempt —
+  `ApiKeys`, then `ChronoDeviceProvisioningTokens`, then
+  `AnnouncementDeliveries`. Confirmed NOT caused by this work: the same
+  failure reproduces with the Phase 4 schema change stashed, and `tableDdl()`
+  in the test harness does not emit check constraints at all, so the new
+  constraints are inert for it. Root cause is environmental — a second Claude
+  session was concurrently editing `apps/chrono-api/src/db/schema.ts` and
+  running its own destructive suite against the same `TEST_DATABASE_URL`, so
+  the harness's drop/recreate loop raced against a schema module changing
+  under it (`AnnouncementDeliveries` is that session's new table, absent from
+  the RLS list earlier in the same session). **Re-run
+  `pnpm --filter @agora/chrono-api test:wallet-concurrency` once the tree is
+  quiet and no other session is running; expect 4/4.** `typecheck`,
+  `test:permissions` (354 passed), and `rls:proof` (`PASS ✅`, non-vacuous)
+  all passed against the final state.
 - 2026-09-02 — Confirmed with the developer that the wallet's per-tenant,
   non-transferable scoping is correct as built (a customer signs up globally via
   `agora/customer-auth`, applies to a tenant shop, and the wallet is keyed on
