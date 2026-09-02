@@ -1,5 +1,24 @@
 import { z } from "zod";
 
+// ctaHref is tenant-authored input rendered into a public anchor href, never
+// server-fetched — the risk is XSS (javascript:/data: schemes), not SSRF, so
+// this only accepts an https:// absolute URL or a same-origin relative path
+// beginning "/" (and not "//", which browsers resolve as protocol-relative).
+// See .ai/plans/chrono/active/security-hardening/README.md, Phase 5.
+const ctaHrefSchema = z
+  .string()
+  .refine(
+    (v) => {
+      if (v.startsWith("/") && !v.startsWith("//")) return true;
+      try {
+        return new URL(v).protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "ctaHref must be an https:// URL or a same-origin path starting with /." },
+  );
+
 export const updateLandingPageSchema = z
   .object({
     heroTagline: z.string().nullable().optional(),
@@ -7,7 +26,7 @@ export const updateLandingPageSchema = z
     amenitiesBody: z.string().nullable().optional(),
     contactOverride: z.string().nullable().optional(),
     ctaLabel: z.string().nullable().optional(),
-    ctaHref: z.string().url().nullable().optional(),
+    ctaHref: ctaHrefSchema.nullable().optional(),
   })
   .strict();
 

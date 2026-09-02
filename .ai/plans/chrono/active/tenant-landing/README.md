@@ -254,11 +254,23 @@ because this is brand/public-facing content, not day-to-day floor operations).
 
 ## Phase 2 — Contracts
 
+**Security constraint (from `.ai/plans/chrono/active/security-hardening/README.md`
+Phase 5):** `ctaHref` is tenant-authored input rendered into an anchor `href` on a
+PUBLIC page — it is not covered by that plan's XSS section, which only handles the
+text fields. `updateLandingPageSchema` must validate `ctaHref` to accept ONLY
+`https://` absolute URLs or same-origin relative paths beginning `/` — reuse the
+existing `assertPublicHttpsUrl` precedent (`apps/chrono-api/src/routes/rpc.ts:1579`).
+A `javascript:` (or any other non-http(s), non-relative) value must be rejected at
+the API layer, not merely left unrendered by the UI. The Phase 5 e2e spec must assert
+this rejection explicitly.
+
 **Files to Update**
-- `apps/chrono-api/src/modules/landing-page/contracts.ts` (new)
+- `apps/chrono-api/src/modules/landing-page/contracts.ts` (already landed — this
+  constraint still needs to be added to its `ctaHref` field validation)
 
 **Step-by-Step Tasks**
-1. `updateLandingPageSchema` (`.strict()`, all fields optional).
+1. `updateLandingPageSchema` (`.strict()`, all fields optional). `ctaHref` gets the
+   `https://`-or-same-origin-relative refinement described above.
 2. Response contract including resolved branch summaries + `hasStations: boolean`.
 
 **Acceptance Criteria**
