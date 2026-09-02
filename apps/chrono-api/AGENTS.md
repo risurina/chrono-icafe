@@ -106,3 +106,37 @@ listed here.
   middleware. An unknown host or a tenant in a terminal lifecycle status
   (`suspended`/`cancelled`/`archived`/`deleting`) renders a 404, never stale or
   cross-tenant data.
+
+## Unauthenticated routes
+
+Every route reachable without a session mounts under `/public/*` or
+`/api/v1/device/*` on `apps/chrono-api/src/app.ts` directly — **never** under
+`/rpc`, which applies `tenantMiddleware()` (an anonymous caller 401s before the
+handler runs) and gets the maintenance/read-only gates applied to `/rpc/*` (a
+public page would 503 during maintenance). This is not a style preference: both
+gates are wired onto `/rpc` specifically, so mounting a public route there
+cannot work.
+
+For any such route:
+
+- **Rate-limit it.** Wrap it in `createRateLimiter` + `clientIp`, both exported
+  from `agora/server` (`packages/agora/src/server/rate-limit.ts:172,184`), with
+  limits pinned as concrete numbers at the mount site — never left as a TODO or
+  deferred to "check if agora has a rate-limit primitive." The working
+  precedent is the staff-credential throttle in
+  `apps/chrono-api/src/app.ts:352-369` (`staffSignInLimiter` = 5/15min,
+  `staffSignUpLimiter` = 10/hour, both `createRateLimiter(...)` calls at
+  `app.ts:137-138`), which blocks by `clientIp(c)` and returns 429 with a
+  `Retry-After` header.
+- **Resolve tenant server-side and reject terminal statuses.** Never trust a
+  client-supplied tenant, and never serve a `suspended`/`cancelled`/`archived`/
+  `deleting` tenant. The working precedent is `/public/tenant`
+  (`apps/chrono-api/src/app.ts:468`) and `/public/branding`
+  (`apps/chrono-api/src/app.ts:477`), both mounted on the app outside `/rpc` and
+  both resolving through `resolveOrgFromRequest`.
+- **Never return a raw row.** Respond with an explicit column allowlist —
+  no un-narrowed `$inferSelect` object reaching the client.
+
+See `.ai/plans/chrono/active/security-hardening/README.md` Phase 2 for the full
+reasoning (the rate-limiting gap found across the `devices`/`qr`/`inquiries`/
+`public-stations` plans was one convention gap, not four separate bugs).
