@@ -9,7 +9,7 @@ import { chronoStation } from "../station/schema";
 import { chronoBranch } from "../branch/schema";
 import { chronoQrTokenUse } from "./schema";
 import { verifyStationQrToken } from "./token";
-import { startSession } from "../session/service";
+import { startSession, publishSessionTransition } from "../session/service";
 import {
   resolveQrSchema,
   consumeQrSchema,
@@ -233,7 +233,7 @@ export function qrPublicRoutes() {
         // verbatim (not the generic tamper-detection message above) — the
         // token itself was genuine, so the member may re-scan once the
         // underlying condition clears (qr plan Phase 5, Step 2).
-        const sessionId = await withTenant(tenantId, async (tx) => {
+        const startedSession = await withTenant(tenantId, async (tx) => {
           try {
             await tx.insert(chronoQrTokenUse).values({
               id: createId(),
@@ -251,15 +251,20 @@ export function qrPublicRoutes() {
             throw err;
           }
 
-          const session = await startSession(tx, {
+          return startSession(tx, {
             tenantId,
             stationId: station.stationId,
             memberId,
             // Self-service scan: no staff attribution.
             startedByUserId: null,
           });
-          return session.id;
         });
+
+        // Publish AFTER the transaction above commits — a QR check-in
+        // publishes identically to a manual staff session start
+        // (realtime-updates plan, Phase 2b).
+        await publishSessionTransition(tenantId, startedSession);
+        const sessionId = startedSession.id;
 
         const result: QrConsumeResult = {
           resolved: true,

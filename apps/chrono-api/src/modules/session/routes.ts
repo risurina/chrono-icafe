@@ -5,7 +5,7 @@ import { type TenantVars, HttpError, zValidator } from "agora/server";
 import { recordStaffAudit } from "agora/audit";
 import { chronoStation } from "../station/schema";
 import { chronoSession } from "./schema";
-import { closeSession, startSession } from "./service";
+import { closeSession, startSession, publishSessionTransition } from "./service";
 import { startSessionSchema, extendSessionSchema, sessionListQuerySchema } from "./contracts";
 
 function buildPaginationMeta(
@@ -108,6 +108,8 @@ export function sessionRoutes() {
         }),
       );
 
+      await publishSessionTransition(tenantId, created!);
+
       await recordStaffAudit(c, {
         action: "session.started",
         targetType: "session",
@@ -140,6 +142,8 @@ export function sessionRoutes() {
           .returning();
         return row;
       });
+
+      if (updated) await publishSessionTransition(tenantId, updated);
 
       await recordStaffAudit(c, {
         action: "session.paused",
@@ -182,6 +186,8 @@ export function sessionRoutes() {
         return row;
       });
 
+      if (updated) await publishSessionTransition(tenantId, updated);
+
       await recordStaffAudit(c, {
         action: "session.resumed",
         targetType: "session",
@@ -221,6 +227,8 @@ export function sessionRoutes() {
           return row;
         });
 
+        if (updated) await publishSessionTransition(tenantId, updated);
+
         await recordStaffAudit(c, {
           action: "session.extended",
           targetType: "session",
@@ -241,6 +249,8 @@ export function sessionRoutes() {
       );
 
       if (!result.alreadyClosed) {
+        await publishSessionTransition(tenantId, result.session);
+
         await recordStaffAudit(c, {
           action: "session.ended",
           targetType: "session",

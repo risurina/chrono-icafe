@@ -13,7 +13,7 @@
 import { withAdmin, withTenant, and, inArray, isNotNull, lt } from "agora/db";
 import { logger } from "agora/server";
 import { chronoSession } from "./schema";
-import { closeSession } from "./service";
+import { closeSession, publishSessionTransition } from "./service";
 
 export async function runSessionExpirySweepOnce(): Promise<{ closed: number }> {
   const due = await withAdmin((tx) =>
@@ -32,9 +32,17 @@ export async function runSessionExpirySweepOnce(): Promise<{ closed: number }> {
 
   let closed = 0;
   for (const row of due) {
-    await withTenant(row.tenantId, (tx) =>
+    // No c.var.tenant here — this is a cross-tenant setInterval, not a
+    // request. tenantId comes from the due-row itself (not RLS/session
+    // context), and the publish runs AFTER withTenant returns (never inside
+    // it — a publish must not roll back with the write). Runs in the same
+    // process as the memory provider, true today (one Chrono API process).
+    const result = await withTenant(row.tenantId, (tx) =>
       closeSession(tx, { tenantId: row.tenantId, sessionId: row.id, performedByUserId: null }),
     );
+    if (!result.alreadyClosed) {
+      await publishSessionTransition(row.tenantId, result.session);
+    }
     closed++;
   }
   return { closed };

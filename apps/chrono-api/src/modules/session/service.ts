@@ -5,12 +5,13 @@ import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { debitWallet } from "../wallet/service";
 import { chronoWallet } from "../wallet/schema";
 import { chronoStation, chronoStationGroup } from "../station/schema";
+import { chronoDevice } from "../device/schema";
 import { publishStationTransition } from "../station/routes";
 import { chronoMemberProfile } from "../member/schema";
 import * as base from "agora/db/schema";
 import { chronoSession, type ChronoSessionRow } from "./schema";
 import { computeMeteredCharge, capMoney } from "./money";
-import { type SessionStateEvent } from "../realtime/contracts";
+import { chronoSessionStatusSchema, type SessionStateEvent } from "../realtime/contracts";
 
 /**
  * Publishes `session.state` for a session's transition, plus the station's
@@ -32,16 +33,38 @@ export async function publishSessionTransition(
   tenantId: string,
   session: Pick<ChronoSessionRow, "id" | "stationId" | "branchId" | "status">,
 ): Promise<void> {
+  const parsedStatus = chronoSessionStatusSchema.safeParse(session.status);
+  if (!parsedStatus.success) return;
+
   const provider = getRealtimeProvider();
+  const event: SessionStateEvent = {
+    sessionId: session.id,
+    stationId: session.stationId,
+    status: parsedStatus.data,
+  };
   await provider.publish(
     tenantScopeChannel(tenantId, `branch:${session.branchId}`),
     "session.state",
-    {
-      sessionId: session.id,
-      stationId: session.stationId,
-      status: session.status,
-    } satisfies SessionStateEvent,
+    event,
   );
+
+  // Also target the station's own approved device's private channel
+  // (realtime-updates plan, Phase 3) — so a kiosk learns when staff start or
+  // end a session at the counter. Looked up fresh at publish time (never
+  // cached), so a relink or new approval is reflected on the very next
+  // transition with no extra wiring. A station with no approved device (or
+  // one still pending_approval) simply gets no second publish — there is no
+  // channel to reach.
+  const [device] = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ id: chronoDevice.id })
+      .from(chronoDevice)
+      .where(and(eq(chronoDevice.stationId, session.stationId), eq(chronoDevice.status, "approved")))
+      .limit(1),
+  );
+  if (device) {
+    await provider.publish(tenantScopeChannel(tenantId, `device:${device.id}`), "session.state", event);
+  }
 
   const [station] = await withTenant(tenantId, (tx) =>
     tx
