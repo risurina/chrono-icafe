@@ -121,3 +121,21 @@ anything (the guard exists but is bypassable via `E2E_ALLOW_DESTRUCTIVE=1`, and
 several harnesses reassign `process.env.DATABASE_URL` themselves), and teach
 `tableDdl()` to emit FKs/CHECKs/partial-index `WHERE` clauses so harness-created
 schemas match the real migrations.
+
+### Remedy applied (2026-09-02, developer approved)
+
+Dropped all 82 `public` tables + the `drizzle` migration schema on the dev
+`chrono` database (guarded: the script refused to run against any database not
+literally named `chrono`), then replayed migrations and re-seeded.
+
+**Before → after:**
+
+| | before | after |
+|---|---|---|
+| Foreign keys (public schema) | 0 | **164** |
+| CHECK constraints | 0 | **2** (both wallet-ledger ones from `0010`) |
+| Unique constraints | 0 | **5** |
+| Migrations recorded applied | 14 | **16** (all files on disk) |
+
+`pnpm --filter @agora/chrono-api rls:proof` → `RLS PROOF: PASS ✅` afterwards.
+Dev is now structurally identical to what the migrations describe.
