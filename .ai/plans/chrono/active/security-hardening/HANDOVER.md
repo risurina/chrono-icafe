@@ -9,11 +9,11 @@ exposure, and a foundation change. See the plan's Delegation section.
 
 | Phase | Owner | Status | Notes |
 |---|---|---|---|
-| 1 — Devices: throttle pairing + unique, high-entropy code | local | not started | highest severity here; run the pre-flight duplicate-code query first |
-| 2 — Write down the unauthenticated-route convention | local | not started | docs; the phase that stops the other four recurring |
-| 3 — DTO sweep, closes the `qrSecret` path | local | not started | **must land before `qr` Phase 3 populates the column** |
+| 1 — Devices: throttle pairing + unique, high-entropy code | local | done | committed `c50d981`; all 5 integration tests passed |
+| 2 — Write down the unauthenticated-route convention | local | done | committed `ee9ca08` |
+| 3 — DTO sweep, closes the `qrSecret` path | local | done | committed `3feeea8`; qrSecret-leak test proved non-vacuous |
 | 4 — Foundation: status-aware `resolveOrgFromRequest` | local | not started | **spec only — create `.ai/plans/agora/active/public-host-status-filter/` before implementing** |
-| 5 — Validate tenant-authored URLs (`ctaHref`) | local | not started | constraint for the unbuilt `tenant-landing` plan, not shipped code |
+| 5 — Validate tenant-authored URLs (`ctaHref`) | local | done | committed `954256a` |
 
 ## Log
 
@@ -64,3 +64,16 @@ exposure, and a foundation change. See the plan's Delegation section.
   rule. NOT implemented — Phase 1 of that plan (audit 11 call sites)
   needs developer input before any code changes, since some call sites
   may legitimately need to keep serving a terminal-status tenant.
+- 2026-09-02 — Phase 1 (device pairing hardening) landed (`c50d981`):
+  per-IP + per-code/token rate limits, unguessable 10-char codes
+  (crypto.randomBytes, no ambiguous glyphs), a partial unique index on
+  active pairing codes, and single-redemption enforcement via a
+  conditional UPDATE (race-safe). All 5 integration tests passed against
+  real Postgres. A migration-ordering race with the concurrent
+  reservations Phase 2 migration was hit and resolved (journal timestamp
+  bump). Final combined verification after all phases: whole-workspace
+  typecheck clean (7/7), chrono-api rls:proof PASS, migration journal
+  correctly ordered (0011 reservations, 0012 device pairing).
+  **Phases 1, 2, 3, 5 all done. Phase 4 remains spec-only (foundation
+  plan created, needs developer input on its Phase 1 audit table before
+  any code changes).**
