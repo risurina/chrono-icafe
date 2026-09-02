@@ -63,3 +63,14 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   new mutating behavior — worth a developer look before this ships for real.
   Phase 5 (web UI) delegated to Jules, session `14444600378578250185`.
   Background poller running.
+- 2026-09-02 — Session `14444600378578250185` completed. Pulled: found 8
+  `as any` RPC-call casts masking real API-shape bugs — GET
+  /provisioning-tokens has no pagination meta (unpaginated, low-cardinality
+  resource), POST /provisioning-tokens returns `{ provisioningToken }` not
+  top-level fields, `r.fingerprint` should be `r.deviceFingerprint` (would
+  have thrown at render time), and three nonexistent provisioning-token
+  fields (`revokedAt`/`expiresAt`/`uses` -> `status`/`pairingCodeExpiresAt`/
+  `useCount`). Typed all state/columns properly instead of `any`, per
+  code-quality.md. `pnpm --filter @agora/chrono-web typecheck` and `build`
+  both clean. Committed (`a772b3f`). Phase 5 done. Phase 6 (e2e spec) not
+  started.
