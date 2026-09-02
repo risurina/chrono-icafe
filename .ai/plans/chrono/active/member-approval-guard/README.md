@@ -174,23 +174,47 @@ No notification exists yet — `customer-onboarding` adds it later, on top of th
 
 ## Pass 2 — Technical Planning
 
-**Files to change:** `apps/chrono-api/src/modules/member/routes.ts` **and a new
-`apps/chrono-api/src/modules/member/service.ts`** — the module has no service layer today
-(only `contracts.ts`, `portal-routes.ts`, `routes.ts`, `schema.ts`), and Phase 2's test
-cannot exercise the real code path without one. See Phase 1 step 2.
+**Files to change:** `apps/chrono-api/src/modules/member/routes.ts`, a new
+`apps/chrono-api/src/modules/member/service.ts` (the module has no service layer today —
+only `contracts.ts`, `portal-routes.ts`, `routes.ts`, `schema.ts` — and Phase 2's test
+cannot exercise the real code path without one, see Phase 1 step 2), **and**
+`apps/chrono-web/src/app/dashboard/members/page.tsx` (see "The UI consequence" below —
+the web change is required, not optional polish).
 **No schema change.** No migration, no `APP_TENANT_TABLES` edit, no RLS impact — so
 `.ai/rules/database.md`'s plan-first schema gate does not apply, and `rls:proof` is
 unaffected (run it anyway; it is cheap and this touches a tenant-scoped write).
 **No contract change.** The response shape is unchanged; only a new status code.
 **No permission change.**
 
-**But there IS a small UI consequence, contrary to an earlier draft's "no UI change".**
-`apps/chrono-web/src/app/dashboard/members/page.tsx:70-96` handles only `res.ok`, `403`,
-and else → a generic *"Could not update the application."* toast. A 409 therefore surfaces
-as that generic error. Phase 1 adds a 409 branch to both handlers (a ~4-line change) so a
-double-click reads as *"This application has already been approved."* rather than an
-apparent failure — otherwise the fix makes a benign repeat look broken, which is a worse
-experience than the silent success it replaces.
+### The UI consequence — prevent first, absorb second. Do NOT just show the 409.
+
+An earlier draft claimed "no UI change", then corrected to "add a 409 branch with a nicer
+message". **Both were wrong**, and the second is the more dangerous because it sounds
+finished.
+
+`apps/chrono-web/src/app/dashboard/members/page.tsx:189-204`: the Approve/Reject buttons
+are bare `onClick` handlers with **no in-flight disabled state**, and
+`approveMember`/`rejectMember` (`:70-96`) handle only `res.ok` / `403` / else → a generic
+*"Could not update the application."* toast. So a double-click today fires two requests,
+and once the guard lands the user would see **a green success and a red error at the same
+time**, for one intended action. That is worse than the silent bug being fixed.
+
+The API contract question (409 vs 200) and the UI question are **separate decisions**, and
+conflating them is what produced the bad answer. 409 is right for the API — see Decisions.
+The UI must then do two things, in this order:
+
+1. **Prevent the race.** Disable both buttons for that row while a request is in flight
+   (per-row busy state, since the list renders many rows). This removes the realistic
+   trigger entirely — the double-click never becomes two requests. This is the actual UX
+   fix; the server guard is the safety net beneath it, not the user-facing mechanism.
+2. **Absorb the 409 as benign, not as an error.** If it still happens — two staff in two
+   browsers, or two tabs — the end state is exactly what the user wanted. So: call
+   `loadAll()` to resync the row, and show either nothing or a neutral
+   `toast.info("Already approved — the list has been refreshed.")`. **Never
+   `toast.error`.** An outcome the user asked for and received is not a failure.
+
+Net effect: a human should essentially never see the 409. It exists so the *data* is
+correct and the audit log is honest, not so the UI can report a conflict.
 
 **Pattern to copy — for the 409 *shape* only, not the mechanism.** An earlier draft of
 this plan claimed `pos`'s void path and `wallet`'s adjust path "both use a conditional
@@ -211,6 +235,7 @@ locking.
 **Files to update**
 - `apps/chrono-api/src/modules/member/service.ts` (**new**)
 - `apps/chrono-api/src/modules/member/routes.ts` (approve ~162, reject ~188)
+- `apps/chrono-web/src/app/dashboard/members/page.tsx` (handlers ~70-96, buttons ~189-204)
 
 **Step-by-step tasks**
 1. Read `refundSale` (`pos/service.ts:277-300`) for the 404/409 **error contract** — not
@@ -234,6 +259,14 @@ locking.
    returns, never before the guard.
 6. Repeat 2–5 for reject with `"rejected"`.
 7. Confirm `requirePermission` still runs **before** any DB work in both handlers.
+8. **Web (`apps/chrono-web/src/app/dashboard/members/page.tsx`)** — see "The UI
+   consequence" above; this is a required part of Phase 1, not a follow-up:
+   a. Add a per-row in-flight busy state and disable that row's Approve/Reject while a
+      request is outstanding. Per-row, not page-level — the list renders many rows and a
+      global flag would freeze unrelated ones.
+   b. Add a `409` branch to `approveMember`/`rejectMember` that calls `loadAll()` and
+      shows a neutral `toast.info(...)` — **never `toast.error`**. Leave the existing
+      `403` and generic-else branches as they are.
 
 **The re-select — benign, and why.** Even inside one transaction the split is a second
 statement; across transactions it would be racy (row deleted between → stale 409; row
@@ -254,6 +287,13 @@ nothing that matters. Do not add a lock for this.
 (The `rejected → approved` and `approved → rejected` criteria are exercised via direct API
 call — the dashboard hides those buttons on non-pending rows, per "What is actually
 reachable today". They are still specified because the API accepts them.)
+
+**UI acceptance:**
+- Double-clicking Approve fires **one** request, not two — the button disables on the
+  first click. Verify by watching the network panel, not by reasoning about it.
+- Disabling one row's buttons does not disable any other row's.
+- When a 409 *is* forced (two tabs), the user sees a neutral info message and a refreshed
+  row — **no red error toast**, and no green-success-plus-red-error pair.
 
 **Verification commands**
 - `pnpm typecheck`
