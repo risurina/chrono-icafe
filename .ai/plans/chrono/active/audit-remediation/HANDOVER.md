@@ -15,11 +15,11 @@ reference below stay valid.
 | Phase | Owner | Status | Notes |
 |---|---|---|---|
 | 1 — POS refund row lock + atomic stock restore | local | done | committed `f756dca`; negative test confirmed the bug was real (see log) |
-| 2 — Reservations exclusion constraint + reopen plan | local | not started | needs `btree_gist`; run the pre-flight overlap query first |
-| 4 — Shifts: close ownership + row lock | local | not started | adds `shift:closeAny`, admin-only |
-| 5 — Move Chrono customer permissions out of `packages/agora` | local | not started | behaviour-preserving ONLY if grants reproduced exactly |
-| 7 — Money helpers + remove float fallbacks | local | not started | adds multiply/subtract/compare to `wallet/money.ts` |
-| 9 — Documentation sweep (9a–9e) | local | not started | one commit per pattern |
+| 2 — Reservations exclusion constraint + reopen plan | local | done | committed `dea32e8`; also fixed overlap.test.ts's own schema setup, which couldn't express the constraint |
+| 4 — Shifts: close ownership + row lock | local | done | committed `4b6b018`; 4/4 integration checks against real Postgres |
+| 5 — Move Chrono customer permissions out of `packages/agora` | local | done | committed `546b7c2`; both scaffold (314) and Chrono (377) permission suites pass |
+| 7 — Money helpers + remove float fallbacks | local | done | committed `cc3b90b`; zero remaining `Number()` money arithmetic |
+| 9 — Documentation sweep (9a–9e) | local | partial | 9a done (`e9d2993`); 9b-9e not started |
 
 ## Log
 
