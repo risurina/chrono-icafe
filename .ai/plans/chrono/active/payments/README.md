@@ -1,10 +1,10 @@
 # Chrono — `payment` module (reconciliation with oikos/karta-tenant)
 
-Status: **Concreteness-Gate ready** — written 2026-09-02 from a reconciliation
-review against the current karta-tenant reference (`/Users/risurina/karta/karta-tenant`,
-`apps/chrono-api/src/modules/payments/`). Open questions resolved 2026-09-02 (see
-"Resolved decisions" below). Not yet audited — send to `plan-auditor` before
-implementation per `.ai/rules/feature-planning.md`.
+Status: **Audited, revised 2026-09-02** — `plan-auditor` verdict was NEEDS REVISION
+(idempotency-key precedent claim was false, `pay` route was ungated, double-refund
+semantics self-contradicted, a nonexistent `wallet` API was referenced, verification
+commands targeted the wrong package). All findings applied below. Phase 1 and 3 were
+already implementation-ready; Phase 2 is now fixed. Ready for implementation.
 
 ## Resolved decisions
 
@@ -29,9 +29,8 @@ one POS `chronoSale`, with no independent status lifecycle. Per `AGENTS.md`, oik
 
 ## Pass 1 — Workflow Analysis
 
-**Who uses this**: `staff`/`admin`/`owner` (recording/voiding/refunding a payment at
-the counter); `owner` only for refunds (see permission vocabulary below — oikos gates
-`refund` to `OWNER` only, `void`/`pay` to `OWNER`+`STAFF`).
+**Who uses this**: `staff` (create/pay), `admin`/`owner` (void/refund) — see resolved
+decision 1 and the permission vocabulary below.
 
 **What workflow does oikos's `payments` module enable that agora's `ChronoSalePayments`
 doesn't?**
@@ -43,26 +42,31 @@ doesn't?**
    ahead of cash arriving). `ChronoSalePayments` has no such thing — a sale-payment
    row is only ever created already-settled, at checkout time, tied 1:1 to a sale.
 2. **A wallet top-up that is not a POS sale.** oikos's `markAsPaid` treats a
-   standalone payment with no `sessionId` as a wallet top-up and calls
-   `walletService.topUp`. Agora's `wallet:credit` action lets staff credit a wallet
-   directly (`apps/chrono-api/src/modules/wallet/routes.ts`), but with **no payment
-   record backing it** — there is no `Payment` row, no audit trail of "how much cash
-   changed hands, via what method, recorded by whom," separate from the wallet
-   ledger entry itself.
+   standalone payment with no `sessionId` as a wallet top-up and calls into its
+   wallet service. Agora's `wallet:credit` action lets staff credit a wallet
+   directly (`apps/chrono-api/src/modules/wallet/routes.ts`, calling
+   `creditWallet()` in `wallet/service.ts`), but with **no payment record backing
+   it** — there is no `Payment` row, no audit trail of "how much cash changed hands,
+   via what method, recorded by whom," separate from the wallet ledger entry itself.
 3. **Void/refund with side-effect reversal.** oikos's `voidPayment`/`refundPayment`
-   both reverse the wallet top-up (`walletService.debit`) or the credit grants a
-   payment produced (`reverseSideEffects`, walking `CreditPurchases` →
-   `CreditGrants`, refusing to reverse a grant that's already been partially
-   consumed). Agora's POS module has its own `void` action
-   (`pos: ["read", "sell", "void", "manageProducts"]`) scoped to a sale, and wallet
-   has `adjust` for corrections, but nothing that generically reverses "whatever this
-   payment funded" the way oikos's `reverseSideEffects` does.
-4. **An idempotent event ledger.** `PaymentEvents` with a partial unique index on
-   `(tenantId, idempotencyKey)` guards against double-crediting from a replayed
-   completion or a future webhook. Agora has this pattern already
-   (`chronoCreditGrantLedgerEntry`, `chronoWalletTransaction` — append-only ledgers
-   with `balanceBefore`/`balanceAfter`), so this is a "reuse the existing agora
-   pattern" item, not new design.
+   both reverse the wallet top-up or the credit grants a payment produced
+   (`reverseSideEffects`, walking `CreditPurchases` → `CreditGrants`, refusing to
+   reverse a grant that's already been partially consumed). Agora already has this
+   exact reversal-with-partial-consumption-guard logic — `voidCreditPurchase`
+   (`apps/chrono-api/src/modules/credit/service.ts:350-394`) — but nothing that
+   *triggers* it from a generic "whatever this payment funded" caller; this plan's
+   `reverseSideEffects` dispatches to it (see Pass 2) rather than reimplementing it.
+4. **An event ledger.** `PaymentEvents` records every state transition. Agora's own
+   `chronoCreditGrantLedgerEntry`/`chronoWalletTransaction` are append-only ledgers
+   with the same intent, but **neither carries an idempotency key or unique index**
+   — `credit/schema.ts` explicitly rejected one, since a sale/grant completes
+   atomically with its wallet debit with no async step to replay
+   (`chronoCreditGrantLedgerEntry`'s own column comment: "this pass has no PENDING/
+   PAID intermediate state... there is no async payment step here to be pending
+   about"). This module is the first one that genuinely has that intermediate
+   `pending` state, so it's the first one where an idempotency key earns its place
+   — see Pass 2 for the narrowed justification (forward-provisioning for a future
+   provider-webhook replay, not a "reuse the existing pattern" claim).
 
 **What does the user see, click, confirm, or wait for?**
 A staff member recording a manual payment (cash/card at the counter, not through
@@ -70,12 +74,14 @@ POS checkout) — e.g. topping up a customer's wallet directly with cash — see
 payment recorded, then can void or (owner only) refund it later if it was a mistake,
 with the wallet debited back out automatically.
 
-**Failure cases**: double-completion of the same payment (must not double-credit);
-voiding/refunding a payment whose funded credit grant has already been partially
-consumed (oikos throws — the same rule should apply here); refunding a payment tied
-to no wallet/grant (a no-op reversal, not an error); wrong tenant/branch (RLS +
-`withTenant`, as everywhere else); role gate (`admin`/`owner` for void, `owner` for
-refund — see below).
+**Failure cases**: double-completion of the same payment (must not double-credit, see
+Phase 2 idempotency/lock design); voiding/refunding a payment whose funded credit
+grant has already been partially consumed (409, matching `voidCreditPurchase`'s
+existing behavior); refunding/voiding a payment that is not currently `"paid"` (409,
+including a second refund/void attempt — see Phase 2 acceptance criteria); refunding
+a payment tied to no wallet/grant (a no-op reversal, not an error); wrong tenant/
+branch (RLS + `withTenant`, as everywhere else); role gate (staff for create/pay,
+admin+ for void/refund).
 
 **Audit**: every state transition writes an immutable event row, mirroring
 `chronoWalletTransaction`/`chronoCreditGrantLedgerEntry`'s existing ledger shape.
@@ -96,19 +102,32 @@ and `apps/chrono-api/src/modules/credit/` — copy their schema/service/routes s
 - `ChronoPayments` — `id`, `tenantId` (FK `organization.id`, cascade), `branchId`
   (nullable FK `chronoBranch.id`, set null), `memberId` (nullable FK
   `base.tenantMember.id`, set null — agora's customer pool, not oikos's `userId`),
-  `sessionId` (nullable FK `chronoSession.id`, set null, once `session` schema
-  lands), `amount` (numeric 12,2), `currency` (default from tenant, matching
-  `chronoWallet.currency`), `method` (free text, Zod-validated at the contract layer
-  — matches the dominant agora convention already used by `chronoWalletTransaction
-  .type` and `chronoSalePayment.method`, **not** oikos's Postgres
-  `PaymentMethodEnum`), `status` (`"pending" | "paid" | "cancelled"`, same free-text
-  convention), `providerReference` (nullable text), `paidAt`/`expiresAt`/
-  `createdAt`/`updatedAt`.
+  `sessionId` (nullable FK `chronoSession.id`, set null — real from day one, `session`
+  schema has landed in `db/schema.ts`/`APP_TENANT_TABLES`, no hedge needed), `amount`
+  (numeric 12,2, reusing `wallet/contracts.ts`'s positive-decimal bound), `currency`
+  (default from tenant, matching `chronoWallet.currency`), `method` (free text,
+  Zod-validated at the contract layer — matches the dominant agora convention already
+  used by `chronoWalletTransaction.type` and `chronoSalePayment.method`, **not**
+  oikos's Postgres `PaymentMethodEnum`), `status` (`"pending" | "paid" | "voided" |
+  "refunded"` — two distinct terminal states, not one shared `"cancelled"`, so the
+  list view can show *why* a payment is dead without joining the event ledger; a
+  cash-drawer/tax reconciliation needs to distinguish a mistaken-entry void from a
+  genuine customer refund), `providerReference` (nullable text), `paidAt`/
+  `expiresAt`/`createdAt`/`updatedAt`.
 - `ChronoPaymentEvents` — `id`, `tenantId`, `paymentId` (FK, cascade), `eventType`
   (free text: `"received" | "cancelled" | "voided" | "refunded"`), `idempotencyKey`
   (nullable text), partial unique index on `(tenantId, idempotencyKey)` where not
-  null — copy `chronoCreditGrantLedgerEntry`'s exact idempotency-key pattern.
-  `payloadJson` (jsonb, metadata only — reason, actor).
+  null. **No existing Chrono module has this column** — `chronoCreditGrantLedgerEntry`
+  deliberately has none, because a sale/grant completes atomically with no async
+  step to replay. `ChronoPayments` is the first module with a genuine `pending`
+  intermediate state, so the key is forward-provisioning for a future
+  provider-webhook replay (deferred in this pass, see "Deliberate differences"
+  below) — not a reused pattern. Because the row-lock + status check in `markAsPaid`
+  already makes a same-request double-completion impossible on its own, this key
+  earns nothing until a provider-supplied key exists; **the column may be dropped
+  from Phase 1 entirely and re-added when provider integration lands**, at the
+  implementer's discretion — it is schema-only risk, not a correctness gap either
+  way. `payloadJson` (jsonb, metadata only — reason, actor).
 - Both tables get `*_tenant_idx` on `tenantId` and go into `APP_TENANT_TABLES`
   (`apps/chrono-api/src/db/schema.ts`).
 
@@ -129,17 +148,32 @@ and `apps/chrono-api/src/modules/credit/` — copy their schema/service/routes s
   (`.ai/rules/business-app.md`, "Reuse the foundation's end-customer pool"), not a
   business-app-local `User` table.
 - No `reservationId`/`shiftId` FK columns yet — resolved decision 3 above (deferred).
+- `ChronoPayments` is **distinct from the foundation's `paymentTransaction`**
+  (`"PaymentTransactions"`, `apps/agora-api`/`packages/agora` db schema) — that table
+  is the PSP webhook mirror for *tenant subscription billing*
+  (`.ai/rules/rbac.md`'s `billing` resource), a wholly different concern from this
+  in-venue counter-payment module. No naming collision (`Chrono`-prefixed per
+  `.ai/rules/business-app.md`), but worth stating once since "payment" now names two
+  things in this app.
+- `amount` reuses `wallet/contracts.ts`'s positive-decimal Zod schema and its
+  `MAX_BALANCE` bound; all arithmetic goes through `wallet/money.ts`'s
+  `toCents`/`addMoney` (integer-cent `BigInt`), never raw JS numbers — same
+  precision-safety rule as every other money-handling module.
 
 **Permission vocabulary** (`apps/chrono-api/src/auth/permissions.ts`,
 `CHRONO_PERMISSION_STATEMENTS`):
 
 ```ts
-payment: ["read", "create", "void", "refund"],
+payment: ["read", "create", "pay", "void", "refund"],
 ```
 
-- `read`/`create` at staff tier — mirrors `wallet: ["read", "credit", "debit"]`'s own
-  precedent (recording a manual payment is routine counter work, same tier as a
-  wallet credit).
+- `read`/`create`/`pay` at staff tier — mirrors `wallet: ["read", "credit", "debit"]`'s
+  own precedent (recording and settling a manual payment is routine counter work,
+  same tier as a wallet credit). `pay` is a **distinct action from `create`**:
+  creating a pending payment and settling it (the step that actually moves money
+  into a wallet, via `markAsPaid`) are different acts and must gate separately —
+  reusing `create` for both would make the RBAC gate test unable to fail if `pay`
+  were ever left ungated.
 - `void` at admin+ — mirrors `pos:void`'s existing tier exactly.
 - `refund` at admin+ — resolved decision 1 above (not owner-only, despite oikos
   gating this `OWNER`-only).
@@ -150,10 +184,14 @@ payment: ["read", "create", "void", "refund"],
 - Edit: `apps/chrono-api/src/db/schema.ts` (compose new tables, add to `APP_TENANT_TABLES`)
 - Edit: `apps/chrono-api/src/auth/permissions.ts` (add `payment` resource + staff/admin grants)
 - Edit: `apps/chrono-api/src/routes/rpc.ts` (mount `paymentRoutes()`)
-- Edit: `apps/chrono-api/src/modules/wallet/service.ts` — no schema change, but
-  `topUp`/`debit` calls from the new payment service pass `paymentId` through
-  `metadata` (matching how `chronoSalePayment.walletTransactionId` already links
-  back) so a wallet transaction can be traced to the payment that caused it.
+- **No wallet-service edit needed.** `creditWallet`/`debitWallet`
+  (`apps/chrono-api/src/modules/wallet/service.ts:99,114`) already accept
+  `referenceType`/`referenceId` — exactly this seam, and
+  `chronoWalletTransaction`'s own column comment names the payment case as its
+  motivating example ("mirrors how oikos itself needed several separate nullable
+  FK columns (paymentId, sessionId) for this same 'what caused this' concept"). The
+  payment service calls these directly with `referenceType: "payment"` /
+  `referenceId: payment.id`.
 - New web: `apps/chrono-web/src/app/dashboard/payments/` (list + void/refund actions),
   following the `agora/ui` `DataTable` stack (`.ai/rules/data-listing.md`).
 - New: `apps/chrono-web/e2e/tests/payments/*.spec.ts` (happy path, role gate,
@@ -197,8 +235,9 @@ module); reservation-deposit linkage (Open Question 3); anything in
 cleanly; contracts export from the module, no Drizzle model leaked as a transport
 type.
 
-**Verification Commands**: `pnpm typecheck`; `pnpm --filter @agora/api rls:proof`
-(must print `RLS PROOF: PASS ✅`).
+**Verification Commands**: `pnpm typecheck`; `pnpm --filter @agora/chrono-api rls:proof`
+(must print `RLS PROOF: PASS ✅` — Chrono owns its own `rls:proof` script, distinct
+from the `@agora/api` scaffold's).
 
 **Out-of-Scope**: routes, service logic, permissions — Phase 2.
 
@@ -209,50 +248,88 @@ shape) and `apps/chrono-api/src/db/schema.ts`'s existing `APP_TENANT_TABLES` arr
 
 **Files to Update**:
 - New: `apps/chrono-api/src/modules/payment/service.ts` (`createPayment`,
-  `markAsPaid`, `voidPayment`, `refundPayment`, `reverseSideEffects` helper)
+  `markAsPaid`, `voidPayment`, `refundPayment`, `reverseSideEffects` helper —
+  imports `creditWallet`/`debitWallet` from `../wallet/service` and
+  `voidCreditPurchase` from `../credit/service`)
 - New: `apps/chrono-api/src/modules/payment/routes.ts` (`paymentRoutes()` Hono
   factory typed on `TenantVars`)
 - New: `apps/chrono-api/src/modules/payment/concurrency.test.ts` (row-lock
   double-completion / double-refund tests, copy `wallet/concurrency.test.ts`'s
   pattern)
 - Edit: `apps/chrono-api/src/auth/permissions.ts` — add
-  `payment: ["read", "create", "void", "refund"]` to
-  `CHRONO_PERMISSION_STATEMENTS`; `payment: ["read", "create"]` to
-  `CHRONO_STAFF_GRANTS`; `payment: ["read", "create", "void", "refund"]` to
+  `payment: ["read", "create", "pay", "void", "refund"]` to
+  `CHRONO_PERMISSION_STATEMENTS`; `payment: ["read", "create", "pay"]` to
+  `CHRONO_STAFF_GRANTS`; `payment: ["read", "create", "pay", "void", "refund"]` to
   `CHRONO_ADMIN_GRANTS`.
 - Edit: `apps/chrono-api/src/routes/rpc.ts` — mount `paymentRoutes()`.
+- Edit: `apps/chrono-api/src/e2e/permissions.test.ts` — add a `chrono payment
+  permissions` block mirroring the existing `chrono wallet permissions` block's
+  shape (staff-may / staff-may-NOT / admin-may cases per action).
+- Edit: `apps/chrono-api/src/e2e/run.ts` — add a `payment` gate block, per
+  `.ai/rules/business-app.md`'s "extend with each module's block."
 - Edit: `apps/chrono-api/src/modules/wallet/service.ts` — accept an optional
   `paymentId` in `topUp`/`debit`'s metadata param (no schema change) so a wallet
   transaction traces back to the payment that caused it.
 
 **Step-by-Step Tasks**:
 1. `createPayment` — `status: "pending"`, validated via `createPaymentSchema`.
-2. `markAsPaid` — `for update` row lock on `chronoPayment` (mirrors
-   `wallet`/`credit` concurrency pattern), idempotent on already-`paid` (return
-   existing, no double-credit), inserts a `chronoPaymentEvent` row with
-   `idempotencyKey: "manual:${id}:paid"`, calls `walletService.topUp` when
-   `memberId` is set and `sessionId` is null.
-3. `voidPayment`/`refundPayment` — `for update` lock, reject if not `"paid"`,
-   flip to `"cancelled"`, insert the event row, call `reverseSideEffects` (debits
-   the wallet top-up via `walletService.debit` when applicable; no-op if the
-   payment funded nothing).
-4. Routes: `POST /payments`, `GET /payments`, `GET /payments/:id`,
+   `requirePermission` on `payment:create`, imported from the app-local typed
+   wrapper `apps/chrono-api/src/auth/require-permission.ts` (never `agora/auth`
+   directly — `payment` is a Chrono-owned resource, `.ai/rules/business-app.md` §4;
+   `wallet/routes.ts:15` is the pattern to copy).
+2. `markAsPaid` (gated `payment:pay`) — `for update` row lock on `chronoPayment`
+   (mirrors `wallet`/`credit` concurrency pattern), idempotent on already-`paid`
+   (return existing, no double-credit), inserts a `chronoPaymentEvent` row (with
+   `idempotencyKey` only if Phase 1 kept the column), calls `creditWallet(tx, {
+   tenantId, memberId, amount, reason: "payment", referenceType: "payment",
+   referenceId: payment.id, performedByUserId })` when `memberId` is set and
+   `sessionId` is null, then `recordStaffAudit(...)` with the amount/method/
+   memberId in the metadata (matching `walletAuditMetadata`'s convention — see
+   `wallet/routes.ts:44-46`'s reasoning for why the amount must be in the audit
+   trail).
+3. `voidPayment` (gated `payment:void`) / `refundPayment` (gated `payment:refund`)
+   — `for update` lock; if `status !== "paid"`, throw `HttpError(409, ...)` (matches
+   `voidCreditPurchase`'s existing 409 convention, `credit/service.ts:358-361` —
+   this includes a second void/refund attempt on an already-`voided`/`refunded`
+   payment, so **there is no no-op path**: a concurrent second caller loses the row
+   lock race and then hits this same 409, never a silent no-op). On success: set
+   `status` to `"voided"`/`"refunded"` respectively (not a shared `"cancelled"`),
+   insert the event row, call `reverseSideEffects`.
+4. `reverseSideEffects(tx, payment, ctx)`: if `!payment.sessionId && payment.memberId`,
+   call `debitWallet(tx, { ..., referenceType: "payment_void" | "payment_refund",
+   referenceId: payment.id })`. If the payment funded a `ChronoCreditPurchase`
+   (joined via `creditPurchase.paymentId`), **dispatch to the existing
+   `voidCreditPurchase()`** (`credit/service.ts:350-394`) rather than
+   re-implementing the grant-reversal walk — it already has the
+   partially-consumed guard. `voidCreditPurchase`'s docblock requires its caller to
+   have already locked both the purchase and grant rows `FOR UPDATE`; this service
+   must acquire locks in a consistent order (payment → purchase → grant) on every
+   call path to avoid a deadlock against any other code that locks the same rows.
+   If the payment funded nothing, this is a no-op.
+5. Routes: `POST /payments`, `GET /payments`, `GET /payments/:id`,
    `POST /payments/:id/pay`, `POST /payments/:id/void`,
    `POST /payments/:id/refund` — `requirePermission` before any DB work on every
    mutating route, `withTenant` for every query.
-5. `concurrency.test.ts`: two concurrent `markAsPaid` calls on the same payment
+6. `concurrency.test.ts`: two concurrent `markAsPaid` calls on the same payment
    credit the wallet exactly once; two concurrent `refundPayment` calls debit
-   exactly once.
+   exactly once, with the loser observing 409.
+7. Add the `chrono payment permissions` block to `src/e2e/permissions.test.ts` and
+   the payment gate block to `src/e2e/run.ts` (see Files to Update).
 
-**Acceptance Criteria**: every mutating route gated by `requirePermission`; no
-route trusts client-supplied `tenantId`; concurrency tests pass; a `refund` on a
-non-`paid` payment 400s; a double-refund is a no-op on the second call, not an
-error and not a double-debit.
+**Acceptance Criteria**: every mutating route gated by `requirePermission` (imported
+from the app-local wrapper) before any DB work; no route trusts client-supplied
+`tenantId`; concurrency tests pass; a void/refund on a non-`"paid"` payment —
+including a second attempt on an already-voided/refunded one — returns 409, never a
+silent no-op; a concurrent double-refund debits the wallet exactly once (the loser
+gets 409, not a duplicate debit); every settle/void/refund writes a
+`recordStaffAudit` entry with the amount in its metadata; `payment:pay` is gated
+separately from `payment:create` and the permissions-test gate case for it fails
+when removed from the role.
 
 **Verification Commands**: `pnpm typecheck`;
-`pnpm --filter @agora/api test:permissions` (gate test fails when `payment`
-permission is removed from the role — required per `.ai/rules/rbac.md`);
-`pnpm --filter @agora/api rls:proof`.
+`pnpm --filter @agora/chrono-api test:permissions` (gate test fails when any
+`payment` action is removed from the role — required per `.ai/rules/rbac.md`);
+`pnpm --filter @agora/chrono-api rls:proof`; `pnpm --filter @agora/chrono-api test:e2e`.
 
 **Out-of-Scope**: web UI, e2e — Phase 3.
 
@@ -268,7 +345,7 @@ pattern.
   `.ai/rules/data-listing.md`; void/refund row actions gated by `<Can>` from
   `agora/ui`)
 - New: `apps/chrono-web/e2e/tests/payments/payments.spec.ts` — happy path (staff
-  creates + marks paid), role gate (staff blocked from `void`/`refund`, admin
+  creates + calls `pay`), role gate (staff blocked from `void`/`refund`, admin
   allowed), cross-tenant isolation (tenant A cannot see/mutate tenant B's payment)
 
 **Step-by-Step Tasks**:
@@ -290,10 +367,15 @@ component-first-ui.md`); e2e spec passes headed (`pnpm dev` running, no
 **Out-of-Scope**: reservation-deposit linkage, payment-gateway/provider
 integration — remain out of scope per Pass 2.
 
-**Execution Start Point**: `apps/chrono-web/src/app/dashboard/reservations/` (an
-already-archived, structurally similar list+action page) as the copy target.
+**Execution Start Point**: `apps/chrono-web/src/app/dashboard/reservations/` as the
+copy target (its plan is archived at `.ai/plans/chrono/archive/reservations/` — verify
+the page itself still exists on disk before starting, since "archived" describes the
+plan document, not a guarantee about the current page).
 
 ## Next recommended action
 
-Send to `plan-auditor` for a fresh-eyes review against `.ai/rules/*` before
-starting Phase 1.
+Ready for Phase 1. While in that phase, also fix `apps/chrono-api/AGENTS.md`'s stale
+Wave-1 status note (it currently says "`wallet` — schema + RLS landed (routes not yet
+built)" and lists `pos`/`credit`/`loyalty`/`voucher`/`promo`/`report`/`inquiry`/
+`security-alert`/`qr`/`landing-page` as "Deferred" — most of that list has already
+shipped) and add `payment` to it once this module lands.
