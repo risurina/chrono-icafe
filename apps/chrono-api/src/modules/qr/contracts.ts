@@ -39,12 +39,13 @@ export const consumeQrSchema = z.object({
 export type ConsumeQrInput = z.infer<typeof consumeQrSchema>;
 
 /**
- * `POST /public/qr/consume` response — stub shape until `sessions` lands
- * (Phase 5, blocked). See qr plan Pass 2, "Dependency decision".
+ * `POST /public/qr/consume` response. `sessionId` is set only when a real
+ * session was started (Phase 5) — never a raw `ChronoSessions` row.
  */
 export const qrConsumeResultSchema = z.object({
   resolved: z.boolean(),
   sessionStartAvailable: z.boolean(),
+  sessionId: z.string().optional(),
 });
 export type QrConsumeResult = z.infer<typeof qrConsumeResultSchema>;
 

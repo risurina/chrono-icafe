@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Hono } from "hono";
-import { withAdmin, eq } from "agora/db";
+import { withAdmin, withTenant, eq } from "agora/db";
 import { HttpError, createRateLimiter, clientIp } from "agora/server";
 import { createId } from "agora";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
@@ -9,6 +9,7 @@ import { chronoStation } from "../station/schema";
 import { chronoBranch } from "../branch/schema";
 import { chronoQrTokenUse } from "./schema";
 import { verifyStationQrToken } from "./token";
+import { startSession } from "../session/service";
 import {
   resolveQrSchema,
   consumeQrSchema,
@@ -221,9 +222,20 @@ export function qrPublicRoutes() {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + QR_TOKEN_TTL_SECONDS * 1000);
 
-        try {
-          await withAdmin((tx) =>
-            tx.insert(chronoQrTokenUse).values({
+        // Nonce-consume and session-start happen in the SAME transaction:
+        // a failed session start (station occupied, insufficient balance,
+        // no pricing group) must roll back the nonce insert too, so the
+        // member can re-scan and retry rather than burning a one-time code
+        // on a start that never happened (qr plan Phase 5, Step 2).
+        // A failure inside this transaction (nonce already used, station
+        // occupied, insufficient wallet funds, no pricing group) rolls back
+        // BOTH the nonce insert and the session start, and is surfaced
+        // verbatim (not the generic tamper-detection message above) — the
+        // token itself was genuine, so the member may re-scan once the
+        // underlying condition clears (qr plan Phase 5, Step 2).
+        const sessionId = await withTenant(tenantId, async (tx) => {
+          try {
+            await tx.insert(chronoQrTokenUse).values({
               id: createId(),
               tenantId,
               stationId: station.stationId,
@@ -231,19 +243,29 @@ export function qrPublicRoutes() {
               consumedByMemberId: memberId,
               consumedAt: now,
               expiresAt,
-            }),
-          );
-        } catch (err) {
-          if (isUniqueViolation(err)) {
-            throw new HttpError(409, "This code has already been used.");
+            });
+          } catch (err) {
+            if (isUniqueViolation(err)) {
+              throw new HttpError(409, "This code has already been used.");
+            }
+            throw err;
           }
-          throw err;
-        }
 
-        // Stub until `sessions` Phase 5 wires the real start-session call
-        // (qr plan "Dependency decision") — intentionally final for this
-        // phase, not a placeholder left half-done.
-        const result: QrConsumeResult = { resolved: true, sessionStartAvailable: false };
+          const session = await startSession(tx, {
+            tenantId,
+            stationId: station.stationId,
+            memberId,
+            // Self-service scan: no staff attribution.
+            startedByUserId: null,
+          });
+          return session.id;
+        });
+
+        const result: QrConsumeResult = {
+          resolved: true,
+          sessionStartAvailable: true,
+          sessionId,
+        };
         return c.json(result);
       })
   );

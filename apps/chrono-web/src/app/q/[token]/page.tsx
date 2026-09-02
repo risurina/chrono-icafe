@@ -90,11 +90,12 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
     });
     setConsuming(false);
     if (!res.ok) {
-      if (res.status === 409) {
-        toast.error("This code has already been used.");
-      } else {
-        toast.error("Invalid or expired code.");
-      }
+      const body = await res.json().catch(() => null as { error?: string } | null);
+      // Business-rule failures (station occupied, insufficient balance, no
+      // pricing group) carry their own real message from the server; only
+      // a verification failure (tampered/expired token) uses the generic
+      // fallback — see the qr module's public-routes.ts consume handler.
+      toast.error(body?.error ?? "Invalid or expired code.");
       return;
     }
     await res.json().catch(() => null satisfies QrConsumeResult | null);
@@ -129,10 +130,9 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="max-w-sm">
           <CardHeader>
-            <CardTitle>Code confirmed</CardTitle>
+            <CardTitle>Session started</CardTitle>
             <CardDescription>
-              Session start isn&apos;t available yet — this feature is coming soon. Ask
-              staff at the counter to start your session.
+              You&apos;re all set — your session is running. Enjoy!
             </CardDescription>
           </CardHeader>
         </Card>

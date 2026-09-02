@@ -4,13 +4,16 @@ import { faker } from "../../utils/faker";
 /**
  * Browser + API coverage for the QR module (chrono/qr).
  *
- * Per Phase 4 of .ai/plans/chrono/active/qr/README.md:
- * - Happy path: staff creates a branch + station, regenerates its QR from the
- *   station detail view, scans the resulting /q/[token] URL as a logged-out
- *   customer (redirected to /portal/login?next=...) and as a logged-in one
- *   (shown the confirm-and-start screen; Start returns the Phase 3 stub).
+ * Per Phase 4 (web UI) and Phase 5 (real session start) of
+ * .ai/plans/chrono/active/qr/README.md:
+ * - Happy path: staff creates a branch + priced station, regenerates its QR
+ *   from the station detail view, scans the resulting /q/[token] URL as a
+ *   logged-out customer (redirected to /portal/login?next=...) and, once
+ *   funded, as a logged-in one — Start actually opens a real session on the
+ *   station.
  * - Business-rule gate: a tampered token renders a clear failure state, not a
- *   500 or a silent redirect.
+ *   500 or a silent redirect; scanning with an unfunded wallet surfaces the
+ *   real "insufficient balance" error, not a silent success.
  * - Tenant isolation: a token minted for tenant A's station never resolves
  *   against tenant B's branding/host even when requested from tenant B's host.
  */
@@ -52,6 +55,7 @@ async function createBranchAndStation(
   base: string,
   branchName: string,
   stationName: string,
+  groupName?: string,
 ): Promise<void> {
   await page.goto(`${base}/dashboard/branches`);
   await page.waitForLoadState("networkidle");
@@ -63,9 +67,28 @@ async function createBranchAndStation(
 
   await page.goto(`${base}/dashboard/stations`);
   await page.waitForLoadState("networkidle");
+
+  // A station needs a pricing group before a session can be started on it
+  // (qr Phase 5 / sessions' own "no pricing group" guard) — required for any
+  // scan-and-start flow, not just the happy path.
+  if (groupName) {
+    await page.getByRole("tab", { name: "Groups & Rates" }).click();
+    await page.getByRole("button", { name: "Add Group" }).click();
+    await page.getByLabel("Name *").fill(groupName);
+    await page.getByLabel("Code *").fill(groupName.slice(0, 6).toUpperCase());
+    await page.getByLabel("Hourly Rate ($) *").fill("10.00");
+    await page.getByRole("button", { name: "Create group" }).click();
+    await expect(page.getByText(groupName).first()).toBeVisible();
+    await page.getByRole("tab", { name: "Stations" }).click();
+  }
+
   await page.getByRole("button", { name: /add station/i }).click();
   await page.getByLabel("Number *").fill("1");
   await page.getByLabel("Name *").fill(stationName);
+  if (groupName) {
+    await page.getByRole("combobox").click();
+    await page.getByRole("option", { name: groupName }).click();
+  }
   await page.getByRole("button", { name: /create station/i }).click();
   await expect(page.getByText(stationName).first()).toBeVisible();
 }
@@ -82,10 +105,11 @@ test.describe("QR", () => {
     const customerName = faker.person.fullName();
     const stationName = `Station ${uniq}`;
     const branchName = `Branch ${uniq}`;
+    const groupName = `Group ${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
 
     await signUp(page, { name: "QR Owner", email: ownerEmail, slug });
-    await createBranchAndStation(page, base, branchName, stationName);
+    await createBranchAndStation(page, base, branchName, stationName, groupName);
 
     // Regenerate QR from the station's action menu.
     await page.getByRole("button", { name: `Show QR for ${stationName}` }).click();
@@ -116,15 +140,38 @@ test.describe("QR", () => {
     await pageAnon.waitForURL(/\/portal\/login\?next=/, { timeout: 10_000 });
     await ctxAnon.close();
 
-    // Scan as a logged-in customer — expect the confirm-and-start screen.
+    // Customer signs up, then staff funds their wallet — starting a session
+    // requires a positive balance (sessions module's own guard).
     const ctxCust = await browser.newContext();
     const pageCust = await ctxCust.newPage();
     await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
+
+    await page.goto(`${base}/dashboard/wallets`);
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "Top Up" }).click();
+    await page.getByLabel(/Customer|Member/).fill(customerName);
+    await page.getByRole("option", { name: customerName }).click();
+    await page.getByLabel("Amount").fill("50.00");
+    await page.getByRole("button", { name: "Confirm Top Up" }).click();
+    await expect(page.getByText("Wallet topped up")).toBeVisible();
+
+    // Scan as the now-funded, logged-in customer — Start opens a real session.
     await pageCust.goto(`${base}${qrBody.qrUrl}`);
     await expect(pageCust.getByText(stationName)).toBeVisible({ timeout: 10_000 });
     await pageCust.getByRole("button", { name: "Start" }).click();
-    await expect(pageCust.getByText(/not available yet/i)).toBeVisible({ timeout: 10_000 });
+    await expect(pageCust.getByText("Session started")).toBeVisible({ timeout: 10_000 });
     await ctxCust.close();
+
+    // Confirm a real session row exists and the station flipped to occupied.
+    const sessionsRes = await page.request.get(`${base}/api/rpc/sessions`, {
+      params: { pageSize: "100" },
+    });
+    const sessionsBody = (await sessionsRes.json()) as {
+      items: { stationId: string; status: string }[];
+    };
+    expect(
+      sessionsBody.items.some((s) => s.stationId === station!.id && s.status === "active"),
+    ).toBe(true);
   });
 
   test("business-rule gate: a tampered token renders a clear failure, not a 500", async ({
@@ -136,6 +183,46 @@ test.describe("QR", () => {
 
     await page.goto(`${base}/q/qr-tampered-1-0000000000-deadbeef:${"0".repeat(64)}`);
     await expect(page.getByText(/invalid/i)).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("business-rule gate: scanning with an empty wallet surfaces the real error, nonce stays unused", async ({
+    page,
+    browser,
+  }) => {
+    const uniq = faker.string.alphanumeric(8);
+    const slug = `e2eqrbal${uniq}`;
+    const ownerEmail = faker.internet.email({ provider: "example.com" });
+    const customerEmail = faker.internet.email({ provider: "example.com" });
+    const customerName = faker.person.fullName();
+    const stationName = `Station ${uniq}`;
+    const branchName = `Branch ${uniq}`;
+    const groupName = `Group ${uniq}`;
+    const base = `http://${slug}.localtest.me:3000`;
+
+    await signUp(page, { name: "QR Owner", email: ownerEmail, slug });
+    await createBranchAndStation(page, base, branchName, stationName, groupName);
+
+    const stationsRes = await page.request.get(`${base}/api/rpc/stations`, {
+      params: { pageSize: "100" },
+    });
+    const stationsBody = (await stationsRes.json()) as { items: { id: string; name: string }[] };
+    const station = stationsBody.items.find((s) => s.name === stationName);
+    const qrRes = await page.request.post(
+      `${base}/api/rpc/stations/${station!.id}/qr/regenerate`,
+    );
+    const qrBody = (await qrRes.json()) as { qrUrl: string };
+
+    // No wallet top-up this time — the customer has zero balance.
+    const ctxCust = await browser.newContext();
+    const pageCust = await ctxCust.newPage();
+    await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
+    await pageCust.goto(`${base}${qrBody.qrUrl}`);
+    await expect(pageCust.getByText(stationName)).toBeVisible({ timeout: 10_000 });
+    await pageCust.getByRole("button", { name: "Start" }).click();
+    await expect(pageCust.getByText(/insufficient wallet balance/i)).toBeVisible({
+      timeout: 10_000,
+    });
+    await ctxCust.close();
   });
 
   test("tenant isolation: tenant A's token never resolves against tenant B's host", async ({

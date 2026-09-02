@@ -2,18 +2,11 @@ import { Hono } from "hono";
 import { withTenant, schema as base, eq, and, desc, asc, count } from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
 import { type TenantVars, HttpError, zValidator } from "agora/server";
-import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
-import { chronoStation, chronoStationGroup } from "../station/schema";
-import { chronoMemberProfile } from "../member/schema";
-import { chronoWallet } from "../wallet/schema";
+import { chronoStation } from "../station/schema";
 import { chronoSession } from "./schema";
-import { closeSession } from "./service";
+import { closeSession, startSession } from "./service";
 import { startSessionSchema, extendSessionSchema, sessionListQuerySchema } from "./contracts";
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
-}
 
 function buildPaginationMeta(
   page: number,
@@ -105,114 +98,15 @@ export function sessionRoutes() {
       const { tenantId, userId } = c.var.tenant;
       const input = c.req.valid("json");
 
-      const created = await withTenant(tenantId, async (tx) => {
-          const [station] = await tx
-            .select()
-            .from(chronoStation)
-            .where(and(eq(chronoStation.id, input.stationId), eq(chronoStation.tenantId, tenantId)))
-            .limit(1);
-          if (!station) {
-            throw new HttpError(404, "Station not found.");
-          }
-          if (station.status !== "available") {
-            throw new HttpError(409, "STATION_OCCUPIED");
-          }
-          if (!station.stationGroupId) {
-            throw new HttpError(
-              400,
-              "This station has no pricing group — assign one in Stations → Groups & Rates before starting a session.",
-            );
-          }
-          const [group] = await tx
-            .select()
-            .from(chronoStationGroup)
-            .where(eq(chronoStationGroup.id, station.stationGroupId))
-            .limit(1);
-          if (!group) {
-            throw new HttpError(
-              400,
-              "This station has no pricing group — assign one in Stations → Groups & Rates before starting a session.",
-            );
-          }
-
-          const [member] = await tx
-            .select({ id: base.tenantMember.id })
-            .from(base.tenantMember)
-            .where(and(eq(base.tenantMember.id, input.memberId), eq(base.tenantMember.tenantId, tenantId)))
-            .limit(1);
-          if (!member) {
-            throw new HttpError(404, "Member not found.");
-          }
-          const [tenantMemberRow] = await tx
-            .select({ status: base.tenantMember.status })
-            .from(base.tenantMember)
-            .where(eq(base.tenantMember.id, input.memberId))
-            .limit(1);
-          if (tenantMemberRow?.status !== "active") {
-            throw new HttpError(409, "This member's account is not active.");
-          }
-
-          // Rate resolution: memberRate only if the group has one set AND the
-          // customer holds an approved ChronoMemberProfiles row.
-          let rateSnapshot = group.hourlyRate;
-          let rateSource: "group_hourly" | "group_member" = "group_hourly";
-          if (group.memberRate) {
-            const [profile] = await tx
-              .select({ applicationStatus: chronoMemberProfile.applicationStatus })
-              .from(chronoMemberProfile)
-              .where(eq(chronoMemberProfile.memberId, input.memberId))
-              .limit(1);
-            if (profile?.applicationStatus === "approved") {
-              rateSnapshot = group.memberRate;
-              rateSource = "group_member";
-            }
-          }
-
-          const [wallet] = await tx
-            .select({ balance: chronoWallet.balance })
-            .from(chronoWallet)
-            .where(eq(chronoWallet.memberId, input.memberId))
-            .limit(1);
-          const balance = wallet?.balance ?? "0.00";
-          if (Number(balance) <= 0) {
-            throw new HttpError(422, "Insufficient wallet balance to start a session.");
-          }
-
-          const scheduledEndAt = input.durationMinutes
-            ? new Date(Date.now() + input.durationMinutes * 60_000)
-            : null;
-
-          let row;
-          try {
-            [row] = await tx
-              .insert(chronoSession)
-              .values({
-                id: createId(),
-                tenantId,
-                branchId: station.branchId,
-                stationId: station.id,
-                memberId: input.memberId,
-                startedByUserId: userId,
-                status: "active",
-                scheduledEndAt,
-                rateSnapshot,
-                rateSource,
-              })
-              .returning();
-          } catch (err) {
-            if (isUniqueViolation(err)) {
-              throw new HttpError(409, "STATION_OCCUPIED");
-            }
-            throw err;
-          }
-
-          await tx
-            .update(chronoStation)
-            .set({ status: "occupied", updatedAt: new Date() })
-            .where(eq(chronoStation.id, station.id));
-
-          return row;
-        });
+      const created = await withTenant(tenantId, (tx) =>
+        startSession(tx, {
+          tenantId,
+          stationId: input.stationId,
+          memberId: input.memberId,
+          durationMinutes: input.durationMinutes,
+          startedByUserId: userId,
+        }),
+      );
 
       await recordStaffAudit(c, {
         action: "session.started",
