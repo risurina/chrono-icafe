@@ -55,6 +55,7 @@ import {
 } from "./routes/rpc";
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
+import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
@@ -302,6 +303,14 @@ export const app = baseApp
     }),
   )
   .get("/health", (c) => c.json({ ok: true }))
+  // Browsers request /favicon.ico unprompted whenever this host is opened in a
+  // tab (a /health check, an error page). This API serves no HTML and owns no
+  // icon — the favicon belongs to the web app — so answer 204 rather than let
+  // the request fall through to the 404 handler and log noise. Cached for a day
+  // so a browser stops re-asking.
+  .get("/favicon.ico", (c) =>
+    c.body(null, 204, { "cache-control": "public, max-age=86400" }),
+  )
   // Deep readiness probe for load balancers / deploy gates: checks the DB is
   // reachable (no external-provider calls, no per-tenant data) and answers 503
   // when it is not, so an unready instance is pulled from rotation. Distinct
@@ -935,6 +944,15 @@ export const app = baseApp
   // outside /rpc and outside apiV1, alongside /billing/webhook and the
   // /public/* family — see .ai/plans/chrono/active/devices/README.md.
   .route("/api/v1/device", deviceAuthRoutes())
+  // Device-facing realtime websocket (realtime-updates plan, Phase 3). A
+  // SEPARATE `.route()` call to the same `/api/v1/device` prefix, contributing
+  // only `/ws` — kept in its own file/mount rather than folded into
+  // `deviceAuthRoutes()` so neither needs to know about the other's shape.
+  // Mounted here, BEFORE the `/api/v1/*` maintenance gate below, so a kiosk
+  // never loses its socket during a platform maintenance window — the exact
+  // same intentional bypass `deviceAuthRoutes()` above already relies on;
+  // do not "fix" this ordering.
+  .route("/api/v1/device", deviceRealtimeRoutes(upgradeWebSocket))
   // Chrono: public QR scan resolve/consume (qr plan Phase 3) — no Better
   // Auth staff session; `/consume` gates on its own `memberMiddleware()`
   // (tenantMember/portal session) inside the router itself. Rate-limited
