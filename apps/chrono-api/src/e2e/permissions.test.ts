@@ -1540,6 +1540,34 @@ check(
     hasChronoPermission("owner", { session: ["update"] }),
 );
 
+console.log("\n── chrono report permissions (reports Phase 2) ──");
+// A read-only aggregation layer — staff sees branch-scoped summaries only;
+// readFinancial (unscoped tenant-wide rollup + wallet activity) is
+// admin+-only, since wallet has no branchId to fall back to for staff.
+check(
+  "staff may report:read",
+  hasChronoPermission("staff", { report: ["read"] }),
+);
+check(
+  "staff may NOT report:readFinancial",
+  hasChronoPermission("staff", { report: ["readFinancial"] }) === false,
+);
+check(
+  "admin may report:read and :readFinancial",
+  hasChronoPermission("admin", { report: ["read"] }) &&
+    hasChronoPermission("admin", { report: ["readFinancial"] }),
+);
+check(
+  "owner may report:read and :readFinancial",
+  hasChronoPermission("owner", { report: ["read"] }) &&
+    hasChronoPermission("owner", { report: ["readFinancial"] }),
+);
+check(
+  "an unrecognized role may NOT report:read or :readFinancial (deny-by-default)",
+  hasChronoPermission("not-a-real-role", { report: ["read"] }) === false &&
+    hasChronoPermission("not-a-real-role", { report: ["readFinancial"] }) === false,
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

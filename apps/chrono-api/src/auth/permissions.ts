@@ -90,6 +90,13 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // module's own update gate. See
   // apps/chrono-api/src/modules/member/routes.ts.
   memberProfile: ["read", "update", "approve", "reject"],
+  // A read-only aggregation layer over existing sales/shift/wallet data — no
+  // new domain, no mutation. Staff sees branch-scoped summaries only;
+  // `readFinancial` (the tenant-wide unscoped rollup + wallet activity) is
+  // admin+-only, since wallet has no branchId to fall back to for a staff
+  // view. See .ai/plans/chrono/active/reports/README.md, "Permission
+  // vocabulary".
+  report: ["read", "readFinancial"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -104,6 +111,7 @@ export const CHRONO_STAFF_GRANTS = {
   promo: ["read"],
   session: ["create", "update"],
   memberProfile: ["read"],
+  report: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -120,6 +128,7 @@ export const CHRONO_ADMIN_GRANTS = {
   promo: ["read", "manage"],
   session: ["create", "update"],
   memberProfile: ["read", "update", "approve", "reject"],
+  report: ["read", "readFinancial"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

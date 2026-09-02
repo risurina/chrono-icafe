@@ -20,6 +20,7 @@
     "test:pos-concurrency": "tsx src/modules/pos/concurrency.test.ts",
     "test:credit-concurrency": "tsx src/modules/credit/concurrency.test.ts",
     "test:session-concurrency": "tsx src/modules/session/concurrency.test.ts",
+    "test:report-aggregation": "tsx src/modules/report/aggregation.test.ts",
     "test:billing-transactions": "tsx src/e2e/billing-transactions.test.ts",
     "test:billing-pricing": "DB_DRIVER=pglite tsx src/e2e/billing-pricing.test.ts",
     "test:notification-templates": "tsx src/e2e/notification-templates.test.ts",

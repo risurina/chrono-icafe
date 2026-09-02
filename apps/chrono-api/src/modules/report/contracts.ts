@@ -24,6 +24,25 @@ export const salesLineQuerySchema = dateRangeQuerySchema.and(
   listQuerySchema(["createdAt", "totalAmount"]),
 );
 
+// A separate (not `.omit()`ed) schema for the no-branch wallet-activity route —
+// Zod v4 refuses `.omit()` on a refined object schema, so this duplicates the
+// two range-validity refinements rather than deriving from dateRangeQuerySchema.
+export const walletActivityQuerySchema = z
+  .object({
+    from: z.string().date(),
+    to: z.string().date(),
+  })
+  .refine((v) => new Date(v.to) >= new Date(v.from), {
+    message: "to must not be before from",
+    path: ["to"],
+  })
+  .refine(
+    (v) =>
+      (new Date(v.to).getTime() - new Date(v.from).getTime()) / 86_400_000 <=
+      MAX_RANGE_DAYS,
+    { message: `Range cannot exceed ${MAX_RANGE_DAYS} days.`, path: ["to"] },
+  );
+
 export type DateRangeQuery = z.infer<typeof dateRangeQuerySchema>;
 
 export type SalesSummary = {
