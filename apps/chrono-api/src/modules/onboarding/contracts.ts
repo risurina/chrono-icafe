@@ -83,7 +83,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/dashboard/setup#inviteStaff",
     stage: "Team",
     requiredPermission: { staff: ["invite"] },
-    wizardStep: { inlineable: true, skippable: false },
+    wizardStep: { inlineable: true, skippable: true },
     // Foundation org tables (member, invitation) are NOT RLS-scoped — filtered
     // explicitly by organizationId via adminDb, never withTenant. A `member`
     // row appears only once an invite is ACCEPTED, so counting members alone

@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
   Stack,
@@ -106,8 +107,18 @@ export default function OnboardingSetupPage() {
 
   const StepForm = activeItem ? STEP_FORMS[activeItem.key] : undefined;
 
+  // Passing over a skippable-but-not-done step just moves the wizard's
+  // cursor forward — it never marks the item done, so it still shows on
+  // the stepper and in `completedCount` until its own probe passes.
+  function skipActiveItem() {
+    if (!activeItem) return;
+    const idx = state!.items.findIndex((i) => i.key === activeItem.key);
+    const next = state!.items.slice(idx + 1).find((i) => !i.done);
+    setActiveKey(next?.key);
+  }
+
   return (
-    <Stack className="mx-auto max-w-lg" gap={6}>
+    <Stack className="w-full" gap={6}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Get set up</h1>
         <p className="text-sm text-muted-foreground">
@@ -129,6 +140,13 @@ export default function OnboardingSetupPage() {
           <CardContent>
             {StepForm ? <StepForm item={activeItem} onDone={load} /> : null}
           </CardContent>
+          {!activeItem.done && activeItem.wizardStep?.skippable ? (
+            <CardFooter>
+              <Button variant="ghost" size="sm" onClick={skipActiveItem}>
+                Skip for now
+              </Button>
+            </CardFooter>
+          ) : null}
         </Card>
       ) : null}
     </Stack>
