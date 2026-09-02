@@ -1,21 +1,36 @@
-# Chrono — `admin-station-client` module (BLOCKED)
+# Chrono — `admin-station-client` module (BLOCKED — narrowed)
 
-**Status: BLOCKED, not active.** This plan requires `devices` — depended on for kiosk
-pairing, bearer-token device auth, and the connectivity/heartbeat data a remote
-management view has to display and act on. `devices`' plan exists and is committed
-(`5dea063`), but per the migration handover only its Phase 2 (contracts) has landed via
-Jules — **there is no `devices` schema.ts, no `apps/chrono-api/src/modules/device/
-routes.ts`, no device-auth middleware.** Confirmed directly against the repo: `ls
-apps/chrono-api/src/modules/device/` shows only `contracts.ts`. `stations` (the other
-dependency) is further along — schema (`ChronoStationGroups`/`ChronoStations`) and RLS
-are migrated — but that alone is not enough to build a *remote management* view, which is
-this plan's entire point.
+**2026-09-02 update — reconciled against the real `devices` plan, which is now fully
+archived (`.ai/plans/chrono/archive/devices/`).** `devices` shipped schema, RLS,
+permission-gated routes, device-auth middleware, web UI, and e2e — **all five phases**,
+not just Phase 2 as this file originally reported. Re-reading this plan's own Phase 1/2
+against the real landed code found they are **already fully satisfied by `devices`
+itself**, not merely unblocked:
 
-**Flagging the dependency prominently, as instructed**: do not start any implementation
-phase of this plan before `devices` has at minimum a working schema + the device-auth
-middleware design reviewed (the migration handover itself calls that middleware "genuinely
-novel — review before Phase 3, not a rubber-stamp open question," for the `devices` plan
-itself). This plan piggybacks on that same review gate.
+- Phase 1's ask ("permission resource, routes" — `device: [read/approve/revoke/manage]`,
+  `GET`/`approve`/`revoke` routes, `withTenant`-scoped, audit on approve/revoke) is done
+  verbatim: `apps/chrono-api/src/modules/device/routes.ts` has `GET /`, `POST /:id/approve`,
+  `POST /:id/revoke`, `PATCH /:id/link`, all gated on the `device` permission resource
+  already in `apps/chrono-api/src/auth/permissions.ts`.
+- Phase 2's ask ("web UI + e2e": a `DataTable` with approve/revoke row actions, a role-gate
+  + tenant-isolation spec) is done verbatim: `apps/chrono-web/src/app/dashboard/devices/
+  page.tsx` has Approve/Revoke dialogs; `apps/chrono-web/e2e/tests/devices/devices.spec.ts`
+  covers it.
+
+**What is NOT done, and remains genuinely blocked**: this plan's Open Question 3 — remote
+**command dispatch** (lock/unlock/reboot/force-logout a station). Checked `chronoDevice`'s
+real schema (`apps/chrono-api/src/modules/device/schema.ts`): it carries only passive
+`connectivityStatus`/`metadata` heartbeat fields — **no command table, no delivery
+mechanism, no PC-client to execute a command even if one were queued.** This is the exact
+same root blocker as `app-usage`/`app-versions`/`public-releases`: `apps/chrono-pc-client`
+does not exist and is out of scope for this migration pass.
+
+**Disposition**: this plan's original scope (Phase 1 + Phase 2, list/approve/revoke) is
+redundant with landed work — do not implement it a second time under this name. The only
+remaining piece — remote command dispatch — cannot be built until a PC-client exists to
+receive commands. This file stays under `blocked/`, narrowed to that one residual feature;
+its own historical Pass 1/Pass 2 below (written against the pre-devices sketch) is kept for
+reference but its Phase 1/2 sections are superseded, not to be executed.
 
 ## What this is
 
@@ -190,17 +205,14 @@ The task brief allows either "platform-admin or tenant-admin." This plan picks
 - Live push updates for connectivity status — polling only, consistent with
   `chrono-realtime-updates` being deferred platform-wide.
 
-## Phases (BLOCKED — do not start until `devices` has a schema + reviewed auth
-middleware design)
+## Phases — Phase 0/1/2 below are SUPERSEDED (see 2026-09-02 update at top); kept
+verbatim for historical reference only, not to be executed
 
 ### Phase 0 (prerequisite, not part of this plan) — `devices` schema + auth middleware
 
-Tracked by the existing `devices` plan (`.ai/plans/chrono/active/devices/README.md`).
-This plan's Phase 1 cannot begin until that plan's schema phase is implemented and its
-device-auth middleware design has been reviewed (per the migration handover's own
-flag).
+DONE — `devices` plan fully archived (`.ai/plans/chrono/archive/devices/`), all 5 phases.
 
-### Phase 1 — Permission resource, routes (BLOCKED on Phase 0)
+### Phase 1 — Permission resource, routes — SUPERSEDED, already landed via `devices`' own plan (`apps/chrono-api/src/modules/device/routes.ts`'s GET/approve/revoke/link + the `device` permission resource). Do not re-implement.
 
 **Files to Update**
 - `apps/chrono-api/src/auth/permissions.ts` (`device: ["read", "manage"]`)
@@ -232,7 +244,9 @@ flag).
 - Read `devices`' final `schema.ts`/`contracts.ts` and its device-auth middleware in
   full before writing a single route.
 
-### Phase 2 — Web UI + E2E spec (BLOCKED on Phase 1)
+### Phase 2 — Web UI + E2E spec — SUPERSEDED, already landed via `devices`' own plan (`apps/chrono-web/src/app/dashboard/devices/page.tsx` + `apps/chrono-web/e2e/tests/devices/devices.spec.ts`). Do not re-implement.
+
+### Original Phase 2 text (reference only)
 
 **Files to Update**
 - `apps/chrono-web/src/app/dashboard/devices/page.tsx`
@@ -274,11 +288,11 @@ flag).
 ## Unblocking
 
 Moves from `.ai/plans/chrono/blocked/admin-station-client/` to
-`.ai/plans/chrono/active/admin-station-client/` once `devices`' own plan has a migrated
-schema and its device-auth middleware design has been reviewed. At that point, re-read
-this file's Pass 1/Pass 2 against the real `devices` schema/contracts, update the
-"sketch" sections to match reality, resolve the Open Questions above, and proceed to
-Phase 1.
+`.ai/plans/chrono/active/admin-station-client/` only if/when a PC-client app is
+commissioned and a command-delivery channel (queue table + device polling/push) is
+designed for it — the only remaining scope this plan owns is remote command dispatch
+(lock/unlock/reboot/force-logout). List/approve/revoke is already live; do not re-plan
+or re-implement it here.
 
 ## After Implementation
 
