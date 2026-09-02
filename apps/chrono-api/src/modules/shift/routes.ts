@@ -7,6 +7,8 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoShift } from "./schema";
 import { openShiftSchema, closeShiftSchema, listShiftsQuerySchema } from "./contracts";
+import { calculatePosExpectedCash } from "../pos/service";
+import { addMoney, negateMoney } from "../wallet/money";
 
 function buildPaginationMeta(
   page: number,
@@ -174,7 +176,11 @@ export function shiftRoutes() {
 
       const updated = await withTenant(tenantId, async (tx) => {
         const [existing] = await tx
-          .select({ id: chronoShift.id, status: chronoShift.status })
+          .select({
+            id: chronoShift.id,
+            status: chronoShift.status,
+            openingCashAmount: chronoShift.openingCashAmount,
+          })
           .from(chronoShift)
           .where(and(eq(chronoShift.id, id), eq(chronoShift.tenantId, tenantId)))
           .limit(1);
@@ -185,6 +191,12 @@ export function shiftRoutes() {
           throw new HttpError(409, "This shift is already closed.");
         }
 
+        const expectedCashAmount = addMoney(
+          existing.openingCashAmount,
+          await calculatePosExpectedCash(tx, { tenantId, shiftId: existing.id }),
+        );
+        const differenceAmount = addMoney(input.actualCashAmount, negateMoney(expectedCashAmount));
+
         const [row] = await tx
           .update(chronoShift)
           .set({
@@ -192,6 +204,8 @@ export function shiftRoutes() {
             closedAt: new Date(),
             actualCashAmount: input.actualCashAmount,
             closeNotes: input.notes,
+            expectedCashAmount,
+            differenceAmount,
             updatedAt: new Date(),
           })
           .where(and(eq(chronoShift.id, id), eq(chronoShift.tenantId, tenantId)))
