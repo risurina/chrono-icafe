@@ -110,11 +110,11 @@ test.describe("Customer onboarding", () => {
 
     // 1. Owner signs up and invites a staff teammate.
     await signUp(page, { name: "Onboarding Owner", email: ownerEmail, slug });
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const { readFileSync } = await import("node:fs");
     const DEV_LOG_PATH = process.env.DEV_LOG_PATH ?? "/tmp/agora-dev.log";

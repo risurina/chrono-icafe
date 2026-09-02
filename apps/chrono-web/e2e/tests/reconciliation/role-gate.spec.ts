@@ -99,11 +99,11 @@ test.describe("Reconciliation — role gate", () => {
     expect(ownerReadBody.summary.differenceAmount).toBe("5.00");
 
     // Invite a staff member.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 

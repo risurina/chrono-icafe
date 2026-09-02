@@ -94,11 +94,11 @@ test.describe("Platform Admin Organizations", () => {
 
     // Owner invites a non-owner staff teammate (owners are exempt from the
     // suspended-tenant lockout, so the lockout assertion needs a non-owner).
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 
@@ -149,11 +149,11 @@ test.describe("Platform Admin Organizations", () => {
 
     await signUpWorkspace(page, { name: "Arch Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 

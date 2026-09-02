@@ -726,7 +726,7 @@ export const app = baseApp
             type: "invite_accepted",
             title: `${session.user.email} accepted your invite`,
             body: null,
-            href: "/dashboard/settings/members",
+            href: "/dashboard/settings/crew",
             actorUserId: session.user.id,
             actorName: session.user.name || session.user.email,
           }),

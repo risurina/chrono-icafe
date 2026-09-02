@@ -51,7 +51,7 @@ async function inviteCustomer(
 ) {
   await page.goto(`${base}/dashboard/members`);
   await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Invite" }).click();
+  await page.getByRole("button", { name: "Invite player" }).click();
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send invite" }).click();
@@ -103,7 +103,7 @@ test.describe("Invite a customer", () => {
     await inviteeCtx.close();
   });
 
-  test("role gate: staff cannot see or use the Invite action", async ({ page, browser }) => {
+  test("role gate: staff cannot see or use the Invite action", async ({ page }) => {
     const uniq = faker.string.alphanumeric(8);
     const slug = `e2einvb${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
@@ -114,12 +114,12 @@ test.describe("Invite a customer", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // Owner invites a staff teammate (Better Auth staff invite, unrelated flow).
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const staffInviteLink = await findInviteLink(staffEmail);
 
@@ -135,7 +135,7 @@ test.describe("Invite a customer", () => {
     // Staff (memberProfile:invite not granted) sees no Invite control.
     await page.goto(`${base}/dashboard/members`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("button", { name: "Invite" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Invite player" })).toHaveCount(0);
   });
 
   test("cross-tenant isolation: an invite token minted for tenant A cannot be accepted on tenant B", async ({
@@ -149,7 +149,6 @@ test.describe("Invite a customer", () => {
     const ownerBEmail = faker.internet.email({ provider: "example.com" });
     const inviteeEmail = faker.internet.email({ provider: "example.com" });
     const baseA = `http://${slugA}.localtest.me:3000`;
-    const baseB = `http://${slugB}.localtest.me:3000`;
 
     await signUp(page, { name: "Tenant A Owner", email: ownerAEmail, slug: slugA });
     await inviteCustomer(page, baseA, { name: "Isolation Target", email: inviteeEmail });

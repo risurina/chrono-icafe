@@ -158,12 +158,12 @@ test.describe("Stations", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
     await createBranch(page, base, branchName);
     
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 

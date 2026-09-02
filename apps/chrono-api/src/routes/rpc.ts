@@ -1008,7 +1008,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
           type: "role_changed",
           title: `Your role was changed to ${newRole}`,
           body: null,
-          href: "/dashboard/settings/members",
+          href: "/dashboard/settings/crew",
           actorUserId: c.var.tenant.userId,
           actorName: actor?.name || actor?.email || null,
         }),

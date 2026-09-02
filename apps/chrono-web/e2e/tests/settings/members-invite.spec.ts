@@ -32,14 +32,14 @@ test.describe("Members invite", () => {
       { timeout: 60_000 },
     );
 
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(inviteeEmail);
     await page.keyboard.press("Escape");
     await expect(inviteInput).toHaveValue(inviteeEmail);
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
 
     await expect(page.getByText(/invitation (sent|created)/i)).toBeVisible();
     await expect(page.getByText(inviteeEmail)).toBeVisible();
@@ -65,14 +65,14 @@ test.describe("Members invite", () => {
       { timeout: 60_000 },
     );
 
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(inviteeEmail);
     await page.keyboard.press("Escape");
     await expect(inviteInput).toHaveValue(inviteeEmail);
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(inviteeEmail)).toBeVisible();
 
     const inviteRow = page
@@ -114,13 +114,13 @@ test.describe("Members invite", () => {
     );
 
     // Owner invites the teammate.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(inviteeEmail);
     await page.keyboard.press("Escape");
     await expect(inviteInput).toHaveValue(inviteeEmail);
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(inviteeEmail)).toBeVisible();
 
     // Recover the accept link from the real email sent via Resend.
@@ -128,7 +128,7 @@ test.describe("Members invite", () => {
 
     // Sign the invitee out and create their own account (their own workspace),
     // matching how a real invitee would arrive with an existing session.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.getByRole("button", { name: "Sign out" }).click();
     await page.waitForLoadState("networkidle");
 
@@ -154,7 +154,7 @@ test.describe("Members invite", () => {
     });
 
     // Owner sees the invitee as a member with the invited role.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("main").getByText(inviteeEmail)).toBeVisible();
     await expect(page.getByText("No pending invitations.")).toBeVisible();

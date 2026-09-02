@@ -140,7 +140,7 @@ test.describe("Impersonation lifecycle", () => {
 
     // The banner is visible and non-dismissable; an allowed action works.
     await expect(adminPage.getByText(/you are impersonating/i)).toBeVisible();
-    await adminPage.goto(`${base}/dashboard/settings/members`);
+    await adminPage.goto(`${base}/dashboard/settings/crew`);
     await adminPage.waitForLoadState("networkidle");
     await expect(adminPage.getByText(/you are impersonating/i)).toBeVisible();
 

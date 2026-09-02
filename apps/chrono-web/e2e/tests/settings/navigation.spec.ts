@@ -40,7 +40,7 @@ test.describe("Settings submodules navigation", () => {
     await page.waitForURL(`${base}/dashboard/settings/branding`);
 
     await page.getByRole("link", { name: "Members" }).first().click();
-    await page.waitForURL(`${base}/dashboard/settings/members`);
+    await page.waitForURL(`${base}/dashboard/settings/crew`);
     await expect(
       page.getByRole("heading", { name: "Members" }),
     ).toBeVisible();

@@ -121,11 +121,11 @@ test.describe("Security Alerts", () => {
 
     // Invite staff. Chrono's staff grants do not include securityAlert:manage
     // (only :read) — see apps/chrono-api/src/auth/permissions.ts.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 

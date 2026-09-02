@@ -88,7 +88,7 @@ test.describe("Wallet", () => {
     await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
 
     // Since the API requires the member ID for mutations, we fetch it via the portal API or we can just fetch the members list.
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     // The new wallet page is supposed to mirror customers page. But without UI, we might need a way to Top Up.
@@ -201,11 +201,11 @@ test.describe("Wallet", () => {
     await expect(page.getByText("5.00")).toBeVisible();
 
     // Invite staff
-    await page.goto(`${base}/dashboard/settings/members`);
+    await page.goto(`${base}/dashboard/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Invite" }).click();
+    await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(staffEmail)).toBeVisible();
     const inviteLink = await findInviteLink(staffEmail);
 

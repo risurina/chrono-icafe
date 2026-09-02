@@ -46,7 +46,7 @@ type Invite = {
 };
 type Me = { userId: string; role: string; permissions: Record<string, string[]> };
 
-export default function MembersSettingsPage() {
+export default function CrewSettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -215,7 +215,7 @@ export default function MembersSettingsPage() {
   return (
     <Stack gap={8}>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Crew</h1>
         <p className="text-sm text-muted-foreground">
           People and invitations for this business.
         </p>
@@ -223,10 +223,10 @@ export default function MembersSettingsPage() {
 
       {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
 
-      {/* Members */}
+      {/* Crew */}
       <Stack>
         <div>
-          <h2 className="text-lg font-medium">Members</h2>
+          <h2 className="text-lg font-medium">Crew</h2>
           <p className="text-sm text-muted-foreground">
             People with access to this business.
           </p>
@@ -235,7 +235,7 @@ export default function MembersSettingsPage() {
         <DataTableToolbar
           q={query.q}
           onQChange={query.setQ}
-          searchPlaceholder="Search members…"
+          searchPlaceholder="Search crew…"
           view={query.view}
           onViewChange={query.setView}
         />
@@ -354,7 +354,7 @@ export default function MembersSettingsPage() {
                 onChange={(e) => setInviteEmail(e.target.value)}
                 required
               />
-              <Button type="submit">Invite</Button>
+              <Button type="submit">Invite crew</Button>
             </form>
           </Can>
           {invites.length > 0 ? (

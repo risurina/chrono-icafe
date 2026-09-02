@@ -34,9 +34,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "Business",
   },
   {
-    name: "Members",
+    name: "Crew",
     description: "People and invitations for this business.",
-    href: "/dashboard/settings/members",
+    href: "/dashboard/settings/crew",
     icon: Users,
     group: "Team",
   },

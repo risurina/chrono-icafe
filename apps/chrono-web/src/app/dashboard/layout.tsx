@@ -145,7 +145,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
   "/dashboard/settings/landing-page": "Landing page",
-  "/dashboard/settings/members": "Members",
+  "/dashboard/settings/crew": "Crew",
   "/dashboard/settings/roles": "Roles",
   "/dashboard/settings/domains": "Domains",
   "/dashboard/settings/api-keys": "API Keys",
