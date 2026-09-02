@@ -151,12 +151,14 @@ that happen to share a noun:
    delivered over Socket.IO with HMAC-SHA256-signed envelopes
    (`apps/chrono-api/src/lib/command-auth.ts`), ack/retry/webhook-fallback delivery, and
    a `DeviceCommand` row per dispatch. **This is genuinely a separate, heavier concern**
-   from pairing/registration: it needs realtime transport (Socket.IO or an equivalent),
-   which does not exist anywhere in the agora Hono stack today, and it operates on
-   devices that are already `approved` and paired to a station running (or about to
-   run) a session — i.e. it is naturally `sessions`-adjacent, not `devices`-adjacent.
-   **Deferred out of scope for this plan entirely** — a future module, not this one, and
-   not silently folded in as "just another route."
+   from pairing/registration: it operates on devices that are already `approved` and
+   paired to a station running (or about to run) a session — i.e. it is naturally
+   `sessions`-adjacent, not `devices`-adjacent. The realtime transport it would ride now
+   exists (`.ai/plans/agora/archive/websocket-foundation/README.md`), but no
+   command-delivery channel/queue has been designed on top of it — see
+   `.ai/plans/chrono/blocked/admin-station-client/README.md`'s 2026-09-02 update, which
+   tracks this exact residual scope. **Deferred out of scope for this plan entirely** —
+   a future module, not this one, and not silently folded in as "just another route."
 4. **`modules/admin-station-client`** — this is where oikos's actual **staff-facing**
    approve/revoke/relink/list-pending/pairing-code-generation routes live (role-gated
    `['OWNER', 'STAFF']` throughout), interleaved with PC-client *behavioral* settings
@@ -727,8 +729,10 @@ callout).
 ### Out of Scope (this plan)
 
 - `device-commands` (remote lock/unlock/reboot/shutdown/screenshot/etc. dispatch) —
-  confirmed genuinely separate, needs realtime transport that doesn't exist, needs
-  `sessions`. A future module.
+  confirmed genuinely separate, needs `sessions`, and needs a command-delivery
+  channel/queue designed on top of the now-landed realtime transport
+  (`.ai/plans/agora/archive/websocket-foundation/README.md`) — no such queue exists yet
+  (see `.ai/plans/chrono/blocked/admin-station-client/README.md`). A future module.
 - The `modules/devices` (plural) `SUPER_ADMIN` cross-tenant platform-admin surface
   (list all tenants' devices, revoke, channel reassignment). No
   `PLATFORM_PERMISSION_STATEMENTS` resource exists for devices today — same deferral

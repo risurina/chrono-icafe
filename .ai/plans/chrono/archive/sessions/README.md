@@ -23,8 +23,11 @@ session (optionally with a duration), the station shows occupied, and closing th
 session computes elapsed time × the station's rate and debits the customer's wallet.
 This plan covers the **session entity and its billing/lifecycle** — not device pairing/
 unlock signals (`devices`' concern, touchpoint noted only), not a live-updating
-websocket board (no realtime infrastructure exists in agora today — deferred, see
-below), and not the lot-based time-credit fallback (`wallet`'s own "Critical scope
+websocket board (the transport now exists —
+`.ai/plans/agora/archive/websocket-foundation/README.md`, implemented and archived —
+but Chrono's own event types/channels/UI consumer are a separate, still-unimplemented
+plan, `.ai/plans/chrono/active/realtime-updates/README.md`), and not the lot-based
+time-credit fallback (`wallet`'s own "Critical scope
 finding" already cut that as a separate, larger, `stations`-dependent system).
 
 ---
@@ -423,8 +426,11 @@ ticking display).
 plan** — introducing it is a foundation-level decision (new dependency, new server
 wiring, a new auth-in-handshake pattern, its own plan) and must not happen as a side
 effect of shipping sessions. Naming it so it is tracked, not lost: **`chrono-realtime-
-updates`** — a future, separate, `agora`-scoped-or-Chrono-scoped plan the developer can
-schedule once polling proves too coarse in practice.
+updates`**. Update since this plan was written: the foundation transport is now built —
+`.ai/plans/agora/archive/websocket-foundation/README.md` (provider/registry, tenant-
+scoped upgrade auth, browser client, all landed and archived) — so the remaining work is
+Chrono's own event types/channels/UI consumer, tracked at
+`.ai/plans/chrono/active/realtime-updates/README.md`, not a foundation decision anymore.
 
 ### Deliberately narrowed from oikos (and why)
 
@@ -740,8 +746,11 @@ must be in the audit entry, not just the action name" principle.
   session start/end is the natural place a future `devices` integration would send a
   lock/unlock command (best-effort, non-blocking, exactly how oikos wraps its own
   `emitDeviceCommand` calls) — no such call is made in this pass.
-- **Realtime/websocket live updates.** No infrastructure exists; explicitly deferred as
-  a separate, named follow-up plan — **`chrono-realtime-updates`** (see Pass 2).
+- **Realtime/websocket live updates.** The transport now exists
+  (`.ai/plans/agora/archive/websocket-foundation/README.md`); Chrono's own event
+  types/channels/UI consumer are explicitly deferred as a separate, named follow-up plan
+  — **`chrono-realtime-updates`**, tracked at
+  `.ai/plans/chrono/active/realtime-updates/README.md` (see Pass 2).
 - **`session-warnings` background job.** No receiving client exists in this migration
   pass (`chrono-pc-client` out of scope entirely) — cut, not deferred-with-a-name, since
   there is nothing to build it *for* yet.
