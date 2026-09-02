@@ -56,17 +56,22 @@ const DEFAULT_UPLOAD_TARGET: UploadTarget = {
 const BASE_NAV: NavItem[] = [
   { type: "label", name: "Overview" },
   { type: "item", name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { type: "label", name: "Workspace" },
+
+  { type: "label", name: "Venue" },
   // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
   // not deleted; page and API routes are untouched, may be reused later.
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
   { type: "item", name: "Stations", href: "/stations", icon: Monitor },
   { type: "item", name: "Devices", href: "/devices", icon: MonitorSmartphone },
   { type: "item", name: "Shifts", href: "/shifts", icon: Clock },
+
+  { type: "label", name: "Customers" },
   { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Reservations", href: "/reservations", icon: CalendarClock },
-  { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
   { type: "item", name: "Loyalty", href: "/loyalty", icon: Award },
+
+  { type: "label", name: "Money" },
+  { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
   { type: "item", name: "Promos", href: "/promos", icon: Percent },
 ];
