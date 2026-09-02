@@ -1,0 +1,1 @@
+ALTER TABLE "ChronoSecurityAlerts" ADD CONSTRAINT "ChronoSecurityAlerts_deviceId_ChronoDevices_id_fk" FOREIGN KEY ("deviceId") REFERENCES "public"."ChronoDevices"("id") ON DELETE set null ON UPDATE no action;
