@@ -10,6 +10,7 @@ import { listQuerySchema, type PaginationMeta } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoMemberProfile } from "./schema";
 import { updateMemberProfileSchema, toMemberProfile } from "./contracts";
+import { approveMemberProfile, rejectMemberProfile } from "./service";
 
 /** Shared `{page, pageSize, ...}` → `PaginationMeta` builder, mirroring
  * apps/chrono-api/src/routes/rpc.ts's own helper — duplicated locally (not
@@ -164,24 +165,16 @@ export function memberProfileRoutes() {
       requirePermission(c.var.tenant.permissions, { memberProfile: ["approve"] });
       const memberId = c.req.param("memberId");
 
-      const [row] = await withTenant(tenantId, (tx) =>
-        tx
-          .update(chronoMemberProfile)
-          .set({
-            applicationStatus: "approved",
-            approvedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(chronoMemberProfile.memberId, memberId))
-          .returning(),
+      const { row, previousStatus } = await withTenant(tenantId, (tx) =>
+        approveMemberProfile(tx, { tenantId, memberId })
       );
-      if (!row) throw new HttpError(404, "Member profile not found.");
 
       await recordStaffAudit(c, {
         action: "chronoMemberProfile.approved",
         targetType: "chronoMemberProfile",
         targetId: row.id,
         targetLabel: row.memberId,
+        metadata: { from: previousStatus, to: "approved" },
       });
       return c.json({ profile: toMemberProfile(row) });
     })
@@ -190,24 +183,16 @@ export function memberProfileRoutes() {
       requirePermission(c.var.tenant.permissions, { memberProfile: ["reject"] });
       const memberId = c.req.param("memberId");
 
-      const [row] = await withTenant(tenantId, (tx) =>
-        tx
-          .update(chronoMemberProfile)
-          .set({
-            applicationStatus: "rejected",
-            rejectedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(chronoMemberProfile.memberId, memberId))
-          .returning(),
+      const { row, previousStatus } = await withTenant(tenantId, (tx) =>
+        rejectMemberProfile(tx, { tenantId, memberId })
       );
-      if (!row) throw new HttpError(404, "Member profile not found.");
 
       await recordStaffAudit(c, {
         action: "chronoMemberProfile.rejected",
         targetType: "chronoMemberProfile",
         targetId: row.id,
         targetLabel: row.memberId,
+        metadata: { from: previousStatus, to: "rejected" },
       });
       return c.json({ profile: toMemberProfile(row) });
     });

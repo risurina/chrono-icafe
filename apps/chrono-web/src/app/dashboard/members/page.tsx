@@ -42,6 +42,7 @@ export default function MembersPage() {
   const [editPhoneFor, setEditPhoneFor] = useState<{ id: string; phone: string } | null>(
     null,
   );
+  const [inFlight, setInFlight] = useState<Set<string>>(new Set());
 
   const loadAll = useCallback(async () => {
     const res = await api.rpc["member-profiles"].$get({
@@ -68,30 +69,54 @@ export default function MembersPage() {
   }, [loadAll]);
 
   async function approveMember(memberId: string) {
-    const res = await api.rpc["member-profiles"][":memberId"].approve.$post({
-      param: { memberId },
-    });
-    if (res.ok) {
-      toast.success("Application approved.");
-      loadAll();
-    } else if ((res.status as number) === 403) {
-      toast.error("Only admins can approve or reject applications.");
-    } else {
-      toast.error("Could not update the application.");
+    setInFlight((prev) => new Set(prev).add(memberId));
+    try {
+      const res = await api.rpc["member-profiles"][":memberId"].approve.$post({
+        param: { memberId },
+      });
+      if (res.ok) {
+        toast.success("Application approved.");
+        loadAll();
+      } else if ((res.status as number) === 409) {
+        toast.info("This application has already been approved.");
+        loadAll();
+      } else if ((res.status as number) === 403) {
+        toast.error("Only admins can approve or reject applications.");
+      } else {
+        toast.error("Could not update the application.");
+      }
+    } finally {
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        next.delete(memberId);
+        return next;
+      });
     }
   }
 
   async function rejectMember(memberId: string) {
-    const res = await api.rpc["member-profiles"][":memberId"].reject.$post({
-      param: { memberId },
-    });
-    if (res.ok) {
-      toast.success("Application rejected.");
-      loadAll();
-    } else if ((res.status as number) === 403) {
-      toast.error("Only admins can approve or reject applications.");
-    } else {
-      toast.error("Could not update the application.");
+    setInFlight((prev) => new Set(prev).add(memberId));
+    try {
+      const res = await api.rpc["member-profiles"][":memberId"].reject.$post({
+        param: { memberId },
+      });
+      if (res.ok) {
+        toast.success("Application rejected.");
+        loadAll();
+      } else if ((res.status as number) === 409) {
+        toast.info("This application has already been rejected.");
+        loadAll();
+      } else if ((res.status as number) === 403) {
+        toast.error("Only admins can approve or reject applications.");
+      } else {
+        toast.error("Could not update the application.");
+      }
+    } finally {
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        next.delete(memberId);
+        return next;
+      });
     }
   }
 
@@ -189,6 +214,7 @@ export default function MembersPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={inFlight.has(member.memberId)}
                         onClick={() => approveMember(member.memberId)}
                       >
                         Approve
@@ -197,6 +223,7 @@ export default function MembersPage() {
                         variant="outline"
                         size="sm"
                         className="text-muted-foreground hover:text-destructive"
+                        disabled={inFlight.has(member.memberId)}
                         onClick={() => rejectMember(member.memberId)}
                       >
                         Reject
