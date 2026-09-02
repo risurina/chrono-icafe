@@ -76,7 +76,7 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   this pass (any staff may open/close a shift at any branch the tenant
   operates — see Pass 1). Read the plan's Pass 2 "Routes" section and copy
   `branches`' `apps/chrono-api/src/modules/branch/routes.ts` /
-  `packages/agora/src/auth/permissions.ts` composition pattern for
+  `apps/chrono-api/src/auth/permissions.ts` composition pattern for
   structure.
 - 2026-09-02 — Phase 3 (routes + permission gates) landed. `shift: ["open",
   "close"]` was already registered in the per-app extension seam

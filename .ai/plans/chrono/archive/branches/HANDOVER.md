@@ -54,10 +54,11 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `branchSocialLinksSchema` was missing its `.optional()` wrapper (Jules
   dropped it), which would have made `socialLinks` a required field on
   create — restored per plan Pass 2. Typecheck clean. Phase 2 done.
-- 2026-09-01 — Phase 3 built locally: `packages/agora/src/auth/permissions.ts`
-  gets `branch: ["create", "update"]` added to `PERMISSION_STATEMENTS` and to
-  `adminRole` (Open Questions 1 & 2 resolved as the plan's stated default —
-  shared foundation file, admin+ tier; `staffRole` deliberately excluded, no
+- 2026-09-01 — Phase 3 built locally: `apps/chrono-api/src/auth/permissions.ts`
+  gets `branch: ["create", "update"]` added to `CHRONO_PERMISSION_STATEMENTS` and to
+  `adminRole`, registered via `registerAppPermissions()` (Open Questions 1 & 2
+  resolved as the plan's stated default — admin+ tier; `staffRole` deliberately
+  excluded, no
   staff mutation exists). `apps/chrono-api/src/modules/branch/routes.ts`
   mirrors `domainRoutes()`/`apiKeyRoutes()`'s composition pattern (no own
   `tenantMiddleware()` call, composed via `.route("/", branchRoutes())`, full

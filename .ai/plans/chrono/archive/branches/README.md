@@ -124,8 +124,9 @@ No email/webhook notification in this pass (branch changes aren't currently in
 - `apps/chrono-api/src/modules/README.md` — confirms the module folder is currently
   empty and describes exactly this convention; **delete this file** once this module
   lands (its own instruction).
-- `.ai/rules/rbac.md` / `packages/agora/src/auth/permissions.ts` — `PERMISSION_STATEMENTS`
-  vocabulary + `staffRole`/`adminRole` composition (see Open Question 1 below for the
+- `.ai/rules/rbac.md` / `apps/chrono-api/src/auth/permissions.ts` —
+  `CHRONO_PERMISSION_STATEMENTS` vocabulary + `staffRole`/`adminRole` composition,
+  registered via `registerAppPermissions()` (see Open Question 1 below for the
   one real judgment call in this plan).
 
 ### Schema — `ChronoBranches`
@@ -265,22 +266,23 @@ No `DELETE /branches/:id` in this pass (see CRUD matrix).
 
 ### Permission vocabulary
 
-**Open Question 1 (resolve before Phase 3):** `packages/agora` is the foundation and
-`architecture.md`'s non-goals say "do not implement business-specific data... in the
-foundation." But `PERMISSION_STATEMENTS`/`staffRole`/`adminRole` in
-`packages/agora/src/auth/permissions.ts` is the **only** RBAC engine that exists —
-there is no business-app-scoped permission extension seam today (no plugin/merge
-mechanism). `project`/`customer`/`file` — the existing business-shaped resources — all
-live in this same foundation file already, so the precedent is to add Chrono's
-resource there too. This plan assumes that precedent and adds:
+The resource is registered through the **per-app extension seam**, never by editing
+`packages/agora` — see `.ai/rules/business-app.md` ("Permissions: the per-app extension
+seam") and root `AGENTS.md` non-negotiable #6. This module does not touch
+`packages/agora` at all.
 
 ```ts
-// packages/agora/src/auth/permissions.ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   branch: ["create", "update"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
+
+These are registered via `registerAppPermissions()` from
+`apps/chrono-api/src/auth-bootstrap.ts`, which every process entrypoint imports before
+anything imports `agora/auth`. Route files gate through the app-local typed wrapper
+`apps/chrono-api/src/auth/require-permission.ts`.
 
 - `staffRole` — **not added** (read-only via the ungated GET; no staff-level branch
   mutation exists, matching the file's own principle that an unused statement invites
@@ -451,9 +453,11 @@ recoverable by flipping status back).
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `branch: ["create", "update"]` to
-  `PERMISSION_STATEMENTS` and to `adminRole` (resolve Open Questions 1 & 2 first —
-  see Pass 2).
+- `apps/chrono-api/src/auth/permissions.ts` — add `branch: ["create", "update"]` to
+  `CHRONO_PERMISSION_STATEMENTS` and to `adminRole`, registered via
+  `registerAppPermissions()` in `apps/chrono-api/src/auth-bootstrap.ts`. **Never
+  `packages/agora`** — see `.ai/rules/business-app.md`, "Permissions: the per-app
+  extension seam". (Resolve Open Questions 1 & 2 first — see Pass 2.)
 - `apps/chrono-api/src/modules/branch/routes.ts` (new) — `branchRoutes()` factory.
 - `apps/chrono-api/src/routes/rpc.ts` — `.route("/branches", branchRoutes())`.
 - `apps/chrono-api/src/e2e/permissions.test.ts` — add a `branch` gate case (staff
@@ -462,8 +466,8 @@ recoverable by flipping status back).
 
 **Step-by-step tasks**
 
-1. Add `branch: ["create", "update"]` to `PERMISSION_STATEMENTS` in
-   `packages/agora/src/auth/permissions.ts`, and to `adminRole`'s composed statement
+1. Add `branch: ["create", "update"]` to `CHRONO_PERMISSION_STATEMENTS` in
+   `apps/chrono-api/src/auth/permissions.ts`, and to `adminRole`'s composed statement
    object (owner inherits automatically; `staffRole` gets nothing, per Open
    Question 1's resolution).
 2. Write `apps/chrono-api/src/modules/branch/routes.ts`: `GET /` (ungated, paginated
@@ -502,7 +506,7 @@ recoverable by flipping status back).
 
 **Out of scope:** UI, e2e browser spec (Phase 5).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 routes file imports `requirePermission` against the new resource, so the vocabulary
 must exist before the route file typechecks).
 

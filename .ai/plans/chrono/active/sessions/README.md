@@ -631,13 +631,23 @@ the existing `/portal/members` and `/portal/wallet` mounts):
 
 ### Permission vocabulary — staff holds the full lifecycle (a first for this codebase)
 
+The resource is registered through the **per-app extension seam**, never by editing
+`packages/agora` — see `.ai/rules/business-app.md` ("Permissions: the per-app extension
+seam") and root `AGENTS.md` non-negotiable #6. This module does not touch
+`packages/agora` at all.
+
 ```ts
-// packages/agora/src/auth/permissions.ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   session: ["create", "update"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
+
+These are registered via `registerAppPermissions()` from
+`apps/chrono-api/src/auth-bootstrap.ts`, which every process entrypoint imports before
+anything imports `agora/auth`. Route files gate through the app-local typed wrapper
+`apps/chrono-api/src/auth/require-permission.ts`.
 
 - `staffRole` — `session: ["create", "update"]`.
 - `adminRole` — `session: ["create", "update"]` (same as staff — no wider action
@@ -885,9 +895,11 @@ money math first so Phase 3's service composes it directly).
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `session: ["create", "update"]` to
-  `PERMISSION_STATEMENTS`, `staffRole`, and `adminRole` (resolve Open Question 3 first —
-  Pass 2).
+- `apps/chrono-api/src/auth/permissions.ts` — add `session: ["create", "update"]` to
+  `CHRONO_PERMISSION_STATEMENTS`, `staffRole`, and `adminRole`, registered via
+  `registerAppPermissions()` in `apps/chrono-api/src/auth-bootstrap.ts`. **Never
+  `packages/agora`** — see `.ai/rules/business-app.md`, "Permissions: the per-app
+  extension seam". Resolve Open Question 3 first (Pass 2).
 - `apps/chrono-api/src/modules/session/service.ts` (new) — `closeSession` and any
   shared start/pause/resume/extend helpers (Pass 2).
 - `apps/chrono-api/src/modules/session/routes.ts` (new) — `sessionRoutes()` factory
@@ -969,7 +981,7 @@ money math first so Phase 3's service composes it directly).
 
 **Out of scope:** the background sweep itself (Phase 4), UI, e2e browser spec (Phase 6).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 route files reference the new resource, so the vocabulary must exist before either
 typechecks).
 

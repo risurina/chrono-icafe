@@ -306,14 +306,20 @@ No `DELETE /shifts/:id` — shifts are an audit trail; nothing in oikos deletes 
 
 ### Permission vocabulary
 
-Adds to `packages/agora/src/auth/permissions.ts` (same precedent as `branch`):
+Registered through the **per-app extension seam**, never by editing
+`packages/agora` — see `.ai/rules/business-app.md` ("Permissions: the per-app extension
+seam") and root `AGENTS.md` non-negotiable #6, same as `branch`:
 
 ```ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   shift: ["open", "close"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
+
+These are registered via `registerAppPermissions()` from
+`apps/chrono-api/src/auth-bootstrap.ts`.
 
 - `staffRole` — **gets both** `shift: ["open", "close"]` (unlike `branch`, this is a
   floor-level work action every tenant role performs, matching oikos's
@@ -498,8 +504,11 @@ does, `branches` Phase 1 has landed locally per the handover doc.)
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `shift: ["open", "close"]` to
-  `PERMISSION_STATEMENTS`, `staffRole`, and `adminRole` (see Pass 2).
+- `apps/chrono-api/src/auth/permissions.ts` — add `shift: ["open", "close"]` to
+  `CHRONO_PERMISSION_STATEMENTS`, `staffRole`, and `adminRole`, registered via
+  `registerAppPermissions()` in `apps/chrono-api/src/auth-bootstrap.ts`. **Never
+  `packages/agora`** — see `.ai/rules/business-app.md`, "Permissions: the per-app
+  extension seam". (See Pass 2.)
 - `apps/chrono-api/src/modules/shift/routes.ts` (new) — `shiftRoutes()` factory.
 - `apps/chrono-api/src/routes/rpc.ts` — `.route("/shifts", shiftRoutes())`.
 - `apps/chrono-api/src/e2e/permissions.test.ts` — add a `shift` gate case (see
@@ -558,7 +567,7 @@ does, `branches` Phase 1 has landed locally per the handover doc.)
 
 **Out of scope:** UI, e2e browser spec (Phase 5).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 routes file imports `requirePermission` against the new resource, so the vocabulary
 must exist before the route file typechecks).
 

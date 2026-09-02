@@ -14,7 +14,7 @@ code on disk yet (`apps/chrono-api/src/modules/` today has `branch/`, `member/`,
 `station/` — the last of those has a schema file but is not yet wired into
 `apps/chrono-api/src/db/schema.ts`/`APP_TENANT_TABLES`, and no `wallet: [...]`/
 `station: [...]`/`session: [...]` entries exist in
-`packages/agora/src/auth/permissions.ts` yet either). This plan is written against those
+`apps/chrono-api/src/auth/permissions.ts` yet either). This plan is written against those
 plans' documented shapes, same as `sessions`' own plan did against `stations`/`members`/
 `wallet` before any of them had landed — the implementor builds this module after (or
 alongside, phase-by-phase) those tables/helpers actually exist.
@@ -1024,13 +1024,23 @@ existing `/portal/wallet` and `/portal/sessions` mounts):
 
 ### Permission vocabulary
 
+The resource is registered through the **per-app extension seam**, never by editing
+`packages/agora` — see `.ai/rules/business-app.md` ("Permissions: the per-app extension
+seam") and root `AGENTS.md` non-negotiable #6. This module does not touch
+`packages/agora` at all.
+
 ```ts
-// packages/agora/src/auth/permissions.ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
+
+These are registered via `registerAppPermissions()` from
+`apps/chrono-api/src/auth-bootstrap.ts`, which every process entrypoint imports before
+anything imports `agora/auth`. Route files gate through the app-local typed wrapper
+`apps/chrono-api/src/auth/require-permission.ts`.
 
 - `staffRole` — `credit: ["read", "sell", "consume"]`. `sell` and `consume` are routine
   counter operations (issue a pass, record a manual spend-down) — the same tier `wallet`
@@ -1316,10 +1326,12 @@ carrying the quantity/amount involved, not just the action name.
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `credit: ["read", "sell", "consume",
-  "grant", "adjust", "manageProducts"]` to `PERMISSION_STATEMENTS`, `staffRole` (`read`/
-  `sell`/`consume` only), and `adminRole` (all six) — resolve Open Question 1 first
-  (Pass 2).
+- `apps/chrono-api/src/auth/permissions.ts` — add `credit: ["read", "sell", "consume",
+  "grant", "adjust", "manageProducts"]` to `CHRONO_PERMISSION_STATEMENTS`, `staffRole`
+  (`read`/`sell`/`consume` only), and `adminRole` (all six), registered via
+  `registerAppPermissions()` in `apps/chrono-api/src/auth-bootstrap.ts`. **Never
+  `packages/agora`** — see `.ai/rules/business-app.md`, "Permissions: the per-app
+  extension seam". Resolve Open Question 1 first (Pass 2).
 - `apps/chrono-api/src/modules/credit/service.ts` (new) — `scoreGrantEligibility`,
   `applyGrantDelta`, `consumeCredits`, `purchaseCreditProduct`, `grantCreditsManually`,
   `adjustCreditGrant`, `voidCreditGrant`, `voidCreditPurchase` (Pass 2).
@@ -1414,7 +1426,7 @@ carrying the quantity/amount involved, not just the action name.
 
 **Out of scope:** the expiry sweep (Phase 4), UI, e2e browser spec (Phase 6).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 route files reference the new resource, so the vocabulary must exist before either
 typechecks).
 

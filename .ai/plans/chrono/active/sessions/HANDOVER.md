@@ -7,7 +7,8 @@ headers. Split: Phase 1 (schema/RLS) is local, never delegated to Jules, per
 the `jules` skill's guardrail against delegating RLS/tenant-isolation design.
 Phase 3 ("Service (close/lifecycle) + routes + permission gates") is local for
 the same two reasons `wallet`'s own Phase 3 is local: it edits
-`packages/agora/src/auth/permissions.ts`, AND it is the atomic-claim
+`apps/chrono-api/src/auth/permissions.ts` (via `registerAppPermissions()` —
+never `packages/agora`, see `.ai/rules/business-app.md`), AND it is the atomic-claim
 concurrency-safety mechanism (`closeSession`'s `UPDATE ... WHERE status IN
 (...) RETURNING *`) this module exists to get right — proven by a dedicated
 concurrency test, not something to hand to an async agent. Phase 4
