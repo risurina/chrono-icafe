@@ -13,6 +13,8 @@ import {
   Badge,
   Button,
   Input,
+  Label,
+  Field,
   Row,
   Stack,
   Card,
@@ -20,6 +22,12 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Can,
   toast,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
@@ -35,6 +43,8 @@ type Member = {
   rejectedAt: string | null;
 };
 
+type Me = { permissions: Record<string, string[]> };
+
 export default function MembersPage() {
   const query = useListQuery();
   const [members, setMembers] = useState<Member[]>([]);
@@ -44,6 +54,11 @@ export default function MembersPage() {
   );
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const loadPendingCount = useCallback(async () => {
     const res = await api.rpc["member-profiles"]["pending-count"].$get();
@@ -56,6 +71,16 @@ export default function MembersPage() {
   useEffect(() => {
     loadPendingCount();
   }, [loadPendingCount]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await api.rpc.me.$get();
+      if (res.ok) {
+        const body = (await res.json()) as Me;
+        setMe({ permissions: body.permissions ?? {} });
+      }
+    })();
+  }, []);
 
   const loadAll = useCallback(async () => {
     const res = await api.rpc["member-profiles"].$get({
@@ -137,6 +162,33 @@ export default function MembersPage() {
     }
   }
 
+  async function inviteMember(e: React.FormEvent) {
+    e.preventDefault();
+    setInviting(true);
+    try {
+      const res = await api.rpc["member-profiles"].invite.$post({
+        json: { name: inviteName, email: inviteEmail },
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { resent: boolean };
+        toast.success(body.resent ? "Invite resent." : "Invite sent.");
+        setInviteOpen(false);
+        setInviteName("");
+        setInviteEmail("");
+        loadAll();
+        loadPendingCount();
+      } else if ((res.status as number) === 409) {
+        toast.error("A customer with that email already exists.");
+      } else if ((res.status as number) === 403) {
+        toast.error("Only admins can invite customers.");
+      } else {
+        toast.error("Could not send the invite.");
+      }
+    } finally {
+      setInviting(false);
+    }
+  }
+
   async function savePhoneEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editPhoneFor) return;
@@ -177,13 +229,18 @@ export default function MembersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <DataTableToolbar
-            q={query.q}
-            onQChange={query.setQ}
-            searchPlaceholder="Search members…"
-            view={query.view}
-            onViewChange={query.setView}
-          />
+          <Row items="center" gap={2} className="justify-between">
+            <DataTableToolbar
+              q={query.q}
+              onQChange={query.setQ}
+              searchPlaceholder="Search members…"
+              view={query.view}
+              onViewChange={query.setView}
+            />
+            <Can permissions={me?.permissions} resource="memberProfile" action="invite">
+              <Button onClick={() => setInviteOpen(true)}>Invite</Button>
+            </Can>
+          </Row>
 
           {(() => {
             const renderRow = (member: Member) => {
@@ -326,6 +383,47 @@ export default function MembersPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite a customer</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={inviteMember} className="space-y-4">
+            <Field>
+              <Label htmlFor="invite-name">Name</Label>
+              <Input
+                id="invite-name"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                required
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="invite-email">Email</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                required
+              />
+            </Field>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setInviteOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviting}>
+                {inviting ? "Sending…" : "Send invite"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }
