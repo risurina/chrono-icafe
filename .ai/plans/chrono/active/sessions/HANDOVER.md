@@ -26,9 +26,9 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 
 | Phase | Owner | Status | Jules session id | Notes |
 |---|---|---|---|---|
-| 1 — Schema, RLS, APP_TENANT_TABLES | local | not started | — | depends on `station`/`member`/`wallet` schema existing on disk first |
-| 2 — Contracts + money helper | jules | fired | 2097577537239695559 | |
-| 3 — Service (close/lifecycle) + routes + permission gates | local | not started | — | resolve Open Question 3 (no staff-denied action) first; concurrency proof must run against real Postgres, not pglite |
+| 1 — Schema, RLS, APP_TENANT_TABLES | local | done | — | landed as part of a 9-module batch (`9943aa5`) |
+| 2 — Contracts + money helper | jules | done | 2097577537239695559 | |
+| 3 — Service (close/lifecycle) + routes + permission gates | local | done | — | committed (`af8ce16`) |
 | 4 — Background expiry sweep | local | not started | — | reuses Phase 3's `closeSession` directly |
 | 5 — Web UI | jules | not started | — | |
 | 6 — E2E spec | jules | not started | — | |
@@ -60,3 +60,33 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   record beyond ordering. Launched the background poller per the `jules`
   skill immediately after firing. Session id: `2097577537239695559`.
 - 2026-09-02 — Phase 1 (schema, migration, RLS) landed locally, committed as part of a 9-module batch (`9943aa5`). All 15 new tables registered in APP_TENANT_TABLES, RLS forced, `rls:proof` PASS, whole-workspace typecheck clean.
+- 2026-09-02 — Phase 3 (service + routes + permission gates) built locally,
+  per Pass 2's exact spec. `session: ["create", "update"]` added to the
+  per-app extension seam — no staff/admin split (Open Question 3 resolved
+  per the plan's own default: no staff-denied action exists on this
+  resource). `service.ts`'s `closeSession` is the only code path that ends a
+  session — **caught and fixed a real double-debit bug during
+  implementation**: the first draft read the session row, computed the
+  charge, called `debitWallet`, and only THEN did the atomic claim UPDATE —
+  which meant a losing racer would still have already debited the wallet
+  before discovering it lost the race. Fixed by switching to the same
+  row-lock discipline `wallet`'s own `lockWalletForUpdate` uses:
+  `SELECT ... FOR UPDATE` on the session row FIRST (serializes concurrent
+  closers), THEN compute billing and debit only after the lock is held — a
+  losing racer blocks until the winner commits, then sees `status: "ended"`
+  and returns `alreadyClosed: true` before ever touching the wallet.
+  `routes.ts` (start's full station/group/member/balance pre-check chain +
+  rate resolution incl. the `chronoMemberProfile.applicationStatus ===
+  "approved"` member-rate check, pause/resume/extend/end), `portal-routes.ts`
+  (`GET /active`, no auto-create), wired into `rpc.ts`/`app.ts`. Added the
+  `session` gate cases to `permissions.test.ts` (no denial case, documented
+  explicitly per Open Question 3) and a new `concurrency.test.ts`
+  (`test:session-concurrency`) proving the row lock against a real Postgres
+  connection: 10 concurrent `closeSession` calls against a backdated
+  (30-minutes-elapsed) session → exactly one closes, the other 9 correctly
+  report `alreadyClosed: true`, exactly one wallet transaction row exists
+  (no double-billing), station status is `"available"` exactly once.
+  `pnpm --filter @agora/chrono-api typecheck` clean, `test:permissions` →
+  374 passed, `rls:proof` → `RLS PROOF: PASS ✅`, `test:session-concurrency`
+  → 4 passed. Committed (`af8ce16`). Phase 3 done — Phase 4 (background
+  expiry sweep, reuses `closeSession` directly) is next.
