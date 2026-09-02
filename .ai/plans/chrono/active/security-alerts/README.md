@@ -119,8 +119,8 @@ built against a table that doesn't exist.
 
 **Concretely**: Phases 1–4 (schema, contracts, staff routes, web UI) do not import
 anything from `devices` and do not require it to exist. Phase 5 (device-reporting
-endpoint) is explicitly BLOCKED-until-`devices`-Phase-1-and-3 in its own Execution Start
-Point, and is the only phase this dependency actually blocks.
+endpoint) was the only phase this dependency blocked — `devices` Phase 1 and 3 have
+since landed, so Phase 5 is now unblocked too.
 
 ### Pattern to copy (worked examples)
 
@@ -500,7 +500,7 @@ same `withTenant` transaction before use (no existence leak).
 
 ---
 
-## Phase 5 — Device-Reporting Endpoint (BLOCKED until `devices` Phase 1 + Phase 3 land)
+## Phase 5 — Device-Reporting Endpoint (UNBLOCKED — `devices` Phase 1 and Phase 3 have both landed)
 
 **Files to Update**
 - Update: `apps/chrono-api/src/modules/security-alert/schema.ts` (add the `deviceId` FK
@@ -513,8 +513,9 @@ same `withTenant` transaction before use (no existence leak).
   `branchId`/`stationId` from the client, derived from the authenticated device row).
 
 **Step-by-Step Tasks**
-1. Confirm `devices` Phase 1 (schema) and Phase 3 (device-auth middleware) are both
-   implemented and merged.
+1. `devices` Phase 1 (schema) and Phase 3 (device-auth middleware) are both
+   implemented and merged — `apps/chrono-api/src/modules/device/device-auth-middleware.ts`
+   and `chronoDevice` exist on disk. Read them before starting this phase.
 2. Migrate the `deviceId` FK (raw-SQL `ALTER TABLE ... ADD CONSTRAINT`, since Drizzle
    already generated the column as plain `text` in Phase 1).
 3. Add the device-facing insert route per `devices`' own mount pattern.
