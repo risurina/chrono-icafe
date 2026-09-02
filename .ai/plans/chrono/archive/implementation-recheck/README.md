@@ -243,3 +243,30 @@ Each phase ends in one of two states, recorded in `HANDOVER.md`:
   `.ai/plans/chrono/active/security-hardening/`.
 - Reverting any of the five commits. The developer has decided to keep them;
   this plan verifies them in place.
+
+## Status: COMPLETE (2026-09-02)
+
+All six phases discharged — see `HANDOVER.md` for the full run log, the real
+finding, and the applied remedy.
+
+- **Phases 1–5** (re-verify the five commits) — all green on a quiet tree:
+  whole-workspace `typecheck` 7/7, `test:wallet-concurrency` 4/4,
+  `test:pos-concurrency` 6/6 (including the three Phase 4 refund assertions,
+  independently reproduced as gap #4 required), and the Phase 3 drift check
+  (`db:generate` → `No schema changes, nothing to migrate`).
+- **Phase 6** (close the wallet e2e gap) — already satisfied:
+  `apps/chrono-web/e2e/tests/wallet/wallet.spec.ts` exists (`b337c02`) with all
+  three required cases (happy path, role gate, tenant isolation).
+- **All four carried-in verification gaps closed.**
+
+**This plan justified itself.** Beyond confirming the five commits, it caught a
+defect none of them contained: the dev `chrono` database had silently lost every
+foreign key, CHECK constraint, and secondary index to a misdirected test
+harness, and `db:generate` cannot detect that class of drift. Rebuilt with
+developer approval — 0 → 164 FKs, both wallet CHECK constraints restored, 16/16
+migrations applied, `rls:proof` PASS.
+
+Two follow-ups recorded in `HANDOVER.md` and owned by no existing plan: harden
+the shared test harness against ever targeting a non-`*test*` database, and
+teach `tableDdl()` to emit FKs/CHECKs/partial-index `WHERE` clauses so
+harness-created schemas match the real migrations.
