@@ -66,6 +66,7 @@ import {
 } from "agora/platform-admin/routes";
 import { project } from "./db/schema";
 import { memberPortalRoutes } from "./modules/member/portal-routes";
+import { walletPortalRoutes } from "./modules/wallet/portal-routes";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -452,6 +453,9 @@ export const app = new Hono()
   // status) — gated by memberMiddleware() inside memberPortalRoutes()
   // itself, mirroring how /portal/auth is mounted directly above.
   .route("/portal/members", memberPortalRoutes())
+  // Chrono: customer-facing wallet self-service (balance / history) — gated
+  // by memberMiddleware() inside walletPortalRoutes() itself.
+  .route("/portal/wallet", walletPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);

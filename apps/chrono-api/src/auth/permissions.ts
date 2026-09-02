@@ -27,12 +27,20 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // stays ungated so staff retain read visibility. See Open Question 2 in
   // .ai/plans/chrono/active/devices/README.md.
   device: ["approve", "revoke", "manage"],
+  // Wallet mutations are a financial action, a materially different risk
+  // profile from identity CRUD — a wholly new resource, not an extension of
+  // `customer`. Staff holds day-to-day counter operations (credit/debit,
+  // matching oikos's own STAFF-inclusive top-up/debit gate); `adjust`
+  // (the correction/reversal path) sits at admin+. See Open Question 1 in
+  // .ai/plans/chrono/active/wallet/README.md.
+  wallet: ["read", "credit", "debit", "adjust"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
   station: ["create", "update"],
   shift: ["open", "close"],
   reservation: ["read", "manage"],
+  wallet: ["read", "credit", "debit"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -41,6 +49,7 @@ export const CHRONO_ADMIN_GRANTS = {
   shift: ["open", "close"],
   reservation: ["read", "manage"],
   device: ["approve", "revoke", "manage"],
+  wallet: ["read", "credit", "debit", "adjust"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

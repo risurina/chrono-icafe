@@ -1316,6 +1316,31 @@ check(
   hasChronoPermission("member", { shift: ["open"] }) === false,
 );
 
+console.log("\n── chrono wallet permissions (wallet Phase 3) ──");
+// staff holds credit/debit (oikos's own STAFF-inclusive top-up/debit gate)
+// but not adjust; admin/owner hold all four, per Open Question 1's resolution
+// in .ai/plans/chrono/active/wallet/README.md.
+check(
+  "staff may wallet:credit",
+  hasChronoPermission("staff", { wallet: ["credit"] }),
+);
+check(
+  "staff may wallet:debit",
+  hasChronoPermission("staff", { wallet: ["debit"] }),
+);
+check(
+  "staff may NOT wallet:adjust",
+  hasChronoPermission("staff", { wallet: ["adjust"] }) === false,
+);
+check(
+  "admin may wallet:adjust",
+  hasChronoPermission("admin", { wallet: ["adjust"] }),
+);
+check(
+  "owner may wallet:adjust",
+  hasChronoPermission("owner", { wallet: ["adjust"] }),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",
