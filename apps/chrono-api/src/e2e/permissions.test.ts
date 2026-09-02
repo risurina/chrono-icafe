@@ -1373,6 +1373,40 @@ check(
   hasChronoPermission("owner", { wallet: ["adjust"] }),
 );
 
+console.log("\n── chrono payment permissions (payments Phase 2) ──");
+// staff holds read/create/pay (routine counter work, matching wallet's own
+// credit/debit staff tier); void/refund sit at admin+, matching pos:void /
+// wallet:adjust's own tier. See .ai/plans/chrono/active/payments/README.md,
+// "Permission vocabulary".
+check(
+  "staff may payment:create",
+  hasChronoPermission("staff", { payment: ["create"] }),
+);
+check(
+  "staff may payment:pay",
+  hasChronoPermission("staff", { payment: ["pay"] }),
+);
+check(
+  "staff may NOT payment:void",
+  hasChronoPermission("staff", { payment: ["void"] }) === false,
+);
+check(
+  "staff may NOT payment:refund",
+  hasChronoPermission("staff", { payment: ["refund"] }) === false,
+);
+check(
+  "admin may payment:void",
+  hasChronoPermission("admin", { payment: ["void"] }),
+);
+check(
+  "admin may payment:refund",
+  hasChronoPermission("admin", { payment: ["refund"] }),
+);
+check(
+  "owner may payment:refund",
+  hasChronoPermission("owner", { payment: ["refund"] }),
+);
+
 console.log("\n── chrono pos permissions (pos Phase 3) ──");
 // staff holds read/sell (the day-to-day counter operation, matching wallet's
 // own precedent); void/manageProducts sit at admin+, per Open Question 1's

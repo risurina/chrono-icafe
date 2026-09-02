@@ -114,6 +114,14 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // action (no read/write split needed since the read side is the public
   // route, ungated). See .ai/plans/chrono/active/tenant-landing/README.md.
   landingPage: ["manage"],
+  // A generic, pre-settlement counter payment — distinct from a wallet
+  // credit/debit, which has no payment-method/counter-audit trail of its
+  // own. `pay` is a separate action from `create`: creating a pending
+  // payment and settling it (the step that actually moves money) are
+  // different acts and must gate separately. `void`/`refund` are admin+,
+  // mirroring pos:void / wallet:adjust's own tier. See
+  // .ai/plans/chrono/active/payments/README.md, "Permission vocabulary".
+  payment: ["read", "create", "pay", "void", "refund"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -131,6 +139,7 @@ export const CHRONO_STAFF_GRANTS = {
   report: ["read"],
   securityAlert: ["read", "manage"],
   inquiry: ["read", "manage"],
+  payment: ["read", "create", "pay"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -151,6 +160,7 @@ export const CHRONO_ADMIN_GRANTS = {
   report: ["read", "readFinancial"],
   securityAlert: ["read", "manage"],
   inquiry: ["read", "manage"],
+  payment: ["read", "create", "pay", "void", "refund"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
