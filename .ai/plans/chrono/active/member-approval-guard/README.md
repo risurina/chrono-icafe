@@ -363,18 +363,27 @@ then `members/README.md:305-310`.
 
 ---
 
-## Open Questions (developer to confirm)
+## Decisions (resolved — no blockers remain)
 
-> **Question 1 is BLOCKING.** Phase 2's assertions are written against the 409 form, so it
-> must be answered before Phase 1 starts — not resolved alongside it.
+1. **409, not silent success, on a redundant call — DECIDED 2026-09-02 by the developer.**
+   A redundant approve/reject returns **409 Conflict** with a message naming the current
+   state (*"This application has already been approved."*), writes nothing, and emits no
+   audit event. The rejected alternative was 200-with-the-existing-row.
 
-1. **409 vs. silent success on a redundant call.** This plan chooses 409 because a caller
-   should know its write did nothing. The alternative (200 with the existing row, no
-   write, no audit) is friendlier to a double-clicking UI. 409 is recommended — the
-   dashboard can present it as a benign "already approved" — but if you would rather the
-   UI never see an error for a harmless repeat, say so and Phase 1 flips to the 200 form.
-   Everything else in the plan is unchanged either way.
-2. **Should reversing a decision require a distinct permission?** Today `customer:approve`
+   Rationale, recorded so it is not re-litigated: the realistic trigger is a double-click,
+   and 409 lets the dashboard say "already approved" — accurate, and it distinguishes
+   "clicked twice" from "clicked once" in the logs, which 200 cannot without extra
+   bookkeeping. Once `customer-onboarding` adds the approval email, 409 also makes "why
+   was no second email sent?" self-explanatory. The cost — an error status for a harmless
+   repeat — is paid off by the 409 UI branch in Phase 1, so the user sees a reassuring
+   message rather than a generic failure toast.
+
+   **Phase 1 and Phase 2 are written against this form and need no change.** This was the
+   plan's only blocking question; Phase 1 is now ready to start.
+## Open Questions (non-blocking)
+
+1. **Should reversing a decision require a distinct permission?** Today `customer:approve`
    covers both "approve a new applicant" and "reinstate someone this venue previously
-   rejected". Those are arguably different-weight decisions. Out of scope as written; say
-   the word if you want it split.
+   rejected". Those are arguably different-weight decisions. Out of scope as written, and
+   it does **not** block any phase — splitting it later is additive. Say the word if you
+   want it split.
