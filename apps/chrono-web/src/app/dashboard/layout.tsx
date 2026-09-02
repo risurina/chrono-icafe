@@ -70,8 +70,12 @@ const BASE_NAV: NavItem[] = [
   // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
   // not deleted; page and API routes are untouched, may be reused later.
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
-  { type: "item", name: "Stations", href: "/stations", icon: Monitor },
   { type: "item", name: "Devices", href: "/devices", icon: MonitorSmartphone },
+
+  // Branch-scoped, staff-facing floor operations (what a shift worker touches
+  // day to day at a single branch) — grouped separately from Business/Money.
+  { type: "label", name: "Daily Operations" },
+  { type: "item", name: "Stations", href: "/stations", icon: Monitor },
   { type: "item", name: "Shifts", href: "/shifts", icon: Clock },
   { type: "item", name: "Sessions", href: "/sessions", icon: Timer },
 
