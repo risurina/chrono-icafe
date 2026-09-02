@@ -120,3 +120,11 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
 - 2026-09-02 — Phase 5 (e2e spec) pulled: staff/admin permission-tier gate
   test matches the real landed grants (staff: read/credit/debit, not
   adjust). No `as any`, typecheck clean. Committed (`b337c02`).
+- 2026-09-02 — Phase 4 (web UI) built locally instead — the Jules session
+  (`16503940939407002333`) stalled on a Google sign-in wall we couldn't
+  clear (developer directed: discard it, build locally). Committed
+  (`a1d4012`): dashboard/wallets/page.tsx, layout.tsx nav entry,
+  lib/wallet-portal.ts, portal/page.tsx Wallet card. Zero `any` types (grep
+  checked). typecheck+build clean. **All 5 phases of wallet are now done**
+  except Phase 5's e2e spec still needs a real headed run (same caveat as
+  every other Jules-built spec this session).
