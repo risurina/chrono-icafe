@@ -551,7 +551,12 @@ export const app = new Hono()
   // SSO is enabled/required — never the connection details or secret. Read with
   // withAdmin because no tenant session exists yet, then narrowed.
   .get("/public/sso", async (c) => {
-    const org = await resolveOrgFromRequest(c);
+    // allowTerminalStatus: an OWNER must still be able to sign in to a
+    // suspended workspace to resume it (tenantMiddleware() keeps owners
+    // exempt for the same reason). Filtering here would leave an
+    // SSO-required tenant permanently unrecoverable. See
+    // .ai/plans/agora/active/public-host-status-filter/README.md.
+    const org = await resolveOrgFromRequest(c, { allowTerminalStatus: true });
     if (!org) return c.json({ sso: { enabled: false, required: false } });
     const [sso] = await withAdmin((tx) =>
       tx
@@ -582,7 +587,12 @@ export const app = new Hono()
   // .ai/notes/hardening-backlog.md. This endpoint produces a genuine authorize
   // URL so configuration can be verified against a real IdP.
   .get("/public/sso/start", async (c) => {
-    const org = await resolveOrgFromRequest(c);
+    // allowTerminalStatus: an OWNER must still be able to sign in to a
+    // suspended workspace to resume it (tenantMiddleware() keeps owners
+    // exempt for the same reason). Filtering here would leave an
+    // SSO-required tenant permanently unrecoverable. See
+    // .ai/plans/agora/active/public-host-status-filter/README.md.
+    const org = await resolveOrgFromRequest(c, { allowTerminalStatus: true });
     if (!org) throw new HttpError(404, "Unknown workspace.");
     const [conn] = await withAdmin((tx) =>
       tx
