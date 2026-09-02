@@ -12,6 +12,10 @@ import {
   toast,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
+import {
+  OnboardingChecklistCard,
+  type OnboardingChecklistState,
+} from "@/components/dashboard/onboarding/onboarding-checklist-card";
 
 type Me = { tenantSlug: string; role: string };
 
@@ -20,6 +24,7 @@ export default function OverviewPage() {
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingChecklistState | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -29,17 +34,32 @@ export default function OverviewPage() {
         return;
       }
       setMe((await meRes.json()) as Me);
-      const [p, m, b] = await Promise.all([
+      const [p, m, b, o] = await Promise.all([
         api.rpc.projects.$get({ query: { pageSize: "1" } }),
         api.rpc.members.$get({ query: { pageSize: "1" } }),
         api.rpc.billing.$get(),
+        api.rpc.onboarding.checklist.$get(),
       ]);
       if (p.ok) setProjectCount((await p.json()).meta.totalItems);
       if (m.ok) setMemberCount((await m.json()).meta.totalItems);
       // Billing is admin-gated; a staff-role user simply sees no plan badge.
       if (b.ok) setPlan((await b.json()).subscription.plan);
+      if (o.ok) setOnboarding(await o.json());
     })();
   }, []);
+
+  async function dismissOnboarding() {
+    // Optimistic collapse — hide immediately, restore on failure.
+    const previous = onboarding;
+    setOnboarding(null);
+    const res = await api.rpc.onboarding.checklist.dismiss.$post();
+    if (!res.ok) {
+      toast.error("Could not dismiss the checklist.");
+      setOnboarding(previous);
+      return;
+    }
+    setOnboarding(await res.json());
+  }
 
   return (
     <Stack>
@@ -60,6 +80,10 @@ export default function OverviewPage() {
           ) : null}
         </p>
       </div>
+
+      {onboarding && !onboarding.dismissed ? (
+        <OnboardingChecklistCard state={onboarding} onDismiss={dismissOnboarding} />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
