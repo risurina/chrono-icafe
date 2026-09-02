@@ -112,3 +112,14 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   that the backend is fully landed. **`sessions` backend is now
   complete — every core Wave-1 module has a full backend.**
 - 2026-09-02 — Phase 5 (web UI) delegated to Jules, session `16137985652170510598`. Fired in parallel with pos/credits/reports UI.
+- 2026-09-02 — **A second, independent Phase 5 session (`5758746893722909969`)
+  was fired concurrently by a different session, discovered after the fact.**
+  Rather than let both land and collide, this one was pulled first (it
+  finished first): `dashboard/sessions/page.tsx`, `session-portal.ts`, a
+  `layout.tsx` nav entry (hand-merged — the nav had been reorganized into
+  labeled sections since the diff was generated), and a portal Current-session
+  card. `pnpm --filter @agora/chrono-web typecheck` and `build` both clean.
+  Committed (`2d3db74`). **Session `16137985652170510598` is now superseded —
+  do not pull it, it would duplicate/conflict with already-committed work.**
+  See `.ai/handover/jules-sessions.md` for the ledger disposition. Phase 5
+  done. Phase 6 (e2e spec) is next.
