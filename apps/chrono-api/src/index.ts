@@ -8,7 +8,8 @@ import {
   registerSmsQueueJob,
   startRetentionWorker,
 } from "agora/server";
-import { app } from "./app";
+import { getRealtimeProvider, closeAllConnections } from "agora/realtime";
+import { app, injectWebSocket } from "./app";
 import { registerWebhookQueueJob } from "agora/webhooks";
 import { startQueueWorker } from "agora/queue";
 import { startSessionExpiryWorker } from "./modules/session/expiry";
@@ -23,6 +24,12 @@ await initObservability();
 const server = serve({ fetch: app.fetch, port }, (info) => {
   logger.info({ port: info.port, msg: `API listening on http://localhost:${info.port}` });
 });
+// Hooks the underlying HTTP server's "upgrade" event so a websocket handshake
+// routes through the full Hono app (auth, CORS, tenant middleware) exactly
+// like an ordinary request — see agora/realtime and app.ts's own comment on
+// why createNodeWebSocket({ app }) closes over the FULL app, not the /rpc
+// sub-app alone.
+injectWebSocket(server);
 
 // Register every job type before its queue worker starts polling for it.
 registerEmailQueueJob();
@@ -56,6 +63,15 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopRetentionWorker();
     stopSessionExpiryWorker();
     stopCreditExpiryWorker();
-    server.close(() => process.exit(0));
+    // Graceful realtime shutdown, in order: terminate every open socket in
+    // this process (closeAllConnections — actually closes each ws, not just
+    // registry bookkeeping), THEN drop every provider channel/listener, THEN
+    // stop accepting new HTTP connections. Reversing this order would let a
+    // socket receive a stray publish after its own teardown has begun.
+    void closeAllConnections()
+      .then(() => getRealtimeProvider().close())
+      .finally(() => {
+        server.close(() => process.exit(0));
+      });
   });
 }

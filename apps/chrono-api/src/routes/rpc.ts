@@ -1,4 +1,11 @@
 import { Hono } from "hono";
+import type { UpgradeWebSocket } from "hono/ws";
+import {
+  createRealtimeRoute,
+  type ResolveActor,
+  type RealtimeLimits,
+} from "agora/realtime";
+import { validateChronoScopes } from "../modules/realtime/contracts";
 import {
   withTenant,
   adminDb,
@@ -1746,6 +1753,56 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   });
 
 export type RpcType = typeof rpc;
+
+/**
+ * Staff realtime-connection defaults (realtime-updates Phase 1,
+ * `.ai/plans/chrono/active/realtime-updates/README.md`) — a browser tab
+ * re-handshakes periodically to pick up revoked access, unlike a long-lived
+ * device/kiosk mount (Phase 3's own, separate `limits`).
+ *
+ * Values copied verbatim from `apps/agora-api`'s own staff mount
+ * (`STAFF_REALTIME_LIMITS`), which this app's staff dashboard shares the same
+ * actor shape with (a member session cookie via `tenantMiddleware`).
+ */
+export const CHRONO_STAFF_REALTIME_LIMITS: RealtimeLimits = {
+  maxLifetimeMs: 15 * 60 * 1000,
+  revalidateEveryMs: 5 * 60 * 1000,
+  heartbeatMs: 30_000,
+  maxPerActor: 8,
+  maxPerTenant: 200,
+  maxFrameBytes: 8 * 1024,
+  inboundFramesPerMin: 120,
+  requireOrigin: true,
+};
+
+/**
+ * Mount the staff realtime upgrade route at `/rpc/realtime`, inside this
+ * sub-app's existing `.use("*", tenantMiddleware())` chain (registered
+ * above) — so it inherits the maintenance-mode gate and usage-metering
+ * middleware automatically, and only needs to re-check what
+ * `tenantMiddleware` doesn't already cover (Origin — CSWSH). Called once
+ * from `app.ts`, which is the one place `upgradeWebSocket` (from
+ * `createNodeWebSocket({ app })`) and the staff `resolveActor` (built from
+ * this app's own CORS origin config) exist.
+ *
+ * Mirrors `apps/agora-api/src/routes/rpc.ts`'s own `mountRealtimeRoute`
+ * exactly, swapping in Chrono's `validateChronoScopes` for the foundation
+ * scaffold's "accept no scope kinds" validator.
+ */
+export function mountRealtimeRoute(
+  upgradeWebSocket: UpgradeWebSocket,
+  resolveActor: ResolveActor,
+): void {
+  rpc.get(
+    "/realtime",
+    createRealtimeRoute({
+      upgradeWebSocket,
+      resolveActor,
+      validateScopes: validateChronoScopes,
+      limits: CHRONO_STAFF_REALTIME_LIMITS,
+    }),
+  );
+}
 
 /** Map a customer (tenant_member) row → wire contract (never the password hash). */
 function toCustomer(row: {

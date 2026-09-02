@@ -1,6 +1,8 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { createNodeWebSocket } from "@hono/node-ws";
+import { createStaffActorResolver } from "agora/realtime";
 import {
   auth,
   ForbiddenError,
@@ -44,7 +46,13 @@ import {
   getBillingProviderId,
   getBillingWebhookProvider,
 } from "agora/billing";
-import { rpc, lifecycle, signFileForTenant, confirmFileForTenant } from "./routes/rpc";
+import {
+  rpc,
+  lifecycle,
+  signFileForTenant,
+  confirmFileForTenant,
+  mountRealtimeRoute,
+} from "./routes/rpc";
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
@@ -198,7 +206,7 @@ function isSafeLocalKey(key: string): boolean {
 }
 
 // Allow the explicit origins plus any tenant subdomain of the app root.
-const rootDomain = (process.env.APP_DOMAIN ?? "").split(":")[0];
+const rootDomain = (process.env.APP_DOMAIN ?? "").split(":")[0] ?? "";
 const isDev = process.env.NODE_ENV !== "production";
 function corsOrigin(origin: string): string | null {
   if (!origin) return null;
@@ -244,8 +252,34 @@ const projectCountsByTenant = async (
 /**
  * The Hono application. Kept separate from the server bootstrap (index.ts) so
  * it can be imported by tests or an app that attaches WebSockets later.
+ *
+ * `createNodeWebSocket({ app })` must close over THIS instance (not `rpc`,
+ * the sub-app `/rpc` mounts) — `injectWebSocket` (called from `index.ts` once
+ * the HTTP server exists) routes a raw upgrade request through `app.request`,
+ * which only resolves `/rpc/realtime` correctly via the full app's routing,
+ * `/rpc` prefix included. `upgradeWebSocket` itself doesn't need the routes
+ * to exist yet — only `injectWebSocket` is called later — so wiring it here,
+ * before the chain below runs, is safe. Mirrors
+ * `apps/agora-api/src/app.ts`'s identical pattern (`websocket-foundation`
+ * Phase 2) verbatim — see that file's own comment for why `@hono/node-ws`,
+ * not the plan's original literal `@hono/node-server` guess (no published
+ * `@hono/node-server` version has a built-in websocket integration).
+ *
+ * `baseApp` is a bare pre-chain reference used ONLY to wire
+ * `createNodeWebSocket` and mount the realtime route before the fluent chain
+ * below runs — `export const app` below is still assigned from that chain's
+ * own return expression, because Hono's `AppType`/`RpcType` are inferred
+ * from the CHAIN'S accumulated return type, not runtime mutation of a
+ * variable. `baseApp` and `app` are the same runtime object throughout.
  */
-export const app = new Hono()
+const baseApp = new Hono();
+const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app: baseApp });
+mountRealtimeRoute(
+  upgradeWebSocket,
+  createStaffActorResolver({ webOrigins, rootDomain, allowLocalhost: isDev }),
+);
+
+export const app = baseApp
   // Correlation id + structured per-request access log. First so every request
   // (including CORS preflights and errors) gets an id and a timing line.
   .use("*", requestLogger())
@@ -1041,5 +1075,5 @@ app.onError((err, c) => {
 });
 
 export type AppType = typeof app;
-export { rpc };
+export { rpc, injectWebSocket };
 export type { RpcType } from "./routes/rpc";
