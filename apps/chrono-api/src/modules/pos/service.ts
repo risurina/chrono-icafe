@@ -344,28 +344,3 @@ export async function refundSale(
 
   return updated!;
 }
-
-/**
- * The shift-reconciliation touchpoint. Sums the CASH-method
- * ChronoSalePayments rows belonging to `completed` sales on this shift — a
- * refunded sale's cash payment is naturally excluded (its sale.status is no
- * longer "completed"). Exported for `shift`'s own close route to call.
- */
-export async function calculatePosExpectedCash(
-  tx: TenantTx,
-  args: { tenantId: string; shiftId: string },
-): Promise<string> {
-  const rows = await tx
-    .select({ amount: chronoSalePayment.amount })
-    .from(chronoSalePayment)
-    .innerJoin(chronoSale, eq(chronoSalePayment.saleId, chronoSale.id))
-    .where(
-      and(
-        eq(chronoSale.tenantId, args.tenantId),
-        eq(chronoSale.shiftId, args.shiftId),
-        eq(chronoSalePayment.method, "cash"),
-        eq(chronoSale.status, "completed"),
-      ),
-    );
-  return rows.reduce((sum, r) => addMoney(sum, r.amount), "0.00");
-}

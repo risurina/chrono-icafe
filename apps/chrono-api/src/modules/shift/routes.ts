@@ -6,9 +6,8 @@ import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoShift } from "./schema";
-import { findOpenShiftForStaff } from "./service";
+import { findOpenShiftForStaff, computeExpectedCash } from "./service";
 import { openShiftSchema, closeShiftSchema, listShiftsQuerySchema } from "./contracts";
-import { calculatePosExpectedCash } from "../pos/service";
 import { addMoney, negateMoney } from "../wallet/money";
 
 function buildPaginationMeta(
@@ -186,10 +185,11 @@ export function shiftRoutes() {
           requirePermission(c.var.tenant.permissions, { shift: ["closeAny"] });
         }
 
-        const expectedCashAmount = addMoney(
-          existing.openingCashAmount,
-          await calculatePosExpectedCash(tx, { tenantId, shiftId: existing.id }),
-        );
+        const expectedCashAmount = await computeExpectedCash(tx, {
+          tenantId,
+          shiftId: existing.id,
+          openingCashAmount: existing.openingCashAmount,
+        });
         const differenceAmount = addMoney(input.actualCashAmount, negateMoney(expectedCashAmount));
 
         const [row] = await tx
@@ -212,6 +212,11 @@ export function shiftRoutes() {
         action: "shift.closed",
         targetType: "shift",
         targetId: updated?.id,
+        metadata: {
+          actualCashAmount: updated?.actualCashAmount,
+          expectedCashAmount: updated?.expectedCashAmount,
+          differenceAmount: updated?.differenceAmount,
+        },
       });
       return c.json({ shift: updated });
     });
