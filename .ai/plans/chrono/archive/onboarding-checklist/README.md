@@ -618,3 +618,20 @@ Move this plan from `.ai/plans/chrono/active/onboarding-checklist/` to
 `.ai/plans/chrono/archive/onboarding-checklist/` once all 5 phases are verified and
 committed, and update `.ai/handover/chrono-migration.md`'s deferred-modules list to drop
 `onboarding-checklist` and its plan-status table to mark it done.
+
+## Status: COMPLETE (2026-09-02)
+
+All five phases landed and verified.
+
+- **Phase 1** (foundation schema) — `458d7b9`... wait, `e610517`. `TenantOnboardingDismissals`
+  live on both apps, RLS enabled+forced.
+- **Phase 2** (foundation contracts + registry seam) — `16f6aaf`. 24/24 unit tests.
+- **Phase 3** (Chrono item definitions, service, routes) — `67a1660`. 15/15 acceptance
+  tests against real Postgres; `grep -rn "resolveOnboardingState"` confirms exactly one
+  implementation.
+- **Phase 4** (web UI) — `fb4fa8a`. `OnboardingChecklistCard`, stage-grouped, optimistic
+  dismiss with toast+rollback on failure.
+- **Phase 5** (e2e spec) — `446159a`. Happy path, the `actionable`-flag drift test
+  (fails if `CHRONO_STAFF_GRANTS` widens without updating this test), tenant isolation.
+
+Unblocks `onboarding-wizard`, whose Phase 1 has already landed (`021ff25`).
