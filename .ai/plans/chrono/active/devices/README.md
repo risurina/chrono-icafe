@@ -607,25 +607,41 @@ This plan takes the **stricter** position by default — device pairing is a
 hardware-trust decision (approving a device grants it the ability to authenticate as
 that station's kiosk indefinitely; revoking is the only lever against a lost/stolen
 PC) closer in risk profile to `domain`/`branding`/`integration` (admin+ only) than to
-`station`'s day-to-day floor reconfiguration. Adds:
+`station`'s day-to-day floor reconfiguration.
+
+**Superseded 2026-09-02**: the "add directly to `packages/agora/src/auth/permissions.ts`"
+precedent this plan originally cited has been retired — see
+`.ai/plans/agora/active/permission-extension-seam/README.md` and
+`.ai/rules/business-app.md`, "Permissions: the per-app extension seam." `device` must be
+added to `apps/chrono-api/src/auth/permissions.ts` (alongside
+`branch`/`station`/`shift`/`reservation`) instead, following that file's existing
+pattern:
 
 ```ts
-// packages/agora/src/auth/permissions.ts
-export const PERMISSION_STATEMENTS = {
+// apps/chrono-api/src/auth/permissions.ts
+export const CHRONO_PERMISSION_STATEMENTS = {
   ...
   device: ["approve", "revoke", "manage"],
-} as const;
+} satisfies Record<string, string[]>;
 ```
 
-- `staffRole` — **not added** (mirrors `branches`' precedent: no staff-level device
-  mutation this pass; GET stays ungated so staff retain read visibility).
-- `adminRole` — `device: ["approve", "revoke", "manage"]`.
-- `ownerRole` — inherits automatically.
+Add `device: ["approve", "revoke", "manage"]` to `CHRONO_ADMIN_GRANTS` only in that same
+file — no code changes needed elsewhere; `registerChronoPermissions()` already registers
+whatever this file defines. Route files under `apps/chrono-api/src/modules/device/`
+should import `requirePermission` from `apps/chrono-api/src/auth/require-permission.ts`
+(the typed wrapper), not `agora/auth` directly, so `device:*` calls keep compile-time
+key/action checking — same as `branch`/`station`/`shift`/`reservation`'s route files
+already do.
+
+- `CHRONO_STAFF_GRANTS` — **not added** (mirrors `branches`' precedent: no staff-level
+  device mutation this pass; GET stays ungated so staff retain read visibility).
+- `CHRONO_ADMIN_GRANTS` — `device: ["approve", "revoke", "manage"]`.
+- `owner` — inherits automatically (every statement).
 
 If the developer wants oikos's parity instead (staff can approve/revoke/manage, same as
 stations' staff tier), that's a one-line addition of `device: ["approve", "manage"]` (or
-all three) to `staffRole` — flagging now so it's a deliberate choice, not a default
-nobody noticed. Note this plan does NOT give `create`/`read`/`update`/`delete` action
+all three) to `CHRONO_STAFF_GRANTS` — flagging now so it's a deliberate choice, not a
+default nobody noticed. Note this plan does NOT give `create`/`read`/`update`/`delete` action
 names to this resource — the three real lifecycle verbs (`approve`/`revoke`/`manage`)
 map onto actual distinct routes, per `.ai/rules/rbac.md`'s "every action maps to a real
 gate" rule; a generic `update` would be unused (there is no route that does a bare field
@@ -879,20 +895,24 @@ cost far more than a five-minute read now.
 
 **Files to update**
 
-- `packages/agora/src/auth/permissions.ts` — add `device: ["approve", "revoke",
-  "manage"]` to `PERMISSION_STATEMENTS` and to `adminRole` (resolve Open Question 2
-  first).
+- `apps/chrono-api/src/auth/permissions.ts` — add `device: ["approve", "revoke",
+  "manage"]` to `CHRONO_PERMISSION_STATEMENTS` and to `CHRONO_ADMIN_GRANTS` (per the
+  per-app permission extension seam — see "Permission vocabulary" above; resolve Open
+  Question 2 first). Never `packages/agora/src/auth/permissions.ts` — that precedent was
+  retired, same correction the `reservations` plan already made.
 - `apps/chrono-api/src/modules/device/routes.ts` — add `staffDeviceRoutes()` factory
   alongside the device-facing one from Phase 3 (same file, two exported factories, per
   Pass 2's file layout).
 - `apps/chrono-api/src/routes/rpc.ts` — `.route("/devices", staffDeviceRoutes())`.
 - `apps/chrono-api/src/e2e/permissions.test.ts` — add `device` gate cases (staff denied
   `approve`/`revoke`/`manage` under this plan's default; admin/owner allowed),
-  mirroring the existing `project`/`branch`/`station` cases.
+  mirroring the existing `project`/`branch`/`station`/`reservation` cases, using the
+  Chrono typed wrapper (`hasPermission` from
+  `apps/chrono-api/src/auth/require-permission.ts`), not `agora/auth` directly.
 
 **Step-by-step tasks**
 
-1. Edit `packages/agora/src/auth/permissions.ts` per Pass 2's Open Question 2
+1. Edit `apps/chrono-api/src/auth/permissions.ts` per Pass 2's Open Question 2
    resolution.
 2. Write `staffDeviceRoutes()`: `GET /` (ungated, paginated), `POST
    /provisioning-tokens` / `GET /provisioning-tokens` / `POST
@@ -929,7 +949,7 @@ cost far more than a five-minute read now.
 
 **Out of scope:** UI (Phase 5), e2e browser spec (Phase 6).
 
-**Execution start point:** edit `packages/agora/src/auth/permissions.ts` first (the
+**Execution start point:** edit `apps/chrono-api/src/auth/permissions.ts` first (the
 routes file imports `requirePermission` against the new resource).
 
 ---
