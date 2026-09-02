@@ -20,3 +20,4 @@
   and a wallet credit. 5/5 integration tests passed against real Postgres.
   Debit/refund point-reversal (Open Question 5) deliberately NOT modeled,
   matching oikos precedent.
+- 2026-09-02 — Phase 5 (web UI) delegated to Jules, fired in parallel with the other two modules' Phase 5 sessions. Expect a manual layout.tsx nav-entry merge across all three when pulling.
