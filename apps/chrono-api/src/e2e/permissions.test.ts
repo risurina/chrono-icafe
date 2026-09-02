@@ -104,19 +104,18 @@ check(
   hasPermission("staff", { notificationFeed: ["read"] }),
 );
 check(
-  "staff may customer:read (Chrono Members list — see .ai/plans/chrono/active/members/README.md)",
-  hasPermission("staff", { customer: ["read"] }),
+  "staff may memberProfile:read (Chrono Members list — see .ai/plans/chrono/active/audit-remediation/README.md, Phase 5)",
+  hasChronoPermission("staff", { memberProfile: ["read"] }),
 );
 for (const [resource, action] of [
   ["staff", "invite"],
+  ["customer", "read"],
   ["customer", "create"],
   ["customer", "update"],
   ["customer", "suspend"],
   ["customer", "reactivate"],
   ["customer", "export"],
   ["customer", "delete"],
-  ["customer", "approve"],
-  ["customer", "reject"],
   ["domain", "manage"],
   ["apiKey", "read"],
   ["webhook", "read"],
@@ -208,37 +207,52 @@ for (const [resource, action] of [
   check(`owner may ${resource}:${action}`, hasPermission("owner", { [resource]: [action] }));
 }
 
-console.log("\n── chrono/members: customer:approve + customer:reject (new actions) ──");
-// Extends the existing `customer` resource rather than minting a new one
-// (.ai/plans/chrono/active/members/README.md, "Permission vocabulary" —
-// Open Question 2). Same admin+ tier as every other `customer` action.
-// PENDING: fails until the orchestrator merges the permissions.ts snippet
-// from .ai/plans/chrono/active/members/HANDOVER.md into
-// packages/agora/src/auth/permissions.ts (this module never edits that
-// shared file directly — see the migration's safety constraints).
+console.log("\n── chrono/members: memberProfile (moved out of the foundation, Phase 5) ──");
+// This resource used to be `customer:["approve"|"reject"]` in the shared
+// packages/agora/src/auth/permissions.ts — a Chrono-specific leftover from
+// the permission-extension-seam migration. Phase 5
+// (.ai/plans/chrono/active/audit-remediation/README.md) moved it to Chrono's
+// own `memberProfile` resource with the exact same effective grants: staff
+// gets read only, admin/owner get read+update+approve+reject.
 check(
-  "staff may NOT customer:approve",
-  hasPermission("staff", { customer: ["approve"] }) === false,
+  "staff may memberProfile:read",
+  hasChronoPermission("staff", { memberProfile: ["read"] }),
 );
 check(
-  "admin may customer:approve",
-  hasPermission("admin", { customer: ["approve"] }),
+  "staff may NOT memberProfile:update",
+  hasChronoPermission("staff", { memberProfile: ["update"] }) === false,
 );
 check(
-  "owner may customer:approve",
-  hasPermission("owner", { customer: ["approve"] }),
+  "staff may NOT memberProfile:approve",
+  hasChronoPermission("staff", { memberProfile: ["approve"] }) === false,
 );
 check(
-  "staff may NOT customer:reject",
-  hasPermission("staff", { customer: ["reject"] }) === false,
+  "staff may NOT memberProfile:reject",
+  hasChronoPermission("staff", { memberProfile: ["reject"] }) === false,
 );
 check(
-  "admin may customer:reject",
-  hasPermission("admin", { customer: ["reject"] }),
+  "admin may memberProfile:read",
+  hasChronoPermission("admin", { memberProfile: ["read"] }),
 );
 check(
-  "owner may customer:reject",
-  hasPermission("owner", { customer: ["reject"] }),
+  "admin may memberProfile:update",
+  hasChronoPermission("admin", { memberProfile: ["update"] }),
+);
+check(
+  "admin may memberProfile:approve",
+  hasChronoPermission("admin", { memberProfile: ["approve"] }),
+);
+check(
+  "admin may memberProfile:reject",
+  hasChronoPermission("admin", { memberProfile: ["reject"] }),
+);
+check(
+  "owner may memberProfile:approve",
+  hasChronoPermission("owner", { memberProfile: ["approve"] }),
+);
+check(
+  "owner may memberProfile:reject",
+  hasChronoPermission("owner", { memberProfile: ["reject"] }),
 );
 
 console.log("\n── Better Auth defaults survive the merge ──");

@@ -74,6 +74,17 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // all mirror oikos's own ungated requireAuth) — a first for this codebase.
   // See Open Question 3 in .ai/plans/chrono/active/sessions/README.md.
   session: ["create", "update"],
+  // Staff-facing venue-membership approval workflow over the foundation's
+  // `customer` (tenant_member) identity — moved out of
+  // packages/agora/src/auth/permissions.ts (Phase 5,
+  // .ai/plans/chrono/active/audit-remediation/README.md), where it was
+  // accidentally left as a Chrono-specific leftover from the
+  // permission-extension-seam migration. `read` matches the removed
+  // foundation staff `customer:["read"]` grant; `update`/`approve`/`reject`
+  // match the removed foundation admin `customer` approve/reject + this
+  // module's own update gate. See
+  // apps/chrono-api/src/modules/member/routes.ts.
+  memberProfile: ["read", "update", "approve", "reject"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -87,6 +98,7 @@ export const CHRONO_STAFF_GRANTS = {
   voucher: ["read", "manage"],
   promo: ["read"],
   session: ["create", "update"],
+  memberProfile: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -102,6 +114,7 @@ export const CHRONO_ADMIN_GRANTS = {
   voucher: ["read", "manage"],
   promo: ["read", "manage"],
   session: ["create", "update"],
+  memberProfile: ["read", "update", "approve", "reject"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

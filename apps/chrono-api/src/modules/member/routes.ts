@@ -55,10 +55,10 @@ type MemberProfileListItem = {
 
 /**
  * Staff-facing venue-membership workflow — a Chrono-owned extension of the
- * foundation's `customer` (tenant_member) identity, reusing the existing
- * `customer` permission resource (this is a read/update over the same
- * underlying rows the `/rpc/customers` routes already manage — see the
- * module plan's "Permission vocabulary" section). Composed into
+ * foundation's `customer` (tenant_member) identity, gated on Chrono's own
+ * `memberProfile` permission resource (this is a read/update over the same
+ * underlying rows the `/rpc/customers` routes already manage — see
+ * .ai/plans/chrono/active/audit-remediation/README.md, Phase 5). Composed into
  * apps/chrono-api/src/routes/rpc.ts via `.route("/members", memberProfileRoutes())`.
  */
 export function memberProfileRoutes() {
@@ -68,7 +68,7 @@ export function memberProfileRoutes() {
       zValidator("query", listQuerySchema(["appliedAt", "createdAt"])),
       async (c) => {
         const { tenantId } = c.var.tenant;
-        requirePermission(c.var.tenant.permissions, { customer: ["read"] });
+        requirePermission(c.var.tenant.permissions, { memberProfile: ["read"] });
         const { page, pageSize, sort, order } = c.req.valid("query");
         const sortCol =
           sort === "appliedAt"
@@ -134,7 +134,7 @@ export function memberProfileRoutes() {
       zValidator("json", updateMemberProfileSchema),
       async (c) => {
         const { tenantId } = c.var.tenant;
-        requirePermission(c.var.tenant.permissions, { customer: ["update"] });
+        requirePermission(c.var.tenant.permissions, { memberProfile: ["update"] });
         const memberId = c.req.param("memberId");
         const input = c.req.valid("json");
 
@@ -161,7 +161,7 @@ export function memberProfileRoutes() {
     )
     .post("/:memberId/approve", async (c) => {
       const { tenantId } = c.var.tenant;
-      requirePermission(c.var.tenant.permissions, { customer: ["approve"] });
+      requirePermission(c.var.tenant.permissions, { memberProfile: ["approve"] });
       const memberId = c.req.param("memberId");
 
       const [row] = await withTenant(tenantId, (tx) =>
@@ -187,7 +187,7 @@ export function memberProfileRoutes() {
     })
     .post("/:memberId/reject", async (c) => {
       const { tenantId } = c.var.tenant;
-      requirePermission(c.var.tenant.permissions, { customer: ["reject"] });
+      requirePermission(c.var.tenant.permissions, { memberProfile: ["reject"] });
       const memberId = c.req.param("memberId");
 
       const [row] = await withTenant(tenantId, (tx) =>
