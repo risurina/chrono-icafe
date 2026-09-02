@@ -74,3 +74,5 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   code-quality.md. `pnpm --filter @agora/chrono-web typecheck` and `build`
   both clean. Committed (`a772b3f`). Phase 5 done. Phase 6 (e2e spec) not
   started.
+- 2026-09-02 — Phase 6 (e2e spec) delegated to Jules, session
+  `15273849535936941676`. Background poller running (30-min rule applies).
