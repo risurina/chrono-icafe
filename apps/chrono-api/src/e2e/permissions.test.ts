@@ -1365,6 +1365,35 @@ check(
     hasChronoPermission("owner", { pos: ["manageProducts"] }),
 );
 
+console.log("\n── chrono loyalty permissions (loyalty Phase 3) ──");
+// staff holds read/manage (manual earn/redeem, the day-to-day counter
+// operation, matching wallet's own credit/debit staff tier) but not adjust;
+// admin/owner hold all three, per the plan's Permission vocabulary.
+check(
+  "staff may loyalty:read",
+  hasChronoPermission("staff", { loyalty: ["read"] }),
+);
+check(
+  "staff may loyalty:manage",
+  hasChronoPermission("staff", { loyalty: ["manage"] }),
+);
+check(
+  "staff may NOT loyalty:adjust",
+  hasChronoPermission("staff", { loyalty: ["adjust"] }) === false,
+);
+check(
+  "admin may loyalty:read, :manage, and :adjust",
+  hasChronoPermission("admin", { loyalty: ["read"] }) &&
+    hasChronoPermission("admin", { loyalty: ["manage"] }) &&
+    hasChronoPermission("admin", { loyalty: ["adjust"] }),
+);
+check(
+  "owner may loyalty:read, :manage, and :adjust",
+  hasChronoPermission("owner", { loyalty: ["read"] }) &&
+    hasChronoPermission("owner", { loyalty: ["manage"] }) &&
+    hasChronoPermission("owner", { loyalty: ["adjust"] }),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

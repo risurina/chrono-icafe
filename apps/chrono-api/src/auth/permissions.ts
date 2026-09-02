@@ -40,6 +40,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // stricter at admin+. See Open Question 1 in
   // .ai/plans/chrono/active/pos/README.md.
   pos: ["read", "sell", "void", "manageProducts"],
+  // Manual earn/redeem is routine front-desk work, matching wallet's own
+  // credit/debit staff tier. `adjust` (a raw, signed correction with no
+  // earn/redeem semantics) is admin+-only, mirroring wallet:adjust's exact
+  // reasoning. See .ai/plans/chrono/active/loyalty/README.md, "Permission
+  // vocabulary".
+  loyalty: ["read", "manage", "adjust"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -48,6 +54,7 @@ export const CHRONO_STAFF_GRANTS = {
   reservation: ["read", "manage"],
   wallet: ["read", "credit", "debit"],
   pos: ["read", "sell"],
+  loyalty: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -58,6 +65,7 @@ export const CHRONO_ADMIN_GRANTS = {
   device: ["approve", "revoke", "manage"],
   wallet: ["read", "credit", "debit", "adjust"],
   pos: ["read", "sell", "void", "manageProducts"],
+  loyalty: ["read", "manage", "adjust"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
