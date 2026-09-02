@@ -115,3 +115,4 @@ reference below stay valid.
   archived plan's HANDOVER now ends with an accurate final status note.
   **All of audit-remediation's fixable phases (1, 2, 4, 5, 7, 9) are now
   done.**
+- 2026-09-02 — Archived. All fixable phases (1, 2, 4, 5, 7, 9) complete. Phases 3, 6, 8 live on in security-hardening (still active — Phase 4 there needs developer input).
