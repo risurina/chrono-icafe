@@ -97,6 +97,17 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // view. See .ai/plans/chrono/active/reports/README.md, "Permission
   // vocabulary".
   report: ["read", "readFinancial"],
+  // Staff manually reports/acknowledges/resolves alerts (the device-reporting
+  // path is a separate, device-bearer-gated surface, not this resource) — no
+  // staff/admin split, matching reservation/loyalty's "routine front-desk
+  // work" precedent. See .ai/plans/chrono/active/security-alerts/README.md.
+  securityAlert: ["read", "manage"],
+  // Public/portal submission needs no permission (unauthenticated or
+  // customer-session, not staff) — this resource governs only the
+  // staff-facing queue: list/reply/status-change. No staff/admin split,
+  // matching security-alert's own precedent. See
+  // .ai/plans/chrono/active/inquiries/README.md.
+  inquiry: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -112,6 +123,8 @@ export const CHRONO_STAFF_GRANTS = {
   session: ["create", "update"],
   memberProfile: ["read"],
   report: ["read"],
+  securityAlert: ["read", "manage"],
+  inquiry: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -129,6 +142,8 @@ export const CHRONO_ADMIN_GRANTS = {
   session: ["create", "update"],
   memberProfile: ["read", "update", "approve", "reject"],
   report: ["read", "readFinancial"],
+  securityAlert: ["read", "manage"],
+  inquiry: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
