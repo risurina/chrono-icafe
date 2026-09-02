@@ -54,6 +54,13 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // branches' own configuration resources. See Open Question 1 in
   // .ai/plans/chrono/active/credits/README.md.
   credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
+  // Issuing a goodwill voucher and cancelling an unused one is routine
+  // front-desk/customer-service work, the same tier reservation's `manage`
+  // established — no staff/admin split in this pass. Redemption itself
+  // needs no new permission; it rides on the checkout caller's own
+  // `pos:sell` gate (Phase 4). See .ai/plans/chrono/active/vouchers/README.md,
+  // "Permission vocabulary".
+  voucher: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -64,6 +71,7 @@ export const CHRONO_STAFF_GRANTS = {
   pos: ["read", "sell"],
   loyalty: ["read", "manage"],
   credit: ["read", "sell", "consume"],
+  voucher: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -76,6 +84,7 @@ export const CHRONO_ADMIN_GRANTS = {
   pos: ["read", "sell", "void", "manageProducts"],
   loyalty: ["read", "manage", "adjust"],
   credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
+  voucher: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

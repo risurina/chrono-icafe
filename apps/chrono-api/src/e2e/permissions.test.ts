@@ -1428,6 +1428,36 @@ check(
   hasChronoPermission("owner", { credit: ["adjust"] }),
 );
 
+console.log("\n── chrono voucher permissions (vouchers Phase 3) ──");
+// Issuing a goodwill voucher and cancelling an unused one is routine
+// front-desk/customer-service work — no staff/admin split in this pass,
+// matching reservation's own read+manage tier. This gate test fails when
+// `voucher` is removed from a role's grant set (not just present in the
+// vocabulary), proving the check exercises the actual gate.
+check(
+  "staff may voucher:read",
+  hasChronoPermission("staff", { voucher: ["read"] }),
+);
+check(
+  "staff may voucher:manage",
+  hasChronoPermission("staff", { voucher: ["manage"] }),
+);
+check(
+  "admin may voucher:read and :manage",
+  hasChronoPermission("admin", { voucher: ["read"] }) &&
+    hasChronoPermission("admin", { voucher: ["manage"] }),
+);
+check(
+  "owner may voucher:read and :manage",
+  hasChronoPermission("owner", { voucher: ["read"] }) &&
+    hasChronoPermission("owner", { voucher: ["manage"] }),
+);
+check(
+  "an unrecognised role may NOT voucher:read or :manage (deny-by-default)",
+  hasChronoPermission("not-a-real-role", { voucher: ["read"] }) === false &&
+    hasChronoPermission("not-a-real-role", { voucher: ["manage"] }) === false,
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",
