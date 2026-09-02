@@ -18,6 +18,8 @@ import {
   Timer,
   Coins,
   ShieldAlert,
+  ShoppingCart,
+  BarChart3,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -59,6 +61,7 @@ const DEFAULT_UPLOAD_TARGET: UploadTarget = {
 const BASE_NAV: NavItem[] = [
   { type: "label", name: "Overview" },
   { type: "item", name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { type: "item", name: "Reports", href: "/reports", icon: BarChart3 },
 
   { type: "label", name: "Venue" },
   // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
@@ -77,6 +80,7 @@ const BASE_NAV: NavItem[] = [
   { type: "label", name: "Money" },
   { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
   { type: "item", name: "Credits", href: "/credits", icon: Coins },
+  { type: "item", name: "POS", href: "/pos", icon: ShoppingCart },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
   { type: "item", name: "Promos", href: "/promos", icon: Percent },
 
@@ -105,6 +109,9 @@ const BOTTOM_NAV: NavItem[] = [
 // segment-derived breadcrumb can resolve each level of a nested settings path.
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/dashboard/reports": "Reports",
+  "/dashboard/reports/sales": "Sales Report",
+  "/dashboard/reports/wallet": "Wallet Activity",
   "/dashboard/branches": "Branches",
   "/dashboard/stations": "Stations",
   "/dashboard/devices": "Devices",
@@ -114,6 +121,9 @@ const TITLES: Record<string, string> = {
   "/dashboard/reservations": "Reservations",
   "/dashboard/wallets": "Wallets",
   "/dashboard/credits": "Credits",
+  "/dashboard/pos": "POS",
+  "/dashboard/pos/products": "POS Products",
+  "/dashboard/pos/history": "Sale History",
   "/dashboard/loyalty": "Loyalty",
   "/dashboard/vouchers": "Vouchers",
   "/dashboard/promos": "Promos",
