@@ -43,3 +43,12 @@
   clean, `test:permissions` → 349 passed, `rls:proof` → `RLS PROOF: PASS ✅`,
   `test:pos-concurrency` → 3 passed. Committed (`17963ea`). Phase 3 done —
   Phase 4 (shift-close reconciliation wiring) is next.
+- 2026-09-02 — Phase 4 (shift-close reconciliation wiring) landed locally,
+  committed (`a69b5cc`). Verified against real chrono_test DB: cash sale
+  correctly adds to expectedCashAmount, zero-cash-sales shift gets
+  expectedCashAmount === openingCashAmount (not null), refunded sales
+  excluded. Note: found `chrono_shift_one_open_per_staff_idx` missing
+  entirely on the `chrono_test` branch (main dev DB has it correctly, as a
+  proper partial index) — confirmed this is a test-tooling gap (ad-hoc DDL
+  emitters used by concurrency test scripts don't reconstruct partial
+  indexes), not a real migration/production drift. Not fixed, not urgent.
