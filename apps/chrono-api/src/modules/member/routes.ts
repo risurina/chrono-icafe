@@ -175,6 +175,21 @@ type MemberProfileListItem = {
  */
 export function memberProfileRoutes() {
   return new Hono<{ Variables: TenantVars }>()
+    // customer-onboarding Phase 2: staff badge — how many applications are
+    // waiting, so approvals stop stalling. Scoped to c.var.tenant.tenantId
+    // via withTenant; gated on the same memberProfile:read the list route
+    // already uses (this is a read, not a new capability).
+    .get("/pending-count", async (c) => {
+      const { tenantId } = c.var.tenant;
+      requirePermission(c.var.tenant.permissions, { memberProfile: ["read"] });
+      const [row] = await withTenant(tenantId, (tx) =>
+        tx
+          .select({ value: count() })
+          .from(chronoMemberProfile)
+          .where(eq(chronoMemberProfile.applicationStatus, "pending")),
+      );
+      return c.json({ pendingCount: row?.value ?? 0 });
+    })
     .get(
       "/",
       zValidator("query", listQuerySchema(["appliedAt", "createdAt"])),
