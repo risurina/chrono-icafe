@@ -35,6 +35,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/branches",
     stage: "Venue",
     requiredPermission: { branch: ["create"] },
+    wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
       exists(
         tx
@@ -50,6 +51,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/stations",
     stage: "Venue",
     requiredPermission: { station: ["create"] },
+    wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
       exists(
         tx
@@ -65,6 +67,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/stations",
     stage: "Venue",
     requiredPermission: { station: ["create"] },
+    wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
       exists(
         tx
@@ -80,6 +83,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/settings/members",
     stage: "Team",
     requiredPermission: { staff: ["invite"] },
+    wizardStep: { inlineable: true, skippable: false },
     // Foundation org tables (member, invitation) are NOT RLS-scoped — filtered
     // explicitly by organizationId via adminDb, never withTenant. A `member`
     // row appears only once an invite is ACCEPTED, so counting members alone
@@ -111,6 +115,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/pos/products",
     stage: "Trading",
     requiredPermission: { pos: ["manageProducts"] },
+    wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
       exists(
         tx
@@ -126,6 +131,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/devices",
     stage: "Trading",
     requiredPermission: { device: ["manage"] },
+    wizardStep: { inlineable: true, skippable: true },
     // Deliberately probes chronoDeviceProvisioningToken, not chronoDevice: a
     // chronoDevice row is inserted only by real hardware presenting a pairing
     // code at the unauthenticated POST /pair — nothing a dashboard admin does
@@ -145,6 +151,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     href: "/shifts",
     stage: "Trading",
     requiredPermission: { shift: ["open"] },
+    wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
       exists(
         tx

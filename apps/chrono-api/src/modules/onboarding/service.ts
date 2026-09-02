@@ -57,6 +57,7 @@ export async function resolveOnboardingState(
         actionable: item.requiredPermission
           ? hasPermission(permissions, item.requiredPermission)
           : true,
+        wizardStep: item.wizardStep,
       })),
     );
   });
