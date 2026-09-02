@@ -16,6 +16,7 @@ import {
   Ticket,
   Percent,
   Timer,
+  Coins,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -74,6 +75,7 @@ const BASE_NAV: NavItem[] = [
 
   { type: "label", name: "Money" },
   { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
+  { type: "item", name: "Credits", href: "/credits", icon: Coins },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
   { type: "item", name: "Promos", href: "/promos", icon: Percent },
 ];
@@ -107,6 +109,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/members": "Members",
   "/dashboard/reservations": "Reservations",
   "/dashboard/wallets": "Wallets",
+  "/dashboard/credits": "Credits",
   "/dashboard/loyalty": "Loyalty",
   "/dashboard/vouchers": "Vouchers",
   "/dashboard/promos": "Promos",

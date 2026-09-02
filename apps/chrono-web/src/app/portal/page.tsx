@@ -26,6 +26,12 @@ import {
   getMyActiveSession,
   type PortalSession,
 } from "@/lib/session-portal";
+import {
+  getMyCreditBalance,
+  getMyCreditLedger,
+  type CreditActiveLot,
+  type CreditLedgerEntry,
+} from "@/lib/credits-portal";
 
 /** Customer member area. Placeholder — extend with your customer-facing features. */
 export default function PortalHome() {
@@ -42,6 +48,10 @@ export default function PortalHome() {
 
   const [activeSession, setActiveSession] = useState<PortalSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+
+  const [creditsActiveLots, setCreditsActiveLots] = useState<CreditActiveLot[]>([]);
+  const [creditsLedger, setCreditsLedger] = useState<CreditLedgerEntry[]>([]);
+  const [creditsLoading, setCreditsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -69,12 +79,21 @@ export default function PortalHome() {
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getMyWalletBalance(), getMyWalletHistory({ page: 1, pageSize: 10 })]).then(
-      ([balance, history]) => {
+    Promise.all([
+      getMyWalletBalance(),
+      getMyWalletHistory({ page: 1, pageSize: 10 }),
+      getMyCreditBalance(),
+      getMyCreditLedger({ page: 1, pageSize: 10 }),
+    ]).then(
+      ([balance, history, creditsBalance, creditsHistory]) => {
         if (!mounted) return;
         if (balance) setWallet(balance);
         if (history) setWalletHistory(history.items);
         setWalletLoading(false);
+
+        if (creditsBalance) setCreditsActiveLots(creditsBalance.activeLots);
+        if (creditsHistory) setCreditsLedger(creditsHistory.items);
+        setCreditsLoading(false);
       },
     );
     return () => {
@@ -229,6 +248,61 @@ export default function PortalHome() {
                   ))}
                 </ul>
               )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Credits</CardTitle>
+          <CardDescription>Your active time lots and recent activity.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 text-sm">
+          {creditsLoading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <h3 className="font-medium text-muted-foreground">Active Lots</h3>
+                {creditsActiveLots.length === 0 ? (
+                  <p>No active lots.</p>
+                ) : (
+                  <ul className="grid grid-cols-1 gap-3">
+                    {creditsActiveLots.map(lot => (
+                      <li key={lot.id} className="p-3 border rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="font-medium">{lot.remainingQuantity} minutes remaining</p>
+                          {lot.expiresAt && <p className="text-xs text-muted-foreground">Expires: {new Date(lot.expiresAt).toLocaleDateString()}</p>}
+                        </div>
+                        {lot.stationGroupId && <Badge variant="secondary">Group {lot.stationGroupId}</Badge>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="space-y-3">
+                <h3 className="font-medium text-muted-foreground">Recent Ledger</h3>
+                {creditsLedger.length === 0 ? (
+                  <p>No transactions yet.</p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {creditsLedger.map((tx) => (
+                      <li key={tx.id} className="flex items-center justify-between gap-4 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate capitalize">{tx.type}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {tx.reason} · {new Date(tx.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <span className="shrink-0 font-medium">
+                          {tx.quantityDelta > 0 ? `+${tx.quantityDelta}` : tx.quantityDelta} min
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </>
           )}
         </CardContent>
