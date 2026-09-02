@@ -1,7 +1,8 @@
+import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
-import { withTenant, eq, and, asc, desc, count, type TenantTx } from "agora/db";
+import { withTenant, withAdmin, eq, and, asc, desc, count, gte, type TenantTx } from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
-import { type TenantVars, HttpError, zValidator } from "agora/server";
+import { type TenantVars, HttpError, zValidator, hashApiKey, verifyApiKey } from "agora/server";
 import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
@@ -12,15 +13,11 @@ import {
   approveDeviceSchema,
   relinkDeviceSchema,
   deviceListQuerySchema,
+  pairDeviceSchema,
+  authDeviceSchema,
+  heartbeatSchema,
 } from "./contracts";
-
-// NOTE: Phase 3 (device-auth bearer middleware + the device-facing /pair,
-// /auth, /heartbeat routes) is a separate, not-yet-started piece of work that
-// requires developer sign-off on Open Question 1 before it's built — see
-// .ai/plans/chrono/active/devices/README.md. Per that plan's file layout, a
-// second exported factory (`deviceAuthRoutes()`) will be added to THIS file
-// later, mounted directly on `app` outside `/rpc`. Only `staffDeviceRoutes()`
-// is implemented here (Phase 4).
+import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-middleware";
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -410,4 +407,226 @@ export function staffDeviceRoutes() {
       });
       return c.json({ device: updated });
     });
+}
+
+/** SHA-256 hash + raw secret pair for a freshly minted bearer credential. */
+function mintCredential(): { secret: string; hash: string } {
+  const secret = randomBytes(32).toString("base64url");
+  return { secret, hash: hashApiKey(secret) };
+}
+
+/**
+ * Device-facing routes (Phase 3 / Open Question 1) — the PC-client hardware
+ * itself calls these, with NO Better Auth session and NO tenant membership
+ * row. Mounted directly on `app` in app.ts via
+ * `.route("/api/v1/device", deviceAuthRoutes())`, outside `/rpc` and outside
+ * `tenantMiddleware()`. Do not gate any of these with `requirePermission` —
+ * see the module's "two disjoint route surfaces" note at the top of
+ * .ai/plans/chrono/active/devices/README.md.
+ */
+export function deviceAuthRoutes() {
+  return new Hono<{ Variables: DeviceAuthVars }>()
+    // POST /pair — unauthenticated; the pairing code itself is the
+    // short-TTL secret. Cross-tenant lookup by pairingCode via withAdmin
+    // (Open Question 1, step 2).
+    .post("/pair", zValidator("json", pairDeviceSchema), async (c) => {
+      const { pairingCode } = c.req.valid("json");
+
+      const [row] = await withAdmin((tx) =>
+        tx
+          .select()
+          .from(chronoDeviceProvisioningToken)
+          .where(
+            and(
+              eq(chronoDeviceProvisioningToken.pairingCode, pairingCode),
+              eq(chronoDeviceProvisioningToken.status, "active"),
+              gte(chronoDeviceProvisioningToken.pairingCodeExpiresAt, new Date()),
+            ),
+          )
+          .limit(1),
+      );
+      // Never distinguish invalid-vs-expired-vs-unknown.
+      if (!row) {
+        throw new HttpError(400, "Invalid or expired pairing code.");
+      }
+
+      const { secret, hash } = mintCredential();
+      // Provisioning tokens are reusable across many PCs cloned from the same
+      // golden image (maxUses/useCount) — 24h is long enough to cover a
+      // realistic image-cloning/rollout window without being indefinite.
+      const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60_000);
+
+      await withTenant(row.tenantId, (tx) =>
+        tx
+          .update(chronoDeviceProvisioningToken)
+          .set({ tokenHash: hash, tokenExpiresAt, updatedAt: new Date() })
+          .where(eq(chronoDeviceProvisioningToken.id, row.id)),
+      );
+
+      // The one place the provisioning token secret is returned — once, to
+      // the PC being paired.
+      return c.json({
+        provisioningToken: secret,
+        tenantId: row.tenantId,
+        branchId: row.branchId,
+      });
+    })
+
+    // POST /auth — unauthenticated; this IS the credential-issuing step.
+    // Cross-tenant lookup via withAdmin against EITHER
+    // ChronoDeviceProvisioningTokens.tokenHash (fresh pairing) OR
+    // ChronoDevices.tokenHash (a device re-authenticating with its own
+    // already-issued token) — see Open Question 1 + Pass 2's three branches.
+    .post("/auth", zValidator("json", authDeviceSchema), async (c) => {
+      const { provisioningToken, fingerprint, hostname } = c.req.valid("json");
+      const presentedHash = hashApiKey(provisioningToken);
+
+      const [provRow] = await withAdmin((tx) =>
+        tx
+          .select()
+          .from(chronoDeviceProvisioningToken)
+          .where(
+            and(
+              eq(chronoDeviceProvisioningToken.tokenHash, presentedHash),
+              eq(chronoDeviceProvisioningToken.status, "active"),
+              gte(chronoDeviceProvisioningToken.tokenExpiresAt, new Date()),
+            ),
+          )
+          .limit(1),
+      );
+      const [ownDeviceRow] = provRow
+        ? [undefined]
+        : await withAdmin((tx) =>
+            tx.select().from(chronoDevice).where(eq(chronoDevice.tokenHash, presentedHash)).limit(1),
+          );
+
+      if (!provRow && !ownDeviceRow) {
+        throw new HttpError(401, "Invalid or expired provisioning token.");
+      }
+
+      if (provRow) {
+        // Extra defense-in-depth on top of the exact-hash lookup above,
+        // mirroring resolveApiKeyContext()'s constant-time verify step.
+        if (!provRow.tokenHash || !verifyApiKey(provisioningToken, provRow.tokenHash)) {
+          throw new HttpError(401, "Invalid or expired provisioning token.");
+        }
+        if (provRow.maxUses != null && provRow.useCount >= provRow.maxUses) {
+          throw new HttpError(401, "Invalid or expired provisioning token.");
+        }
+
+        const result = await withTenant(provRow.tenantId, async (tx) => {
+          const [existing] = await tx
+            .select()
+            .from(chronoDevice)
+            .where(
+              and(
+                eq(chronoDevice.tenantId, provRow.tenantId),
+                eq(chronoDevice.deviceFingerprint, fingerprint),
+              ),
+            )
+            .limit(1);
+
+          const { secret, hash } = mintCredential();
+
+          await tx
+            .update(chronoDeviceProvisioningToken)
+            .set({ useCount: provRow.useCount + 1, updatedAt: new Date() })
+            .where(eq(chronoDeviceProvisioningToken.id, provRow.id));
+
+          if (!existing) {
+            // New fingerprint + valid provisioning token -> insert a fresh
+            // pending_approval device row.
+            const [created] = await tx
+              .insert(chronoDevice)
+              .values({
+                id: createId(),
+                tenantId: provRow.tenantId,
+                branchId: provRow.branchId,
+                deviceFingerprint: fingerprint,
+                tokenHash: hash,
+                status: "pending_approval",
+                hostname,
+              })
+              .returning();
+            return { deviceToken: secret, status: created?.status, minted: true };
+          }
+
+          // Known fingerprint, but the credential presented was a
+          // provisioning token rather than this device's own already-issued
+          // token -> re-pairing / cloned-image case. Never trust the
+          // fingerprint match alone: reset to pending_approval and rotate
+          // the device's own token.
+          const [updated] = await tx
+            .update(chronoDevice)
+            .set({
+              tokenHash: hash,
+              status: "pending_approval",
+              hostname: hostname ?? existing.hostname,
+              updatedAt: new Date(),
+            })
+            .where(eq(chronoDevice.id, existing.id))
+            .returning();
+          return { deviceToken: secret, status: updated?.status, minted: true };
+        });
+
+        return c.json(result, 201);
+      }
+
+      // ownDeviceRow: the device is re-authenticating with its own
+      // already-issued token.
+      const device = ownDeviceRow!;
+      if (!verifyApiKey(provisioningToken, device.tokenHash)) {
+        throw new HttpError(401, "Invalid or expired provisioning token.");
+      }
+
+      if (device.deviceFingerprint === fingerprint) {
+        // Known fingerprint + known tokenHash -> idempotent re-auth. Return
+        // current status, mint nothing new.
+        return c.json({ status: device.status, minted: false });
+      }
+
+      // Same secret token presented from a DIFFERENT fingerprint than the
+      // one on file. This is the acute form of "never trust a fingerprint
+      // match alone" — the plan's three branches don't literally enumerate
+      // this case (it only arises via the device's OWN token, which a
+      // legitimate client never presents from a second machine), so this
+      // deliberately fails closed (401) rather than rotating credentials or
+      // widening approval state for a request that looks like credential
+      // theft/cloning.
+      throw new HttpError(401, "Invalid or expired provisioning token.");
+    })
+
+    // POST /heartbeat — device-bearer-protected.
+    .post(
+      "/heartbeat",
+      requireDeviceBearerAuth(),
+      zValidator("json", heartbeatSchema),
+      async (c) => {
+        const device = c.var.device;
+        const input = c.req.valid("json");
+        const now = new Date();
+
+        await withTenant(device.tenantId, (tx) =>
+          tx
+            .update(chronoDevice)
+            .set({
+              lastSeenAt: now,
+              connectivityStatus: "online",
+              clientVersion: input.clientVersion,
+              osVersion: input.osVersion,
+              metadata: {
+                lockState: input.lockState,
+                runtimeStatus: input.runtimeStatus,
+                uptimeSeconds: input.uptimeSeconds,
+              },
+              updatedAt: now,
+            })
+            .where(and(eq(chronoDevice.id, device.deviceId), eq(chronoDevice.tenantId, device.tenantId))),
+        );
+
+        // Minimal, honest response — no session/pricing/reservation payload
+        // (that's `sessions`' concern once it exists).
+        return c.json({ status: "ok", timestamp: now.toISOString() });
+      },
+    );
 }
