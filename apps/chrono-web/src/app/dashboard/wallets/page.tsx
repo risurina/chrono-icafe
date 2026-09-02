@@ -10,6 +10,7 @@ import {
   Stack,
   Row,
   Can,
+  Switch,
   DataTable,
   DataTableGrid,
   DataTableToolbar,
@@ -105,18 +106,21 @@ export default function WalletsPage() {
   } | null>(null);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [cashTendered, setCashTendered] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function openActionDialog(type: "credit" | "debit" | "adjust", wallet: WalletRow) {
     setActionDialog({ type, wallet });
     setAmount("");
     setReason("");
+    setCashTendered(false);
   }
 
   function closeActionDialog() {
     setActionDialog(null);
     setAmount("");
     setReason("");
+    setCashTendered(false);
   }
 
   async function submitAction(e: React.FormEvent) {
@@ -129,12 +133,12 @@ export default function WalletsPage() {
         type === "credit"
           ? await api.rpc.wallets[":memberId"].credit.$post({
               param: { memberId: wallet.memberId },
-              json: { amount, reason: reason || undefined },
+              json: { amount, reason: reason || undefined, cashTendered },
             })
           : type === "debit"
             ? await api.rpc.wallets[":memberId"].debit.$post({
                 param: { memberId: wallet.memberId },
-                json: { amount, reason },
+                json: { amount, reason, cashTendered },
               })
             : await api.rpc.wallets[":memberId"].adjust.$post({
                 param: { memberId: wallet.memberId },
@@ -335,6 +339,18 @@ export default function WalletsPage() {
                 required={actionDialog?.type !== "credit"}
               />
             </div>
+            {actionDialog?.type === "credit" || actionDialog?.type === "debit" ? (
+              <Row items="center" justify="between">
+                <Label htmlFor="cashTendered">
+                  Cash-funded (attribute to my open shift)
+                </Label>
+                <Switch
+                  id="cashTendered"
+                  checked={cashTendered}
+                  onCheckedChange={setCashTendered}
+                />
+              </Row>
+            ) : null}
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={closeActionDialog}>
                 Cancel

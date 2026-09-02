@@ -1,5 +1,13 @@
 # Chrono — `customer-onboarding`
 
+Status: **Archived 2026-09-02 — all 4 phases landed.** Phase 1 (feature flag +
+approval/rejection notification, `78b1dc6`/`dbadb55`), Phase 2 (portal `/me/onboarding` +
+staff `pending-count`, `a1ab9c1`), Phase 3 (portal home rewrite + staff pending badge,
+landed in `f1ddc05`), Phase 4 (e2e spec, `fb502e9` — typecheck-verified only, not yet
+headed-run against a live `pnpm dev` + real Postgres). Deliberately not built: eager
+wallet/loyalty provisioning at approval (Decision 3 called it optional polish; provisioning
+stays lazy on first use).
+
 **Surface:** `/portal` (the tenant-scoped end-customer area), **not** `/dashboard`.
 **Depends on:** **`member-approval-guard` (must land first — see Decision 4)**;
 `member` (done — `portal-routes.ts` exists), `wallet` (done, has `portal-routes.ts`),

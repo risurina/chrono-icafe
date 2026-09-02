@@ -64,7 +64,9 @@ export default function ShiftsPage() {
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [closingShift, setClosingShift] = useState<Shift | null>(null);
-  
+  const [expectedCashPreview, setExpectedCashPreview] = useState<string | null>(null);
+  const [expectedCashPreviewLoading, setExpectedCashPreviewLoading] = useState(false);
+
   const [openForm, setOpenForm] = useState({ branchId: "", openingCashAmount: "", notes: "" });
   const [closeForm, setCloseForm] = useState({ actualCashAmount: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -117,7 +119,16 @@ export default function ShiftsPage() {
   function triggerClose(s: Shift) {
     setClosingShift(s);
     setCloseForm({ actualCashAmount: "", notes: "" });
+    setExpectedCashPreview(null);
     setCloseDialogOpen(true);
+    setExpectedCashPreviewLoading(true);
+    api.rpc.reconciliation.shifts[":id"].$get({ param: { id: s.id } }).then(async (res) => {
+      if (res.ok) {
+        const body = await res.json();
+        setExpectedCashPreview(body.summary.expectedCashAmount);
+      }
+      setExpectedCashPreviewLoading(false);
+    });
   }
 
   async function submitOpen(e: React.FormEvent) {
@@ -298,6 +309,14 @@ export default function ShiftsPage() {
             <DialogTitle>Close shift</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitClose} className="space-y-4">
+            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Expected cash: </span>
+              <span className="font-medium">
+                {expectedCashPreviewLoading
+                  ? "Calculating…"
+                  : (expectedCashPreview ?? "—")}
+              </span>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="actualCashAmount">Actual cash counted</Label>
               <Input

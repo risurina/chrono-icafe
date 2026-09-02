@@ -155,7 +155,7 @@ export default async function Home() {
 
     const stats = [
       { label: "Branches per venue", value: "Unlimited" },
-      { label: "Client software", value: "PC & Kiosk" },
+      { label: "Live availability", value: "Public page" },
       { label: "Payment types", value: "Wallet & Cash" },
       { label: "Isolation model", value: "Tenant RLS" },
     ];
@@ -167,24 +167,24 @@ export default async function Home() {
         a: "Yes. Every venue can manage multiple physical locations (branches), with staff scoped to specific branches and customers sharing a single unified wallet across all of them.",
       },
       {
-        q: "Is there a client for the PCs/consoles?",
-        a: "Yes, Chrono includes a lightweight Windows service for automated locking and a kiosk application for self-service reservations.",
+        q: "Can customers see what's free before they arrive?",
+        a: "Yes. Every venue gets a public live-availability page at its own address, showing station status in real time. No account or app needed to view it.",
       },
       {
-        q: "What happens if the internet goes down?",
-        a: "The local PC client caches active session timers. Terminals will safely lock when time expires, and sync final balances to the cloud once connectivity is restored.",
+        q: "How do wallets and credits work?",
+        a: "Each customer holds a balance on your venue, topped up at the desk. Sessions and purchases are debited from that balance, and every movement is recorded against the shift that made it.",
       },
       {
-        q: "How do payments and wallets work?",
-        a: "Customers have a digital wallet they can top up with cash at the desk or via credit card in the portal. Time and food are debited directly from this balance.",
+        q: "How do staff shifts and cash handling work?",
+        a: "Staff open and close shifts, and cash movements are attributed to the shift that handled them, so a close-out can be reconciled against what the drawer actually holds.",
       },
       {
-        q: "Can I migrate my existing customer data?",
-        a: "Yes, our API and bulk import tools allow you to port member accounts, existing balances, and loyalty tiers from your legacy system.",
+        q: "What do customers get their own access to?",
+        a: "A customer portal on your venue's address where they sign up, sign in, and see their own balance and history — separate from your staff dashboard.",
       },
       {
-        q: "How does pricing work?",
-        a: "Pricing is structured per branch and station type. You can set hourly rates, day passes, and dynamic pricing based on member tiers or time of day.",
+        q: "Can I run more than one venue from one account?",
+        a: "Yes. Each venue is its own workspace on its own address, with its own staff, customers, and data kept separate from every other venue on the platform.",
       },
     ];
 
@@ -271,9 +271,6 @@ export default async function Home() {
                   Sign in
                 </Link>
               </Row>
-              <p className="text-sm text-muted-foreground">
-                No credit card required · Free to start
-              </p>
               <Row wrap justify="center" gap={3} className="w-full max-w-3xl pt-6">
                 {stats.map(({ label, value }) => (
                   <StatTile key={label} label={label} value={value} />
