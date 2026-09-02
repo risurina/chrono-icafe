@@ -61,6 +61,15 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // `pos:sell` gate (Phase 4). See .ai/plans/chrono/active/vouchers/README.md,
   // "Permission vocabulary".
   voucher: ["read", "manage"],
+  // A promo controls store-wide pricing/margin for every sale that matches
+  // it, for as long as it runs — closer in blast radius to
+  // wallet:adjust/pos:manageProducts (both admin+) than to a single
+  // customer-facing booking or a one-off voucher. Staff gets read only; no
+  // staff/admin split precedent applies here (deliberate admin+-only
+  // `manage`). Redemption itself needs no new permission — it rides on the
+  // checkout caller's own `pos:sell` gate (Phase 4). See
+  // .ai/plans/chrono/active/promos/README.md, "Permission vocabulary".
+  promo: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -72,6 +81,7 @@ export const CHRONO_STAFF_GRANTS = {
   loyalty: ["read", "manage"],
   credit: ["read", "sell", "consume"],
   voucher: ["read", "manage"],
+  promo: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -85,6 +95,7 @@ export const CHRONO_ADMIN_GRANTS = {
   loyalty: ["read", "manage", "adjust"],
   credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
   voucher: ["read", "manage"],
+  promo: ["read", "manage"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

@@ -67,6 +67,7 @@ import { creditRoutes } from "../modules/credit/routes";
 import { posRoutes } from "../modules/pos/routes";
 import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { voucherRoutes } from "../modules/voucher/routes";
+import { promoRoutes } from "../modules/promo/routes";
 import { staffDeviceRoutes } from "../modules/device/routes";
 import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
@@ -1396,6 +1397,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: vouchers, staff-facing (RLS-protected, staff/admin/owner read+manage) — apps/chrono-api/src/modules/voucher ──
   .route("/", voucherRoutes())
+
+  // ── Chrono: promos, staff-facing (RLS-protected, staff read, admin+ manage) — apps/chrono-api/src/modules/promo ──
+  .route("/", promoRoutes())
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())

@@ -1458,6 +1458,35 @@ check(
     hasChronoPermission("not-a-real-role", { voucher: ["manage"] }) === false,
 );
 
+console.log("\n── chrono promo permissions (promos Phase 3) ──");
+// A promo controls store-wide pricing/margin — deliberate admin+-only
+// `manage`, unlike reservation's/voucher's no-split defaults. Staff holds
+// read only. This gate test fails when `manage` is removed from admin/owner
+// or added to staff, proving it exercises the actual gate.
+check(
+  "staff may promo:read",
+  hasChronoPermission("staff", { promo: ["read"] }),
+);
+check(
+  "staff may NOT promo:manage",
+  hasChronoPermission("staff", { promo: ["manage"] }) === false,
+);
+check(
+  "admin may promo:read and :manage",
+  hasChronoPermission("admin", { promo: ["read"] }) &&
+    hasChronoPermission("admin", { promo: ["manage"] }),
+);
+check(
+  "owner may promo:read and :manage",
+  hasChronoPermission("owner", { promo: ["read"] }) &&
+    hasChronoPermission("owner", { promo: ["manage"] }),
+);
+check(
+  "an unrecognised role may NOT promo:read or :manage (deny-by-default)",
+  hasChronoPermission("not-a-real-role", { promo: ["read"] }) === false &&
+    hasChronoPermission("not-a-real-role", { promo: ["manage"] }) === false,
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",
