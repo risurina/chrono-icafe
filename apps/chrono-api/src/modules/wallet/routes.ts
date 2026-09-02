@@ -1,5 +1,15 @@
 import { Hono } from "hono";
-import { withTenant, schema as base, eq, desc, asc, count, type TenantTx } from "agora/db";
+import {
+  withTenant,
+  schema as base,
+  eq,
+  or,
+  ilike,
+  desc,
+  asc,
+  count,
+  type TenantTx,
+} from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
 import { type TenantVars, HttpError, zValidator } from "agora/server";
 import { listQuerySchema } from "agora";
@@ -30,6 +40,31 @@ function buildPaginationMeta(
   };
 }
 
+/** A financial audit trail is only useful if the amount is in it — an entry naming
+ * only the wallet forces an investigator to join back to the ledger by timestamp.
+ * Mirrors the metadata shape `modules/reservation/routes.ts` already uses. */
+function walletAuditMetadata(
+  memberId: string,
+  result: {
+    transaction: {
+      id: string;
+      amount: string;
+      balanceBefore: string;
+      balanceAfter: string;
+      reason: string;
+    };
+  },
+) {
+  return {
+    memberId,
+    transactionId: result.transaction.id,
+    amount: result.transaction.amount,
+    balanceBefore: result.transaction.balanceBefore,
+    balanceAfter: result.transaction.balanceAfter,
+    reason: result.transaction.reason,
+  };
+}
+
 /** 404s if `memberId` does not belong to this tenant — closes the isolation hole
  * where a mutation could otherwise be attempted against a foreign member id. */
 async function requireTenantMember(tx: TenantTx, memberId: string) {
@@ -54,13 +89,26 @@ export function walletRoutes() {
       async (c) => {
         requirePermission(c.var.tenant.permissions, { wallet: ["read"] });
         const { tenantId } = c.var.tenant;
-        const { page, pageSize, sort, order } = c.req.valid("query");
+        const { page, pageSize, sort, order, q } = c.req.valid("query");
         const sortCol =
           sort === "balance" ? chronoWallet.balance : chronoWallet.createdAt;
         const sortFn = order === "asc" ? asc : desc;
+        // Applied to the count query as well as the rows query — otherwise
+        // `meta.totalItems` would describe the unfiltered set and the pagination
+        // controls would disagree with what the table shows.
+        const search = q
+          ? or(
+              ilike(base.tenantMember.name, `%${q}%`),
+              ilike(base.tenantMember.email, `%${q}%`),
+            )
+          : undefined;
 
         const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
-          const [total] = await tx.select({ value: count() }).from(chronoWallet);
+          const [total] = await tx
+            .select({ value: count() })
+            .from(chronoWallet)
+            .innerJoin(base.tenantMember, eq(chronoWallet.memberId, base.tenantMember.id))
+            .where(search);
           const rows = await tx
             .select({
               id: chronoWallet.id,
@@ -74,6 +122,7 @@ export function walletRoutes() {
             })
             .from(chronoWallet)
             .innerJoin(base.tenantMember, eq(chronoWallet.memberId, base.tenantMember.id))
+            .where(search)
             .orderBy(sortFn(sortCol))
             .limit(pageSize)
             .offset((page - 1) * pageSize);
@@ -165,6 +214,7 @@ export function walletRoutes() {
           action: "chronoWallet.credited",
           targetType: "wallet",
           targetId: result.wallet.id,
+          metadata: walletAuditMetadata(memberId, result),
         });
         return c.json(result);
       },
@@ -195,6 +245,7 @@ export function walletRoutes() {
           action: "chronoWallet.debited",
           targetType: "wallet",
           targetId: result.wallet.id,
+          metadata: walletAuditMetadata(memberId, result),
         });
         return c.json(result);
       },
@@ -224,6 +275,7 @@ export function walletRoutes() {
           action: "chronoWallet.adjusted",
           targetType: "wallet",
           targetId: result.wallet.id,
+          metadata: walletAuditMetadata(memberId, result),
         });
         return c.json(result);
       },

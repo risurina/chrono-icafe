@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { withTenant, eq, desc, count } from "agora/db";
+import { withTenant, eq, asc, desc, count } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
 import { listQuerySchema } from "agora";
@@ -59,6 +59,10 @@ export function walletPortalRoutes() {
       async (c) => {
         const { tenantId, memberId } = c.var.member;
         const { page, pageSize, sort, order } = c.req.valid("query");
+        // Must actually apply the requested order — `buildPaginationMeta` echoes it
+        // back to the client, so a hardcoded sort here would report an order the
+        // rows do not follow.
+        const sortFn = order === "asc" ? asc : desc;
 
         const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
           const [total] = await tx
@@ -69,7 +73,7 @@ export function walletPortalRoutes() {
             .select()
             .from(chronoWalletTransaction)
             .where(eq(chronoWalletTransaction.memberId, memberId))
-            .orderBy(desc(chronoWalletTransaction.createdAt))
+            .orderBy(sortFn(chronoWalletTransaction.createdAt))
             .limit(pageSize)
             .offset((page - 1) * pageSize);
           return { rows, totalItems: total?.value ?? 0 };
