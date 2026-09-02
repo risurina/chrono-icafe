@@ -10,6 +10,7 @@ import {
 import { sql } from "drizzle-orm";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
+import { chronoShift } from "../shift/schema";
 
 export const chronoWallet = pgTable(
   "ChronoWallets",
@@ -77,6 +78,11 @@ export const chronoWalletTransaction = pgTable(
     performedByUserId: text("performedByUserId").references(() => base.user.id, {
       onDelete: "set null",
     }),
+    // Which cash-drawer shift a cash-funded manual transaction is attributed to,
+    // for shift-close reconciliation (reconciliation plan). Nullable: only a
+    // cash-tendered transaction explicitly marked by staff carries this; every
+    // other transaction (card/wallet-internal/no shift open) leaves it null.
+    shiftId: text("shiftId").references(() => chronoShift.id, { onDelete: "set null" }),
     // Immutable ledger row — no updatedAt, it is never updated after insert.
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
@@ -86,6 +92,7 @@ export const chronoWalletTransaction = pgTable(
     index("chrono_wallet_transaction_member_idx").on(t.memberId),
     index("chrono_wallet_transaction_type_idx").on(t.type),
     index("chrono_wallet_transaction_created_idx").on(t.createdAt),
+    index("chrono_wallet_transaction_shift_idx").on(t.shiftId),
     // The ledger's self-checking invariant, enforced by the database rather than by
     // application code alone — `applyWalletDelta` is the only writer today, but a
     // future direct writer (a webhook, a backfill, a composing module calling the

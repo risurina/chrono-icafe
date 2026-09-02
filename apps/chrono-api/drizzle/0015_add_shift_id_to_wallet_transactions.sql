@@ -1,0 +1,3 @@
+ALTER TABLE "ChronoWalletTransactions" ADD COLUMN "shiftId" text;--> statement-breakpoint
+ALTER TABLE "ChronoWalletTransactions" ADD CONSTRAINT "ChronoWalletTransactions_shiftId_ChronoShifts_id_fk" FOREIGN KEY ("shiftId") REFERENCES "public"."ChronoShifts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "chrono_wallet_transaction_shift_idx" ON "ChronoWalletTransactions" USING btree ("shiftId");
