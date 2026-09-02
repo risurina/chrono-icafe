@@ -122,7 +122,7 @@ export default function OnboardingSetupPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Get set up</h1>
         <p className="text-sm text-muted-foreground">
-          A few quick steps before this workspace can start trading.
+          A few quick steps before this business can start trading.
         </p>
       </div>
 

@@ -146,7 +146,7 @@ export default async function Home() {
 
     const steps = [
       {
-        title: "Create your venue",
+        title: "Create your business",
         description: "Sign up and set your basic branding and billing currency.",
       },
       {
@@ -182,7 +182,7 @@ export default async function Home() {
       {
         label: "Multi-branch support",
         legacy: "Separate, disconnected installs",
-        chrono: "Unlimited branches under one venue, one login",
+        chrono: "Unlimited branches under one business, one login",
       },
       {
         label: "Customer self-service",
@@ -197,7 +197,7 @@ export default async function Home() {
     ];
 
     const stats = [
-      { label: "Branches per venue", value: "Unlimited" },
+      { label: "Branches per business", value: "Unlimited" },
       { label: "Live availability", value: "Public page" },
       { label: "Payment types", value: "Wallet & Cash" },
       { label: "Isolation model", value: "Tenant RLS" },
@@ -206,16 +206,16 @@ export default async function Home() {
 
     const faqs = [
       {
-        q: "Does it support multi-branch venues?",
-        a: "Yes. Every venue can manage multiple physical locations (branches), with staff scoped to specific branches and customers sharing a single unified wallet across all of them.",
+        q: "Does it support multi-branch businesses?",
+        a: "Yes. Every business can manage multiple physical locations (branches), with staff scoped to specific branches and customers sharing a single unified wallet across all of them.",
       },
       {
         q: "Can customers see what's free before they arrive?",
-        a: "Yes. Every venue gets a public live-availability page at its own address, showing station status in real time. No account or app needed to view it.",
+        a: "Yes. Every business gets a public live-availability page at its own address, showing station status in real time. No account or app needed to view it.",
       },
       {
         q: "How do wallets and credits work?",
-        a: "Each customer holds a balance on your venue, topped up at the desk. Sessions and purchases are debited from that balance, and every movement is recorded against the shift that made it.",
+        a: "Each customer holds a balance on your business, topped up at the desk. Sessions and purchases are debited from that balance, and every movement is recorded against the shift that made it.",
       },
       {
         q: "How do staff shifts and cash handling work?",
@@ -223,11 +223,11 @@ export default async function Home() {
       },
       {
         q: "What do customers get their own access to?",
-        a: "A customer portal on your venue's address where they sign up, sign in, and see their own balance and history — separate from your staff dashboard.",
+        a: "A customer portal on your business's address where they sign up, sign in, and see their own balance and history — separate from your staff dashboard.",
       },
       {
-        q: "Can I run more than one venue from one account?",
-        a: "Yes. Each venue is its own workspace on its own address, with its own staff, customers, and data kept separate from every other venue on the platform.",
+        q: "Can I run more than one business from one account?",
+        a: "Yes. Each business runs on its own address, with its own staff, customers, and data kept separate from every other business on the platform.",
       },
     ];
 
@@ -302,7 +302,7 @@ export default async function Home() {
                   href="/sign-up"
                   className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
                 >
-                  Create a venue
+                  Create a business
                 </Link>
                 <Link
                   href="/login"
@@ -524,7 +524,7 @@ export default async function Home() {
                   How it works
                 </span>
                 <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  Structured for daily venue operations.
+                  Structured for daily business operations.
                 </h2>
               </Stack>
               <Grid cols={4} gap={4}>
@@ -564,16 +564,16 @@ export default async function Home() {
           <Section maxWidth="full">
             <Stack gap={4} className="items-center py-24 text-center">
               <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                Ready to upgrade your venue?
+                Ready to upgrade your business?
               </h2>
               <p className="max-w-prose text-balance text-muted-foreground">
-                Create your venue in seconds — set up your floor plan, invite your staff, and open for business.
+                Create your business in seconds — set up your floor plan, invite your staff, and open for business.
               </p>
               <Link
                 href="/sign-up"
                 className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
               >
-                Create a venue
+                Create a business
               </Link>
             </Stack>
           </Section>
@@ -756,8 +756,8 @@ export default async function Home() {
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle>About this venue</CardTitle>
-                  <CardDescription>Details about this venue.</CardDescription>
+                  <CardTitle>About this business</CardTitle>
+                  <CardDescription>Details about this business.</CardDescription>
                 </CardHeader>
                 <CardFooter>
                   <Link

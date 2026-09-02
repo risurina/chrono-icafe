@@ -44,10 +44,10 @@ function ApplyForTenantPrompt() {
     <CenteredMessage>
       <Card className="max-w-md">
         <CardHeader>
-          <CardTitle>Join this workspace</CardTitle>
+          <CardTitle>Join this business</CardTitle>
           <CardDescription>
             You&apos;re signed in with your account — apply to become a customer
-            of this workspace to continue.
+            of this business to continue.
           </CardDescription>
         </CardHeader>
         <CardContent>

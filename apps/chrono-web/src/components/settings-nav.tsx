@@ -9,7 +9,7 @@ export type SettingsSection = {
 };
 
 export const SETTINGS_GROUP_ORDER = [
-  "Workspace",
+  "Business",
   "Team",
   "Developer",
   "Billing",
@@ -21,21 +21,21 @@ export const SETTINGS_GROUP_ORDER = [
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     name: "Branding",
-    description: "Logo, colors, and workspace identity.",
+    description: "Logo, colors, and business identity.",
     href: "/dashboard/settings/branding",
     icon: Palette,
-    group: "Workspace",
+    group: "Business",
   },
   {
     name: "Landing page",
-    description: "Public /about content shown at your workspace's host.",
+    description: "Public /about content shown at your business's host.",
     href: "/dashboard/settings/landing-page",
     icon: FileText,
-    group: "Workspace",
+    group: "Business",
   },
   {
     name: "Members",
-    description: "People and invitations for this workspace.",
+    description: "People and invitations for this business.",
     href: "/dashboard/settings/members",
     icon: Users,
     group: "Team",
@@ -52,7 +52,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Map custom domains to this tenant.",
     href: "/dashboard/settings/domains",
     icon: Globe,
-    group: "Workspace",
+    group: "Business",
   },
   {
     name: "API Keys",
@@ -77,10 +77,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     name: "Features",
-    description: "Toggle workspace capabilities.",
+    description: "Toggle business capabilities.",
     href: "/dashboard/settings/features",
     icon: ToggleRight,
-    group: "Workspace",
+    group: "Business",
   },
   {
     name: "Billing",
@@ -105,14 +105,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     name: "Audit Log",
-    description: "History of actions taken in this workspace.",
+    description: "History of actions taken in this business.",
     href: "/dashboard/settings/audit",
     icon: ScrollText,
     group: "Team",
   },
   {
     name: "Danger zone",
-    description: "Suspend, export, or delete this workspace.",
+    description: "Suspend, export, or delete this business.",
     href: "/dashboard/settings/danger",
     icon: TriangleAlert,
     group: "Danger zone",

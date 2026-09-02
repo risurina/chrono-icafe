@@ -37,40 +37,40 @@ export default function DangerSettingsPage() {
     loadAll();
   }, []);
 
-  async function suspendWorkspace() {
+  async function suspendBusiness() {
     setMsg(null);
     const res = await api.rpc.tenant.suspend.$post();
     if (res.ok) {
       loadAll();
-      setMsg("Workspace suspended. Members and customers are now blocked.");
+      setMsg("Business suspended. Members and customers are now blocked.");
     } else if ((res.status as number) === 403) {
-      setMsg("Only the owner can suspend the workspace.");
+      setMsg("Only the owner can suspend the business.");
     } else {
-      setMsg("Could not suspend the workspace.");
+      setMsg("Could not suspend the business.");
     }
   }
 
-  async function resumeWorkspace() {
+  async function resumeBusiness() {
     setMsg(null);
     const res = await api.rpc.tenant.resume.$post();
     if (res.ok) {
       loadAll();
-      setMsg("Workspace resumed. Access restored.");
+      setMsg("Business resumed. Access restored.");
     } else if ((res.status as number) === 403) {
-      setMsg("Only the owner can resume the workspace.");
+      setMsg("Only the owner can resume the business.");
     } else {
-      setMsg("Could not resume the workspace.");
+      setMsg("Could not resume the business.");
     }
   }
 
-  async function exportWorkspace() {
+  async function exportBusiness() {
     setMsg(null);
     const res = await api.rpc.tenant.export.$get();
     if (!res.ok) {
       setMsg(
         (res.status as number) === 403
-          ? "Only the owner can export the workspace."
-          : "Could not export the workspace.",
+          ? "Only the owner can export the business."
+          : "Could not export the business.",
       );
       return;
     }
@@ -81,23 +81,23 @@ export default function DangerSettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${lifecycle?.slug ?? "workspace"}-export.json`;
+    a.download = `${lifecycle?.slug ?? "business"}-export.json`;
     a.click();
     URL.revokeObjectURL(url);
     setMsg("Export downloaded.");
   }
 
-  async function deleteWorkspace() {
+  async function deleteBusiness() {
     setMsg(null);
     const res = await api.rpc.tenant.delete.$post({ json: { confirmSlug } });
     if (res.ok) {
       window.location.href = "/login";
     } else if ((res.status as number) === 403) {
-      setMsg("Only the owner can delete the workspace.");
+      setMsg("Only the owner can delete the business.");
     } else if ((res.status as number) === 400) {
-      setMsg("The confirmation text does not match the workspace slug.");
+      setMsg("The confirmation text does not match the business slug.");
     } else {
-      setMsg("Could not delete the workspace.");
+      setMsg("Could not delete the business.");
     }
   }
 
@@ -106,7 +106,7 @@ export default function DangerSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Danger zone</h1>
         <p className="text-sm text-muted-foreground">
-          Suspend, export, or permanently delete this workspace. Owner only.
+          Suspend, export, or permanently delete this business. Owner only.
         </p>
       </div>
 
@@ -133,23 +133,23 @@ export default function DangerSettingsPage() {
           <CardContent className="space-y-4">
             <Row wrap>
               {lifecycle.status === "active" ? (
-                <Button variant="destructive" onClick={suspendWorkspace}>
-                  Suspend workspace
+                <Button variant="destructive" onClick={suspendBusiness}>
+                  Suspend business
                 </Button>
               ) : (
-                <Button variant="outline" onClick={resumeWorkspace}>
-                  Resume workspace
+                <Button variant="outline" onClick={resumeBusiness}>
+                  Resume business
                 </Button>
               )}
-              <Button variant="outline" onClick={exportWorkspace}>
+              <Button variant="outline" onClick={exportBusiness}>
                 Export data
               </Button>
             </Row>
 
             <div className="space-y-2 rounded-md border border-destructive/40 p-3">
-              <Label htmlFor="confirmSlug">Delete this workspace permanently</Label>
+              <Label htmlFor="confirmSlug">Delete this business permanently</Label>
               <p className="text-xs text-muted-foreground">
-                This cannot be undone. Type the workspace slug{" "}
+                This cannot be undone. Type the business slug{" "}
                 <span className="font-mono font-semibold">{lifecycle.slug}</span> to
                 confirm.
               </p>
@@ -163,7 +163,7 @@ export default function DangerSettingsPage() {
                 <Button
                   variant="destructive"
                   disabled={confirmSlug !== lifecycle.slug}
-                  onClick={deleteWorkspace}
+                  onClick={deleteBusiness}
                 >
                   Delete
                 </Button>

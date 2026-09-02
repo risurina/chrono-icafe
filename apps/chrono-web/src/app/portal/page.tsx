@@ -134,7 +134,7 @@ export default function PortalHome() {
           Welcome{member ? `, ${member.name}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground">
-          You&apos;re signed in as a customer of this workspace.
+          You&apos;re signed in as a customer of this business.
         </p>
       </div>
 
@@ -188,7 +188,7 @@ export default function PortalHome() {
       <Card>
         <CardHeader>
           <CardTitle>Membership</CardTitle>
-          <CardDescription>Your venue membership status.</CardDescription>
+          <CardDescription>Your business membership status.</CardDescription>
         </CardHeader>
         <CardContent className="text-sm">
           {loading ? (
@@ -229,7 +229,7 @@ export default function PortalHome() {
               ) : profile.applicationStatus === "rejected" ? (
                 <p className="text-muted-foreground">
                   Your application wasn&apos;t approved. If you think this was a
-                  mistake, please contact the venue directly — re-applying from here
+                  mistake, please contact the business directly — re-applying from here
                   isn&apos;t available yet.
                 </p>
               ) : (
@@ -256,7 +256,7 @@ export default function PortalHome() {
       <Card>
         <CardHeader>
           <CardTitle>Wallet</CardTitle>
-          <CardDescription>Your stored-value balance at this venue.</CardDescription>
+          <CardDescription>Your stored-value balance at this business.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           {walletLoading ? (
@@ -271,13 +271,13 @@ export default function PortalHome() {
                   is a normal state, not an empty one. */}
               {onboarding && !onboarding.wallet.exists ? (
                 <p className="text-sm text-muted-foreground">
-                  You haven&apos;t added funds yet. Visit the venue counter to top up
+                  You haven&apos;t added funds yet. Visit the business counter to top up
                   your wallet.
                 </p>
               ) : null}
               {profile?.applicationStatus === "approved" ? (
                 <p className="text-sm text-muted-foreground">
-                  Ready to play? Visit the venue and ask staff to start a session at a
+                  Ready to play? Visit the business and ask staff to start a session at a
                   station.
                 </p>
               ) : null}

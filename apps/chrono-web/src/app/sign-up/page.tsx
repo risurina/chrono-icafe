@@ -27,8 +27,8 @@ function slugify(input: string): string {
     .toLowerCase()
     .trim()
     // Drop apostrophes rather than turning them into separators, so a
-    // possessive name ("rony 03's workspace") slugs to `rony-03s-workspace`
-    // and not `rony-03-s-workspace`.
+    // possessive name ("rony 03's business") slugs to `rony-03s-business`
+    // and not `rony-03-s-business`.
     .replace(/['\u2019]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -39,20 +39,20 @@ export default function SignUpPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [workspace, setWorkspace] = useState("");
+  const [business, setBusiness] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const providers = useAuthProviders();
 
-  const effectiveSlug = slugTouched ? slug : slugify(workspace);
+  const effectiveSlug = slugTouched ? slug : slugify(business);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const parsed = slugSchema.safeParse(effectiveSlug);
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "Invalid workspace URL");
+      toast.error(parsed.error.issues[0]?.message ?? "Invalid business URL");
       return;
     }
     setLoading(true);
@@ -65,12 +65,12 @@ export default function SignUpPage() {
     }
 
     const org = await authClient.organization.create({
-      name: workspace,
+      name: business,
       slug: parsed.data,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
     if (org.error) {
-      toast.error(org.error.message ?? "Could not create workspace");
+      toast.error(org.error.message ?? "Could not create business");
       setLoading(false);
       return;
     }
@@ -83,12 +83,12 @@ export default function SignUpPage() {
     <AuthLayout>
       <Card>
         <CardHeader>
-          <CardTitle>Create your workspace</CardTitle>
+          <CardTitle>Create your business</CardTitle>
           <CardDescription>You&apos;ll be the owner of a new tenant.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* A social sign-up has no workspace form — the callback routes the
-              new user to /new-workspace, which collects the same details. */}
+          {/* A social sign-up has no business form — the callback routes the
+              new user to /new-business, which collects the same details. */}
           <SocialSignIn providers={providers} onError={toast.error} />
           {providers?.email === false ? (
             <p className="text-sm text-muted-foreground">
@@ -129,16 +129,16 @@ export default function SignUpPage() {
               />
             </Field>
             <Field>
-              <Label htmlFor="workspace">Workspace name</Label>
+              <Label htmlFor="business">Business name</Label>
               <Input
-                id="workspace"
+                id="business"
                 required
-                value={workspace}
-                onChange={(e) => setWorkspace(e.target.value)}
+                value={business}
+                onChange={(e) => setBusiness(e.target.value)}
               />
             </Field>
             <Field>
-              <Label htmlFor="slug">Workspace URL</Label>
+              <Label htmlFor="slug">Business URL</Label>
               <Row items="center" gap={1}>
                 <Input
                   id="slug"
@@ -154,7 +154,7 @@ export default function SignUpPage() {
               </Row>
             </Field>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating…" : "Create workspace"}
+              {loading ? "Creating…" : "Create business"}
             </Button>
           </form>
           )}

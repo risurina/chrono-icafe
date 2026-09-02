@@ -43,7 +43,7 @@ export default function PortalSignUpPage() {
       <Card>
         <CardHeader>
           <CardTitle>Create your account</CardTitle>
-          <CardDescription>Join this workspace as a customer.</CardDescription>
+          <CardDescription>Join this business as a customer.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">

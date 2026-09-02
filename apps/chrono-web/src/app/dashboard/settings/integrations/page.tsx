@@ -424,12 +424,12 @@ export default function IntegrationsPage() {
               <Label htmlFor="folder">Upload folder</Label>
               <Input
                 id="folder"
-                placeholder="my-workspace"
+                placeholder="my-business"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                All this workspace's uploads are stored under this folder.
+                All this business's uploads are stored under this folder.
               </p>
             </Field>
             <Field>

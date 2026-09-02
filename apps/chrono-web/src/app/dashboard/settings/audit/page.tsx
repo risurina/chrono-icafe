@@ -101,7 +101,7 @@ export default function AuditLogPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Audit Log</h1>
         <p className="text-sm text-muted-foreground">
-          A record of who did what in this workspace.
+          A record of who did what in this business.
         </p>
       </div>
 

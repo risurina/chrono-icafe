@@ -404,7 +404,7 @@ export default function PlatformSettingsPage() {
               {confirm?.nextValue ? "Turn on" : "Turn off"} {confirm?.setting.label}?
             </DialogTitle>
             <DialogDescription>
-              This affects every workspace on the platform. {confirm?.setting.description}
+              This affects every business on the platform. {confirm?.setting.description}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

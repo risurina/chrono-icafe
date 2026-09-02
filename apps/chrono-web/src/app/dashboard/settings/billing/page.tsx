@@ -65,7 +65,7 @@ export default function BillingPage() {
     if (res.ok) {
       window.location.href = (await res.json()).url;
     } else if ((res.status as number) === 403) {
-      setMsg("Only the workspace owner can change the plan.");
+      setMsg("Only the business owner can change the plan.");
     } else if ((res.status as number) === 400) {
       setMsg("Billing is not configured for this deployment.");
     } else {
@@ -81,7 +81,7 @@ export default function BillingPage() {
     if (res.ok) {
       window.location.href = (await res.json()).url;
     } else if ((res.status as number) === 403) {
-      setMsg("Only the workspace owner can manage billing.");
+      setMsg("Only the business owner can manage billing.");
     } else if ((res.status as number) === 409) {
       setMsg("Start a checkout first to create a billing account.");
     } else {

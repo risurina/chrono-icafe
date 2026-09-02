@@ -248,7 +248,7 @@ export default function ApiKeysPage() {
         <h1 className="text-2xl font-semibold tracking-tight">API keys</h1>
         <p className="text-sm text-muted-foreground">
           Every tenant&apos;s API keys. Revoke a leaked key or rotate it to a fresh
-          secret. Keys are created by tenants in their own workspace settings — the
+          secret. Keys are created by tenants in their own business settings — the
           full secret is never shown here.
         </p>
       </div>

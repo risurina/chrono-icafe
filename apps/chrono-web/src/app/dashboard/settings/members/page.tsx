@@ -217,7 +217,7 @@ export default function MembersSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
         <p className="text-sm text-muted-foreground">
-          People and invitations for this workspace.
+          People and invitations for this business.
         </p>
       </div>
 
@@ -228,7 +228,7 @@ export default function MembersSettingsPage() {
         <div>
           <h2 className="text-lg font-medium">Members</h2>
           <p className="text-sm text-muted-foreground">
-            People with access to this workspace.
+            People with access to this business.
           </p>
         </div>
 
@@ -340,7 +340,7 @@ export default function MembersSettingsPage() {
           <CardTitle>Invitations</CardTitle>
           <CardDescription>
             {canInvite
-              ? "Invite a teammate to this workspace."
+              ? "Invite a teammate to this business."
               : "You don't have permission to invite teammates."}
           </CardDescription>
         </CardHeader>

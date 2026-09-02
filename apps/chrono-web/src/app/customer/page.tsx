@@ -5,7 +5,7 @@ import { useGlobalCustomerSession } from "@/lib/customer-client";
 
 /**
  * Global customer account home. To become a customer of a specific
- * workspace, visit that workspace's `/portal` while signed in here — it
+ * business, visit that business's `/portal` while signed in here — it
  * offers a one-click "Apply" (see apps/chrono-web/src/app/portal/layout.tsx).
  */
 export default function CustomerHomePage() {
@@ -18,14 +18,14 @@ export default function CustomerHomePage() {
           Welcome{customer ? `, ${customer.name}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground">
-          One account, usable across every workspace you join.
+          One account, usable across every business you join.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Your account</CardTitle>
-          <CardDescription>This identity is shared across every workspace.</CardDescription>
+          <CardDescription>This identity is shared across every business.</CardDescription>
         </CardHeader>
         <CardContent className="text-sm">
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">

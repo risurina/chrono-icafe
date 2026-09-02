@@ -132,7 +132,7 @@ export default function PlatformMetricsPage() {
           <CardHeader>
             <CardTitle>No tenants yet.</CardTitle>
             <CardDescription>
-              Metrics will appear here once a workspace signs up.
+              Metrics will appear here once a business signs up.
             </CardDescription>
           </CardHeader>
         </Card>

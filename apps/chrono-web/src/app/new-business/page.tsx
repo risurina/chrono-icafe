@@ -25,22 +25,22 @@ function slugify(input: string): string {
     .toLowerCase()
     .trim()
     // Drop apostrophes rather than turning them into separators, so a
-    // possessive name ("rony 03's workspace") slugs to `rony-03s-workspace`
-    // and not `rony-03-s-workspace`.
+    // possessive name ("rony 03's business") slugs to `rony-03s-business`
+    // and not `rony-03-s-business`.
     .replace(/['\u2019]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
 }
 
-/** Create an additional workspace for an already-authenticated user. */
-export default function NewWorkspacePage() {
+/** Create an additional business for an already-authenticated user. */
+export default function NewBusinessPage() {
   const { data: session, isPending } = useSession();
 
-  const [workspace, setWorkspace] = useState("");
+  const [business, setBusiness] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
-  const [workspaceTouched, setWorkspaceTouched] = useState(false);
+  const [businessTouched, setBusinessTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [welcome, setWelcome] = useState(false);
 
@@ -49,31 +49,31 @@ export default function NewWorkspacePage() {
   }, []);
 
   // A user arriving here straight from a social sign-in has typed nothing yet;
-  // seed the workspace name from their profile so the common case is one click.
+  // seed the business name from their profile so the common case is one click.
   useEffect(() => {
     const name = session?.user?.name;
-    if (!workspaceTouched && name) setWorkspace(`${name}'s workspace`);
-  }, [session?.user?.name, workspaceTouched]);
+    if (!businessTouched && name) setBusiness(`${name}'s business`);
+  }, [session?.user?.name, businessTouched]);
 
-  const effectiveSlug = slugTouched ? slug : slugify(workspace);
+  const effectiveSlug = slugTouched ? slug : slugify(business);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const parsed = slugSchema.safeParse(effectiveSlug);
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "Invalid workspace URL");
+      toast.error(parsed.error.issues[0]?.message ?? "Invalid business URL");
       return;
     }
     setLoading(true);
 
     const org = await authClient.organization.create({
-      name: workspace,
+      name: business,
       slug: parsed.data,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
     if (org.error) {
-      toast.error(org.error.message ?? "Could not create workspace");
+      toast.error(org.error.message ?? "Could not create business");
       setLoading(false);
       return;
     }
@@ -106,30 +106,30 @@ export default function NewWorkspacePage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {welcome ? "Welcome — create your workspace" : "Create a new workspace"}
+            {welcome ? "Welcome — create your business" : "Create a new business"}
           </CardTitle>
           <CardDescription>
             {welcome
-              ? "Your account is ready. Name your workspace to finish setting up."
+              ? "Your account is ready. Name your business to finish setting up."
               : "You'll be the owner of this new tenant."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <Field>
-              <Label htmlFor="workspace">Workspace name</Label>
+              <Label htmlFor="business">Business name</Label>
               <Input
-                id="workspace"
+                id="business"
                 required
-                value={workspace}
+                value={business}
                 onChange={(e) => {
-                  setWorkspaceTouched(true);
-                  setWorkspace(e.target.value);
+                  setBusinessTouched(true);
+                  setBusiness(e.target.value);
                 }}
               />
             </Field>
             <Field>
-              <Label htmlFor="slug">Workspace URL</Label>
+              <Label htmlFor="slug">Business URL</Label>
               <Row items="center" gap={1}>
                 <Input
                   id="slug"
@@ -145,7 +145,7 @@ export default function NewWorkspacePage() {
               </Row>
             </Field>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating…" : "Create workspace"}
+              {loading ? "Creating…" : "Create business"}
             </Button>
           </form>
         </CardContent>

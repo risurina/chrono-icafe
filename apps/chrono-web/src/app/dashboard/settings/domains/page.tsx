@@ -83,7 +83,7 @@ export default function DomainsPage() {
       const body = await res.json();
       setMsg(
         body.verified
-          ? "Domain verified — it now routes to this workspace."
+          ? "Domain verified — it now routes to this business."
           : "DNS record not found yet. It can take a while to propagate; try again shortly.",
       );
       load();
@@ -136,7 +136,7 @@ export default function DomainsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Custom Domains</h1>
         <p className="text-sm text-muted-foreground">
-          Serve this workspace on your own domain (e.g. app.yourcompany.com). Prove
+          Serve this business on your own domain (e.g. app.yourcompany.com). Prove
           ownership with a DNS record; TLS is provisioned automatically.
         </p>
       </div>
@@ -195,7 +195,7 @@ export default function DomainsPage() {
         <CardHeader>
           <CardTitle>Your domains</CardTitle>
           <CardDescription>
-            A domain routes to this workspace only after it&apos;s verified.
+            A domain routes to this business only after it&apos;s verified.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

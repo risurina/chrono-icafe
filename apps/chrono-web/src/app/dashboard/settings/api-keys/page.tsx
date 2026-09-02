@@ -120,7 +120,7 @@ export default function ApiKeysPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
         <p className="text-sm text-muted-foreground">
-          Programmatic access to this workspace. Send a key as{" "}
+          Programmatic access to this business. Send a key as{" "}
           <span className="font-mono">Authorization: Bearer &lt;key&gt;</span>.
         </p>
       </div>

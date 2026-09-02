@@ -92,8 +92,8 @@ export default function PlatformAuthProvidersPage() {
         <CardHeader>
           <CardTitle>Staff authentication</CardTitle>
           <CardDescription>
-            Applies to every workspace. Per-tenant enterprise SSO is configured
-            separately, in each workspace&apos;s security settings.
+            Applies to every business. Per-tenant enterprise SSO is configured
+            separately, in each business&apos;s security settings.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">

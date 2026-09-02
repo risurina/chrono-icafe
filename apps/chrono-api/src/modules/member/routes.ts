@@ -67,7 +67,7 @@ const APPROVED_EMAIL_BODY = `<p>Good news — your application to <strong>{{tena
   <p>You can now sign in to the member portal and get started.</p>`;
 const REJECTED_EMAIL_SUBJECT = "An update on your application to {{tenantName}}";
 const REJECTED_EMAIL_BODY = `<p>Your application to <strong>{{tenantName}}</strong> was not approved at this time.</p>
-  <p>If you have questions, please contact the venue directly.</p>`;
+  <p>If you have questions, please contact the business directly.</p>`;
 
 function fillTemplate(text: string, values: Record<string, string>): string {
   let out = text;
@@ -105,7 +105,7 @@ async function notifyMemberOfDecision(
       .from(base.organization)
       .where(eq(base.organization.id, tenantId))
       .limit(1);
-    const tenantName = org?.name ?? "the venue";
+    const tenantName = org?.name ?? "the business";
 
     const [subject, body] =
       decision === "approved"

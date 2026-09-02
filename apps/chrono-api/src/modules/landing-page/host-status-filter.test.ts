@@ -6,7 +6,7 @@
  * a tenant in a terminal lifecycle status by default — so every public route's
  * existing "org is null → 404" path now covers it — and that the explicit
  * `{ allowTerminalStatus: true }` opt-out still resolves, which is what keeps
- * an OWNER able to sign in to a suspended workspace and resume it.
+ * an OWNER able to sign in to a suspended business and resume it.
  *
  * Lives under chrono-api (not packages/agora) because the foundation package
  * has no test harness of its own; this exercises the foundation helper through

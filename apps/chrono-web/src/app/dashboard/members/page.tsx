@@ -165,7 +165,7 @@ export default function MembersPage() {
           ) : null}
         </Row>
         <p className="text-sm text-muted-foreground">
-          Review venue membership applications and manage member details.
+          Review business membership applications and manage member details.
         </p>
       </div>
 
@@ -173,7 +173,7 @@ export default function MembersPage() {
         <CardHeader>
           <CardTitle>Members</CardTitle>
           <CardDescription>
-            Review venue membership applications and manage member details.
+            Review business membership applications and manage member details.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -7,9 +7,9 @@ import { getPublicBranding, brandingCss } from "@/lib/branding";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
-const DEFAULT_TITLE = "Chrono — Venue management";
+const DEFAULT_TITLE = "Chrono — Business management";
 const DEFAULT_DESCRIPTION =
-  "Venue management for gaming centers and internet cafes.";
+  "Business management for gaming centers and internet cafes.";
 
 // Platform default icon set — files live under apps/web/public/favicon/, not
 // the public root, so every path below is explicit rather than relying on

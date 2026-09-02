@@ -42,7 +42,7 @@ export default function CustomerSignUpPage() {
         <CardHeader>
           <CardTitle>Create your account</CardTitle>
           <CardDescription>
-            One account, usable across every workspace you join.
+            One account, usable across every business you join.
           </CardDescription>
         </CardHeader>
         <CardContent>

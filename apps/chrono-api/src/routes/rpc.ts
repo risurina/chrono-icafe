@@ -1088,7 +1088,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   })
   // Transfer ownership (owner-only). Atomically promotes the target to `owner`
   // and demotes the acting owner to `admin`, so there is always exactly one
-  // owner and the workspace is never left ownerless.
+  // owner and the business is never left ownerless.
   .post("/members/:id/transfer-ownership", async (c) => {
     const { tenantId, userId } = c.var.tenant;
     requirePermission(c.var.tenant.permissions, { tenant: ["transfer-ownership"] });
@@ -1109,7 +1109,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
       .limit(1);
     if (!target) throw new HttpError(404, "Member not found.");
     if (target.userId === userId) {
-      throw new HttpError(400, "You already own this workspace.");
+      throw new HttpError(400, "You already own this business.");
     }
 
     await adminDb.transaction(async (tx) => {
@@ -1601,7 +1601,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
         supportEmail: b?.supportEmail ?? null,
       },
       {
-        subject: "Test email from your workspace",
+        subject: "Test email from your business",
         bodyHtml:
           "<p>This is a test message confirming your email integration is configured correctly.</p>",
       },

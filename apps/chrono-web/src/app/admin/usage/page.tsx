@@ -188,7 +188,7 @@ export default function PlatformUsagePage() {
           <CardHeader>
             <CardTitle>No tenants yet.</CardTitle>
             <CardDescription>
-              Usage will appear here once a workspace signs up.
+              Usage will appear here once a business signs up.
             </CardDescription>
           </CardHeader>
         </Card>

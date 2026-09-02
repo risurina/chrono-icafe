@@ -533,8 +533,8 @@ export default function PlatformAdminOrganizationsPage() {
           <DialogHeader>
             <DialogTitle>
               {confirmTarget?.action === "suspend"
-                ? "Suspend workspace?"
-                : "Archive workspace?"}
+                ? "Suspend business?"
+                : "Archive business?"}
             </DialogTitle>
             <DialogDescription>
               {confirmTarget?.action === "suspend"

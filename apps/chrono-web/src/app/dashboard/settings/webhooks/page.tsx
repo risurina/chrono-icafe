@@ -145,7 +145,7 @@ export default function WebhooksPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Webhooks</h1>
         <p className="text-sm text-muted-foreground">
-          Receive signed, retried HTTP callbacks when events happen in this workspace
+          Receive signed, retried HTTP callbacks when events happen in this business
           (admin only).
         </p>
       </div>

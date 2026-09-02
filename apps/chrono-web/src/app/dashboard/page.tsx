@@ -30,7 +30,7 @@ export default function OverviewPage() {
     (async () => {
       const meRes = await api.rpc.me.$get();
       if (!meRes.ok) {
-        toast.error("Could not load your tenant. Are you a member of this workspace?");
+        toast.error("Could not load your tenant. Are you a member of this business?");
         return;
       }
       setMe((await meRes.json()) as Me);
@@ -66,7 +66,7 @@ export default function OverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">
-          Workspace{" "}
+          Business{" "}
           <span className="font-medium text-foreground">{me?.tenantSlug ?? "…"}</span>
           {me ? (
             <Badge variant="secondary" className="ml-2 align-middle capitalize">

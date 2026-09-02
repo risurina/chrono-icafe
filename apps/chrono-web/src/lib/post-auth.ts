@@ -44,7 +44,7 @@ function checklistIsUntouched(state: OnboardingChecklistSummary): boolean {
 
 /**
  * Fetch the onboarding checklist for an explicit tenant slug — used for the
- * brand-new-workspace path below, where we are still on the apex host and the
+ * brand-new-business path below, where we are still on the apex host and the
  * typed `api` client (which derives its tenant header from the CURRENT host)
  * cannot be pointed at the just-created tenant.
  */
@@ -67,7 +67,7 @@ async function fetchChecklistForSlug(slug: string): Promise<OnboardingChecklistS
  * Shared by the password form, the social callback, and anything else that
  * completes a sign-in, so all of them agree. Previously the apex path sent a
  * user with no organizations to `/dashboard` — a host with no tenant, i.e. a
- * dead end. A user with nowhere to go goes to workspace creation instead.
+ * dead end. A user with nowhere to go goes to business creation instead.
  *
  * Stays app-side because it composes the app's typed `adminApi` client and the
  * Better Auth `authClient`; the pure host helpers it uses are from `agora/client`.
@@ -100,13 +100,13 @@ export async function resolveLandingUrl(nextHost?: string | null): Promise<strin
 
   // A platform admin holds no tenant membership by convention (see
   // .ai/rules/rbac.md), so it must be checked before the org lookup below —
-  // otherwise it always falls through to workspace creation.
+  // otherwise it always falls through to business creation.
   const me = await adminApi["rpc-admin"].me.$get().then((r) => r.json());
   if (me.platformRole) return "/admin";
 
   const orgs = await authClient.organization.list();
   const first = orgs.data?.[0];
-  if (!first) return "/new-workspace?welcome=1";
+  if (!first) return "/new-business?welcome=1";
   const checklist = await fetchChecklistForSlug(first.slug);
   const landing = checklist && checklistIsUntouched(checklist) ? "/dashboard/setup" : "/dashboard";
   return `${window.location.protocol}//${first.slug}.${APP_DOMAIN}${landing}`;

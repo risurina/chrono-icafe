@@ -92,7 +92,7 @@ export default function AcceptInvitePage() {
       <Card>
         <CardHeader>
           <CardTitle>Accept invitation</CardTitle>
-          <CardDescription>Joining this workspace with your account.</CardDescription>
+          <CardDescription>Joining this business with your account.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {state.kind === "loading" ? (

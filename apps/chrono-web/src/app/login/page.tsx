@@ -56,7 +56,7 @@ export default function StaffLoginPage() {
       headers: { "x-tenant-host": window.location.host },
     });
     if (!res.ok) {
-      toast.error("SSO is not available for this workspace.");
+      toast.error("SSO is not available for this business.");
       return;
     }
     const body = (await res.json()) as { authorizationUrl: string };
@@ -79,9 +79,9 @@ export default function StaffLoginPage() {
       return;
     }
     // One shared resolver for every sign-in path: a safe same-origin ?next= on
-    // a tenant host, else the first workspace's dashboard, else workspace
+    // a tenant host, else the first business's dashboard, else business
     // creation. The last case is why this is shared — the apex used to send a
-    // user with no workspaces to /dashboard, a host with no tenant.
+    // user with no businesss to /dashboard, a host with no tenant.
     location.href = await resolveLandingUrl();
   }
 
@@ -91,7 +91,7 @@ export default function StaffLoginPage() {
       <Card>
         <CardHeader>
           <CardTitle>Staff sign in</CardTitle>
-          <CardDescription>Back-office access for this workspace.</CardDescription>
+          <CardDescription>Back-office access for this business.</CardDescription>
         </CardHeader>
         <CardContent>
           {sso.enabled ? (
@@ -106,7 +106,7 @@ export default function StaffLoginPage() {
               </Button>
               {sso.required ? (
                 <p className="text-center text-xs text-muted-foreground">
-                  This workspace requires single sign-on.
+                  This business requires single sign-on.
                 </p>
               ) : (
                 <p className="text-center text-xs text-muted-foreground">

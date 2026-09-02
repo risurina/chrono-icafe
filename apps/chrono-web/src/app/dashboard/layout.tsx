@@ -66,7 +66,7 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Dashboard", href: "/", icon: LayoutDashboard },
   { type: "item", name: "Reports", href: "/reports", icon: BarChart3 },
 
-  { type: "label", name: "Venue" },
+  { type: "label", name: "Business" },
   // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
   // not deleted; page and API routes are untouched, may be reused later.
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
@@ -94,7 +94,7 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Security Alerts", href: "/security-alerts", icon: ShieldAlert },
 ];
 
-// Settings is pinned to the bottom of the sidebar — all workspace configuration
+// Settings is pinned to the bottom of the sidebar — all business configuration
 // now lives under this single hub, so it sits apart from the primary nav. The
 // app version rides on the right edge of the row.
 const BOTTOM_NAV: NavItem[] = [
@@ -210,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!isPending && !session) window.location.href = "/login";
   }, [isPending, session]);
 
-  // If the API reports the workspace as suspended (non-owner staff are blocked),
+  // If the API reports the business as suspended (non-owner staff are blocked),
   // send the user to the suspended notice. Owners are allowed through so they can
   // resume from the Danger Zone, so they never hit this.
   useEffect(() => {

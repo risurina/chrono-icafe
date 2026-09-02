@@ -31,9 +31,9 @@ async function exists<T>(rows: Promise<T[]>): Promise<boolean> {
 export const CHRONO_ONBOARDING_ITEMS = {
   createBranch: {
     label: "Create your first branch",
-    description: "Add the venue location your stations and staff belong to.",
+    description: "Add the business location your stations and staff belong to.",
     href: "/dashboard/setup#createBranch",
-    stage: "Venue",
+    stage: "Business",
     requiredPermission: { branch: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
@@ -49,7 +49,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     label: "Add a station group",
     description: "Group your stations by rate or type before adding them.",
     href: "/dashboard/setup#addStationGroup",
-    stage: "Venue",
+    stage: "Business",
     requiredPermission: { station: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
@@ -65,7 +65,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
     label: "Add a station",
     description: "Add the first PC or seat customers will book or walk up to.",
     href: "/dashboard/setup#addStation",
-    stage: "Venue",
+    stage: "Business",
     requiredPermission: { station: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
     probe: (tx, tenantId) =>
@@ -79,7 +79,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   },
   inviteStaff: {
     label: "Invite a staff member",
-    description: "Bring a teammate onto the workspace.",
+    description: "Bring a teammate onto the business.",
     href: "/dashboard/setup#inviteStaff",
     stage: "Team",
     requiredPermission: { staff: ["invite"] },
@@ -127,7 +127,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   },
   pairDevice: {
     label: "Create a device pairing code",
-    description: "Generate a code so a kiosk PC can pair with this workspace.",
+    description: "Generate a code so a kiosk PC can pair with this business.",
     href: "/dashboard/setup#pairDevice",
     stage: "Trading",
     requiredPermission: { device: ["manage"] },

@@ -1192,7 +1192,7 @@ async function main() {
     cookie: contosoOwnerCk,
     json: { hostname: CUSTOM_HOST, method: "txt" },
   });
-  check("claiming another workspace's domain rejected (409)", domClaim.status === 409, `status ${domClaim.status}`);
+  check("claiming another business's domain rejected (409)", domClaim.status === 409, `status ${domClaim.status}`);
 
   // Reject adding the app's own domain as a custom domain.
   const domApex = await req("POST", "/rpc/domains", {
@@ -2773,7 +2773,7 @@ async function main() {
   // ── U. Tenant lifecycle: suspend blocks non-owner staff + customers; owner
   //     retains access; resume restores everyone. ──
   const suspend = await req("POST", "/rpc/tenant/suspend", { slug: "acme", cookie: ownerCk });
-  check("owner suspends workspace (200)", suspend.status === 200, `status ${suspend.status}`);
+  check("owner suspends business (200)", suspend.status === 200, `status ${suspend.status}`);
 
   const staffSuspended = await req("GET", "/rpc/me", { slug: "acme", cookie: staffCk });
   check(
@@ -2807,7 +2807,7 @@ async function main() {
   );
 
   const resume = await req("POST", "/rpc/tenant/resume", { slug: "acme", cookie: ownerCk });
-  check("owner resumes workspace (200)", resume.status === 200, `status ${resume.status}`);
+  check("owner resumes business (200)", resume.status === 200, `status ${resume.status}`);
   const staffAfterResume = await req("GET", "/rpc/me", { slug: "acme", cookie: staffCk });
   check(
     "staff access restored after resume (200)",
@@ -8002,7 +8002,7 @@ async function main() {
     cookie: ownerCk,
     json: { confirmSlug: "acme" },
   });
-  check("owner deletes workspace (200)", delOk.status === 200, `status ${delOk.status}`);
+  check("owner deletes business (200)", delOk.status === 200, `status ${delOk.status}`);
 
   const acmeOrgAfter = await adminDb
     .select()

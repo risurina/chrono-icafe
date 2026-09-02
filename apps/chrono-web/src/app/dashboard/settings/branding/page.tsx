@@ -127,7 +127,7 @@ export default function BrandingPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Branding</h1>
         <p className="text-sm text-muted-foreground">
-          White-label this workspace: name, logo, colors, and email branding (admin
+          White-label this business: name, logo, colors, and email branding (admin
           only).
         </p>
       </div>

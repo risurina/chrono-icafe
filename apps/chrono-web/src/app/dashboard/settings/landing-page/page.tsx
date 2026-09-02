@@ -116,7 +116,7 @@ export default function LandingPageSettingsPage() {
           <CardHeader>
             <CardTitle>Public landing page</CardTitle>
             <CardDescription>
-              Content shown at <code>/about</code> on your workspace&apos;s host — no
+              Content shown at <code>/about</code> on your business&apos;s host — no
               sign-in required.
             </CardDescription>
           </CardHeader>

@@ -31,7 +31,7 @@ export function inquiryPublicRoutes() {
     }
 
     const org = await resolveOrgFromRequest(c);
-    if (!org) throw new HttpError(404, "Unknown workspace.");
+    if (!org) throw new HttpError(404, "Unknown business.");
     const status = org.status;
     if (
       status === "suspended" ||
@@ -39,7 +39,7 @@ export function inquiryPublicRoutes() {
       status === "archived" ||
       status === "deleting"
     ) {
-      throw new HttpError(404, "Unknown workspace.");
+      throw new HttpError(404, "Unknown business.");
     }
 
     const parsed = submitPublicInquirySchema.safeParse(await c.req.json().catch(() => null));

@@ -78,7 +78,7 @@ export default function FeaturesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Features</h1>
         <p className="text-sm text-muted-foreground">
-          Toggle functionality for this workspace (admin only). Some features are
+          Toggle functionality for this business (admin only). Some features are
           also governed by platform-wide rules (availability, rollout, or a kill
           switch), so the value shown is what is actually active for you.
         </p>

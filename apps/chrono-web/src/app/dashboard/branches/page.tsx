@@ -280,7 +280,7 @@ export default function BranchesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Branches</h1>
         <p className="text-sm text-muted-foreground">
-          Venue locations this tenant operates.
+          Business locations this tenant operates.
         </p>
       </div>
 

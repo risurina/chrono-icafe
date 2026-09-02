@@ -56,7 +56,7 @@ export default async function AboutPage() {
   const tenantInfo = tenantRes.ok
     ? ((await tenantRes.json()) as { tenant: { name: string; slug: string } | null }).tenant
     : null;
-  const venueName = tenantInfo?.name ?? "This venue";
+  const venueName = tenantInfo?.name ?? "This business";
 
   const { content, branches, hasStations } = landingPage;
 

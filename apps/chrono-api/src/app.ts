@@ -401,7 +401,7 @@ export const app = baseApp
     await next();
   })
   // Platform "disable registrations" Danger-Zone toggle (System Settings, spec
-  // #14). When on, refuse new account sign-ups AND new workspace creation
+  // #14). When on, refuse new account sign-ups AND new business creation
   // BEFORE Better Auth sees them. Fail-open on a settings DB error (the
   // resolver returns registry defaults = off), matching the sign-in-method gate
   // above. The break-glass env var (`PLATFORM_SETTINGS_ENFORCEMENT_DISABLED`)
@@ -474,7 +474,7 @@ export const app = baseApp
       session?.session as { impersonatedBy?: string | null } | undefined
     )?.impersonatedBy;
 
-    // An impersonating platform admin may browse a tenant workspace exactly
+    // An impersonating platform admin may browse a tenant business exactly
     // like the target member, but must never mutate organization
     // membership/settings, the tenant record, or the target's own account
     // (profile, email, password, sessions, 2FA) through Better Auth's HTTP
@@ -600,7 +600,7 @@ export const app = baseApp
   // withAdmin because no tenant session exists yet, then narrowed.
   .get("/public/sso", async (c) => {
     // allowTerminalStatus: an OWNER must still be able to sign in to a
-    // suspended workspace to resume it (tenantMiddleware() keeps owners
+    // suspended business to resume it (tenantMiddleware() keeps owners
     // exempt for the same reason). Filtering here would leave an
     // SSO-required tenant permanently unrecoverable. See
     // .ai/plans/agora/active/public-host-status-filter/README.md.
@@ -636,12 +636,12 @@ export const app = baseApp
   // URL so configuration can be verified against a real IdP.
   .get("/public/sso/start", async (c) => {
     // allowTerminalStatus: an OWNER must still be able to sign in to a
-    // suspended workspace to resume it (tenantMiddleware() keeps owners
+    // suspended business to resume it (tenantMiddleware() keeps owners
     // exempt for the same reason). Filtering here would leave an
     // SSO-required tenant permanently unrecoverable. See
     // .ai/plans/agora/active/public-host-status-filter/README.md.
     const org = await resolveOrgFromRequest(c, { allowTerminalStatus: true });
-    if (!org) throw new HttpError(404, "Unknown workspace.");
+    if (!org) throw new HttpError(404, "Unknown business.");
     const [conn] = await withAdmin((tx) =>
       tx
         .select({
@@ -653,7 +653,7 @@ export const app = baseApp
         .where(eq(tenantSsoConnection.tenantId, org.id))
         .limit(1),
     );
-    if (!conn?.enabled) throw new HttpError(404, "SSO is not enabled for this workspace.");
+    if (!conn?.enabled) throw new HttpError(404, "SSO is not enabled for this business.");
     const host = c.req.header("x-tenant-host") ?? c.req.header("host") ?? "";
     const scheme = process.env.NODE_ENV === "production" ? "https" : "http";
     const redirectUri = `${scheme}://${host}/login/sso/callback`;
@@ -691,7 +691,7 @@ export const app = baseApp
         throw new HttpError(401, "Sign in to accept this invitation.");
       }
       const org = await resolveOrgFromRequest(c);
-      if (!org) throw new HttpError(404, "Unknown workspace.");
+      if (!org) throw new HttpError(404, "Unknown business.");
       const { token } = c.req.valid("json");
       const result = await acceptInvite({
         userId: session.user.id,
