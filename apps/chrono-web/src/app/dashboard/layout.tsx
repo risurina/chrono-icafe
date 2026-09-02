@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  FolderKanban,
   Settings,
   Building2,
   Users,
@@ -58,7 +57,8 @@ const BASE_NAV: NavItem[] = [
   { type: "label", name: "Overview" },
   { type: "item", name: "Dashboard", href: "/", icon: LayoutDashboard },
   { type: "label", name: "Workspace" },
-  { type: "item", name: "Projects", href: "/projects", icon: FolderKanban },
+  // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
+  // not deleted; page and API routes are untouched, may be reused later.
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
   { type: "item", name: "Stations", href: "/stations", icon: Monitor },
   { type: "item", name: "Devices", href: "/devices", icon: MonitorSmartphone },
@@ -92,7 +92,6 @@ const BOTTOM_NAV: NavItem[] = [
 // segment-derived breadcrumb can resolve each level of a nested settings path.
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/dashboard/projects": "Projects",
   "/dashboard/branches": "Branches",
   "/dashboard/stations": "Stations",
   "/dashboard/devices": "Devices",
