@@ -62,6 +62,7 @@ import { branchRoutes } from "../modules/branch/routes";
 import { stationRoutes, publicStationRoutes } from "../modules/station/routes";
 import { reservationRoutes } from "../modules/reservation/routes";
 import { shiftRoutes } from "../modules/shift/routes";
+import { onboardingRoutes } from "../modules/onboarding/routes";
 import { reconciliationRoutes } from "../modules/reconciliation/routes";
 import { walletRoutes } from "../modules/wallet/routes";
 import { paymentRoutes } from "../modules/payment/routes";
@@ -1393,6 +1394,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: shifts (RLS-protected, any staff/admin/owner may open/close) — apps/chrono-api/src/modules/shift ──
   .route("/", shiftRoutes())
+
+  // ── Chrono: onboarding checklist (RLS-protected, ungated — visibility only) — apps/chrono-api/src/modules/onboarding ──
+  .route("/", onboardingRoutes())
 
   // ── Chrono: reconciliation (RLS-protected, staff/admin read-only aggregation) — apps/chrono-api/src/modules/reconciliation ──
   .route("/reconciliation", reconciliationRoutes())
