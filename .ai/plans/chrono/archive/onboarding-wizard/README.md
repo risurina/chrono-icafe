@@ -359,3 +359,20 @@ plan A) is what makes "I don't want this" durable, so no owner is ever trapped i
    `chronoDevice` row exists, but the real flow needs physical hardware to pair. For a
    venue setting up before hardware arrives this is a hard blocker on "Go live". Should
    step 6 be `skippable: true`? Recommended **yes**, for that reason.
+
+## Status: COMPLETE (2026-09-02)
+
+All four phases landed and verified; all three Open Questions were already
+resolved inline in the plan text before this pass (Question 1 superseded by
+Phase 3's own "now closed" resolution; Questions 2-3 marked Resolved).
+
+- **Phase 1** (wizardStep registry hint) — `021ff25`.
+- **Phase 2** (wizard UI: stepper primitive + setup page + seven step forms) — `ab2b8d5`.
+- **Phase 3** (post-auth routing + checklist deep-links) — `fb443f0`.
+- **Phase 4** (e2e spec) — `f00ec2a`. Happy path (all seven steps inline, lands on
+  the completion card — no auto-redirect, confirmed against the real
+  `setup/page.tsx`), role gate (4 locked / 3 actionable verified against real
+  `CHRONO_STAFF_GRANTS`, plus a forged `POST /rpc/branches` from staff still
+  403s — proving the UI lock isn't the real boundary), tenant isolation, and
+  resume (reload lands back on the correct in-progress step, derived from
+  server state with no stored cursor).
