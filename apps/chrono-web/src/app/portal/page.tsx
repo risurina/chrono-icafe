@@ -22,6 +22,10 @@ import {
   type WalletBalance,
   type WalletTransaction,
 } from "@/lib/wallet-portal";
+import {
+  getMyActiveSession,
+  type PortalSession,
+} from "@/lib/session-portal";
 
 /** Customer member area. Placeholder — extend with your customer-facing features. */
 export default function PortalHome() {
@@ -36,12 +40,27 @@ export default function PortalHome() {
   const [walletHistory, setWalletHistory] = useState<WalletTransaction[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
 
+  const [activeSession, setActiveSession] = useState<PortalSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
   useEffect(() => {
     let mounted = true;
     getMyMembership().then(({ data }) => {
       if (!mounted) return;
       if (data) setProfile(data);
       setLoading(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getMyActiveSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data) setActiveSession(data);
+      setSessionLoading(false);
     });
     return () => {
       mounted = false;
@@ -86,6 +105,38 @@ export default function PortalHome() {
           You&apos;re signed in as a customer of this workspace.
         </p>
       </div>
+
+      {sessionLoading ? null : activeSession ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Current session</CardTitle>
+            <CardDescription>Your active station session.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
+              <dt className="text-muted-foreground">Station</dt>
+              <dd>{activeSession.stationName}</dd>
+              <dt className="text-muted-foreground">Status</dt>
+              <dd>
+                <Badge
+                  variant={activeSession.status === "active" ? "success" : "warning"}
+                  className="capitalize"
+                >
+                  {activeSession.status}
+                </Badge>
+              </dd>
+              <dt className="text-muted-foreground">Started at</dt>
+              <dd>{new Date(activeSession.startedAt).toLocaleString()}</dd>
+              {activeSession.scheduledEndAt ? (
+                <>
+                  <dt className="text-muted-foreground">Scheduled end</dt>
+                  <dd>{new Date(activeSession.scheduledEndAt).toLocaleString()}</dd>
+                </>
+              ) : null}
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
