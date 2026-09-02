@@ -10,7 +10,7 @@ fix, or a foundation edit.
 
 | Phase | Owner | Status | Notes |
 |---|---|---|---|
-| 1 — POS refund row lock + atomic stock restore | local | not started | highest-severity shipped defect: concurrent refunds double-credit a wallet |
+| 1 — POS refund row lock + atomic stock restore | local | done | committed `f756dca`; negative test confirmed the bug was real (see log) |
 | 2 — Reservations exclusion constraint + reopen plan | local | not started | needs `btree_gist`; run the pre-flight overlap query first |
 | 3 — Devices: throttle pairing + unique/high-entropy code | local | not started | two blockers on one unauthenticated endpoint |
 | 4 — Shifts: close ownership + row lock | local | not started | adds `shift:closeAny`, admin-only |
@@ -45,6 +45,26 @@ fix, or a foundation edit.
   introduced and findings (a)–(g) confirmed genuinely closed. Its two open
   conditions are inherited, not introduced: the `test:wallet-concurrency` re-run
   still owed, and the `wallet` e2e spec that neither plan closes.
+- 2026-09-02 — Phase 1 done, committed `f756dca`. `refundSale` now takes
+  `.for("update")` on the `chronoSale` row as its first statement and re-checks
+  `status` under the lock; stock restore became an in-place
+  `stockQuantity + n` SQL update (no read-then-write) and was moved BEFORE the
+  `creditWallet` call, so the wallet lock is acquired last per the wallet
+  module's lock-ordering rule. Added a refund double-submit case to
+  `concurrency.test.ts`.
+  **The negative test was run deliberately and the defect was confirmed real
+  and severe**: with `.for("update")` removed, all 10 concurrent refunds
+  succeeded, the member's wallet went 90.00 → 190.00 instead of 100.00 (ten
+  times the refund amount credited from nothing), and stock restored to 14
+  instead of 5. Lock restored, suite green at 6 passed / 0 failed. This is the
+  discipline `.ai/rules/rbac.md` requires of gate tests — a test that passes
+  either way is testing plumbing, not the guard — applied here to a concurrency
+  guard.
+  Note: `pnpm --filter @agora/chrono-api typecheck` currently reports two
+  TS6133 unused-import errors in `src/modules/voucher/routes.ts`, a file
+  another session is writing concurrently (vouchers Phase 3). Not from this
+  work; the pos and wallet modules typecheck clean. Do not "fix" that file
+  from this plan.
 - 2026-09-02 — Cross-cutting observation worth keeping: `public-stations` and
   `tenant-landing` independently made the SAME wrong assumption about
   `resolveOrgFromRequest` filtering `organization.status`. Two plans converging
