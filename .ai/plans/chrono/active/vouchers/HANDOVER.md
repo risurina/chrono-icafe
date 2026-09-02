@@ -11,3 +11,11 @@
   success, 9 rejections. `test:permissions` 366/0 failed including 5 new
   voucher gate cases. **Phase 4 (POS checkout integration) is now
   unblockable** — pos/routes.ts exists.
+- 2026-09-02 — Phase 4 (POS checkout integration) landed as part of a
+  combined commit with vouchers/promos/wallet (`5d2f5ff`): checkout
+  discount stacking resolved as mutually exclusive (a request with both
+  voucherCode and promoCode is rejected 400 before any DB work), loyalty
+  auto-earn wired into both a completed POS sale (post-discount amount)
+  and a wallet credit. 5/5 integration tests passed against real Postgres.
+  Debit/refund point-reversal (Open Question 5) deliberately NOT modeled,
+  matching oikos precedent.
