@@ -59,3 +59,4 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `.ai/handover/jules-sessions.md` immediately after, no gap in the historical
   record beyond ordering. Launched the background poller per the `jules`
   skill immediately after firing. Session id: `2097577537239695559`.
+- 2026-09-02 — Phase 1 (schema, migration, RLS) landed locally, committed as part of a 9-module batch (`9943aa5`). All 15 new tables registered in APP_TENANT_TABLES, RLS forced, `rls:proof` PASS, whole-workspace typecheck clean.
