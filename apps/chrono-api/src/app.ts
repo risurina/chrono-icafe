@@ -302,6 +302,10 @@ export const app = baseApp
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   )
+  // Service identity for anyone who opens this host directly. Deliberately
+  // says nothing beyond what the hostname already reveals — no version, no
+  // environment, no route inventory — since it is unauthenticated and public.
+  .get("/", (c) => c.json({ service: "chrono-api", status: "ok" }))
   .get("/health", (c) => c.json({ ok: true }))
   // Browsers request /favicon.ico unprompted whenever this host is opened in a
   // tab (a /health check, an error page). This API serves no HTML and owns no
