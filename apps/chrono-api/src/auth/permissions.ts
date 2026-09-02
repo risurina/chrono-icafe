@@ -70,6 +70,10 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // checkout caller's own `pos:sell` gate (Phase 4). See
   // .ai/plans/chrono/active/promos/README.md, "Permission vocabulary".
   promo: ["read", "manage"],
+  // No staff-denied action exists on session (start/pause/resume/extend/end
+  // all mirror oikos's own ungated requireAuth) — a first for this codebase.
+  // See Open Question 3 in .ai/plans/chrono/active/sessions/README.md.
+  session: ["create", "update"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -82,6 +86,7 @@ export const CHRONO_STAFF_GRANTS = {
   credit: ["read", "sell", "consume"],
   voucher: ["read", "manage"],
   promo: ["read"],
+  session: ["create", "update"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -96,6 +101,7 @@ export const CHRONO_ADMIN_GRANTS = {
   credit: ["read", "sell", "consume", "grant", "adjust", "manageProducts"],
   voucher: ["read", "manage"],
   promo: ["read", "manage"],
+  session: ["create", "update"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

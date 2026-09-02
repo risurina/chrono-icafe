@@ -1487,6 +1487,27 @@ check(
     hasChronoPermission("not-a-real-role", { promo: ["manage"] }) === false,
 );
 
+console.log("\n── chrono session permissions (sessions Phase 3) ──");
+// No staff-denied action exists on session — every route (start/pause/
+// resume/extend/end) mirrors oikos's own ungated requireAuth (Open Question
+// 3). Documented explicitly here so the absence of a staff-denial `false`
+// assertion isn't mistaken for an oversight.
+check(
+  "staff may session:create and session:update",
+  hasChronoPermission("staff", { session: ["create"] }) &&
+    hasChronoPermission("staff", { session: ["update"] }),
+);
+check(
+  "admin may session:create and session:update",
+  hasChronoPermission("admin", { session: ["create"] }) &&
+    hasChronoPermission("admin", { session: ["update"] }),
+);
+check(
+  "owner may session:create and session:update",
+  hasChronoPermission("owner", { session: ["create"] }) &&
+    hasChronoPermission("owner", { session: ["update"] }),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

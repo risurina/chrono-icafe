@@ -73,3 +73,6 @@ export const chronoSession = pgTable(
       .where(sql`${t.status} in ('active','paused')`),
   ],
 );
+
+export type NewChronoSession = typeof chronoSession.$inferInsert;
+export type ChronoSessionRow = typeof chronoSession.$inferSelect;
