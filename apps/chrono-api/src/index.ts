@@ -11,6 +11,7 @@ import {
 import { app } from "./app";
 import { registerWebhookQueueJob } from "agora/webhooks";
 import { startQueueWorker } from "agora/queue";
+import { startSessionExpiryWorker } from "./modules/session/expiry";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -37,12 +38,18 @@ const stopWebhooksWorker = startQueueWorker("webhooks");
 // .ai/plans/agora/active/data-retention/README.md.
 const stopRetentionWorker = startRetentionWorker();
 
+// Chrono: auto-closes sessions past their scheduledEndAt (open-ended
+// sessions are never touched). Reuses the same closeSession() the manual
+// end route calls — see .ai/plans/chrono/active/sessions/README.md, Phase 4.
+const stopSessionExpiryWorker = startSessionExpiryWorker();
+
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     stopEmailWorker();
     stopSmsWorker();
     stopWebhooksWorker();
     stopRetentionWorker();
+    stopSessionExpiryWorker();
     server.close(() => process.exit(0));
   });
 }
