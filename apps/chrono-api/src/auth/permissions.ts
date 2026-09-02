@@ -122,6 +122,10 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // mirroring pos:void / wallet:adjust's own tier. See
   // .ai/plans/chrono/active/payments/README.md, "Permission vocabulary".
   payment: ["read", "create", "pay", "void", "refund"],
+  // A read-only aggregation layer over shift and wallet data — no mutation.
+  // Both staff and admin get read; no split per Open Question 1 in
+  // .ai/plans/chrono/active/reconciliation/README.md.
+  reconciliation: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -140,6 +144,7 @@ export const CHRONO_STAFF_GRANTS = {
   securityAlert: ["read", "manage"],
   inquiry: ["read", "manage"],
   payment: ["read", "create", "pay"],
+  reconciliation: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -161,6 +166,7 @@ export const CHRONO_ADMIN_GRANTS = {
   securityAlert: ["read", "manage"],
   inquiry: ["read", "manage"],
   payment: ["read", "create", "pay", "void", "refund"],
+  reconciliation: ["read"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

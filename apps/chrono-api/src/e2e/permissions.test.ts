@@ -1574,6 +1574,26 @@ check(
     hasChronoPermission("owner", { session: ["update"] }),
 );
 
+console.log("\n── chrono reconciliation permissions (reconciliation Phase 4) ──");
+// A read-only aggregation layer over shift and wallet data — no mutation.
+// Both staff and admin get read; no split per Open Question 1 in the plan.
+check(
+  "staff may reconciliation:read",
+  hasChronoPermission("staff", { reconciliation: ["read"] }),
+);
+check(
+  "admin may reconciliation:read",
+  hasChronoPermission("admin", { reconciliation: ["read"] }),
+);
+check(
+  "owner may reconciliation:read",
+  hasChronoPermission("owner", { reconciliation: ["read"] }),
+);
+check(
+  "member (unrecognized role) may NOT reconciliation:read (deny-by-default)",
+  hasChronoPermission("member", { reconciliation: ["read"] }) === false,
+);
+
 console.log("\n── chrono report permissions (reports Phase 2) ──");
 // A read-only aggregation layer — staff sees branch-scoped summaries only;
 // readFinancial (unscoped tenant-wide rollup + wallet activity) is
