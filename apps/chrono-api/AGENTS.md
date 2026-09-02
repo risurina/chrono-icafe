@@ -99,7 +99,7 @@ listed here.
   `.ai/rules/business-app.md`, "Global customers", and
   `.ai/plans/agora/archive/global-customers/README.md`.
 - **`{tenantSlug}.APP_DOMAIN/stations`** (verified custom domains resolve the same way)
-  — public, unauthenticated live station-availability page (planned:
+  — public, unauthenticated live station-availability page (implemented:
   `.ai/plans/chrono/active/public-stations/README.md`). Resolved via
   `getRequestTenant()` (`agora/next`) on the incoming host, exactly like the
   authenticated dashboard's own resolution — no session, no membership, no Next.js

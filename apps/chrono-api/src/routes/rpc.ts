@@ -59,7 +59,7 @@ import {
 } from "../db/schema";
 import { recordStaffAudit } from "agora/audit";
 import { branchRoutes } from "../modules/branch/routes";
-import { stationRoutes } from "../modules/station/routes";
+import { stationRoutes, publicStationRoutes } from "../modules/station/routes";
 import { reservationRoutes } from "../modules/reservation/routes";
 import { shiftRoutes } from "../modules/shift/routes";
 import { walletRoutes } from "../modules/wallet/routes";
@@ -292,6 +292,9 @@ function tenantHostUrl(slug: string, path: string): string {
  * filtered explicitly by tenantId.
  */
 export const rpc = new Hono<{ Variables: TenantVars }>()
+  // ── Public unauthenticated routes (mounted BEFORE tenantMiddleware) ──
+  .route("/public/stations", publicStationRoutes())
+
   .use("*", tenantMiddleware())
 
   // ── Usage metering (platform-usage-limits Phase 6) ──

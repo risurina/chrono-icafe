@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { withTenant, eq, and, asc, desc, count, ilike, type TenantTx } from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
-import { type TenantVars, HttpError, zValidator } from "agora/server";
+import { type TenantVars, HttpError, zValidator, resolveOrgFromRequest, createRateLimiter, clientIp } from "agora/server";
 import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
@@ -85,6 +85,94 @@ async function requireOwnGroupInBranch(
   if (!group) {
     throw new HttpError(404, "Station group not found.");
   }
+}
+
+// IP rate limiter: generous enough for polling (approx 1 req/3s) but bounded
+const publicStationsLimiter = createRateLimiter(20, 60 * 1000, "public-stations");
+
+// 5-10s in-memory cache keyed by tenantId to avoid a DB hit on every client poll
+type PublicStationsPayload = {
+  aggregate: { total: number; available: number; inUse: number };
+  stations: {
+    id: string;
+    name: string;
+    stationNumber: string;
+    stationType: string;
+    status: string;
+  }[];
+};
+const publicStationsCache = new Map<string, { data: PublicStationsPayload; at: number }>();
+
+export function publicStationRoutes() {
+  return new Hono()
+    .use("*", async (c, next) => {
+      // Abuse prevention: rate-limit by IP for this public route.
+      const ip = clientIp(c) || "unknown";
+      const retryAfter = await publicStationsLimiter.blockedFor(ip);
+      if (retryAfter !== null) {
+        return c.json({ error: "Too many requests." }, 429, { "Retry-After": String(retryAfter) });
+      }
+      await publicStationsLimiter.record(ip);
+      await next();
+    })
+    .get("/", async (c) => {
+      // 1. Resolve the tenant context using the host headers (no tenantMiddleware / session here).
+      const org = await resolveOrgFromRequest(c);
+      if (!org) {
+        throw new HttpError(404, "Tenant not found.");
+      }
+
+      // Terminal status check: do not serve public data for suspended/cancelled/archived/deleting tenants.
+      const status = org.status;
+      if (
+        status === "suspended" ||
+        status === "cancelled" ||
+        status === "archived" ||
+        status === "deleting"
+      ) {
+        throw new HttpError(404, "Tenant not found.");
+      }
+
+      const tenantId = org.id;
+
+      // 2. Read from cache if fresh (10s TTL)
+      const now = Date.now();
+      const cached = publicStationsCache.get(tenantId);
+      if (cached && now - cached.at < 10000) {
+        return c.json(cached.data);
+      }
+
+      // 3. Read stations via withTenant (RLS enforced)
+      const data = await withTenant(tenantId, async (tx) => {
+        // We read all stations for the public aggregate view. (Pagination left out as this is an aggregate + full grid).
+        const stations = await tx
+          .select()
+          .from(chronoStation)
+          .orderBy(asc(chronoStation.name));
+
+        const aggregate = {
+          total: stations.length,
+          available: stations.filter(s => s.status === "available").length,
+          inUse: stations.filter(s => s.status === "maintenance" || s.status === "offline").length, // Will be refined when sessions exist
+        };
+
+        return {
+          aggregate,
+          stations: stations.map(s => ({
+            id: s.id,
+            name: s.name,
+            stationNumber: s.stationNumber,
+            stationType: s.stationType,
+            status: s.status,
+          }))
+        };
+      });
+
+      // Update cache
+      publicStationsCache.set(tenantId, { data, at: now });
+
+      return c.json(data);
+    });
 }
 
 export function stationRoutes() {
