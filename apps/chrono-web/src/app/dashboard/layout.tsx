@@ -64,7 +64,6 @@ const DEFAULT_UPLOAD_TARGET: UploadTarget = {
 const BASE_NAV: NavItem[] = [
   { type: "label", name: "Overview" },
   { type: "item", name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { type: "item", name: "Reports", href: "/reports", icon: BarChart3 },
 
   { type: "label", name: "Business" },
   // "Projects" (agora scaffold example) hidden from the Chrono nav — kept,
@@ -102,6 +101,7 @@ const BASE_NAV: NavItem[] = [
 // now lives under this single hub, so it sits apart from the primary nav. The
 // app version rides on the right edge of the row.
 const BOTTOM_NAV: NavItem[] = [
+  { type: "item", name: "Reports", href: "/reports", icon: BarChart3 },
   {
     type: "item",
     name: "Settings",
