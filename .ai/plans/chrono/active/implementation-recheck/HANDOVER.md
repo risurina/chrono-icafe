@@ -54,3 +54,70 @@ shared `TEST_DATABASE_URL` gets dropped and recreated underneath the run. See
   concurrency test that passes with the guard removed is testing plumbing, the
   same way a permission test that passes with the grant removed is
   (`.ai/rules/rbac.md`).
+
+## 2026-09-02 — Recheck run on a quiet tree. One REAL finding (not in the five commits).
+
+**Phases 1–5 verification results (all against a quiet tree, no concurrent
+session running a destructive suite):**
+
+- `pnpm typecheck` (whole workspace, 7/7 tasks) — clean.
+- `test:wallet-concurrency` — **4/4** (this closes carried-in gap #1: the proof
+  was stale relative to the shipped `ac9a7cc` constraints; also recorded in
+  `wallet-hardening`'s handover, commit `9c582a9`).
+- `test:pos-concurrency` — **6/6**, including the three Phase 4 refund
+  assertions (exactly one concurrent refund succeeds; wallet credited exactly
+  once, not a multiple; stock restored exactly once). Gap #4 (independently
+  reproduce the refund negative test) is satisfied by these three passing
+  against real Postgres under 10 concurrent refunds of one wallet-paid sale.
+- **Phase 3 drift check** — `pnpm db:generate --name recheck_noop` reported
+  `No schema changes, nothing to migrate` and wrote no file, so `schema.ts`
+  agrees with drizzle's own snapshot metadata. **But that check turns out to be
+  insufficient** — see the finding below.
+
+### FINDING (real, and outside the five commits' scope): the `chrono` DEV database is structurally degraded
+
+Direct `pg_constraint` / `pg_indexes` introspection of the **dev** `chrono`
+database (via `DATABASE_URL_ADMIN`) shows, on every table sampled
+(`ChronoWalletTransactions`, `ChronoShifts`, `ChronoSales`, `Organizations`,
+`TenantMembers`):
+
+- **0 foreign keys**, **0 CHECK constraints**, **0 unique constraints**
+- only 1–2 indexes per table (primary key, plus at most one unique index)
+- `drizzle.__drizzle_migrations` records **14** applied vs **16** migration
+  files on disk
+
+That is the exact signature of this repo's test-harness DDL generator
+(`tableDdl()` + `uniqueIndexDdls()`, copied across the module concurrency
+tests): it emits columns, primary keys, NOT NULL, and unique indexes **only** —
+never FKs, CHECK constraints, or non-unique indexes. Conclusion: **a destructive
+test harness was pointed at the dev database instead of `chrono_test`** at some
+point, dropped its tables, and recreated them without constraints. This also
+explains the mid-session `Tenant "acme" not found — run the seed first` failure
+that required a re-seed.
+
+**Scope and severity:**
+
+- **Not** a defect in any of the five commits under recheck, and **not** a code
+  defect at all — the migrations on disk are correct, and every test in this
+  session ran against `chrono_test`, so no verification result is invalidated.
+- Migration `0010`'s two wallet-ledger CHECK constraints are therefore **not
+  live on dev** right now, even though they were genuinely verified live when
+  `ac9a7cc` landed. Same for every FK and secondary index in the app.
+- RLS itself survived, because `pnpm db:migrate` re-runs `src/db/rls.run.ts`,
+  which is why `rls:proof` still passes — the isolation guarantee is intact.
+- **`db:generate` cannot detect this.** It diffs `schema.ts` against drizzle's
+  snapshot files, not against live introspection, so a degraded database looks
+  clean to it. Phase 3's "empty migration proves they agree" check is necessary
+  but not sufficient; direct `pg_constraint` introspection is what caught it.
+
+**Remedy (needs a developer go-ahead — it drops every dev table):** drop the
+public schema's tables on `chrono`, re-run `pnpm --filter @agora/chrono-api
+db:migrate` from scratch so all 16 migrations replay, then `pnpm --filter
+@agora/chrono-api seed`. Dev holds only seed data, so nothing of value is lost.
+
+**Follow-up worth its own plan:** make the shared test harness refuse to run
+against a database whose name doesn't match `*test*` **before** it drops
+anything (the guard exists but is bypassable via `E2E_ALLOW_DESTRUCTIVE=1`, and
+several harnesses reassign `process.env.DATABASE_URL` themselves), and teach
+`tableDdl()` to emit FKs/CHECKs/partial-index `WHERE` clauses so harness-created
+schemas match the real migrations.
