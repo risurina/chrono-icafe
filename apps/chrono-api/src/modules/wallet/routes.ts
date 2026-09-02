@@ -18,6 +18,7 @@ import { chronoWallet, chronoWalletTransaction } from "./schema";
 import { creditWallet, debitWallet, adjustWalletBalance } from "./service";
 import { creditWalletSchema, debitWalletSchema, adjustWalletSchema } from "./contracts";
 import { earnLoyaltyPoints } from "../loyalty/service";
+import { findOpenShiftForStaff } from "../shift/service";
 
 function buildPaginationMeta(
   page: number,
@@ -201,6 +202,14 @@ export function walletRoutes() {
 
         const result = await withTenant(tenantId, async (tx) => {
           await requireTenantMember(tx, memberId);
+          let shiftId: string | null = null;
+          if (input.cashTendered) {
+            const shift = await findOpenShiftForStaff(tx, { tenantId, userId });
+            if (!shift) {
+              throw new HttpError(409, "No open shift for this branch — open a shift before a cash transaction.");
+            }
+            shiftId = shift.id;
+          }
           const creditResult = await creditWallet(tx, {
             tenantId,
             memberId,
@@ -208,6 +217,7 @@ export function walletRoutes() {
             reason: input.reason ?? "Manual top-up",
             referenceType: input.referenceType,
             performedByUserId: userId,
+            shiftId: shiftId ?? undefined,
           });
           // Auto-earn on a wallet top-up — no symmetric reversal on debit/
           // refund (developer decision, loyalty Open Question 5).
@@ -242,6 +252,14 @@ export function walletRoutes() {
 
         const result = await withTenant(tenantId, async (tx) => {
           await requireTenantMember(tx, memberId);
+          let shiftId: string | null = null;
+          if (input.cashTendered) {
+            const shift = await findOpenShiftForStaff(tx, { tenantId, userId });
+            if (!shift) {
+              throw new HttpError(409, "No open shift for this branch — open a shift before a cash transaction.");
+            }
+            shiftId = shift.id;
+          }
           return debitWallet(tx, {
             tenantId,
             memberId,
@@ -249,6 +267,7 @@ export function walletRoutes() {
             reason: input.reason,
             referenceType: input.referenceType,
             performedByUserId: userId,
+            shiftId: shiftId ?? undefined,
           });
         });
 

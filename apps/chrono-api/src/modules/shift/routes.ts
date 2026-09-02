@@ -6,6 +6,7 @@ import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoShift } from "./schema";
+import { findOpenShiftForStaff } from "./service";
 import { openShiftSchema, closeShiftSchema, listShiftsQuerySchema } from "./contracts";
 import { calculatePosExpectedCash } from "../pos/service";
 import { addMoney, negateMoney } from "../wallet/money";
@@ -97,22 +98,11 @@ export function shiftRoutes() {
         throw new HttpError(400, "branchId is required.");
       }
 
-      const [row] = await withTenant(tenantId, (tx) =>
-        tx
-          .select()
-          .from(chronoShift)
-          .where(
-            and(
-              eq(chronoShift.branchId, branchId),
-              eq(chronoShift.staffUserId, userId),
-              eq(chronoShift.status, "open"),
-            ),
-          )
-          .orderBy(desc(chronoShift.openedAt))
-          .limit(1),
+      const row = await withTenant(tenantId, (tx) =>
+        findOpenShiftForStaff(tx, { tenantId, userId, branchId }),
       );
 
-      return c.json({ shift: row ?? null });
+      return c.json({ shift: row });
     })
 
     .post("/shifts/open", zValidator("json", openShiftSchema), async (c) => {

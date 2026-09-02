@@ -52,6 +52,7 @@ async function applyWalletDelta(
     referenceId?: string;
     performedByUserId?: string;
     allowNegative?: boolean; // debit guard escape hatch — only "adjustment" sets this
+    shiftId?: string;
   },
 ) {
   const wallet = await lockWalletForUpdate(tx, args.tenantId, args.memberId);
@@ -85,6 +86,7 @@ async function applyWalletDelta(
       referenceType: args.referenceType,
       referenceId: args.referenceId,
       performedByUserId: args.performedByUserId,
+      shiftId: args.shiftId,
     })
     .returning();
 
@@ -106,6 +108,7 @@ export function creditWallet(
     referenceType?: string;
     referenceId?: string;
     performedByUserId?: string;
+    shiftId?: string;
   },
 ) {
   return applyWalletDelta(tx, { ...args, delta: args.amount, type: "credit" });
@@ -121,6 +124,7 @@ export function debitWallet(
     referenceType?: string;
     referenceId?: string;
     performedByUserId?: string;
+    shiftId?: string;
   },
 ) {
   return applyWalletDelta(tx, {

@@ -32,12 +32,14 @@ export const creditWalletSchema = z.object({
   amount: moneyAmountSchema,
   reason: z.string().min(1).max(255).optional(), // defaults to "Manual top-up" in the route
   referenceType: z.string().max(50).optional(),
+  cashTendered: z.boolean().default(false).optional(),
 });
 
 export const debitWalletSchema = z.object({
   amount: moneyAmountSchema,
   reason: z.string().min(1).max(255),
   referenceType: z.string().max(50).optional(),
+  cashTendered: z.boolean().default(false).optional(),
 });
 
 export const adjustWalletSchema = z.object({
