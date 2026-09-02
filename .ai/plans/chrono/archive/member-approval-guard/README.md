@@ -427,3 +427,26 @@ then `members/README.md:305-310`.
    rejected". Those are arguably different-weight decisions. Out of scope as written, and
    it does **not** block any phase — splitting it later is additive. Say the word if you
    want it split.
+
+## Status: COMPLETE (2026-09-02)
+
+- **Phase 1** — guard both transitions: committed `458d7b9` (conditional UPDATE,
+  404-vs-409 split inside one `withTenant` callback, audit only on a real
+  transition, per-row UI busy state + neutral `toast.info` on 409).
+- **Phase 2** — concurrency + regression test: committed `af0a7ff`.
+  `test:member-concurrency` 9/9 against real Postgres. **Negative test
+  performed as the acceptance criteria require**: with the
+  `not(eq(applicationStatus, 'approved'))` predicate deleted, the test goes red
+  (10 concurrent approves succeed instead of 1, zero 409s, both re-approve
+  assertions fail); restored, it goes green. It tests the guard, not plumbing.
+- **Phase 3** — decouple `customer-onboarding`: **moot, no action needed.** This
+  phase existed to strip stale approve/reject assumptions out of other plans'
+  text. Both targets (`customer-onboarding`, `members`) have since been fully
+  implemented and archived out of `active/`, so there is nothing stale left to
+  annotate — verified by the phase's own check: `grep -rn "applicationStatus"
+  .ai/plans/chrono/active/` returns hits in this file only.
+
+Naming note for future readers: the script is `test:member-concurrency`, per
+this plan's own "Naming" section (match `test:<module>-concurrency` exactly).
+The plan's Phase 2 "Verification commands" line says `test:member-approval`,
+contradicting that section — the Naming section won.
