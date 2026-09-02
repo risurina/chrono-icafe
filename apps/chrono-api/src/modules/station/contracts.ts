@@ -58,3 +58,36 @@ export type UpdateStationGroupInput = z.infer<typeof updateStationGroupSchema>;
 export type CreateStationInput = z.infer<typeof createStationSchema>;
 export type UpdateStationInput = z.infer<typeof updateStationSchema>;
 export type StationStatus = z.infer<typeof stationStatusSchema>;
+
+// Response DTOs — deliberately OMIT `qrSecret`/`qrSecretVersion` (the `qr`
+// module's HMAC signing material). Never widen these to a raw row shape.
+export const stationGroupDtoSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  branchId: z.string(),
+  name: z.string(),
+  code: z.string(),
+  description: z.string().nullable(),
+  hourlyRate: z.string(),
+  memberRate: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const stationDtoSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  branchId: z.string(),
+  stationGroupId: z.string().nullable(),
+  name: z.string(),
+  stationNumber: z.string(),
+  stationType: z.string(),
+  status: stationStatusSchema,
+  locationZone: z.string().nullable(),
+  specs: stationSpecsSchema.nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type StationGroupDto = z.infer<typeof stationGroupDtoSchema>;
+export type StationDto = z.infer<typeof stationDtoSchema>;

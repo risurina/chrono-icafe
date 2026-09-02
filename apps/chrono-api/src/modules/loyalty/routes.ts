@@ -10,8 +10,25 @@ import {
   redeemPointsSchema,
   adjustPointsSchema,
   loyaltyAccountListQuerySchema,
+  toLoyaltyAccountDto,
+  toLoyaltyTransactionDto,
+  type LoyaltyTier,
 } from "./contracts";
 import { listQuerySchema } from "agora";
+
+/** Staff-facing loyalty-account list row (account + joined member identity) —
+ * never the raw Drizzle join result. */
+type LoyaltyAccountListItem = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  memberEmail: string;
+  pointsBalance: number;
+  lifetimePoints: number;
+  tier: LoyaltyTier;
+  createdAt: string;
+  updatedAt: string;
+};
 
 function buildPaginationMeta(
   page: number,
@@ -101,8 +118,20 @@ export function loyaltyRoutes() {
           return { rows, totalItems: total?.value ?? 0 };
         });
 
+        const items: LoyaltyAccountListItem[] = rows.map((r) => ({
+          id: r.id,
+          memberId: r.memberId,
+          memberName: r.memberName,
+          memberEmail: r.memberEmail,
+          pointsBalance: r.pointsBalance,
+          lifetimePoints: r.lifetimePoints,
+          tier: r.tier as LoyaltyTier,
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+        }));
+
         return c.json({
-          items: rows,
+          items,
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },
@@ -124,17 +153,10 @@ export function loyaltyRoutes() {
       });
 
       // Reads never create a row (mirrors oikos's own correct "reads never
-      // create" behavior) — synthesize a zero-state shape for a member who
-      // has never earned anything instead.
-      return c.json({
-        account: account ?? {
-          memberId,
-          pointsBalance: 0,
-          lifetimePoints: 0,
-          tier: "bronze",
-          exists: false,
-        },
-      });
+      // create" behavior). Stable shape either way: `account` is the DTO or
+      // `null` — never a shape-shifting zero-state object the UI would have
+      // to branch on.
+      return c.json({ account: account ? toLoyaltyAccountDto(account) : null });
     })
 
     .get(
@@ -164,7 +186,7 @@ export function loyaltyRoutes() {
         });
 
         return c.json({
-          items: rows,
+          items: rows.map(toLoyaltyTransactionDto),
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },
@@ -197,7 +219,10 @@ export function loyaltyRoutes() {
           targetType: "loyaltyAccount",
           targetId: result.account.id,
         });
-        return c.json(result);
+        return c.json({
+          account: toLoyaltyAccountDto(result.account),
+          transaction: toLoyaltyTransactionDto(result.transaction),
+        });
       },
     )
 
@@ -228,7 +253,10 @@ export function loyaltyRoutes() {
           targetType: "loyaltyAccount",
           targetId: result.account.id,
         });
-        return c.json(result);
+        return c.json({
+          account: toLoyaltyAccountDto(result.account),
+          transaction: toLoyaltyTransactionDto(result.transaction),
+        });
       },
     )
 
@@ -259,7 +287,10 @@ export function loyaltyRoutes() {
           targetType: "loyaltyAccount",
           targetId: result.account.id,
         });
-        return c.json(result);
+        return c.json({
+          account: toLoyaltyAccountDto(result.account),
+          transaction: toLoyaltyTransactionDto(result.transaction),
+        });
       },
     );
 }

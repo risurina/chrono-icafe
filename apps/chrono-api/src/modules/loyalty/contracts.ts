@@ -78,3 +78,61 @@ export type EarnPointsInput = z.infer<typeof earnPointsSchema>;
 export type RedeemPointsInput = z.infer<typeof redeemPointsSchema>;
 export type AdjustPointsInput = z.infer<typeof adjustPointsSchema>;
 export type LoyaltyAccountListQuery = z.infer<typeof loyaltyAccountListQuerySchema>;
+
+type LoyaltyAccountRow = {
+  id: string;
+  tenantId: string;
+  memberId: string;
+  pointsBalance: number;
+  lifetimePoints: number;
+  tier: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function toLoyaltyAccountDto(row: LoyaltyAccountRow): LoyaltyAccount {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    memberId: row.memberId,
+    pointsBalance: row.pointsBalance,
+    lifetimePoints: row.lifetimePoints,
+    tier: row.tier as LoyaltyTier,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+type LoyaltyTransactionRow = {
+  id: string;
+  tenantId: string;
+  accountId: string;
+  memberId: string;
+  type: string;
+  points: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  reason: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  performedByUserId: string | null;
+  createdAt: Date;
+};
+
+export function toLoyaltyTransactionDto(row: LoyaltyTransactionRow): LoyaltyTransaction {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    accountId: row.accountId,
+    memberId: row.memberId,
+    type: row.type as LoyaltyTransactionType,
+    points: row.points,
+    balanceBefore: row.balanceBefore,
+    balanceAfter: row.balanceAfter,
+    reason: row.reason,
+    referenceType: row.referenceType,
+    referenceId: row.referenceId,
+    performedByUserId: row.performedByUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}

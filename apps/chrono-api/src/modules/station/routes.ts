@@ -13,7 +13,85 @@ import {
   updateStationGroupSchema,
   stationListQuerySchema,
   stationGroupListQuerySchema,
+  type StationDto,
+  type StationGroupDto,
 } from "./contracts";
+
+/** Explicit column list — never `qrSecret`/`qrSecretVersion` (`.ai/rules/dto.md`). */
+const stationColumns = {
+  id: chronoStation.id,
+  tenantId: chronoStation.tenantId,
+  branchId: chronoStation.branchId,
+  stationGroupId: chronoStation.stationGroupId,
+  name: chronoStation.name,
+  stationNumber: chronoStation.stationNumber,
+  stationType: chronoStation.stationType,
+  status: chronoStation.status,
+  locationZone: chronoStation.locationZone,
+  specs: chronoStation.specs,
+  createdAt: chronoStation.createdAt,
+  updatedAt: chronoStation.updatedAt,
+};
+
+type StationRow = {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  stationGroupId: string | null;
+  name: string;
+  stationNumber: string;
+  stationType: string;
+  status: string;
+  locationZone: string | null;
+  specs: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function toStationDto(row: StationRow): StationDto {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    branchId: row.branchId,
+    stationGroupId: row.stationGroupId,
+    name: row.name,
+    stationNumber: row.stationNumber,
+    stationType: row.stationType,
+    status: row.status as StationDto["status"],
+    locationZone: row.locationZone,
+    specs: row.specs as StationDto["specs"],
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+type StationGroupRow = {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  name: string;
+  code: string;
+  description: string | null;
+  hourlyRate: string;
+  memberRate: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function toStationGroupDto(row: StationGroupRow): StationGroupDto {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    branchId: row.branchId,
+    name: row.name,
+    code: row.code,
+    description: row.description,
+    hourlyRate: row.hourlyRate,
+    memberRate: row.memberRate,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -207,7 +285,7 @@ export function stationRoutes() {
             .from(chronoStation)
             .where(where);
           const rows = await tx
-            .select()
+            .select(stationColumns)
             .from(chronoStation)
             .where(where)
             .orderBy(sortFn(sortCol))
@@ -217,7 +295,7 @@ export function stationRoutes() {
         });
 
         return c.json({
-          items: rows,
+          items: rows.map(toStationDto),
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },
@@ -258,7 +336,7 @@ export function stationRoutes() {
         });
 
         return c.json({
-          items: rows,
+          items: rows.map(toStationGroupDto),
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },
@@ -304,7 +382,7 @@ export function stationRoutes() {
           targetId: created?.id,
           targetLabel: created?.name,
         });
-        return c.json({ stationGroup: created }, 201);
+        return c.json({ stationGroup: created ? toStationGroupDto(created) : null }, 201);
       },
     )
 
@@ -350,7 +428,7 @@ export function stationRoutes() {
           targetId: updated.id,
           targetLabel: updated.name,
         });
-        return c.json({ stationGroup: updated });
+        return c.json({ stationGroup: toStationGroupDto(updated) });
       },
     )
 
@@ -429,7 +507,7 @@ export function stationRoutes() {
         targetId: created?.id,
         targetLabel: created?.name,
       });
-      return c.json({ station: created }, 201);
+      return c.json({ station: created ? toStationDto(created) : null }, 201);
     })
 
     .patch("/stations/:id", zValidator("json", updateStationSchema), async (c) => {
@@ -484,7 +562,7 @@ export function stationRoutes() {
         targetId: updated.id,
         targetLabel: updated.name,
       });
-      return c.json({ station: updated });
+      return c.json({ station: toStationDto(updated) });
     })
 
     .delete("/stations/:id", async (c) => {

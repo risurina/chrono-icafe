@@ -4,7 +4,7 @@ import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
 import { createId } from "agora";
 import { chronoMemberProfile } from "./schema";
-import { applyForMembershipSchema } from "./contracts";
+import { applyForMembershipSchema, toMemberProfile } from "./contracts";
 
 /**
  * Customer-facing venue-membership self-service surface — gated by the
@@ -25,7 +25,7 @@ export function memberPortalRoutes() {
           .where(eq(chronoMemberProfile.memberId, memberId))
           .limit(1),
       );
-      return c.json({ profile: row ?? null });
+      return c.json({ profile: row ? toMemberProfile(row) : null });
     })
     .post("/apply", zValidator("json", applyForMembershipSchema), async (c) => {
       const { tenantId, memberId } = c.var.member;
@@ -42,7 +42,7 @@ export function memberPortalRoutes() {
           .limit(1),
       );
       if (existing[0]) {
-        return c.json({ profile: existing[0] });
+        return c.json({ profile: toMemberProfile(existing[0]) });
       }
 
       const [created] = await withTenant(tenantId, (tx) =>
@@ -60,6 +60,6 @@ export function memberPortalRoutes() {
 
       // Customer-initiated action — unaudited in this pass (recordStaffAudit
       // is staff-actor-shaped; see the module plan's Routes section).
-      return c.json({ profile: created }, 201);
+      return c.json({ profile: created ? toMemberProfile(created) : null }, 201);
     });
 }

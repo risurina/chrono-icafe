@@ -5,7 +5,7 @@ import { type TenantVars, HttpError, zValidator } from "agora/server";
 import { createId, listQuerySchema } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../../db/schema";
-import { createBranchSchema, updateBranchSchema } from "./contracts";
+import { createBranchSchema, updateBranchSchema, toBranchDto } from "./contracts";
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -79,7 +79,7 @@ export function branchRoutes() {
         });
 
         return c.json({
-          items: rows,
+          items: rows.map(toBranchDto),
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },
@@ -127,7 +127,7 @@ export function branchRoutes() {
         targetId: created?.id,
         targetLabel: created?.name,
       });
-      return c.json({ branch: created }, 201);
+      return c.json({ branch: created ? toBranchDto(created) : null }, 201);
     })
 
     .patch("/branches/:id", zValidator("json", updateBranchSchema), async (c) => {
@@ -176,6 +176,6 @@ export function branchRoutes() {
         targetId: updated.id,
         targetLabel: updated.name,
       });
-      return c.json({ branch: updated });
+      return c.json({ branch: toBranchDto(updated) });
     });
 }

@@ -9,7 +9,7 @@ import {
 import { listQuerySchema, type PaginationMeta } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoMemberProfile } from "./schema";
-import { updateMemberProfileSchema } from "./contracts";
+import { updateMemberProfileSchema, toMemberProfile } from "./contracts";
 
 /** Shared `{page, pageSize, ...}` → `PaginationMeta` builder, mirroring
  * apps/chrono-api/src/routes/rpc.ts's own helper — duplicated locally (not
@@ -156,7 +156,7 @@ export function memberProfileRoutes() {
           targetId: row.id,
           targetLabel: row.memberId,
         });
-        return c.json({ profile: row });
+        return c.json({ profile: toMemberProfile(row) });
       },
     )
     .post("/:memberId/approve", async (c) => {
@@ -183,7 +183,7 @@ export function memberProfileRoutes() {
         targetId: row.id,
         targetLabel: row.memberId,
       });
-      return c.json({ profile: row });
+      return c.json({ profile: toMemberProfile(row) });
     })
     .post("/:memberId/reject", async (c) => {
       const { tenantId } = c.var.tenant;
@@ -209,6 +209,6 @@ export function memberProfileRoutes() {
         targetId: row.id,
         targetLabel: row.memberId,
       });
-      return c.json({ profile: row });
+      return c.json({ profile: toMemberProfile(row) });
     });
 }
