@@ -35,8 +35,15 @@ import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-midd
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  // Drizzle sometimes wraps the real pg error, putting the SQLSTATE on
+  // `cause.code` rather than `code` itself — check both rather than assume
+  // one shape (found via a latent bug in this same check copied into the
+  // qr module, .ai/plans/chrono/active/qr/README.md Phase 3).
+  if ("code" in err && err.code === "23505") return true;
+  const cause = (err as { cause?: unknown }).cause;
   return (
-    typeof err === "object" && err !== null && "code" in err && err.code === "23505"
+    typeof cause === "object" && cause !== null && "code" in cause && cause.code === "23505"
   );
 }
 
