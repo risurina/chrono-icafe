@@ -570,74 +570,76 @@ export default function CreditsPage() {
 
       {/* Action Dialog (Sell/Grant/Consume) */}
       <Dialog open={!!actionDialog} onOpenChange={(open) => !open && setActionDialog(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {actionDialog?.type === "sell" ? "Sell Credit Product" : actionDialog?.type === "grant" ? "Grant Credits" : "Consume Credits"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={submitAction} className="space-y-4">
-            {actionDialog?.type === "sell" && (
-              <div className="space-y-2">
-                <Label htmlFor="product">Product</Label>
-                <Select value={sellProductId} onValueChange={setSellProductId} required>
-                  <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-                  <SelectContent>
-                    {activeProducts.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityMinutes}m - {p.priceAmount})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {actionDialog?.type !== "sell" && (
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity (minutes)</Label>
-                <Input id="quantity" type="number" value={quantityMinutes} onChange={e => setQuantityMinutes(e.target.value)} required />
-              </div>
-            )}
-
-            {actionDialog?.type !== "sell" && (
-              <div className="space-y-2">
-                <Label htmlFor="group">Station Group (Optional)</Label>
-                <Select value={stationGroupId} onValueChange={setStationGroupId}>
-                  <SelectTrigger><SelectValue placeholder="Any station" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any station</SelectItem>
-                    {groups.map(g => (
-                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {actionDialog?.type === "grant" && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="policy">Credit Policy</Label>
-                  <Select value={creditPolicy} onValueChange={(v: "strict_group_only" | "any_station") => setCreditPolicy(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+            <div className="grid grid-cols-2 gap-4">
+              {actionDialog?.type === "sell" && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="product">Product</Label>
+                  <Select value={sellProductId} onValueChange={setSellProductId} required>
+                    <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="any_station">Any Station</SelectItem>
-                      <SelectItem value="strict_group_only">Strict Group Only</SelectItem>
+                      {activeProducts.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityMinutes}m - {p.priceAmount})</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expiresAt">Expires At (Optional)</Label>
-                  <Input id="expiresAt" type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
-                </div>
-              </>
-            )}
+              )}
 
-            {actionDialog?.type !== "sell" && (
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason</Label>
-                <Textarea id="reason" value={reason} onChange={e => setReason(e.target.value)} required />
-              </div>
-            )}
+              {actionDialog?.type !== "sell" && (
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity (minutes)</Label>
+                  <Input id="quantity" type="number" value={quantityMinutes} onChange={e => setQuantityMinutes(e.target.value)} required />
+                </div>
+              )}
+
+              {actionDialog?.type !== "sell" && (
+                <div className="space-y-2">
+                  <Label htmlFor="group">Station Group (Optional)</Label>
+                  <Select value={stationGroupId} onValueChange={setStationGroupId}>
+                    <SelectTrigger><SelectValue placeholder="Any station" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any station</SelectItem>
+                      {groups.map(g => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {actionDialog?.type === "grant" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="policy">Credit Policy</Label>
+                    <Select value={creditPolicy} onValueChange={(v: "strict_group_only" | "any_station") => setCreditPolicy(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any_station">Any Station</SelectItem>
+                        <SelectItem value="strict_group_only">Strict Group Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expiresAt">Expires At (Optional)</Label>
+                    <Input id="expiresAt" type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+                  </div>
+                </>
+              )}
+
+              {actionDialog?.type !== "sell" && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="reason">Reason</Label>
+                  <Textarea id="reason" value={reason} onChange={e => setReason(e.target.value)} required />
+                </div>
+              )}
+            </div>
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setActionDialog(null)}>Cancel</Button>
@@ -650,57 +652,56 @@ export default function CreditsPage() {
 
       {/* Product Create/Edit Dialog */}
       <Dialog open={!!productDialog} onOpenChange={(open) => !open && setProductDialog(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{productDialog?.mode === "create" ? "Create Product" : "Edit Product"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitProduct} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="pName">Name</Label>
-              <Input id="pName" value={productName} onChange={e => setProductName(e.target.value)} required />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="pCode">Code</Label>
-              <Input id="pCode" value={productCode} onChange={e => setProductCode(e.target.value)} disabled={productDialog?.mode === "edit"} required />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="pName">Name</Label>
+                <Input id="pName" value={productName} onChange={e => setProductName(e.target.value)} required />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pCode">Code</Label>
+                <Input id="pCode" value={productCode} onChange={e => setProductCode(e.target.value)} disabled={productDialog?.mode === "edit"} required />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="pQuantity">Quantity (minutes)</Label>
                 <Input id="pQuantity" type="number" value={productQuantity} onChange={e => setProductQuantity(e.target.value)} disabled={productDialog?.mode === "edit"} required />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="pPrice">Price Amount</Label>
                 <Input id="pPrice" type="text" placeholder="0.00" value={productPrice} onChange={e => setProductPrice(e.target.value)} required />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pGroup">Station Group</Label>
-              <Select value={productGroupId} onValueChange={setProductGroupId}>
-                <SelectTrigger><SelectValue placeholder="Any station" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Any station</SelectItem>
-                  {groups.map(g => (
-                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="pGroup">Station Group</Label>
+                <Select value={productGroupId} onValueChange={setProductGroupId}>
+                  <SelectTrigger><SelectValue placeholder="Any station" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any station</SelectItem>
+                    {groups.map(g => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pPolicy">Credit Policy</Label>
-              <Select value={productPolicy} onValueChange={(v: "strict_group_only" | "any_station") => setProductPolicy(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any_station">Any Station</SelectItem>
-                  <SelectItem value="strict_group_only">Strict Group Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="pPolicy">Credit Policy</Label>
+                <Select value={productPolicy} onValueChange={(v: "strict_group_only" | "any_station") => setProductPolicy(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any_station">Any Station</SelectItem>
+                    <SelectItem value="strict_group_only">Strict Group Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="pValidity">Validity (Days) - Optional</Label>
                 <Input id="pValidity" type="number" value={productValidity} onChange={e => setProductValidity(e.target.value)} />

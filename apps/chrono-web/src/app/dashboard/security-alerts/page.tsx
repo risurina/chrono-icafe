@@ -287,7 +287,7 @@ export default function SecurityAlertsPage() {
               <Button onClick={openReport}>Report Incident</Button>
             </Can>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Report incident</DialogTitle>
             </DialogHeader>

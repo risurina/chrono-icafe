@@ -400,128 +400,130 @@ export default function PromosPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Promo" : "New Promo"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitDialog} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Branch (optional — tenant-wide when unset)</Label>
-              <Select
-                value={form.branchId || "all"}
-                onValueChange={(v) => setForm({ ...form, branchId: v === "all" ? "" : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All branches</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Row items="center" gap={2}>
-              <input
-                id="requiresCode"
-                type="checkbox"
-                checked={form.requiresCode}
-                onChange={(e) => setForm({ ...form, requiresCode: e.target.checked })}
-              />
-              <Label htmlFor="requiresCode">Requires a coupon code</Label>
-            </Row>
-            {form.requiresCode ? (
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="name">Name</Label>
                 <Input
-                  id="code"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  placeholder="WELCOME10"
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
                 />
               </div>
-            ) : null}
-            <div className="space-y-2">
-              <Label>Discount Type</Label>
-              <Select
-                value={form.discountType}
-                onValueChange={(v) => setForm({ ...form, discountType: v as PromoDiscountType })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">Percentage</SelectItem>
-                  <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="discountValue">Discount Value</Label>
-              <Input
-                id="discountValue"
-                inputMode="decimal"
-                placeholder={form.discountType === "percentage" ? "10" : "10.00"}
-                value={form.discountValue}
-                onChange={(e) => setForm({ ...form, discountValue: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="minSpend">Minimum Spend (optional)</Label>
-              <Input
-                id="minSpend"
-                inputMode="decimal"
-                value={form.minSpend}
-                onChange={(e) => setForm({ ...form, minSpend: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="startsAt">Starts At (optional)</Label>
-              <DateTimeInput
-                id="startsAt"
-                value={form.startsAt}
-                onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endsAt">Ends At</Label>
-              <DateTimeInput
-                id="endsAt"
-                value={form.endsAt}
-                onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxRedemptions">Max Redemptions (optional)</Label>
-              <Input
-                id="maxRedemptions"
-                inputMode="numeric"
-                value={form.maxRedemptions}
-                onChange={(e) => setForm({ ...form, maxRedemptions: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxRedemptionsPerMember">Max Redemptions Per Member (optional)</Label>
-              <Input
-                id="maxRedemptionsPerMember"
-                inputMode="numeric"
-                value={form.maxRedemptionsPerMember}
-                onChange={(e) => setForm({ ...form, maxRedemptionsPerMember: e.target.value })}
-              />
+              <div className="space-y-2 col-span-2">
+                <Label>Branch (optional — tenant-wide when unset)</Label>
+                <Select
+                  value={form.branchId || "all"}
+                  onValueChange={(v) => setForm({ ...form, branchId: v === "all" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All branches</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Row items="center" gap={2} className="col-span-2">
+                <input
+                  id="requiresCode"
+                  type="checkbox"
+                  checked={form.requiresCode}
+                  onChange={(e) => setForm({ ...form, requiresCode: e.target.checked })}
+                />
+                <Label htmlFor="requiresCode">Requires a coupon code</Label>
+              </Row>
+              {form.requiresCode ? (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="code">Code</Label>
+                  <Input
+                    id="code"
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    placeholder="WELCOME10"
+                  />
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <Label>Discount Type</Label>
+                <Select
+                  value={form.discountType}
+                  onValueChange={(v) => setForm({ ...form, discountType: v as PromoDiscountType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discountValue">Discount Value</Label>
+                <Input
+                  id="discountValue"
+                  inputMode="decimal"
+                  placeholder={form.discountType === "percentage" ? "10" : "10.00"}
+                  value={form.discountValue}
+                  onChange={(e) => setForm({ ...form, discountValue: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="minSpend">Minimum Spend (optional)</Label>
+                <Input
+                  id="minSpend"
+                  inputMode="decimal"
+                  value={form.minSpend}
+                  onChange={(e) => setForm({ ...form, minSpend: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="startsAt">Starts At (optional)</Label>
+                <DateTimeInput
+                  id="startsAt"
+                  value={form.startsAt}
+                  onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endsAt">Ends At</Label>
+                <DateTimeInput
+                  id="endsAt"
+                  value={form.endsAt}
+                  onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxRedemptions">Max Redemptions (optional)</Label>
+                <Input
+                  id="maxRedemptions"
+                  inputMode="numeric"
+                  value={form.maxRedemptions}
+                  onChange={(e) => setForm({ ...form, maxRedemptions: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxRedemptionsPerMember">Max Redemptions Per Member (optional)</Label>
+                <Input
+                  id="maxRedemptionsPerMember"
+                  inputMode="numeric"
+                  value={form.maxRedemptionsPerMember}
+                  onChange={(e) => setForm({ ...form, maxRedemptionsPerMember: e.target.value })}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={closeDialog}>

@@ -62,7 +62,7 @@ function isUniqueViolation(err: unknown): boolean {
 // Unambiguous uppercase alphabet — excludes O/0 and I/1, which are read aloud
 // at a physical PC and easily confused (security-hardening Phase 1).
 const PAIRING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const PAIRING_CODE_LENGTH = 6;
+const PAIRING_CODE_LENGTH = 8;
 
 /** Cryptographically random pairing code, ≥10 chars, no ambiguous glyphs. */
 function generatePairingCode(): string {

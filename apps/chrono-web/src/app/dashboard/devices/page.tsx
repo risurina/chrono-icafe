@@ -593,59 +593,61 @@ export default function DevicesPage() {
                   <Key className="mr-2 h-4 w-4" /> Generate Pairing Code
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Generate Pairing Code</DialogTitle>
                 </DialogHeader>
                 {!generatedCode ? (
                   <form onSubmit={createToken} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="t-branch">Branch *</Label>
-                      <Select
-                        value={tokenForm.branchId}
-                        onValueChange={(v) => setTokenForm({ ...tokenForm, branchId: v })}
-                        required
-                      >
-                        <SelectTrigger id="t-branch">
-                          <SelectValue placeholder="Select branch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {branches.map((b) => (
-                            <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="t-name">Name *</Label>
-                      <Input
-                        id="t-name"
-                        value={tokenForm.name}
-                        onChange={(e) => setTokenForm({ ...tokenForm, name: e.target.value })}
-                        required
-                        placeholder="e.g. Reception PC Setup"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="t-ttl">Expires in (minutes)</Label>
-                      <Input
-                        id="t-ttl"
-                        type="number"
-                        min="1"
-                        value={tokenForm.pairingCodeTtlMinutes}
-                        onChange={(e) => setTokenForm({ ...tokenForm, pairingCodeTtlMinutes: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="t-uses">Max Uses (optional)</Label>
-                      <Input
-                        id="t-uses"
-                        type="number"
-                        min="1"
-                        placeholder="Unbounded"
-                        value={tokenForm.maxUses}
-                        onChange={(e) => setTokenForm({ ...tokenForm, maxUses: e.target.value })}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2 col-span-2">
+                        <Label htmlFor="t-branch">Branch *</Label>
+                        <Select
+                          value={tokenForm.branchId}
+                          onValueChange={(v) => setTokenForm({ ...tokenForm, branchId: v })}
+                          required
+                        >
+                          <SelectTrigger id="t-branch">
+                            <SelectValue placeholder="Select branch" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 col-span-2">
+                        <Label htmlFor="t-name">Name *</Label>
+                        <Input
+                          id="t-name"
+                          value={tokenForm.name}
+                          onChange={(e) => setTokenForm({ ...tokenForm, name: e.target.value })}
+                          required
+                          placeholder="e.g. Reception PC Setup"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="t-ttl">Expires in (minutes)</Label>
+                        <Input
+                          id="t-ttl"
+                          type="number"
+                          min="1"
+                          value={tokenForm.pairingCodeTtlMinutes}
+                          onChange={(e) => setTokenForm({ ...tokenForm, pairingCodeTtlMinutes: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="t-uses">Max Uses (optional)</Label>
+                        <Input
+                          id="t-uses"
+                          type="number"
+                          min="1"
+                          placeholder="Unbounded"
+                          value={tokenForm.maxUses}
+                          onChange={(e) => setTokenForm({ ...tokenForm, maxUses: e.target.value })}
+                        />
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button type="submit" disabled={tokenSaving || !tokenForm.branchId || !tokenForm.name}>

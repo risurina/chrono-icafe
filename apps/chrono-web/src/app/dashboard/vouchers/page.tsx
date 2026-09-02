@@ -329,71 +329,73 @@ export default function VouchersPage() {
 
       {/* Issue Dialog */}
       <Dialog open={issueOpen} onOpenChange={(open) => !open && closeIssue()}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Issue Voucher</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitIssue} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Discount Type</Label>
-              <Select
-                value={discountType}
-                onValueChange={(v) => setDiscountType(v as "percentage" | "fixed_amount")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">Percentage</SelectItem>
-                  <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="discountValue">Discount Value</Label>
-              <Input
-                id="discountValue"
-                inputMode="decimal"
-                placeholder={discountType === "percentage" ? "10" : "10.00"}
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="code">Code (optional)</Label>
-              <Input
-                id="code"
-                placeholder="Auto-generated if empty"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="memberId">Member ID (optional)</Label>
-              <Input
-                id="memberId"
-                placeholder="Restrict to a specific member"
-                value={memberId}
-                onChange={(e) => setMemberId(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="promoId">Promo ID (optional)</Label>
-              <Input
-                id="promoId"
-                placeholder="Link to a promotion"
-                value={promoId}
-                onChange={(e) => setPromoId(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expiresAt">Expires At (optional)</Label>
-              <DateTimeInput
-                id="expiresAt"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Discount Type</Label>
+                <Select
+                  value={discountType}
+                  onValueChange={(v) => setDiscountType(v as "percentage" | "fixed_amount")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discountValue">Discount Value</Label>
+                <Input
+                  id="discountValue"
+                  inputMode="decimal"
+                  placeholder={discountType === "percentage" ? "10" : "10.00"}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="code">Code (optional)</Label>
+                <Input
+                  id="code"
+                  placeholder="Auto-generated if empty"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="memberId">Member ID (optional)</Label>
+                <Input
+                  id="memberId"
+                  placeholder="Restrict to a specific member"
+                  value={memberId}
+                  onChange={(e) => setMemberId(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="promoId">Promo ID (optional)</Label>
+                <Input
+                  id="promoId"
+                  placeholder="Link to a promotion"
+                  value={promoId}
+                  onChange={(e) => setPromoId(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expiresAt">Expires At (optional)</Label>
+                <DateTimeInput
+                  id="expiresAt"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={closeIssue}>
