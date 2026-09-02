@@ -66,3 +66,62 @@
     font-size: var(--font-size-body-lg);
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * REACT-FLOW-STYLE THEME OVERRIDE (Chrono-only, experimental)
+ * Overrides the foundation tokens imported from agora/ui/globals.css above.
+ * To revert: delete this block (or `git checkout` this file) — nothing
+ * outside apps/chrono-web is touched.
+ * ──────────────────────────────────────────────────────────────────────── */
+:root {
+  --background: oklch(0.995 0 0);
+  --foreground: oklch(0.16 0.01 285);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.01 285);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.01 285);
+  --primary: oklch(0.58 0.2 291);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.97 0.002 285);
+  --secondary-foreground: oklch(0.2 0.01 285);
+  --muted: oklch(0.97 0.002 285);
+  --muted-foreground: oklch(0.52 0.015 285);
+  --accent: oklch(0.94 0.03 291);
+  --accent-foreground: oklch(0.3 0.1 291);
+  --border: oklch(0.9 0.004 285);
+  --input: oklch(0.9 0.004 285);
+  --ring: oklch(0.58 0.2 291);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.145 0.004 285);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.19 0.005 285);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.19 0.005 285);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.72 0.17 291);
+  --primary-foreground: oklch(0.145 0.004 285);
+  --secondary: oklch(0.24 0.005 285);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.24 0.005 285);
+  --muted-foreground: oklch(0.68 0.01 285);
+  --accent: oklch(0.28 0.04 291);
+  --accent-foreground: oklch(0.9 0.06 291);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.17 291);
+}
+
+/* Dot-grid canvas background, React Flow's signature — opt in with this
+ * class on a container, not applied globally. */
+.rf-dot-grid {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    var(--border) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+/* ──────────────────────────────────────────────────────────────────────── */
