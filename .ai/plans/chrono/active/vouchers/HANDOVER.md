@@ -20,3 +20,8 @@
   Debit/refund point-reversal (Open Question 5) deliberately NOT modeled,
   matching oikos precedent.
 - 2026-09-02 — Phase 5 (web UI) delegated to Jules, fired in parallel with the other two modules' Phase 5 sessions. Expect a manual layout.tsx nav-entry merge across all three when pulling.
+- 2026-09-02 — Session `3600133028452633880` pulled: page.tsx applied
+  cleanly, layout.tsx needed a manual nav-entry merge (collided with
+  loyalty's own Phase 5 landing the same nav region), zero any-types,
+  typecheck+build clean. Committed (`796e496`, combined with loyalty).
+  **Phase 5 done, Phase 6 (e2e) next.**

@@ -23,3 +23,6 @@
   Debit/refund point-reversal (Open Question 5) deliberately NOT modeled,
   matching oikos precedent.
 - 2026-09-02 — Phase 5 (web UI) delegated to Jules, fired in parallel with the other two modules' Phase 5 sessions. Expect a manual layout.tsx nav-entry merge across all three when pulling.
+- 2026-09-02 — Phase 5 (web UI) session `2376761933710073487` stalled on a
+  Google sign-in wall (same issue as wallet's own Phase 4) — discarded,
+  built locally instead. See commit once it lands.
