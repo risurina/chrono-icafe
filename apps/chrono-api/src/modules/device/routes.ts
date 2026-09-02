@@ -32,6 +32,16 @@ import {
   heartbeatSchema,
 } from "./contracts";
 import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-middleware";
+import { createRateLimiter } from "agora/server";
+import { chronoSecurityAlert } from "../security-alert/schema";
+import { deviceReportSecurityAlertSchema } from "../security-alert/contracts";
+
+// A device could be compromised/misbehaving and spam alerts; 10/hour is
+// generous for genuine tamper/incident events (rare) while bounding the
+// worst case (mirrors devicePairCodeLimiter/deviceAuthTokenLimiter's own
+// per-secret-scale numbers in app.ts, scaled up slightly since this is a
+// post-auth, already-approved-device path, not a credential-guessing one).
+const deviceSecurityAlertLimiter = createRateLimiter(10, 60 * 60 * 1000, "device-security-alert");
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -709,6 +719,52 @@ export function deviceAuthRoutes() {
         // Minimal, honest response — no session/pricing/reservation payload
         // (that's `sessions`' concern once it exists).
         return c.json({ status: "ok", timestamp: now.toISOString() });
+      },
+    )
+
+    // POST /security-alert — device-bearer-protected (security-alerts Phase 5).
+    // branchId/stationId/deviceId are never taken from the client — derived
+    // solely from the authenticated device's own row, exactly like heartbeat
+    // above never trusts a client-supplied deviceId/tenantId.
+    .post(
+      "/security-alert",
+      requireDeviceBearerAuth(),
+      zValidator("json", deviceReportSecurityAlertSchema),
+      async (c) => {
+        const device = c.var.device;
+        const input = c.req.valid("json");
+
+        const retryAfter = await deviceSecurityAlertLimiter.blockedFor(device.deviceId);
+        if (retryAfter !== null) {
+          return c.json(
+            { error: "Too many alerts reported by this device. Try again later." },
+            429,
+            { "Retry-After": String(retryAfter) },
+          );
+        }
+
+        const [created] = await withTenant(device.tenantId, (tx) =>
+          tx
+            .insert(chronoSecurityAlert)
+            .values({
+              tenantId: device.tenantId,
+              branchId: device.branchId,
+              stationId: device.stationId,
+              deviceId: device.deviceId,
+              raisedBy: "device",
+              severity: input.severity,
+              type: input.type,
+              message: input.message,
+              metadata: input.metadata ?? null,
+            })
+            .returning({ id: chronoSecurityAlert.id }),
+        );
+
+        await deviceSecurityAlertLimiter.record(device.deviceId);
+
+        // 201, no human-facing payload needed — mirrors the plan's own
+        // "no UI feedback (no human in the loop)" acceptance criterion.
+        return c.json({ id: created?.id, status: "recorded" as const }, 201);
       },
     );
 }

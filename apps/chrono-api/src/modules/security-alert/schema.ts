@@ -3,6 +3,7 @@ import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
+import { chronoDevice } from "../device/schema";
 
 export const chronoSecurityAlert = pgTable(
   "ChronoSecurityAlerts",
@@ -17,10 +18,12 @@ export const chronoSecurityAlert = pgTable(
     stationId: text("stationId").references(() => chronoStation.id, {
       onDelete: "set null",
     }),
-    // Nullable by design (Dependency decision above) — set once `devices`
-    // lands and a kiosk reports the alert itself. Never populated by this
-    // plan's own Phases 1-4.
-    deviceId: text("deviceId"),
+    // Nullable — only set when raisedBy === "device" (Phase 5). Real FK,
+    // set null on device deletion so a historical alert survives the
+    // reporting kiosk being decommissioned (matches stationId's own
+    // onDelete: "set null" for the same "history outlives the hardware
+    // record" reasoning).
+    deviceId: text("deviceId").references(() => chronoDevice.id, { onDelete: "set null" }),
     // "device" | "staff" — who/what created the row. Not a pg enum (matches
     // convention); Zod-validated at the contract layer instead.
     raisedBy: text("raisedBy").notNull(),

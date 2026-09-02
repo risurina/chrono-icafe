@@ -28,6 +28,16 @@ export const reportSecurityAlertSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+// Device-facing report payload (Phase 5) — deliberately narrower than the
+// staff schema: branchId/stationId are never taken from the client, only
+// derived server-side from the authenticated device's own row.
+export const deviceReportSecurityAlertSchema = z.object({
+  severity: securityAlertSeveritySchema,
+  type: securityAlertTypeSchema,
+  message: z.string().min(1).max(2000),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const resolveSecurityAlertSchema = z.object({
   resolutionNote: z.string().min(1).max(2000), // required — Divergence 2
 });
@@ -45,5 +55,6 @@ export type SecurityAlertSeverity = z.infer<typeof securityAlertSeveritySchema>;
 export type SecurityAlertType = z.infer<typeof securityAlertTypeSchema>;
 export type SecurityAlertStatus = z.infer<typeof securityAlertStatusSchema>;
 export type ReportSecurityAlertInput = z.infer<typeof reportSecurityAlertSchema>;
+export type DeviceReportSecurityAlertInput = z.infer<typeof deviceReportSecurityAlertSchema>;
 export type ResolveSecurityAlertInput = z.infer<typeof resolveSecurityAlertSchema>;
 export type SecurityAlertListQuery = z.infer<typeof securityAlertListQuerySchema>;

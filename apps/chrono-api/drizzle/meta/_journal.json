@@ -92,6 +92,13 @@
       "when": 1788403200001,
       "tag": "0012_add_device_pairing_code_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788329376834,
+      "tag": "0013_add_security_alert_device_fk",
+      "breakpoints": true
     }
   ]
 }
