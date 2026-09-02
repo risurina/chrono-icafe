@@ -1,6 +1,7 @@
 # Chrono — apex + tenant landing rebrand
 
-**Status:** Draft — awaiting developer approval.
+**Status:** Accepted — delegated to Jules (both phases, one session; see "Jules
+prompt (verbatim)" below). Verification stays local.
 
 ## What this is
 
@@ -209,11 +210,110 @@ Visual pass on `acme.localtest.me:3000` with a seeded tenant.
    root page`), per `.ai/rules/implementation.md`.
 5. Move this plan to `.ai/plans/chrono/archive/chrono-landing/`.
 
-## Open questions for the developer
+## Decisions (pinned — this plan has NO open questions)
 
-1. **Product name on the page** — "Chrono" as-is, or is there a real commercial
-   name/wordmark/tagline to use instead? The draft uses "Chrono".
-2. **Pricing** — the current page has no pricing section and this plan doesn't
-   add one. Should it?
-3. **Testimonials** — removed rather than fabricated. If real venue quotes exist,
-   the section comes back unchanged.
+Resolved before delegation so the implementer never has to ask. Each is a
+default the developer can revise later in a follow-up commit; none blocks
+implementation.
+
+1. **Product name** — "Chrono". No alternative wordmark exists yet.
+2. **Pricing section** — NOT added. The page has none today and Chrono has no
+   published price list.
+3. **Testimonials** — removed, not rewritten. No real venue customers exist and
+   fabricated quotes must not ship on a live marketing page.
+4. **Roles grid width** — `<Grid cols={4}>` for the four-audience section
+   (owner / manager / floor staff / customer). Not 3-plus-wrap.
+5. **Hero tech-stack badge row** — deleted entirely from the apex hero.
+6. **Both phases ship in one delegated session** — they are two halves of the
+   same file (`page.tsx`), so they cannot be split across concurrent sessions
+   without a guaranteed conflict.
+
+## Jules prompt (verbatim)
+
+Session id: `<recorded in .ai/handover/jules-sessions.md at fire time>`
+
+```
+Implement .ai/plans/chrono/active/chrono-landing/README.md EXACTLY as written —
+read that file first, both Phase 1 and Phase 2, plus its "Decisions (pinned)"
+section.
+
+Scope: rebrand the Chrono web app's landing page from the generic Agora scaffold
+copy to Chrono (a gaming/internet-cafe venue-management product — see
+apps/chrono-api/AGENTS.md "Business domain" and "Modules" for the vocabulary).
+
+Files you may touch, and NO others:
+  - apps/chrono-web/src/app/page.tsx
+  - apps/chrono-web/src/app/layout.tsx  (DEFAULT_TITLE / DEFAULT_DESCRIPTION only)
+
+Phase 1 — the apex half (the `if (!tenant)` branch, currently lines 63-517).
+Apply the old-to-new section table in the plan exactly:
+  - highlights: replace the 4 Agora entries with SIX Chrono module cards —
+    Stations & floor map, Timed sessions, Wallet & credits, Members & loyalty,
+    Shifts & staff, POS & reservations. Keep the existing <Grid cols={2}>.
+  - withoutAgora/withAgora -> withoutChrono/withChrono; card title "With Agora"
+    -> "With Chrono"; re-aim the copy at "spreadsheets and a whiteboard" vs
+    Chrono.
+  - DELETE the testimonials array, its entire <Section>, and the now-unused
+    `Testimonial` import.
+  - roles: replace with FOUR audiences — Owner, Manager, Floor staff, Customer —
+    describing which surface each touches. Change that grid to <Grid cols={4}>.
+  - ADD a new "Surfaces" section between Roles and Onboarding: three Cards
+    (Card/CardHeader/CardTitle/CardDescription, same shape as the roles grid)
+    for the staff dashboard, the customer portal, and the public live-stations
+    page.
+  - steps: Create your venue -> Add branches & stations -> Open the floor.
+  - stats/faqs: rewrite for venue operators. FAQ topics: multi-branch, kiosk /
+    PC client, offline behaviour, payments & wallet, migrating existing data,
+    pricing.
+  - Header brand: `Map` icon + "Agora" -> `Timer` icon + "Chrono". Hero badge:
+    "Chrono - Venue management". DELETE the tech-stack Badge row
+    (["Next.js","Hono","Neon","Drizzle","Better Auth"]). Rewrite the hero
+    heading/subhead, the "Why Agora" eyebrow, the closing CTA, and the
+    SiteFooter brand line.
+  - layout.tsx: DEFAULT_TITLE and DEFAULT_DESCRIPTION -> Chrono wording.
+
+Phase 2 — the tenant-host half (after the `if (!tenant)` branch, lines 519-675).
+  - tenantHighlights: replace the three generic cards with Live seat
+    availability, Your wallet & session history, Book ahead (reservations).
+    Swap the KeyRound / ShieldCheck-as-ShieldIcon / LifeBuoy icons for
+    MonitorPlay / Wallet / CalendarClock.
+  - Add a "See live stations" link to /stations in the hero <Row>.
+  - The sign-in grid goes from <Grid cols={2}> to <Grid cols={3}>: keep the
+    Customers and Staff cards, add a third "About this venue" card linking to
+    /about.
+  - Re-word the hero subhead for a venue customer.
+  - DO NOT change BrandHeader, branding?.tagline, the `heading` variable, or the
+    footer's {heading} — the tenant half must stay driven by per-tenant
+    branding. No Chrono brand string may appear in the tenant-host half.
+
+Hard constraints:
+  - Compose ONLY from the agora/ui primitives the file already imports. Add no
+    new primitive and no new raw div/header/nav/section chrome beyond the
+    gradient/mask/padding wrappers already in the file
+    (.ai/rules/component-first-ui.md).
+  - Icons come from lucide-react, same import style. Remove every import that
+    becomes unused (Map, Layers, Globe, KeyRound, Testimonial, ShieldCheck alias
+    if dropped).
+  - NO fabricated customer quotes, logos, or usage metrics anywhere. The stats
+    tiles describe product capability (e.g. "Branches per venue / Unlimited"),
+    never numbers Chrono has not earned.
+  - Do NOT touch the API, schema, RLS, APP_TENANT_TABLES, migrations,
+    permissions, contracts, packages/agora, or apps/agora-web. This is a
+    presentation-layer change only.
+  - No AI/agent attribution anywhere in the code, commits, or PR body.
+  - `pnpm --filter @agora/chrono-web typecheck` must pass with no `any` and no
+    unused imports.
+
+Acceptance checklist (self-check before finishing):
+  [ ] No occurrence of "Agora" remains in apps/chrono-web/src/app/page.tsx or in
+      layout.tsx's DEFAULT_TITLE/DEFAULT_DESCRIPTION.
+  [ ] Testimonials section and import are gone.
+  [ ] Surfaces section exists between Roles and Onboarding.
+  [ ] Tenant-host half still renders purely from branding + tenant.name.
+  [ ] typecheck passes; no unused imports.
+
+Do not ask clarifying questions. Every decision is pinned in the plan's
+"Decisions (pinned)" section; if any detail is still unspecified, choose the
+option that matches the surrounding code in the same file and note the
+assumption in the PR description — never pause for input.
+```
