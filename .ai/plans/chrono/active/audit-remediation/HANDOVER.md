@@ -19,7 +19,7 @@ reference below stay valid.
 | 4 — Shifts: close ownership + row lock | local | done | committed `4b6b018`; 4/4 integration checks against real Postgres |
 | 5 — Move Chrono customer permissions out of `packages/agora` | local | done | committed `546b7c2`; both scaffold (314) and Chrono (377) permission suites pass |
 | 7 — Money helpers + remove float fallbacks | local | done | committed `cc3b90b`; zero remaining `Number()` money arithmetic |
-| 9 — Documentation sweep (9a–9e) | local | partial | 9a done (`e9d2993`); 9b-9e not started |
+| 9 — Documentation sweep (9a–9e) | local | done | 9a `e9d2993`, 9d/9e `9869d67`+`5105595`, 9c `4a84f7d`. 9b (false HANDOVER status tables) subsumed by archiving branches/stations/shifts/members/devices with accurate final status appended. |
 
 ## Log
 
@@ -105,3 +105,13 @@ reference below stay valid.
   landed together: whole-workspace typecheck clean (7/7), chrono-api
   rls:proof PASS. **Phases 2, 4, 5, 7 all done. Remaining: Phase 9b-9e
   (docs only).**
+- 2026-09-02 — Phase 9 completed: 9a (permission-seam text, `e9d2993`), 9c
+  (security-alerts Phase 5 unblocked note, `4a84f7d`), 9d (wrong
+  verification targets across reports/inquiries/tenant-landing/
+  reconciliation/qr/security-alerts, `9869d67`+`5105595`), 9e (stale
+  empty-modules README deleted, `9869d67`; plan closure already done via
+  archiving branches/stations/shifts/members/devices earlier). 9b (false
+  HANDOVER status tables) is subsumed by that same archiving — each
+  archived plan's HANDOVER now ends with an accurate final status note.
+  **All of audit-remediation's fixable phases (1, 2, 4, 5, 7, 9) are now
+  done.**
