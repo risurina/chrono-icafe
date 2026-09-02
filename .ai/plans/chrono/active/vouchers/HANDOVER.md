@@ -25,3 +25,4 @@
   loyalty's own Phase 5 landing the same nav region), zero any-types,
   typecheck+build clean. Committed (`796e496`, combined with loyalty).
   **Phase 5 done, Phase 6 (e2e) next.**
+- 2026-09-02 — Phase 6 (e2e spec) delegated to Jules, session `13858218166643170575`. Fired in parallel with loyalty/promos Phase 6.

@@ -29,3 +29,4 @@
 - 2026-09-02 — Built locally instead (session `2376761933710073487`
   discarded per developer direction). Committed (`5610d3a`), zero
   any-types, typecheck+build clean. **Phase 5 done, Phase 6 (e2e) next.**
+- 2026-09-02 — Phase 6 (e2e spec) delegated to Jules, session `10373575048047962490`. Fired in parallel with loyalty/vouchers Phase 6.

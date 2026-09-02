@@ -24,3 +24,4 @@
 - 2026-09-02 — Session `3037915470740316386` pulled: page.tsx + layout.tsx
   applied cleanly, zero any-types, typecheck+build clean. Committed
   (`796e496`, combined with vouchers). **Phase 5 done, Phase 6 (e2e) next.**
+- 2026-09-02 — Phase 6 (e2e spec) delegated to Jules, session `15718223737293268309`. Fired in parallel with vouchers/promos Phase 6.
