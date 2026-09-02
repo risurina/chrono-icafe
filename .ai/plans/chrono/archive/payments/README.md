@@ -1,10 +1,21 @@
 # Chrono — `payment` module (reconciliation with oikos/karta-tenant)
 
-Status: **Audited, revised 2026-09-02** — `plan-auditor` verdict was NEEDS REVISION
-(idempotency-key precedent claim was false, `pay` route was ungated, double-refund
-semantics self-contradicted, a nonexistent `wallet` API was referenced, verification
-commands targeted the wrong package). All findings applied below. Phase 1 and 3 were
-already implementation-ready; Phase 2 is now fixed. Ready for implementation.
+Status: **Archived 2026-09-02 — all 3 phases landed.** Phase 1 (schema + RLS +
+contracts), Phase 2 (service + routes + permission gates), Phase 3 (web UI + e2e,
+Phase 3's e2e spec delegated to Jules session `1260577097211669521`, pulled and fixed
+locally — see `.ai/handover/jules-sessions.md`) — `pnpm typecheck` (both apps),
+`rls:proof`, `test:permissions` all clean. Not carried over: the standalone
+`concurrency.test.ts` and the `payment` gate block in `src/e2e/run.ts` (deferred, noted
+at implementation time as out of scope for this pass); `reverseSideEffects` only
+reverses the plain wallet-top-up case (a payment funding a `ChronoCreditPurchase` has no
+`paymentId` linking column yet — deferred, see "Deliberate differences from oikos"
+below).
+
+Status (superseded): **Audited, revised 2026-09-02** — `plan-auditor` verdict was NEEDS
+REVISION (idempotency-key precedent claim was false, `pay` route was ungated,
+double-refund semantics self-contradicted, a nonexistent `wallet` API was referenced,
+verification commands targeted the wrong package). All findings applied below. Phase 1
+and 3 were already implementation-ready; Phase 2 is now fixed. Ready for implementation.
 
 ## Resolved decisions
 
