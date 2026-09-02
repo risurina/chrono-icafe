@@ -40,6 +40,12 @@ import {
   Badge,
   FaqItem,
   StatTile,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
 } from "agora/ui";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
@@ -151,6 +157,43 @@ export default async function Home() {
         title: "Open the floor",
         description: "Invite your staff and start checking in customers.",
       },
+      {
+        title: "Track wallets & shifts",
+        description: "Top up member balances and let staff open shifts to start reconciling cash.",
+      },
+    ];
+
+    const comparisonRows = [
+      {
+        label: "Scope of visibility",
+        legacy: "Per-PC, per-desktop only",
+        chrono: "Every branch, every station, one dashboard",
+      },
+      {
+        label: "Payment tracking",
+        legacy: "Manual notebook or spreadsheet",
+        chrono: "Wallet balances debited automatically, tied to the shift",
+      },
+      {
+        label: "Staff accountability",
+        legacy: "No record of who did what",
+        chrono: "Every session, sale, and cash movement attributed to a shift",
+      },
+      {
+        label: "Multi-branch support",
+        legacy: "Separate, disconnected installs",
+        chrono: "Unlimited branches under one venue, one login",
+      },
+      {
+        label: "Customer self-service",
+        legacy: "None — front desk only",
+        chrono: "Customer portal for balance, history, and booking",
+      },
+      {
+        label: "Data isolation model",
+        legacy: "Shared local files, no real boundary",
+        chrono: "Per-tenant row-level security enforced at the database",
+      },
     ];
 
     const stats = [
@@ -246,13 +289,13 @@ export default async function Home() {
             />
             <Stack gap={6} className="items-center py-28 text-center">
               <Badge variant="secondary" className="uppercase tracking-widest">
-                Chrono - Venue management
+                Chrono - Gaming Cafe Management
               </Badge>
               <h1 className="text-balance text-5xl font-bold tracking-tight sm:text-7xl">
-                Run your gaming venue on modern software.
+                Track every session, every peso, every staff action.
               </h1>
               <p className="max-w-2xl text-balance text-lg text-muted-foreground sm:text-xl">
-                Manage floor maps, automated timed sessions, member wallets, and staff shifts in one place. Stop fighting legacy desktop software and start running your cafe from the cloud.
+                Chrono gives gaming cafe owners one dashboard to track every session, every peso, and every staff action across all your branches. Catch the leaks before they cost you — without standing behind the counter.
               </p>
               <Row wrap justify="center" gap={3} className="pt-2">
                 <Link
@@ -367,6 +410,39 @@ export default async function Home() {
             </div>
           </Section>
 
+          <Section maxWidth="full" border="bottom">
+            <div className="py-20">
+              <Stack gap={2} className="mb-12 max-w-prose">
+                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Comparison
+                </span>
+                <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
+                  A modern alternative to legacy timer software.
+                </h2>
+              </Stack>
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Capability</TableHead>
+                      <TableHead>Legacy timer software</TableHead>
+                      <TableHead>Chrono</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparisonRows.map((row) => (
+                      <TableRow key={row.label}>
+                        <TableCell className="font-medium">{row.label}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.legacy}</TableCell>
+                        <TableCell>{row.chrono}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </Section>
+
           <Section maxWidth="full" border="bottom" tone="muted">
             <div className="py-20">
               <Stack gap={2} className="mb-12 max-w-prose">
@@ -445,13 +521,13 @@ export default async function Home() {
             <div className="py-20">
               <Stack gap={2} className="mb-12 max-w-prose">
                 <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Onboarding
+                  How it works
                 </span>
                 <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  Get started in three steps.
+                  Structured for daily venue operations.
                 </h2>
               </Stack>
-              <Grid cols={3} gap={4}>
+              <Grid cols={4} gap={4}>
                 {steps.map(({ title, description }, i) => (
                   <Stack key={title} gap={3}>
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-sm font-semibold text-background">
