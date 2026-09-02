@@ -179,16 +179,21 @@ export function shiftRoutes() {
           .select({
             id: chronoShift.id,
             status: chronoShift.status,
+            staffUserId: chronoShift.staffUserId,
             openingCashAmount: chronoShift.openingCashAmount,
           })
           .from(chronoShift)
           .where(and(eq(chronoShift.id, id), eq(chronoShift.tenantId, tenantId)))
+          .for("update")
           .limit(1);
         if (!existing) {
           throw new HttpError(404, "Shift not found.");
         }
         if (existing.status === "closed") {
           throw new HttpError(409, "This shift is already closed.");
+        }
+        if (existing.staffUserId !== c.var.tenant.userId) {
+          requirePermission(c.var.tenant.permissions, { shift: ["closeAny"] });
         }
 
         const expectedCashAmount = addMoney(

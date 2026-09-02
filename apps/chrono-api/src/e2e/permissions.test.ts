@@ -1330,6 +1330,24 @@ check(
   hasChronoPermission("member", { shift: ["open"] }) === false,
 );
 
+console.log("\n── chrono shift closeAny permission (audit-remediation Phase 4) ──");
+// closeAny gates closing a shift you did NOT open — admin+ only. Staff must
+// stay denied here (this check must fail if closeAny is ever added to
+// CHRONO_STAFF_GRANTS) even though staff still holds plain shift:close for
+// its own shifts.
+check(
+  "staff is denied shift:closeAny",
+  hasChronoPermission("staff", { shift: ["closeAny"] }) === false,
+);
+check(
+  "admin holds shift:closeAny",
+  hasChronoPermission("admin", { shift: ["closeAny"] }),
+);
+check(
+  "owner holds shift:closeAny",
+  hasChronoPermission("owner", { shift: ["closeAny"] }),
+);
+
 console.log("\n── chrono wallet permissions (wallet Phase 3) ──");
 // staff holds credit/debit (oikos's own STAFF-inclusive top-up/debit gate)
 // but not adjust; admin/owner hold all four, per Open Question 1's resolution

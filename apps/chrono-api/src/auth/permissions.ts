@@ -16,7 +16,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   station: ["create", "update", "delete"],
   // Any staff/admin/owner may open or close a shift — not owner-restricted,
   // matches oikos. See .ai/plans/chrono/active/shifts/HANDOVER.md.
-  shift: ["open", "close"],
+  // `closeAny` is a separate, admin+-only action (Phase 4,
+  // .ai/plans/chrono/active/audit-remediation/README.md): closing a shift
+  // you did not open — otherwise any staff member could close someone
+  // else's open shift and misattribute a cash discrepancy to the wrong
+  // cashier. Deliberately NOT granted to staff.
+  shift: ["open", "close", "closeAny"],
   // Booking/check-in/cancel/no-show is routine front-desk work, not a
   // financial or configuration action — no staff/admin split (Open Question
   // 7). See .ai/plans/chrono/active/reservations/README.md.
@@ -104,7 +109,7 @@ export const CHRONO_STAFF_GRANTS = {
 export const CHRONO_ADMIN_GRANTS = {
   branch: ["create", "update"],
   station: ["create", "update", "delete"],
-  shift: ["open", "close"],
+  shift: ["open", "close", "closeAny"],
   reservation: ["read", "manage"],
   device: ["approve", "revoke", "manage"],
   wallet: ["read", "credit", "debit", "adjust"],
