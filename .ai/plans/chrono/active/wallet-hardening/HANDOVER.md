@@ -12,7 +12,7 @@ more than writing it.
 
 | Phase | Owner | Status | Notes |
 |---|---|---|---|
-| 1 — Correct the `wallet` plan + handover | local | not started | docs only; land before `wallet` Phase 4 is delegated, since the stale text is what a delegated agent reads |
+| 1 — Correct the `wallet` plan + handover | local | done | committed `a5377c5` |
 | 2 — Bound money amounts (contract + cumulative) | local | not started | `numeric(12,2)` max is `9999999999.99` |
 | 3 — Route correctness (audit metadata, `q` search, portal sort) | local | not started | |
 | 4 — Ledger integrity constraints (migration) | local | not started | run the pre-flight violation query BEFORE editing the schema |
@@ -42,6 +42,22 @@ more than writing it.
   `portal-routes.ts:72` vs `:80`); no DB-level `CHECK` on the ledger invariant
   (real). The uncommitted `M apps/chrono-api/src/auth/permissions.ts` in the
   working tree at the time was POS work, unrelated to wallet.
+- 2026-09-02 — Phase 1 done, committed `a5377c5`. Five corrections to
+  `wallet/README.md`: the permission block now shows
+  `apps/chrono-api/src/auth/permissions.ts` with all three grant objects and
+  the `registerAppPermissions()` bootstrap (plus an explicit "this module does
+  not touch `packages/agora`" line); Open Question 1 marked RESOLVED as shipped,
+  with the original reasoning kept for the record; Phase 3's Files-to-Update and
+  Execution Start Point repointed to the app seam; both route-mount references
+  corrected to `.route("/", walletRoutes())` (the factory declares its own full
+  `/wallets/...` paths); and a new **lock-ordering rule** added to the exported-
+  surface contract — acquire the wallet lock last, never hold it across an
+  external call — with the `onConflictDoNothing` blocking behaviour spelled out
+  as the reason. `wallet/HANDOVER.md`: Phase 3 row corrected to `done`, the
+  header's claim that Phase 3 edits `packages/agora` rewritten rather than
+  annotated, and a log entry recording the audit's real findings and the two
+  false ones. Verified: `grep -rn "packages/agora/src/auth/permissions"` over
+  the wallet plan folder returns nothing.
 - 2026-09-02 — Confirmed with the developer that the wallet's per-tenant,
   non-transferable scoping is correct as built (a customer signs up globally via
   `agora/customer-auth`, applies to a tenant shop, and the wallet is keyed on
