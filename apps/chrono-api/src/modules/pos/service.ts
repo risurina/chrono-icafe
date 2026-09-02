@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, schema as base } from "agora/db";
+import { and, asc, eq, inArray, sql, schema as base } from "agora/db";
 import type { TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { debitWallet, creditWallet } from "../wallet/service";
@@ -278,11 +278,17 @@ export async function refundSale(
   tx: TenantTx,
   args: { tenantId: string; saleId: string; reason: string; performedByUserId: string },
 ): Promise<ChronoSaleRow> {
+  // Locked FIRST, and the status re-checked while the lock is held: without
+  // this, two concurrent refunds both read "completed", both credit the wallet,
+  // and the sale is refunded twice — money created from nothing. The sale row
+  // always exists, so unlike an overlap check this lock genuinely serializes
+  // contenders (same discipline as wallet/service.ts's lockWalletForUpdate).
   const [sale] = await tx
     .select()
     .from(chronoSale)
     .where(and(eq(chronoSale.tenantId, args.tenantId), eq(chronoSale.id, args.saleId)))
-    .limit(1);
+    .limit(1)
+    .for("update");
   if (!sale) {
     throw new HttpError(404, "Sale not found.");
   }
@@ -295,6 +301,22 @@ export async function refundSale(
     tx.select().from(chronoSalePayment).where(eq(chronoSalePayment.saleId, sale.id)),
   ]);
 
+  // Stock is restored BEFORE the wallet credit, per the wallet module's
+  // lock-ordering rule (.ai/plans/chrono/active/wallet/README.md): acquire the
+  // wallet lock last, after every other row lock this transaction needs.
+  // In-place `stockQuantity + n` rather than read-then-write, so a concurrent
+  // checkout holding the product lock cannot have its decrement lost.
+  for (const item of items) {
+    if (!item.productId) continue;
+    await tx
+      .update(chronoProduct)
+      .set({
+        stockQuantity: sql`${chronoProduct.stockQuantity} + ${item.quantity}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(chronoProduct.id, item.productId), eq(chronoProduct.trackStock, true)));
+  }
+
   for (const payment of payments) {
     if (payment.method !== "wallet" || !sale.memberId) continue;
     await creditWallet(tx, {
@@ -306,20 +328,6 @@ export async function refundSale(
       referenceId: sale.id,
       performedByUserId: args.performedByUserId,
     });
-  }
-
-  for (const item of items) {
-    if (!item.productId) continue;
-    const [product] = await tx
-      .select({ id: chronoProduct.id, trackStock: chronoProduct.trackStock, stockQuantity: chronoProduct.stockQuantity })
-      .from(chronoProduct)
-      .where(eq(chronoProduct.id, item.productId))
-      .limit(1);
-    if (!product?.trackStock) continue;
-    await tx
-      .update(chronoProduct)
-      .set({ stockQuantity: product.stockQuantity + item.quantity, updatedAt: new Date() })
-      .where(eq(chronoProduct.id, item.productId));
   }
 
   const [updated] = await tx

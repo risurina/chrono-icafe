@@ -253,6 +253,107 @@ async function main() {
     oversoldRejected,
   );
 
+  // ---------------------------------------------------------------------
+  // Refund double-submit. Before the sale row was locked FOR UPDATE, two
+  // concurrent refunds both read status "completed", both credited the wallet,
+  // and both flipped the status — crediting the member twice for one sale.
+  // ---------------------------------------------------------------------
+  const { refundSale } = await import("./service");
+  const { creditWallet } = await import("../wallet/service");
+  const { chronoWallet } = await import("../wallet/schema");
+
+  const memberId = createId();
+  await withTenant(tenantId, (tx) =>
+    tx.insert(schema.tenantMember).values({
+      id: memberId,
+      tenantId,
+      email: "refund-probe@pos-concurrency.test",
+      name: "Refund Probe",
+      passwordHash: "not-a-real-hash-probe-never-authenticates",
+    }),
+  );
+  await withTenant(tenantId, (tx) =>
+    creditWallet(tx, {
+      tenantId,
+      memberId,
+      amount: "100.00",
+      reason: "seed for refund concurrency probe",
+    }),
+  );
+
+  const [refundProduct] = await withTenant(tenantId, (tx) =>
+    tx
+      .insert(chronoProduct)
+      .values({
+        id: createId(),
+        tenantId,
+        name: "Refundable Item",
+        sku: "refundable-item",
+        price: "10.00",
+        trackStock: true,
+        stockQuantity: 5,
+      })
+      .returning(),
+  );
+
+  const walletSale = await withTenant(tenantId, (tx) =>
+    checkout(tx, {
+      tenantId,
+      branchId: branch!.id,
+      cashierUserId,
+      input: {
+        branchId: branch!.id,
+        idempotencyKey: createId(),
+        memberId,
+        items: [{ productId: refundProduct!.id, quantity: 1 }],
+        payments: [{ method: "wallet", amount: "10.00" }],
+      } as any,
+    }),
+  );
+
+  const [balanceAfterSale] = await withTenant(tenantId, (tx) =>
+    tx.select().from(chronoWallet).where(eq(chronoWallet.memberId, memberId)),
+  );
+
+  console.log(`\nFiring ${N} concurrent refunds of ONE wallet-paid sale…\n`);
+  const refundResults = await Promise.allSettled(
+    Array.from({ length: N }, () =>
+      withTenant(tenantId, (tx) =>
+        refundSale(tx, {
+          tenantId,
+          saleId: walletSale.sale.id,
+          reason: "concurrency probe",
+          performedByUserId: cashierUserId,
+        }),
+      ),
+    ),
+  );
+  const refundsSucceeded = refundResults.filter((r) => r.status === "fulfilled").length;
+
+  check(
+    "exactly one of the concurrent refunds succeeds",
+    refundsSucceeded === 1,
+    `got ${refundsSucceeded} succeeded out of ${N}`,
+  );
+
+  const [balanceAfterRefunds] = await withTenant(tenantId, (tx) =>
+    tx.select().from(chronoWallet).where(eq(chronoWallet.memberId, memberId)),
+  );
+  check(
+    "wallet is credited exactly once (refund amount, not a multiple of it)",
+    balanceAfterRefunds?.balance === "100.00",
+    `balance was ${balanceAfterSale?.balance} after the sale, ${balanceAfterRefunds?.balance} after ${N} refunds; expected 100.00`,
+  );
+
+  const [productAfterRefunds] = await withTenant(tenantId, (tx) =>
+    tx.select().from(chronoProduct).where(eq(chronoProduct.id, refundProduct!.id)),
+  );
+  check(
+    "stock is restored exactly once",
+    productAfterRefunds?.stockQuantity === 5,
+    `got ${productAfterRefunds?.stockQuantity}, expected 5`,
+  );
+
   await pool.end?.();
   await adminPool.end?.();
 
