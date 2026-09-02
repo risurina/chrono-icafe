@@ -48,6 +48,8 @@ import { rpc, lifecycle, signFileForTenant, confirmFileForTenant } from "./route
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
+import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
+import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import {
   tenantBranding,
   tenantSsoConnection,
@@ -479,6 +481,9 @@ export const app = new Hono()
   // Chrono: customer-facing active-session self-service (own active/paused
   // session) — gated by memberMiddleware() inside sessionPortalRoutes() itself.
   .route("/portal/sessions", sessionPortalRoutes())
+  // Chrono: customer-facing inquiry self-service (submit / own list / own
+  // thread) — gated by memberMiddleware() inside inquiryPortalRoutes() itself.
+  .route("/portal/inquiries", inquiryPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);
@@ -865,6 +870,10 @@ export const app = new Hono()
   // internally (per-IP + per-station on `/resolve`) — see
   // `apps/chrono-api/src/modules/qr/public-routes.ts`.
   .route("/public/qr", qrPublicRoutes())
+  // Chrono: anonymous public "Contact Us" submission — rate-limited,
+  // host-resolved, outside /rpc/tenantMiddleware() (see
+  // apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention).
+  .route("/public/inquiries", inquiryPublicRoutes())
   // Platform Maintenance / global read-only enforcement (System Settings, spec
   // #14) for TENANT traffic only. The `/rpc-admin/*` surface is a separate
   // mount and never passes through here, so an admin can always turn the flags

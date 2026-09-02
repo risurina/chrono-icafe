@@ -68,6 +68,7 @@ import { posRoutes } from "../modules/pos/routes";
 import { sessionRoutes } from "../modules/session/routes";
 import { reportRoutes } from "../modules/report/routes";
 import { securityAlertRoutes } from "../modules/security-alert/routes";
+import { inquiryRoutes } from "../modules/inquiry/routes";
 import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { voucherRoutes } from "../modules/voucher/routes";
 import { promoRoutes } from "../modules/promo/routes";
@@ -1419,6 +1420,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: security alerts, staff-facing (RLS-protected, staff/admin/owner read+manage) — apps/chrono-api/src/modules/security-alert ──
   .route("/security-alerts", securityAlertRoutes())
+
+  // ── Chrono: inquiries, staff-facing (RLS-protected, staff/admin/owner read+manage) — apps/chrono-api/src/modules/inquiry ──
+  .route("/inquiries", inquiryRoutes())
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())
