@@ -4,19 +4,31 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "agora/ui";
 import { Badge } from "agora/ui";
 
+type StationAggregate = {
+  total: number;
+  available: number;
+  inUse: number;
+};
+
+type PublicStation = {
+  id: string;
+  name: string;
+  stationNumber: string;
+  stationType?: string;
+  status: string;
+};
+
+type PublicBranchStations = {
+  id: string;
+  name: string;
+  code: string;
+  aggregate: StationAggregate;
+  stations: PublicStation[];
+};
+
 type PublicStationData = {
-  aggregate: {
-    total: number;
-    available: number;
-    inUse: number;
-  };
-  stations: Array<{
-    id: string;
-    name: string;
-    stationNumber: string;
-    stationType?: string;
-    status: string;
-  }>;
+  aggregate: StationAggregate;
+  branches: PublicBranchStations[];
 };
 
 export function StationAvailabilityPoller({ initialData }: { initialData: PublicStationData }) {
@@ -67,45 +79,63 @@ export function StationAvailabilityPoller({ initialData }: { initialData: Public
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {data.stations.map((station) => (
-          <Card key={station.id} className="overflow-hidden">
-            <div
-              className={`h-2 w-full ${
-                station.status === "available"
-                  ? "bg-green-500"
-                  : station.status === "maintenance"
-                  ? "bg-orange-500"
-                  : "bg-red-500"
-              }`}
-            />
-            <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
-              <div className="text-2xl font-bold">{station.stationNumber}</div>
-              <div className="text-xs text-muted-foreground truncate w-full">{station.name}</div>
-              <Badge
-                variant={station.status === "available" ? "default" : "secondary"}
-                className={
-                  station.status === "available"
-                    ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100"
-                    : station.status === "maintenance"
-                    ? "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900 dark:text-orange-100"
-                    : "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100"
-                }
-              >
-                {station.status === "available" ? "Available" : station.status === "maintenance" ? "Maintenance" : "Offline"}
-              </Badge>
-              {station.stationType && (
-                <div className="text-xs text-muted-foreground">{station.stationType}</div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        {data.stations.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground">
-            No stations available.
-          </div>
-        )}
-      </div>
+      {data.branches.every((branch) => branch.stations.length === 0) ? (
+        <div className="py-12 text-center text-muted-foreground">No stations available.</div>
+      ) : (
+        <div className="space-y-10">
+          {data.branches.map((branch) => (
+            <div key={branch.id} className="space-y-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="text-xl font-semibold">
+                  {branch.name} <span className="text-sm font-normal text-muted-foreground">({branch.code})</span>
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {branch.aggregate.available} of {branch.aggregate.total} available
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {branch.stations.map((station) => (
+                  <Card key={station.id} className="overflow-hidden">
+                    <div
+                      className={`h-2 w-full ${
+                        station.status === "available"
+                          ? "bg-green-500"
+                          : station.status === "maintenance"
+                          ? "bg-orange-500"
+                          : "bg-red-500"
+                      }`}
+                    />
+                    <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
+                      <div className="text-2xl font-bold">{station.stationNumber}</div>
+                      <div className="text-xs text-muted-foreground truncate w-full">{station.name}</div>
+                      <Badge
+                        variant={station.status === "available" ? "default" : "secondary"}
+                        className={
+                          station.status === "available"
+                            ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100"
+                            : station.status === "maintenance"
+                            ? "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900 dark:text-orange-100"
+                            : "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100"
+                        }
+                      >
+                        {station.status === "available" ? "Available" : station.status === "maintenance" ? "Maintenance" : "Offline"}
+                      </Badge>
+                      {station.stationType && (
+                        <div className="text-xs text-muted-foreground">{station.stationType}</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+                {branch.stations.length === 0 && (
+                  <div className="col-span-full py-6 text-center text-sm text-muted-foreground">
+                    No stations at this branch.
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

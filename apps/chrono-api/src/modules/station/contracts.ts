@@ -91,3 +91,38 @@ export const stationDtoSchema = z.object({
 
 export type StationGroupDto = z.infer<typeof stationGroupDtoSchema>;
 export type StationDto = z.infer<typeof stationDtoSchema>;
+
+// Public (unauthenticated) station-availability view — grouped by branch.
+// Deliberately narrow: no `tenantId`/`stationGroupId`/`locationZone`/`specs`, nothing an
+// anonymous visitor doesn't need to see (`.ai/rules/dto.md`).
+export const publicStationAggregateSchema = z.object({
+  total: z.number().int().nonnegative(),
+  available: z.number().int().nonnegative(),
+  inUse: z.number().int().nonnegative(),
+});
+
+export const publicStationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  stationNumber: z.string(),
+  stationType: z.string(),
+  status: stationStatusSchema,
+});
+
+export const publicBranchStationsSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+  aggregate: publicStationAggregateSchema,
+  stations: z.array(publicStationSchema),
+});
+
+export const publicStationsResponseSchema = z.object({
+  aggregate: publicStationAggregateSchema,
+  branches: z.array(publicBranchStationsSchema),
+});
+
+export type PublicStationAggregate = z.infer<typeof publicStationAggregateSchema>;
+export type PublicStation = z.infer<typeof publicStationSchema>;
+export type PublicBranchStations = z.infer<typeof publicBranchStationsSchema>;
+export type PublicStationsResponse = z.infer<typeof publicStationsResponseSchema>;

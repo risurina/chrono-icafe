@@ -226,12 +226,20 @@ problem, not four authoring mistakes.
 
 ---
 
-## Phase 4 — Foundation: status-aware public tenant resolution
+## Phase 4 — Foundation: status-aware public tenant resolution — ✅ DONE (2026-09-02)
 
-**Specification only — implementing this requires creating
-`.ai/plans/agora/active/public-host-status-filter/` first**, because it changes
-`packages/agora`. Recorded here so the finding is not lost with the plan that
-found it.
+**Implemented in the foundation plan this spec spawned:
+`.ai/plans/agora/archive/public-host-status-filter/README.md` (both phases
+complete, see its Status section).** Option **(a)** was taken as recommended:
+`resolveOrgFromRequest` filters `TERMINAL_TENANT_STATUSES` by default, with an
+explicit `allowTerminalStatus: true` opt-out on the four SSO routes
+(`/public/sso` + `/public/sso/start`, both apps) so an owner can still sign in
+to a suspended workspace and resume it. 8 of 12 call sites needed no code change
+— the default does it. Proven by `pnpm --filter @agora/chrono-api
+test:host-status-filter` (13/13 against real Postgres). Commits `3821d5a`
+(audit), `d207c67` (helper + call sites), `839e140` (export + test).
+
+Original spec follows, kept for the reasoning trail.
 
 **The change:** `resolveOrgFromRequest` (`packages/agora/src/server/host.ts:29`)
 resolves an organization by slug or verified custom domain with no

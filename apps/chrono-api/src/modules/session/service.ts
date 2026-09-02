@@ -1,13 +1,59 @@
-import { and, eq, type TenantTx } from "agora/db";
+import { and, eq, withTenant, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { createId } from "agora";
+import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { debitWallet } from "../wallet/service";
 import { chronoWallet } from "../wallet/schema";
 import { chronoStation, chronoStationGroup } from "../station/schema";
+import { publishStationTransition } from "../station/routes";
 import { chronoMemberProfile } from "../member/schema";
 import * as base from "agora/db/schema";
 import { chronoSession, type ChronoSessionRow } from "./schema";
 import { computeMeteredCharge, capMoney } from "./money";
+import { type SessionStateEvent } from "../realtime/contracts";
+
+/**
+ * Publishes `session.state` for a session's transition, plus the station's
+ * own current `station.status`/`branch.summary` via `publishStationTransition`
+ * (realtime-updates plan, Phase 2b) — reusing that helper rather than
+ * duplicating its logic, per the "one place computes branch.summary" rule
+ * Phase 2a established.
+ *
+ * Re-reads the station's CURRENT status rather than assuming one: session
+ * start/end flip it (available <-> occupied), but pause/resume/extend do
+ * NOT touch `chronoStation.status` at all, so this must never guess.
+ *
+ * MUST be called AFTER the caller's own `withTenant` transaction commits,
+ * never from inside it — a publish is not transactional and must not roll
+ * back with the write. This is why it takes a plain session row (already
+ * committed), not a `TenantTx`.
+ */
+export async function publishSessionTransition(
+  tenantId: string,
+  session: Pick<ChronoSessionRow, "id" | "stationId" | "branchId" | "status">,
+): Promise<void> {
+  const provider = getRealtimeProvider();
+  await provider.publish(
+    tenantScopeChannel(tenantId, `branch:${session.branchId}`),
+    "session.state",
+    {
+      sessionId: session.id,
+      stationId: session.stationId,
+      status: session.status,
+    } satisfies SessionStateEvent,
+  );
+
+  const [station] = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ id: chronoStation.id, branchId: chronoStation.branchId, status: chronoStation.status })
+      .from(chronoStation)
+      .where(eq(chronoStation.id, session.stationId))
+      .limit(1),
+  );
+  if (station) {
+    await publishStationTransition(tenantId, station);
+  }
+}
 
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && err.code === "23505";

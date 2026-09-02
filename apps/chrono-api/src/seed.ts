@@ -1,10 +1,12 @@
 import "dotenv/config";
 import "./auth-bootstrap";
 import { auth } from "agora/auth";
-import { adminDb, withTenant, withAdmin, schema, eq, pool, adminPool } from "agora/db";
+import { adminDb, withTenant, withAdmin, schema, eq, and, pool, adminPool } from "agora/db";
 import { hashMemberPassword } from "agora/member-auth";
 import { createId } from "agora";
 import { project, tenantSubscription, tenantSubscriptionEvent } from "./db/schema";
+import { chronoBranch } from "./modules/branch/schema";
+import { chronoStation } from "./modules/station/schema";
 
 /**
  * Seed two demo tenants. Each gets a staff owner, a customer, and projects.
@@ -208,6 +210,75 @@ async function ensureSubscriptionEvent(
   });
 }
 
+/**
+ * Seed demo branches + stations for `acme` so the public `/public/stations`
+ * grouped-by-branch view (and the `/stations` page) has real, multi-branch
+ * data to render locally. Idempotent — checked by the same tenant+code unique
+ * constraint the schema already enforces.
+ */
+async function ensureBranchesAndStations(orgId: string) {
+  const BRANCHES = [
+    {
+      code: "main",
+      name: "Acme Main Branch",
+      stations: [
+        { stationNumber: "PC-01", name: "Station 1", stationType: "pc", status: "available" },
+        { stationNumber: "PC-02", name: "Station 2", stationType: "pc", status: "available" },
+        { stationNumber: "PC-03", name: "Station 3", stationType: "pc", status: "maintenance" },
+        { stationNumber: "PC-04", name: "Station 4", stationType: "pc", status: "offline" },
+      ],
+    },
+    {
+      code: "vip",
+      name: "Acme VIP Lounge",
+      stations: [
+        { stationNumber: "VIP-01", name: "VIP Seat 1", stationType: "vip", status: "available" },
+        { stationNumber: "VIP-02", name: "VIP Seat 2", stationType: "vip", status: "available" },
+        { stationNumber: "VIP-03", name: "VIP Seat 3", stationType: "vip", status: "maintenance" },
+      ],
+    },
+  ];
+
+  await withTenant(orgId, async (tx) => {
+    for (const b of BRANCHES) {
+      const [existingBranch] = await tx
+        .select({ id: chronoBranch.id })
+        .from(chronoBranch)
+        .where(eq(chronoBranch.code, b.code));
+
+      let branchId = existingBranch?.id;
+      if (!branchId) {
+        const newBranchId = createId();
+        await tx
+          .insert(chronoBranch)
+          .values({ id: newBranchId, tenantId: orgId, name: b.name, code: b.code, status: "active" });
+        branchId = newBranchId;
+      }
+
+      for (const s of b.stations) {
+        const [existingStation] = await tx
+          .select({ id: chronoStation.id })
+          .from(chronoStation)
+          .where(
+            and(eq(chronoStation.branchId, branchId), eq(chronoStation.stationNumber, s.stationNumber)),
+          )
+          .limit(1);
+        if (existingStation) continue;
+
+        await tx.insert(chronoStation).values({
+          id: createId(),
+          tenantId: orgId,
+          branchId,
+          name: s.name,
+          stationNumber: s.stationNumber,
+          stationType: s.stationType,
+          status: s.status,
+        });
+      }
+    }
+  });
+}
+
 async function seed() {
   await ensurePlatformAdmin();
   await ensurePlatformViewer();
@@ -227,6 +298,7 @@ async function seed() {
     if (t.slug === "acme") {
       const staffUserId = await ensureUser("staff@acme.test", "Acme Staff");
       await ensureMember(orgId, staffUserId, "staff");
+      await ensureBranchesAndStations(orgId);
     }
 
     const sub = SUBSCRIPTIONS[t.slug];
