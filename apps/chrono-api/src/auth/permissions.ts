@@ -108,6 +108,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // matching security-alert's own precedent. See
   // .ai/plans/chrono/active/inquiries/README.md.
   inquiry: ["read", "manage"],
+  // Editing the tenant's public marketing content is closer in blast radius
+  // to `branch`'s own configuration resources (branch has no staff grant
+  // either) than to routine front-desk work — admin+ only, single `manage`
+  // action (no read/write split needed since the read side is the public
+  // route, ungated). See .ai/plans/chrono/active/tenant-landing/README.md.
+  landingPage: ["manage"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -128,6 +134,7 @@ export const CHRONO_STAFF_GRANTS = {
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
+  landingPage: ["manage"],
   branch: ["create", "update"],
   station: ["create", "update", "delete"],
   shift: ["open", "close", "closeAny"],

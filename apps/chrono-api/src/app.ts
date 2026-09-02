@@ -50,6 +50,7 @@ import { deviceAuthRoutes } from "./modules/device/routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
+import { getPublicLandingPageContent } from "./modules/landing-page/routes";
 import {
   tenantBranding,
   tenantSsoConnection,
@@ -153,6 +154,11 @@ const devicePairIpLimiter = createRateLimiter(10, 15 * 60 * 1000, "device-pair-i
 const devicePairCodeLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-pair-code"); // 5 / 15min
 const deviceAuthIpLimiter = createRateLimiter(10, 15 * 60 * 1000, "device-auth-ip"); // 10 / 15min
 const deviceAuthTokenLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-auth-token"); // 5 / 15min
+
+// Landing-page content, per-IP — a public marketing read, generous ceiling
+// (matches the general shape of a page-load, not a login attempt), still
+// bounded per apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention.
+const landingPageIpLimiter = createRateLimiter(60, 60 * 1000, "landing-page-ip"); // 60 / min
 
 // Platform Maintenance / global read-only enforcement (System Settings, spec
 // #14), shared by both tenant surfaces: the internal `/rpc/*` client and the
@@ -518,6 +524,27 @@ export const app = new Hono()
         customCss: row?.customCss ?? null,
       },
     });
+  })
+  // Public: Chrono's own landing-page content for the current host (no auth).
+  // Rate-limited per IP per apps/chrono-api/AGENTS.md's "Unauthenticated
+  // routes" convention. Terminal-status tenants (suspended/cancelled/
+  // archived/deleting) are rejected the same as every other public route in
+  // this file — tracked as a known shared gap
+  // (.ai/plans/agora/active/public-host-status-filter/README.md), not
+  // reintroduced or fixed ad hoc here.
+  .get("/public/landing-page", async (c) => {
+    const ip = clientIp(c);
+    const retryAfter = await landingPageIpLimiter.blockedFor(ip);
+    if (retryAfter !== null) {
+      return c.json({ error: "Too many requests. Try again later." }, 429, {
+        "Retry-After": String(retryAfter),
+      });
+    }
+    const org = await resolveOrgFromRequest(c);
+    if (!org) return c.json({ landingPage: null }, 404);
+    const result = await getPublicLandingPageContent(org.id);
+    await landingPageIpLimiter.record(ip);
+    return c.json({ landingPage: result });
   })
   // Public: does the current host's tenant offer SSO login? (pre-auth hint the
   // /login page uses to show a "Sign in with SSO" button). Reveals only whether
