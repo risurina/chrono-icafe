@@ -80,7 +80,7 @@ export default async function Home() {
       {
         icon: Clock,
         title: "Timed sessions",
-        description: "Pre-paid and post-paid session tracking with automated lock screens.",
+        description: "Track every seat's time from start to close-out, priced against the customer's balance.",
       },
       {
         icon: Wallet,
@@ -111,7 +111,7 @@ export default async function Home() {
     ];
     const withChrono = [
       "Unified customer wallets for time, food, and reservations",
-      "Automated session enforcement on PC and console endpoints",
+      "Every session, sale, and cash movement tied to the shift that handled it",
       "Real-time floor map for staff and a live public page for customers",
     ];
 
@@ -425,7 +425,7 @@ export default async function Home() {
                       <Smartphone className="h-5 w-5 text-primary" aria-hidden />
                     </div>
                     <CardTitle className="text-base">Customer portal</CardTitle>
-                    <CardDescription>Self-service wallet top-ups, history, and reservations.</CardDescription>
+                    <CardDescription>Self-service balance, session history, and reservations.</CardDescription>
                   </CardHeader>
                 </Card>
                 <Card>
