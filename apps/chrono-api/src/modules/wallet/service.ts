@@ -1,7 +1,16 @@
 import { eq, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
-import { addMoney, negateMoney, isNegativeMoney } from "./money";
+import { addMoney, negateMoney, isNegativeMoney, toCents } from "./money";
+import { MAX_BALANCE } from "./contracts";
+
+/**
+ * Ceiling for the resulting balance, matching the `numeric(12, 2)` columns' capacity.
+ * The contract layer bounds each individual amount; this bounds the running total,
+ * which a series of individually-valid credits could otherwise overflow. Checked as a
+ * magnitude because an `adjustment` may legitimately drive the balance negative.
+ */
+const MAX_BALANCE_CENTS = toCents(MAX_BALANCE);
 
 /**
  * Locks the member's wallet row for the duration of the caller's transaction,
@@ -49,6 +58,11 @@ async function applyWalletDelta(
   const balanceAfter = addMoney(wallet.balance, args.delta);
   if (!args.allowNegative && isNegativeMoney(balanceAfter)) {
     throw new HttpError(422, "Insufficient wallet balance");
+  }
+
+  const balanceAfterCents = toCents(balanceAfter);
+  if (balanceAfterCents > MAX_BALANCE_CENTS || balanceAfterCents < -MAX_BALANCE_CENTS) {
+    throw new HttpError(422, `Wallet balance limit exceeded (max ${MAX_BALANCE})`);
   }
 
   const [updatedWallet] = await tx
