@@ -25,3 +25,7 @@
   applied cleanly, zero any-types, typecheck+build clean. Committed
   (`796e496`, combined with vouchers). **Phase 5 done, Phase 6 (e2e) next.**
 - 2026-09-02 — Phase 6 (e2e spec) delegated to Jules, session `15718223737293268309`. Fired in parallel with vouchers/promos Phase 6.
+- 2026-09-02 — Session `15718223737293268309` pulled: fixed 3 explicit
+  `any` callback annotations locally (typed json() response instead).
+  typecheck clean. Committed (`824c6fd`). **All 6 phases of loyalty are now
+  done** (e2e not yet headed-run, same caveat as every other spec).
