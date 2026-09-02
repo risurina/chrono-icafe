@@ -16,6 +16,12 @@ import {
   applyForMembership,
   type MemberProfile,
 } from "@/lib/member-application";
+import {
+  getMyWalletBalance,
+  getMyWalletHistory,
+  type WalletBalance,
+  type WalletTransaction,
+} from "@/lib/wallet-portal";
 
 /** Customer member area. Placeholder — extend with your customer-facing features. */
 export default function PortalHome() {
@@ -26,6 +32,10 @@ export default function PortalHome() {
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
+  const [wallet, setWallet] = useState<WalletBalance | null>(null);
+  const [walletHistory, setWalletHistory] = useState<WalletTransaction[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+
   useEffect(() => {
     let mounted = true;
     getMyMembership().then(({ data }) => {
@@ -33,6 +43,21 @@ export default function PortalHome() {
       if (data) setProfile(data);
       setLoading(false);
     });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([getMyWalletBalance(), getMyWalletHistory({ page: 1, pageSize: 10 })]).then(
+      ([balance, history]) => {
+        if (!mounted) return;
+        if (balance) setWallet(balance);
+        if (history) setWalletHistory(history.items);
+        setWalletLoading(false);
+      },
+    );
     return () => {
       mounted = false;
     };
@@ -119,6 +144,41 @@ export default function PortalHome() {
                 <p className="text-sm text-destructive">{applyError}</p>
               ) : null}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Wallet</CardTitle>
+          <CardDescription>Your stored-value balance at this venue.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          {walletLoading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold tracking-tight">
+                {wallet?.currency ?? "PHP"} {wallet?.balance ?? "0.00"}
+              </p>
+              {walletHistory.length === 0 ? (
+                <p className="text-muted-foreground">No transactions yet.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {walletHistory.map((tx) => (
+                    <li key={tx.id} className="flex items-center justify-between gap-4 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate capitalize">{tx.type}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {tx.reason} · {new Date(tx.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-medium">{tx.amount}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

@@ -12,6 +12,7 @@ import {
   Clock,
   Monitor,
   MonitorSmartphone,
+  Wallet,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -61,6 +62,7 @@ const BASE_NAV: NavItem[] = [
   { type: "item", name: "Shifts", href: "/shifts", icon: Clock },
   { type: "item", name: "Members", href: "/members", icon: Users },
   { type: "item", name: "Reservations", href: "/reservations", icon: CalendarClock },
+  { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
 ];
 
 // Settings is pinned to the bottom of the sidebar — all workspace configuration
@@ -91,6 +93,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/shifts": "Shifts",
   "/dashboard/members": "Members",
   "/dashboard/reservations": "Reservations",
+  "/dashboard/wallets": "Wallets",
   "/dashboard/files": "Files",
   "/dashboard/settings": "Settings",
   "/dashboard/settings/branding": "Branding",
