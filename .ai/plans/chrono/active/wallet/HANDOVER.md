@@ -66,3 +66,25 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   PASS ✅` (non-vacuous). Committed (`f75da47`). Phase 1 done — Phase 3 (the
   locking service + routes + permission gates + concurrency proof) is next,
   and stays local per this file's own header note.
+- 2026-09-02 — Phase 3 built locally, per Pass 2's exact spec.
+  `wallet: ["read", "credit", "debit", "adjust"]` added to the per-app
+  extension seam (`apps/chrono-api/src/auth/permissions.ts` — Open Question 1
+  resolved per the plan's own recommendation: staff holds read/credit/debit,
+  admin+ adds adjust). `service.ts` (`lockWalletForUpdate`/
+  `applyWalletDelta`/`creditWallet`/`debitWallet`/`adjustWalletBalance`, row
+  lock via `.for("update")`, BigInt-cents money math, `HttpError(422, ...)`
+  on a would-go-negative debit), `routes.ts` (staff-facing, every mutation
+  re-checks the `tenantMember` exists inside the same `withTenant` call
+  before touching the wallet — closes the Pass 1 isolation hole), and
+  `portal-routes.ts` (customer-facing balance/history, no auto-create on
+  read), wired into `rpc.ts`/`app.ts`. Added the `wallet` gate cases to
+  `permissions.test.ts` and a new `concurrency.test.ts`
+  (`test:wallet-concurrency`) proving the row lock against a real Postgres
+  connection: 10 concurrent credits of `10.00` + 10 concurrent debits of
+  `5.00` against the same `memberId` → final balance `50.00` exactly, 20
+  ledger rows (no dropped/duplicated), and ledger replay reconstructs the
+  same balance. `pnpm --filter @agora/chrono-api typecheck` clean,
+  `test:permissions` → 343 passed, `rls:proof` → `RLS PROOF: PASS ✅`,
+  `test:wallet-concurrency` → 4 passed. Committed (`74a6881`). Phase 3 done —
+  Phase 4 (web UI) is next, Jules-eligible now that the backend is fully
+  landed.
