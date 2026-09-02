@@ -339,7 +339,12 @@ confirm Phase 1's `service.ts` exists first; without it this phase cannot be bui
 
 **Verification commands** — none (docs only).
 
-**Execution start point:** that plan's "Decision 4" section.
+**Out of scope:** any change to what those two plans actually build. This phase only
+removes duplicated/stale *specification* of the guard, so the fix has exactly one owner.
+Do not revise `members/README.md`'s other sections while in there.
+
+**Execution start point:** `customer-onboarding`'s "Decision 4" section (confirm only),
+then `members/README.md:305-310`.
 
 ---
 
