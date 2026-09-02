@@ -1,18 +1,23 @@
 import Link from "next/link";
 import {
-  Building2,
-  ShieldCheck,
-  Globe,
-  Layers,
-  Map,
   Check,
   X,
+  Timer,
+  MonitorPlay,
+  Wallet,
+  CalendarClock,
+  MapPin,
+  Clock,
+  Users,
+  Briefcase,
+  ShoppingCart,
   Crown,
-  Settings2,
+  Settings,
+  UserCircle,
   User,
-  KeyRound,
-  LifeBuoy,
-  ShieldCheck as ShieldIcon,
+  LayoutDashboard,
+  Smartphone,
+  AppWindow,
 } from "lucide-react";
 import {
   cn,
@@ -35,7 +40,6 @@ import {
   Badge,
   FaqItem,
   StatTile,
-  Testimonial,
 } from "agora/ui";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
@@ -69,127 +73,118 @@ export default async function Home() {
   if (!tenant) {
     const highlights = [
       {
-        icon: Building2,
-        title: "Multi-tenant by default",
-        description:
-          "Every signup provisions its own workspace, subdomain, and membership roles.",
+        icon: MapPin,
+        title: "Stations & floor map",
+        description: "Visual floor plans showing live seat status across all your branches.",
       },
       {
-        icon: ShieldCheck,
-        title: "Isolated at the database",
-        description:
-          "Forced Postgres row-level security keeps every tenant's data apart — not just app-level filters.",
+        icon: Clock,
+        title: "Timed sessions",
+        description: "Pre-paid and post-paid session tracking with automated lock screens.",
       },
       {
-        icon: Globe,
-        title: "Custom domains",
-        description:
-          "Tenants can verify their own domain and serve the same app under their own brand.",
+        icon: Wallet,
+        title: "Wallet & credits",
+        description: "Customer balances for time, food, and reservations.",
       },
       {
-        icon: Layers,
-        title: "Built to extend",
-        description:
-          "Typed contracts, RBAC, and a shared UI kit make new tenant-scoped modules fast to add.",
+        icon: Users,
+        title: "Members & loyalty",
+        description: "Customer tiers, points, and member-only pricing.",
+      },
+      {
+        icon: Briefcase,
+        title: "Shifts & staff",
+        description: "Time tracking, register cash counts, and permission scoping.",
+      },
+      {
+        icon: ShoppingCart,
+        title: "POS & reservations",
+        description: "In-seat ordering and advance booking for PCs and console rooms.",
       },
     ];
 
-    const withoutAgora = [
-      "Rolling your own tenant isolation and hoping app-level filters never leak a row",
-      "Wiring auth, roles, and custom domains from scratch on every new project",
-      "Client and server drifting out of sync with no shared contract",
+    const withoutChrono = [
+      "Tracking member balances in spreadsheets and a whiteboard",
+      "Manual timer alarms when a customer's session expires",
+      "No visibility into station availability until they walk in the door",
     ];
-    const withAgora = [
-      "Forced Postgres row-level security enforces isolation at the database, not just app code",
-      "Auth, roles, and custom domains ship pre-wired via Better Auth + Hono",
-      "Shared Zod contracts keep the API and UI in lockstep",
+    const withChrono = [
+      "Unified customer wallets for time, food, and reservations",
+      "Automated session enforcement on PC and console endpoints",
+      "Real-time floor map for staff and a live public page for customers",
     ];
 
     const roles = [
       {
         icon: Crown,
         name: "Owner",
-        description: "Every permission, including billing and transferring or deleting the tenant.",
+        description: "Full visibility across all branches, billing, and global settings.",
       },
       {
-        icon: Settings2,
-        name: "Admin",
-        description: "Everything except billing and tenant-level actions like delete or transfer.",
+        icon: Settings,
+        name: "Manager",
+        description: "Branch-specific administration, shift overrides, and inventory.",
       },
       {
         icon: User,
-        name: "Staff",
-        description: "Scoped to the essentials — create projects, no admin surface.",
+        name: "Floor staff",
+        description: "POS operations, starting sessions, and handling cash drawers.",
+      },
+      {
+        icon: UserCircle,
+        name: "Customer",
+        description: "Self-service booking, ordering, and wallet top-ups.",
       },
     ];
 
     const steps = [
       {
-        title: "Create a workspace",
-        description: "Sign up provisions your tenant, subdomain, and makes you the owner.",
+        title: "Create your venue",
+        description: "Sign up and set your basic branding and billing currency.",
       },
       {
-        title: "Invite your team",
-        description: "Assign owner, admin, or staff roles — or compose a custom role from the same permissions.",
+        title: "Add branches & stations",
+        description: "Draw your floor plans and set your hourly pricing tiers.",
       },
       {
-        title: "Build your first module",
-        description: "Copy the project pattern to ship a new tenant-scoped table, route, and page.",
+        title: "Open the floor",
+        description: "Invite your staff and start checking in customers.",
       },
     ];
 
     const stats = [
-      { label: "Isolation model", value: "Forced RLS" },
-      { label: "System roles", value: "3 + custom" },
-      { label: "Domain support", value: "Sub + custom" },
-      { label: "Framework", value: "Next.js 15" },
+      { label: "Branches per venue", value: "Unlimited" },
+      { label: "Client software", value: "PC & Kiosk" },
+      { label: "Payment types", value: "Wallet & Cash" },
+      { label: "Isolation model", value: "Tenant RLS" },
     ];
 
-    const testimonials = [
-      {
-        quote:
-          "The forced row-level security saved us weeks — we didn't have to write or trust a single app-level tenant filter.",
-        name: "Priya M.",
-        role: "Backend engineer",
-      },
-      {
-        quote:
-          "Copying the project pattern for our first real module took an afternoon, not a sprint.",
-        name: "Dae-ho K.",
-        role: "Full-stack developer",
-      },
-      {
-        quote:
-          "Roles, custom domains, and typed contracts were already wired — we shipped our MVP straight on top.",
-        name: "Sam R.",
-        role: "Founding engineer",
-      },
-    ];
 
     const faqs = [
       {
-        q: "How is tenant data isolated?",
-        a: "Every tenant table has forced row-level security in Postgres, scoped by tenant_id. Isolation is enforced at the database — not just by an app-level WHERE clause.",
+        q: "Does it support multi-branch venues?",
+        a: "Yes. Every venue can manage multiple physical locations (branches), with staff scoped to specific branches and customers sharing a single unified wallet across all of them.",
       },
       {
-        q: "Can each tenant use a custom domain?",
-        a: "Yes. A verified custom domain resolves to the same tenant as its subdomain, with no separate deployment.",
+        q: "Is there a client for the PCs/consoles?",
+        a: "Yes, Chrono includes a lightweight Windows service for automated locking and a kiosk application for self-service reservations.",
       },
       {
-        q: "What handles authentication?",
-        a: "Better Auth, with separate staff and customer logins per tenant, and session-based role resolution on every request.",
+        q: "What happens if the internet goes down?",
+        a: "The local PC client caches active session timers. Terminals will safely lock when time expires, and sync final balances to the cloud once connectivity is restored.",
       },
       {
-        q: "Is this a hosted product?",
-        a: "No — it's a starting codebase, not a hosted product. You own it, deploy it, and operate it yourself wherever you run Postgres and Node.",
+        q: "How do payments and wallets work?",
+        a: "Customers have a digital wallet they can top up with cash at the desk or via credit card in the portal. Time and food are debited directly from this balance.",
       },
       {
-        q: "How do roles and permissions work?",
-        a: "Three system roles (staff, admin, owner) plus tenant-defined custom roles, all built from the same permission vocabulary and enforced server-side.",
+        q: "Can I migrate my existing customer data?",
+        a: "Yes, our API and bulk import tools allow you to port member accounts, existing balances, and loyalty tiers from your legacy system.",
       },
       {
-        q: "What does it cost to run?",
-        a: "There's no license fee — it's a codebase you own. Your only ongoing cost is hosting: Postgres (e.g. Neon), a Node server for the API, and wherever you deploy the Next.js app.",
+        q: "How does pricing work?",
+        a: "Pricing is structured per branch and station type. You can set hourly rates, day passes, and dynamic pricing based on member tiers or time of day.",
       },
     ];
 
@@ -200,9 +195,9 @@ export default async function Home() {
           brand={
             <>
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Map className="h-3.5 w-3.5" aria-hidden />
+                <Timer className="h-3.5 w-3.5" aria-hidden />
               </span>
-              <span>Agora</span>
+              <span>Chrono</span>
             </>
           }
           nav={
@@ -251,22 +246,20 @@ export default async function Home() {
             />
             <Stack gap={6} className="items-center py-28 text-center">
               <Badge variant="secondary" className="uppercase tracking-widest">
-                Agora · Multi-tenant base
+                Chrono - Venue management
               </Badge>
               <h1 className="text-balance text-5xl font-bold tracking-tight sm:text-7xl">
-                The foundation for multi-tenant apps.
+                Run your gaming venue on modern software.
               </h1>
               <p className="max-w-2xl text-balance text-lg text-muted-foreground sm:text-xl">
-                Next.js + Hono + Neon + Drizzle + Better Auth. Each tenant gets its own
-                subdomain or custom domain, with separate staff and customer logins,
-                isolated by Postgres row-level security.
+                Manage floor maps, automated timed sessions, member wallets, and staff shifts in one place. Stop fighting legacy desktop software and start running your cafe from the cloud.
               </p>
               <Row wrap justify="center" gap={3} className="pt-2">
                 <Link
                   href="/sign-up"
                   className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
                 >
-                  Create a workspace
+                  Create a venue
                 </Link>
                 <Link
                   href="/login"
@@ -281,13 +274,6 @@ export default async function Home() {
               <p className="text-sm text-muted-foreground">
                 No credit card required · Free to start
               </p>
-              <Row wrap justify="center" gap={2} className="pt-4">
-                {["Next.js", "Hono", "Neon", "Drizzle", "Better Auth"].map((tech) => (
-                  <Badge key={tech} variant="outline">
-                    {tech}
-                  </Badge>
-                ))}
-              </Row>
               <Row wrap justify="center" gap={3} className="w-full max-w-3xl pt-6">
                 {stats.map(({ label, value }) => (
                   <StatTile key={label} label={label} value={value} />
@@ -306,13 +292,13 @@ export default async function Home() {
             <div className="py-20">
               <Stack gap={2} className="mb-12 max-w-prose">
                 <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Why Agora
+                  Why Chrono
                 </span>
                 <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  Everything a multi-tenant SaaS needs, out of the box.
+                  Everything an internet cafe needs, out of the box.
                 </h2>
                 <p className="text-muted-foreground">
-                  A production-shaped starting point, not a toy scaffold.
+                  A unified platform for time, payments, and staff.
                 </p>
               </Stack>
               <Grid cols={2} gap={4}>
@@ -335,22 +321,22 @@ export default async function Home() {
             <div className="py-20">
               <Stack gap={2} className="mb-12 max-w-prose">
                 <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Why not roll your own
+                  The old way
                 </span>
                 <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  A production-shaped starting point, not a toy scaffold.
+                  Leave the whiteboard behind.
                 </h2>
               </Stack>
               <Grid cols={2} gap={4}>
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base text-muted-foreground">
-                      Without a foundation
+                      Without Chrono
                     </CardTitle>
                   </CardHeader>
                   <CardFooter>
                     <Stack gap={3} className="w-full">
-                      {withoutAgora.map((item) => (
+                      {withoutChrono.map((item) => (
                         <Row key={item} gap={3} items="start">
                           <X
                             className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
@@ -364,11 +350,11 @@ export default async function Home() {
                 </Card>
                 <Card className="border-primary/30">
                   <CardHeader>
-                    <CardTitle className="text-base">With Agora</CardTitle>
+                    <CardTitle className="text-base">With Chrono</CardTitle>
                   </CardHeader>
                   <CardFooter>
                     <Stack gap={3} className="w-full">
-                      {withAgora.map((item) => (
+                      {withChrono.map((item) => (
                         <Row key={item} gap={3} items="start">
                           <Check
                             className="mt-0.5 h-4 w-4 shrink-0 text-primary"
@@ -384,27 +370,6 @@ export default async function Home() {
             </div>
           </Section>
 
-          <Section maxWidth="full" border="bottom">
-            <div className="py-20">
-              <Stack gap={2} className="mb-12 max-w-prose">
-                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  What developers say
-                </span>
-                <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                  Built by developers who&apos;d rather ship the product.
-                </h2>
-                <p className="text-muted-foreground">
-                  Illustrative feedback from engineers who've built on this scaffold.
-                </p>
-              </Stack>
-              <Grid cols={3} gap={4}>
-                {testimonials.map((t) => (
-                  <Testimonial key={t.name} {...t} />
-                ))}
-              </Grid>
-            </div>
-          </Section>
-
           <Section maxWidth="full" border="bottom" tone="muted">
             <div className="py-20">
               <Stack gap={2} className="mb-12 max-w-prose">
@@ -415,11 +380,10 @@ export default async function Home() {
                   Designed around real tenant roles.
                 </h2>
                 <p className="text-muted-foreground">
-                  Three system roles, enforced server-side — plus custom roles a tenant
-                  can compose from the same permissions.
+                  Four distinct audiences, each with a tailored surface and the exact permissions they need.
                 </p>
               </Stack>
-              <Grid cols={3} gap={4}>
+              <Grid cols={4} gap={4}>
                 {roles.map(({ icon: Icon, name, description }) => (
                   <Card key={name}>
                     <CardHeader>
@@ -431,6 +395,51 @@ export default async function Home() {
                     </CardHeader>
                   </Card>
                 ))}
+              </Grid>
+            </div>
+          </Section>
+
+          <Section maxWidth="full" border="bottom">
+            <div className="py-20">
+              <Stack gap={2} className="mb-12 max-w-prose">
+                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Surfaces
+                </span>
+                <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
+                  A portal for everyone.
+                </h2>
+                <p className="text-muted-foreground">
+                  Dedicated interfaces for your staff, your customers, and the public.
+                </p>
+              </Stack>
+              <Grid cols={3} gap={4}>
+                <Card>
+                  <CardHeader>
+                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <LayoutDashboard className="h-5 w-5 text-primary" aria-hidden />
+                    </div>
+                    <CardTitle className="text-base">Staff dashboard</CardTitle>
+                    <CardDescription>Back-office tools, POS, and floor maps for operators.</CardDescription>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <Smartphone className="h-5 w-5 text-primary" aria-hidden />
+                    </div>
+                    <CardTitle className="text-base">Customer portal</CardTitle>
+                    <CardDescription>Self-service wallet top-ups, history, and reservations.</CardDescription>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <AppWindow className="h-5 w-5 text-primary" aria-hidden />
+                    </div>
+                    <CardTitle className="text-base">Live stations</CardTitle>
+                    <CardDescription>A public landing page showing live seat availability.</CardDescription>
+                  </CardHeader>
+                </Card>
               </Grid>
             </div>
           </Section>
@@ -482,17 +491,16 @@ export default async function Home() {
           <Section maxWidth="full">
             <Stack gap={4} className="items-center py-24 text-center">
               <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                Ready to spin up your workspace?
+                Ready to upgrade your venue?
               </h2>
               <p className="max-w-prose text-balance text-muted-foreground">
-                Create a tenant in seconds — you&apos;ll get your own subdomain,
-                owner account, and dashboard immediately.
+                Create your venue in seconds — set up your floor plan, invite your staff, and open for business.
               </p>
               <Link
                 href="/sign-up"
                 className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
               >
-                Create a workspace
+                Create a venue
               </Link>
             </Stack>
           </Section>
@@ -500,7 +508,7 @@ export default async function Home() {
 
         <SiteFooter
           maxWidth="full"
-          brand={<span>© {currentYear} Agora. All rights reserved.</span>}
+          brand={<span>© {currentYear} Chrono. All rights reserved.</span>}
           links={
             <>
               <Link href="/login" className="hover:text-foreground">
@@ -521,19 +529,19 @@ export default async function Home() {
 
   const tenantHighlights = [
     {
-      icon: KeyRound,
-      title: "Manage your account",
-      description: "Sign in any time to view and manage your account details.",
+      icon: MonitorPlay,
+      title: "Live seat availability",
+      description: "Check the floor map and see which stations are currently open.",
     },
     {
-      icon: ShieldIcon,
-      title: "Secure by default",
-      description: "Your data is kept private and isolated from every other account.",
+      icon: Wallet,
+      title: "Your wallet & session history",
+      description: "View your current balance, top up, and review past visits.",
     },
     {
-      icon: LifeBuoy,
-      title: "Get support fast",
-      description: "Staff can sign in separately to help manage your account.",
+      icon: CalendarClock,
+      title: "Book ahead",
+      description: "Reserve a station or private room for your next visit.",
     },
   ];
 
@@ -583,14 +591,14 @@ export default async function Home() {
               Welcome to <span className="text-primary">{heading}</span>
             </h1>
             <p className="max-w-xl text-balance text-muted-foreground sm:text-lg">
-              Sign in to your account, or create one to get started.
+              View live stations, check your wallet balance, and book your next session.
             </p>
             <Row wrap justify="center" gap={3} className="pt-2">
               <Link
-                href="/portal/sign-up"
+                href="/stations"
                 className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
               >
-                Create account
+                See live stations
               </Link>
               <Link
                 href="/portal/login"
@@ -600,6 +608,15 @@ export default async function Home() {
                 )}
               >
                 Sign in
+              </Link>
+              <Link
+                href="/portal/sign-up"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "lg" }),
+                  "rounded-full px-6",
+                )}
+              >
+                Create account
               </Link>
             </Row>
           </Stack>
@@ -630,7 +647,7 @@ export default async function Home() {
                 Choose how you&apos;d like to sign in
               </h2>
             </Stack>
-            <Grid cols={2} gap={4} className="mx-auto max-w-2xl">
+            <Grid cols={3} gap={4} className="mx-auto max-w-3xl">
               <Card>
                 <CardHeader>
                   <CardTitle>Customers</CardTitle>
@@ -661,6 +678,20 @@ export default async function Home() {
                     className={buttonVariants({ variant: "secondary" })}
                   >
                     Staff sign in
+                  </Link>
+                </CardFooter>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>About this venue</CardTitle>
+                  <CardDescription>Details about this venue.</CardDescription>
+                </CardHeader>
+                <CardFooter>
+                  <Link
+                    href="/about"
+                    className={buttonVariants({ variant: "secondary" })}
+                  >
+                    View about page
                   </Link>
                 </CardFooter>
               </Card>
