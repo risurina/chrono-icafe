@@ -68,6 +68,16 @@ export const chronoReservation = pgTable(
     index("chrono_reservation_member_idx").on(t.memberId),
     index("chrono_reservation_status_idx").on(t.status),
     index("chrono_reservation_start_idx").on(t.startAt),
+    // Real double-booking guarantee (audit-remediation Phase 2 — the
+    // `SELECT ... FOR UPDATE` pre-check in routes.ts's assertNoOverlap cannot
+    // serialize against a row that does not exist yet, so it is a
+    // fail-fast optimization only, not the guarantee). Drizzle has no
+    // first-class EXCLUDE constraint API, so this is hand-written directly
+    // in the generated migration SQL (see the migration file for the actual
+    // `CREATE EXTENSION IF NOT EXISTS btree_gist;` + `ADD CONSTRAINT ...
+    // EXCLUDE USING gist (...)` statements) — this comment exists so the
+    // constraint is documented at the table definition, not just buried in a
+    // migration file, even though Drizzle cannot express or track it here.
   ],
 );
 

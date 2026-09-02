@@ -182,6 +182,19 @@ async function main() {
   console.log("  running migration (schema push)…");
   for (const t of tables) await adminPool.query(tableDdl(t));
   for (const t of tables) for (const ddl of uniqueIndexDdls(t)) await adminPool.query(ddl);
+  // Drizzle's table config has no notion of an EXCLUDE constraint (it isn't
+  // expressible in the schema — see schema.ts's comment), so `tableDdl` above
+  // never emits it. Apply the SAME constraint the real migration
+  // (drizzle/0011_add_reservation_overlap_exclusion.sql) hand-writes, so this
+  // test actually exercises the exclusion-constraint guarantee under
+  // concurrency — not just the app-level `SELECT ... FOR UPDATE` pre-check.
+  await adminPool.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
+  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
+    EXCLUDE USING gist (
+      "tenantId" WITH =,
+      "stationId" WITH =,
+      tsrange("startAt", "endAt", '[)') WITH &&
+    ) WHERE (status IN ('confirmed', 'checked_in'));`);
   // Grant the app role (DATABASE_URL / chrono_app) DML on the tables just
   // created by the admin role — mirrors provisionAppRole's default privileges,
   // needed here because the tables are newly created by a different owner.
@@ -300,6 +313,57 @@ async function main() {
     "exactly one ChronoReservations row exists for this station/window",
     dbRows.length === 1,
     `got ${dbRows.length} rows`,
+  );
+
+  // 8. Boundary behaviour: the exclusion constraint uses `tsrange(startAt,
+  // endAt, '[)')` — half-open — so a booking ENDING exactly at 14:00 must NOT
+  // conflict with one STARTING exactly at 14:00 on the same station. Uses a
+  // separate window/day from the race above so it is unaffected by the single
+  // row that race left behind.
+  async function createBoundaryReservation(startAt: string, endAt: string) {
+    const res = await fetch(`${base}/rpc/reservations`, {
+      method: "POST",
+      headers: {
+        "x-tenant-slug": "overlap",
+        cookie: ownerCookie,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        branchId: branch!.id,
+        stationId: station!.id,
+        customerName: "Boundary Customer",
+        startAt,
+        endAt,
+      }),
+    });
+    const text = await res.text();
+    let body: unknown = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = text;
+    }
+    return { status: res.status, body };
+  }
+
+  console.log("\nBoundary check: one ending 14:00, one starting 14:00…\n");
+  const first = await createBoundaryReservation(
+    "2030-02-01T12:00:00.000Z",
+    "2030-02-01T14:00:00.000Z",
+  );
+  const second = await createBoundaryReservation(
+    "2030-02-01T14:00:00.000Z",
+    "2030-02-01T16:00:00.000Z",
+  );
+  check(
+    "back-to-back booking ending 14:00 succeeds (201)",
+    first.status === 201,
+    `got ${first.status}: ${JSON.stringify(first.body)}`,
+  );
+  check(
+    "back-to-back booking starting 14:00 does NOT conflict (201, half-open interval)",
+    second.status === 201,
+    `got ${second.status}: ${JSON.stringify(second.body)}`,
   );
 
   server!.close();

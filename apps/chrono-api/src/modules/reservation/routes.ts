@@ -29,6 +29,26 @@ import {
 /** Statuses that occupy a station and therefore participate in the overlap check. */
 const ACTIVE_STATUSES = ["confirmed", "checked_in"] as const;
 
+const OVERLAP_MESSAGE = "This station is already booked for the requested time.";
+
+/**
+ * The real double-booking guarantee is the `chrono_reservation_no_overlap`
+ * Postgres EXCLUDE constraint (schema.ts) — `assertNoOverlap`'s
+ * `SELECT ... FOR UPDATE` pre-check below is a friendly fail-fast optimization
+ * only; it cannot serialize against a row that does not exist yet (audit-
+ * remediation Phase 2). A concurrent insert/update that slips past the
+ * pre-check is rejected by the constraint with Postgres error code `23P01`
+ * (exclusion_violation) — map it to the same 409 the pre-check throws.
+ */
+function isExclusionViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "23P01"
+  );
+}
+
 function buildPaginationMeta(
   page: number,
   pageSize: number,
@@ -142,7 +162,7 @@ async function assertNoOverlap(
     if (excludeReservationId && row.id === excludeReservationId) continue;
     // [startAt, endAt) overlap test.
     if (startAt < row.endAt && endAt > row.startAt) {
-      throw new HttpError(409, "This station is already booked for the requested time.");
+      throw new HttpError(409, OVERLAP_MESSAGE);
     }
   }
 }
@@ -232,36 +252,44 @@ export function reservationRoutes() {
       const startAt = new Date(input.startAt);
       const endAt = new Date(input.endAt);
 
-      const created = await withTenant(tenantId, async (tx) => {
-        await requireOwnBranch(tx, tenantId, input.branchId);
-        await requireOwnStationInBranch(tx, tenantId, input.branchId, input.stationId);
-        if (input.memberId) {
-          await requireOwnMember(tx, tenantId, input.memberId);
-        }
-        await assertNoOverlap(tx, {
-          tenantId,
-          stationId: input.stationId,
-          startAt,
-          endAt,
-        });
-        const [row] = await tx
-          .insert(chronoReservation)
-          .values({
-            id: createId(),
+      let created;
+      try {
+        created = await withTenant(tenantId, async (tx) => {
+          await requireOwnBranch(tx, tenantId, input.branchId);
+          await requireOwnStationInBranch(tx, tenantId, input.branchId, input.stationId);
+          if (input.memberId) {
+            await requireOwnMember(tx, tenantId, input.memberId);
+          }
+          await assertNoOverlap(tx, {
             tenantId,
-            branchId: input.branchId,
             stationId: input.stationId,
-            memberId: input.memberId,
-            customerName: input.customerName,
-            customerPhone: input.customerPhone,
             startAt,
             endAt,
-            notes: input.notes,
-            createdByUserId: userId,
-          })
-          .returning();
-        return row;
-      });
+          });
+          const [row] = await tx
+            .insert(chronoReservation)
+            .values({
+              id: createId(),
+              tenantId,
+              branchId: input.branchId,
+              stationId: input.stationId,
+              memberId: input.memberId,
+              customerName: input.customerName,
+              customerPhone: input.customerPhone,
+              startAt,
+              endAt,
+              notes: input.notes,
+              createdByUserId: userId,
+            })
+            .returning();
+          return row;
+        });
+      } catch (err) {
+        if (isExclusionViolation(err)) {
+          throw new HttpError(409, OVERLAP_MESSAGE);
+        }
+        throw err;
+      }
 
       await recordStaffAudit(c, {
         action: "chronoReservation.created",
@@ -286,52 +314,60 @@ export function reservationRoutes() {
         const id = c.req.param("id");
         const input = c.req.valid("json");
 
-        const updated = await withTenant(tenantId, async (tx) => {
-          const [existing] = await tx
-            .select()
-            .from(chronoReservation)
-            .where(and(eq(chronoReservation.id, id), eq(chronoReservation.tenantId, tenantId)))
-            .limit(1);
-          if (!existing) {
-            throw new HttpError(404, "Reservation not found.");
-          }
-          if (existing.status !== "confirmed") {
-            throw new HttpError(
-              409,
-              "This reservation can no longer be edited (it is not in a confirmed state).",
-            );
-          }
+        let updated;
+        try {
+          updated = await withTenant(tenantId, async (tx) => {
+            const [existing] = await tx
+              .select()
+              .from(chronoReservation)
+              .where(and(eq(chronoReservation.id, id), eq(chronoReservation.tenantId, tenantId)))
+              .limit(1);
+            if (!existing) {
+              throw new HttpError(404, "Reservation not found.");
+            }
+            if (existing.status !== "confirmed") {
+              throw new HttpError(
+                409,
+                "This reservation can no longer be edited (it is not in a confirmed state).",
+              );
+            }
 
-          const nextStationId = input.stationId ?? existing.stationId;
-          if (input.stationId) {
-            await requireOwnStationInBranch(tx, tenantId, existing.branchId, input.stationId);
-          }
-          const nextStartAt = input.startAt ? new Date(input.startAt) : existing.startAt;
-          const nextEndAt = input.endAt ? new Date(input.endAt) : existing.endAt;
+            const nextStationId = input.stationId ?? existing.stationId;
+            if (input.stationId) {
+              await requireOwnStationInBranch(tx, tenantId, existing.branchId, input.stationId);
+            }
+            const nextStartAt = input.startAt ? new Date(input.startAt) : existing.startAt;
+            const nextEndAt = input.endAt ? new Date(input.endAt) : existing.endAt;
 
-          if (input.stationId || input.startAt || input.endAt) {
-            await assertNoOverlap(tx, {
-              tenantId,
-              stationId: nextStationId,
-              startAt: nextStartAt,
-              endAt: nextEndAt,
-              excludeReservationId: id,
-            });
-          }
+            if (input.stationId || input.startAt || input.endAt) {
+              await assertNoOverlap(tx, {
+                tenantId,
+                stationId: nextStationId,
+                startAt: nextStartAt,
+                endAt: nextEndAt,
+                excludeReservationId: id,
+              });
+            }
 
-          const [row] = await tx
-            .update(chronoReservation)
-            .set({
-              ...(input.stationId !== undefined && { stationId: input.stationId }),
-              ...(input.startAt !== undefined && { startAt: nextStartAt }),
-              ...(input.endAt !== undefined && { endAt: nextEndAt }),
-              ...(input.notes !== undefined && { notes: input.notes }),
-              updatedAt: new Date(),
-            })
-            .where(and(eq(chronoReservation.id, id), eq(chronoReservation.tenantId, tenantId)))
-            .returning();
-          return row;
-        });
+            const [row] = await tx
+              .update(chronoReservation)
+              .set({
+                ...(input.stationId !== undefined && { stationId: input.stationId }),
+                ...(input.startAt !== undefined && { startAt: nextStartAt }),
+                ...(input.endAt !== undefined && { endAt: nextEndAt }),
+                ...(input.notes !== undefined && { notes: input.notes }),
+                updatedAt: new Date(),
+              })
+              .where(and(eq(chronoReservation.id, id), eq(chronoReservation.tenantId, tenantId)))
+              .returning();
+            return row;
+          });
+        } catch (err) {
+          if (isExclusionViolation(err)) {
+            throw new HttpError(409, OVERLAP_MESSAGE);
+          }
+          throw err;
+        }
 
         await recordStaffAudit(c, {
           action: "chronoReservation.updated",
