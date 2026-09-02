@@ -17,6 +17,7 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
 import { creditWallet, debitWallet, adjustWalletBalance } from "./service";
 import { creditWalletSchema, debitWalletSchema, adjustWalletSchema } from "./contracts";
+import { earnLoyaltyPoints } from "../loyalty/service";
 
 function buildPaginationMeta(
   page: number,
@@ -200,7 +201,7 @@ export function walletRoutes() {
 
         const result = await withTenant(tenantId, async (tx) => {
           await requireTenantMember(tx, memberId);
-          return creditWallet(tx, {
+          const creditResult = await creditWallet(tx, {
             tenantId,
             memberId,
             amount: input.amount,
@@ -208,6 +209,16 @@ export function walletRoutes() {
             referenceType: input.referenceType,
             performedByUserId: userId,
           });
+          // Auto-earn on a wallet top-up — no symmetric reversal on debit/
+          // refund (developer decision, loyalty Open Question 5).
+          await earnLoyaltyPoints(tx, {
+            tenantId,
+            memberId,
+            spendAmount: input.amount,
+            referenceType: "wallet_transaction",
+            referenceId: creditResult.transaction.id,
+          });
+          return creditResult;
         });
 
         await recordStaffAudit(c, {

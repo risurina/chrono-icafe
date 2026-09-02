@@ -48,17 +48,26 @@ export const saleTenderInputSchema = z.object({
   referenceNumber: z.string().max(100).optional(),
 });
 
-export const checkoutSchema = z.object({
-  branchId: z.string().min(1),
-  memberId: z.string().min(1).optional(), // walk-in when omitted
-  customerName: z.string().max(255).optional(), // walk-in receipt label only
-  idempotencyKey: z.string().min(1).max(255),
-  items: z.array(saleLineInputSchema).min(1),
-  payments: z.array(saleTenderInputSchema).min(1),
-});
+export const checkoutSchema = z
+  .object({
+    branchId: z.string().min(1),
+    memberId: z.string().min(1).optional(), // walk-in when omitted
+    customerName: z.string().max(255).optional(), // walk-in receipt label only
+    idempotencyKey: z.string().min(1).max(255),
+    items: z.array(saleLineInputSchema).min(1),
+    payments: z.array(saleTenderInputSchema).min(1),
+    voucherCode: z.string().optional(),
+    promoCode: z.string().optional(),
+  })
+  .refine((v) => !(v.voucherCode && v.promoCode), {
+    message: "Cannot apply both a voucher and a promo to the same sale.",
+    path: ["voucherCode"],
+  });
 // Note: sum(payments.amount) >= totalAmount is validated in the route, not
 // here — totalAmount is only known once productId lines are server-priced
 // (client-supplied prices for catalog items are never trusted).
+// Note: voucherCode and promoCode are mutually exclusive — discount stacking
+// is not supported (developer decision, see loyalty/vouchers/promos Phase 4).
 
 export const refundSaleSchema = z.object({
   reason: z.string().min(1).max(255),

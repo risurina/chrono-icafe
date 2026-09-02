@@ -15,6 +15,10 @@ import {
   listProductsQuerySchema,
   listSalesQuerySchema,
 } from "./contracts";
+import { redeemVoucher } from "../voucher/service";
+import { lockAndValidatePromo, redeemPromo, computeDiscount as computePromoDiscount } from "../promo/service";
+import type { PromoDiscountType } from "../promo/contracts";
+import { earnLoyaltyPoints } from "../loyalty/service";
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -297,9 +301,88 @@ export function posRoutes() {
         return Boolean(existingBefore);
       });
 
-      const result = await withTenant(tenantId, (tx) =>
-        checkout(tx, { tenantId, branchId: input.branchId, cashierUserId: userId, input }),
-      );
+      const result = await withTenant(tenantId, async (tx) => {
+        const checkoutResult = await checkout(tx, {
+          tenantId,
+          branchId: input.branchId,
+          cashierUserId: userId,
+          input,
+        });
+        // Idempotent replay returns the already-processed sale unchanged —
+        // voucher/promo redemption and loyalty earn already happened (or
+        // never applied) on the original request; re-running them here would
+        // double-redeem/double-earn.
+        if (wasIdempotentReplay) return checkoutResult;
+
+        // Discount is applied AFTER the sale row exists (voucher/promo
+        // redemption links back to saleId) and adjusted onto the row via a
+        // follow-up UPDATE in the same transaction — the discount can only
+        // reduce totalAmount, so the payment-sufficiency check already
+        // performed inside checkout() against the pre-discount subtotal
+        // remains valid a fortiori (change can only increase, never go
+        // negative). voucherCode and promoCode are mutually exclusive
+        // (enforced at the contract layer, before any DB work).
+        let discountAmount = "0.00";
+        if (input.voucherCode) {
+          const { discountAmount: da } = await redeemVoucher(tx, {
+            tenantId,
+            code: input.voucherCode,
+            memberId: checkoutResult.sale.memberId ?? undefined,
+            saleId: checkoutResult.sale.id,
+            subtotal: checkoutResult.sale.totalAmount,
+          });
+          discountAmount = da;
+        } else if (input.promoCode) {
+          const promo = await lockAndValidatePromo(tx, {
+            tenantId,
+            code: input.promoCode,
+            branchId: input.branchId,
+            memberId: checkoutResult.sale.memberId ?? undefined,
+            subtotal: checkoutResult.sale.totalAmount,
+          });
+          if (promo) {
+            discountAmount = computePromoDiscount(
+              promo.discountType as PromoDiscountType,
+              promo.discountValue,
+              checkoutResult.sale.totalAmount,
+            );
+            await redeemPromo(tx, {
+              tenantId,
+              promoId: promo.id,
+              memberId: checkoutResult.sale.memberId ?? undefined,
+              saleId: checkoutResult.sale.id,
+              discountAmount,
+            });
+          }
+        }
+
+        if (Number(discountAmount) > 0) {
+          const newTotal = (Number(checkoutResult.sale.totalAmount) - Number(discountAmount)).toFixed(2);
+          const newChange = (Number(checkoutResult.sale.amountTendered) - Number(newTotal)).toFixed(2);
+          const [updatedSale] = await tx
+            .update(chronoSale)
+            .set({ totalAmount: newTotal, changeAmount: newChange, updatedAt: new Date() })
+            .where(eq(chronoSale.id, checkoutResult.sale.id))
+            .returning();
+          checkoutResult.sale = updatedSale!;
+        }
+
+        // Auto-earn: only for a member sale (walk-ins earn no points), only
+        // on a completed sale, spend base is the FINAL discounted amount
+        // actually paid (judgment call — the plan does not explicitly say
+        // pre- vs. post-discount).
+        if (checkoutResult.sale.memberId) {
+          await earnLoyaltyPoints(tx, {
+            tenantId,
+            memberId: checkoutResult.sale.memberId,
+            spendAmount: checkoutResult.sale.totalAmount,
+            referenceType: "pos_sale",
+            referenceId: checkoutResult.sale.id,
+          });
+        }
+
+        return checkoutResult;
+      });
 
       if (!wasIdempotentReplay) {
         await recordStaffAudit(c, {
