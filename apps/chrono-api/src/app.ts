@@ -47,6 +47,7 @@ import {
 import { rpc, lifecycle, signFileForTenant, confirmFileForTenant } from "./routes/rpc";
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
+import { qrPublicRoutes } from "./modules/qr/public-routes";
 import {
   tenantBranding,
   tenantSsoConnection,
@@ -858,6 +859,12 @@ export const app = new Hono()
   // outside /rpc and outside apiV1, alongside /billing/webhook and the
   // /public/* family — see .ai/plans/chrono/active/devices/README.md.
   .route("/api/v1/device", deviceAuthRoutes())
+  // Chrono: public QR scan resolve/consume (qr plan Phase 3) — no Better
+  // Auth staff session; `/consume` gates on its own `memberMiddleware()`
+  // (tenantMember/portal session) inside the router itself. Rate-limited
+  // internally (per-IP + per-station on `/resolve`) — see
+  // `apps/chrono-api/src/modules/qr/public-routes.ts`.
+  .route("/public/qr", qrPublicRoutes())
   // Platform Maintenance / global read-only enforcement (System Settings, spec
   // #14) for TENANT traffic only. The `/rpc-admin/*` surface is a separate
   // mount and never passes through here, so an admin can always turn the flags

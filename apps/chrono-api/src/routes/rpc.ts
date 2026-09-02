@@ -72,6 +72,7 @@ import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { voucherRoutes } from "../modules/voucher/routes";
 import { promoRoutes } from "../modules/promo/routes";
 import { staffDeviceRoutes } from "../modules/device/routes";
+import { stationQrRoutes } from "../modules/qr/routes";
 import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
 import { inviteRoutes } from "agora/invites";
@@ -1379,6 +1380,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: stations (RLS-protected, staff create/update, admin+ delete) — apps/chrono-api/src/modules/station ──
   .route("/", stationRoutes())
+
+  // ── Chrono: station QR regenerate, staff-facing (reuses station:update) — apps/chrono-api/src/modules/qr ──
+  .route("/", stationQrRoutes())
 
   // ── Chrono: reservations (RLS-protected, staff/admin/owner read+manage) — apps/chrono-api/src/modules/reservation ──
   .route("/", reservationRoutes())
