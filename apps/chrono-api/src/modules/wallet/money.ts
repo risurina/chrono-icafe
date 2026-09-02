@@ -40,3 +40,22 @@ export function negateMoney(a: string): string {
 export function isNegativeMoney(a: string): boolean {
   return toCents(a) < 0n;
 }
+
+export function multiplyMoney(a: string, n: number): string {
+  const centsA = toCents(a);
+  return fromCents(centsA * BigInt(Math.round(n)));
+}
+
+export function subtractMoney(a: string, b: string): string {
+  const centsA = toCents(a);
+  const centsB = toCents(b);
+  return fromCents(centsA - centsB);
+}
+
+export function compareMoney(a: string, b: string): number {
+  const centsA = toCents(a);
+  const centsB = toCents(b);
+  if (centsA < centsB) return -1;
+  if (centsA > centsB) return 1;
+  return 0;
+}

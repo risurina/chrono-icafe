@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql, schema as base } from "agora/db";
 import type { TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { debitWallet, creditWallet } from "../wallet/service";
-import { addMoney } from "../wallet/money";
+import { addMoney, multiplyMoney, subtractMoney, compareMoney } from "../wallet/money";
 import { chronoShift } from "../shift/schema";
 import {
   chronoProduct,
@@ -158,7 +158,7 @@ export async function checkout(
   for (const line of input.items) {
     const product = line.productId ? products.get(line.productId)! : null;
     const unitPrice = product ? product.price : line.unitPrice!;
-    const lineTotal = (Number(unitPrice) * line.quantity).toFixed(2);
+    const lineTotal = multiplyMoney(unitPrice, line.quantity);
     totalAmount = addMoney(totalAmount, lineTotal);
     lineSnapshots.push({
       productId: product?.id ?? null,
@@ -171,10 +171,10 @@ export async function checkout(
   }
 
   const amountTendered = input.payments.reduce((sum, p) => addMoney(sum, p.amount), "0.00");
-  if (Number(amountTendered) < Number(totalAmount)) {
+  if (compareMoney(amountTendered, totalAmount) < 0) {
     throw new HttpError(400, "Payment total is less than the sale total.");
   }
-  const changeAmount = (Number(amountTendered) - Number(totalAmount)).toFixed(2);
+  const changeAmount = subtractMoney(amountTendered, totalAmount);
 
   // memberId ownership check (if provided) — 404 before any wallet/stock
   // touch, closing the same isolation hole wallet's Pass 1 mandated.

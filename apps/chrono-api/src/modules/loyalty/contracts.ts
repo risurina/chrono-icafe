@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { listQuerySchema } from "agora";
 
+/**
+ * Ceiling for the resulting `pointsBalance`/`lifetimePoints`, matching the
+ * `integer` (`int4`) columns' capacity. The contract layer bounds each
+ * individual delta; this bounds the running total, which a series of
+ * individually-valid adjustments could otherwise overflow. Mirrors
+ * `wallet/contracts.ts`'s `MAX_BALANCE` / `wallet/service.ts`'s
+ * `MAX_BALANCE_CENTS` pattern.
+ */
+export const MAX_POINTS_BALANCE = 1_000_000_000;
+
 export const loyaltyTierSchema = z.enum(["bronze", "silver", "gold", "platinum"]);
 
 export const loyaltyAccountSchema = z.object({
@@ -43,7 +53,12 @@ export const redeemPointsSchema = z.object({
 });
 
 export const adjustPointsSchema = z.object({
-  delta: z.number().int().refine((v) => v !== 0, "Delta must not be zero"),
+  delta: z
+    .number()
+    .int()
+    .min(-MAX_POINTS_BALANCE)
+    .max(MAX_POINTS_BALANCE)
+    .refine((v) => v !== 0, "Delta must not be zero"),
   reason: z.string().min(1).max(255),
 });
 

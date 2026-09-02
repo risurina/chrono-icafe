@@ -2,6 +2,7 @@ import { eq, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { chronoLoyaltyAccount, chronoLoyaltyTransaction } from "./schema";
 import type { ChronoLoyaltyAccountRow } from "./schema";
+import { MAX_POINTS_BALANCE } from "./contracts";
 
 /**
  * Tier thresholds, kept from oikos as a reasonable default (see
@@ -120,9 +121,18 @@ export async function applyPointsDelta(
   if (balanceAfter < 0) {
     throw new HttpError(409, "Insufficient loyalty points balance");
   }
+  if (balanceAfter > MAX_POINTS_BALANCE || balanceAfter < -MAX_POINTS_BALANCE) {
+    throw new HttpError(409, `Loyalty points balance limit exceeded (max ${MAX_POINTS_BALANCE})`);
+  }
 
   const lifetimePointsAfter =
     args.points > 0 ? account.lifetimePoints + args.points : account.lifetimePoints;
+  if (lifetimePointsAfter > MAX_POINTS_BALANCE) {
+    throw new HttpError(
+      409,
+      `Loyalty lifetime points limit exceeded (max ${MAX_POINTS_BALANCE})`,
+    );
+  }
   const tierAfter = tierFor(lifetimePointsAfter);
 
   const [updatedAccount] = await tx
