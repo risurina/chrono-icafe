@@ -26,3 +26,6 @@
 - 2026-09-02 — Phase 5 (web UI) session `2376761933710073487` stalled on a
   Google sign-in wall (same issue as wallet's own Phase 4) — discarded,
   built locally instead. See commit once it lands.
+- 2026-09-02 — Built locally instead (session `2376761933710073487`
+  discarded per developer direction). Committed (`5610d3a`), zero
+  any-types, typecheck+build clean. **Phase 5 done, Phase 6 (e2e) next.**
