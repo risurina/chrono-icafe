@@ -1,0 +1,2 @@
+ALTER TABLE "ChronoWalletTransactions" ADD CONSTRAINT "chrono_wallet_transaction_balance_ck" CHECK ("ChronoWalletTransactions"."balanceAfter" = "ChronoWalletTransactions"."balanceBefore" + "ChronoWalletTransactions"."amount");--> statement-breakpoint
+ALTER TABLE "ChronoWalletTransactions" ADD CONSTRAINT "chrono_wallet_transaction_type_ck" CHECK ("ChronoWalletTransactions"."type" IN ('credit', 'debit', 'adjustment'));

@@ -1,4 +1,13 @@
-import { pgTable, text, timestamp, index, uniqueIndex, numeric } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  index,
+  uniqueIndex,
+  numeric,
+  check,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 
@@ -77,5 +86,19 @@ export const chronoWalletTransaction = pgTable(
     index("chrono_wallet_transaction_member_idx").on(t.memberId),
     index("chrono_wallet_transaction_type_idx").on(t.type),
     index("chrono_wallet_transaction_created_idx").on(t.createdAt),
+    // The ledger's self-checking invariant, enforced by the database rather than by
+    // application code alone — `applyWalletDelta` is the only writer today, but a
+    // future direct writer (a webhook, a backfill, a composing module calling the
+    // service incorrectly) would otherwise be unguarded.
+    check(
+      "chrono_wallet_transaction_balance_ck",
+      sql`${t.balanceAfter} = ${t.balanceBefore} + ${t.amount}`,
+    ),
+    // `type` is free text validated at the contract layer (see the column comment);
+    // this pins the same three values at the DB level for the same reason.
+    check(
+      "chrono_wallet_transaction_type_ck",
+      sql`${t.type} IN ('credit', 'debit', 'adjustment')`,
+    ),
   ],
 );
