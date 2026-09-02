@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { Trash2, X, QrCode } from "lucide-react";
+import QRCode from "qrcode";
 import {
   Button,
   Input,
@@ -33,6 +34,14 @@ import {
 } from "agora/ui";
 import { api } from "@/lib/rpc";
 import type { PaginationMeta } from "agora";
+
+type StationQrStatus = {
+  stationId: string;
+  qrSecretVersion: number;
+  token: string;
+  qrUrl: string;
+  expiresAt: string;
+};
 
 // Note: If a type doesn't exist, we'll infer from the API response
 type StationStatus = "available" | "maintenance" | "offline";
@@ -215,6 +224,40 @@ export default function StationsPage() {
   const [groupSaving, setGroupSaving] = useState(false);
   const [confirmingGroupId, setConfirmingGroupId] = useState<string | null>(null);
 
+  // QR Dialog State
+  const [qrDialogStation, setQrDialogStation] = useState<Station | null>(null);
+  const [qrStatus, setQrStatus] = useState<StationQrStatus | null>(null);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  async function openQrDialog(s: Station) {
+    setQrDialogStation(s);
+    setQrStatus(null);
+    setQrImage(null);
+    await regenerateQr(s.id);
+  }
+
+  async function regenerateQr(stationId: string) {
+    setQrLoading(true);
+    const res = await ((api.rpc as any).stations[":id"].qr.regenerate.$post as any)({
+      param: { id: stationId },
+    });
+    setQrLoading(false);
+    if (!res.ok) {
+      toast.error(
+        (res.status as number) === 403
+          ? "You don't have permission to manage this station's QR code."
+          : "Could not regenerate QR code.",
+      );
+      return;
+    }
+    const status = (await res.json()) as StationQrStatus;
+    setQrStatus(status);
+    const fullUrl = `${window.location.protocol}//${window.location.host}${status.qrUrl}`;
+    const dataUrl = await QRCode.toDataURL(fullUrl, { width: 256, margin: 1 });
+    setQrImage(dataUrl);
+  }
+
   // Station Actions
   function openCreateStation() {
     setEditingStation(null);
@@ -388,6 +431,14 @@ export default function StationsPage() {
       </Row>
     ) : (
       <Row items="center">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Show QR for ${s.name}`}
+          onClick={() => openQrDialog(s)}
+        >
+          <QrCode className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -864,6 +915,48 @@ export default function StationsPage() {
           ) : null}
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={qrDialogStation !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQrDialogStation(null);
+            setQrStatus(null);
+            setQrImage(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{qrDialogStation ? `${qrDialogStation.name} — QR code` : "QR code"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            {qrLoading ? (
+              <p className="text-sm text-muted-foreground">Generating…</p>
+            ) : qrImage && qrStatus ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- data: URL, not an optimizable remote image */}
+                <img src={qrImage} alt="Station QR code" className="h-64 w-64" />
+                <p className="text-xs text-muted-foreground">
+                  Expires {new Date(qrStatus.expiresAt).toLocaleTimeString()} — regenerate to
+                  print a fresh sticker.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-destructive">Could not load QR code.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={qrLoading || !qrDialogStation}
+              onClick={() => qrDialogStation && regenerateQr(qrDialogStation.id)}
+            >
+              {qrLoading ? "Regenerating…" : "Regenerate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }

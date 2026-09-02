@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Button,
   Input,
@@ -15,11 +16,13 @@ import {
   AuthLayout,
   toast,
 } from "agora/ui";
+import { safeNextPath } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
 
-/** Customer ("member") login → member area. */
+/** Customer ("member") login → member area (or `?next=` when set, e.g. a QR scan). */
 export default function PortalLoginPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,7 +36,7 @@ export default function PortalLoginPage() {
       setLoading(false);
       return;
     }
-    location.href = "/portal";
+    location.href = safeNextPath(searchParams.get("next")) ?? "/portal";
   }
 
   return (
