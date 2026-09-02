@@ -12,3 +12,4 @@
   reconstruction correct, purchase-atomicity confirmed (insufficient wallet
   balance leaves zero grant/purchase rows). `test:permissions` 361/0 failed
   including 7 new credit gate cases.
+- 2026-09-02 — Phase 5 (web UI) delegated to Jules, session `15301902286448584865`. Fired in parallel with pos/sessions/reports UI.

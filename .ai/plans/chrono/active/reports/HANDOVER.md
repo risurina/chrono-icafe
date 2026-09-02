@@ -4,3 +4,4 @@
   read-only aggregation layer over pos/wallet/shift tables) delegated to
   Jules, session `9092477127910247974`. Background poller running
   (consolidated with 7 other sessions fired the same round).
+- 2026-09-02 — Phase 4 (web UI) delegated to Jules, session `14114523439751067063`. Fired in parallel with pos/credits/sessions UI.

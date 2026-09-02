@@ -111,3 +111,4 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   (`135966f`). Phase 4 done — Phase 5 (web UI) is next, Jules-eligible now
   that the backend is fully landed. **`sessions` backend is now
   complete — every core Wave-1 module has a full backend.**
+- 2026-09-02 — Phase 5 (web UI) delegated to Jules, session `16137985652170510598`. Fired in parallel with pos/credits/reports UI.

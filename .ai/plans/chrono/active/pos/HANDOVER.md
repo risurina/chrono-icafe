@@ -52,3 +52,4 @@
   proper partial index) — confirmed this is a test-tooling gap (ad-hoc DDL
   emitters used by concurrency test scripts don't reconstruct partial
   indexes), not a real migration/production drift. Not fixed, not urgent.
+- 2026-09-02 — Phase 5 (web UI) delegated to Jules, session `15794226516510570239`. Backend fully done, fired in parallel with credits/sessions/reports UI.
