@@ -5,6 +5,7 @@ import { zValidator } from "agora/server";
 import { createId } from "agora";
 import { chronoMemberProfile } from "./schema";
 import { applyForMembershipSchema, toMemberProfile } from "./contracts";
+import { getChronoTenantFlag } from "../../contracts/extensions";
 
 /**
  * Customer-facing venue-membership self-service surface — gated by the
@@ -45,6 +46,12 @@ export function memberPortalRoutes() {
         return c.json({ profile: toMemberProfile(existing[0]) });
       }
 
+      // customer-onboarding Phase 1, Decision 1: a tenant may opt into instant
+      // access via the `chrono.autoApproveMembers` flag (default off — most
+      // venues want to vet a walk-in before granting access).
+      const autoApprove = await getChronoTenantFlag(tenantId, "chrono.autoApproveMembers");
+      const now = new Date();
+
       const [created] = await withTenant(tenantId, (tx) =>
         tx
           .insert(chronoMemberProfile)
@@ -53,7 +60,8 @@ export function memberPortalRoutes() {
             tenantId,
             memberId,
             phone: phone ?? null,
-            applicationStatus: "pending",
+            applicationStatus: autoApprove ? "approved" : "pending",
+            ...(autoApprove ? { approvedAt: now } : {}),
           })
           .returning(),
       );
