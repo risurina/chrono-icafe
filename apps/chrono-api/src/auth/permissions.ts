@@ -34,6 +34,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // (the correction/reversal path) sits at admin+. See Open Question 1 in
   // .ai/plans/chrono/active/wallet/README.md.
   wallet: ["read", "credit", "debit", "adjust"],
+  // The counter operation (read/sell) is routine, staff-level work — matches
+  // wallet's own precedent of granting staff the day-to-day money-moving
+  // action. Catalog management and refunds are corrections/config, gated
+  // stricter at admin+. See Open Question 1 in
+  // .ai/plans/chrono/active/pos/README.md.
+  pos: ["read", "sell", "void", "manageProducts"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -41,6 +47,7 @@ export const CHRONO_STAFF_GRANTS = {
   shift: ["open", "close"],
   reservation: ["read", "manage"],
   wallet: ["read", "credit", "debit"],
+  pos: ["read", "sell"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -50,6 +57,7 @@ export const CHRONO_ADMIN_GRANTS = {
   reservation: ["read", "manage"],
   device: ["approve", "revoke", "manage"],
   wallet: ["read", "credit", "debit", "adjust"],
+  pos: ["read", "sell", "void", "manageProducts"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */

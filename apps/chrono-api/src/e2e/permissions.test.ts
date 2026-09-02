@@ -1341,6 +1341,30 @@ check(
   hasChronoPermission("owner", { wallet: ["adjust"] }),
 );
 
+console.log("\n── chrono pos permissions (pos Phase 3) ──");
+// staff holds read/sell (the day-to-day counter operation, matching wallet's
+// own precedent); void/manageProducts sit at admin+, per Open Question 1's
+// resolution in .ai/plans/chrono/active/pos/README.md.
+check("staff may pos:sell", hasChronoPermission("staff", { pos: ["sell"] }));
+check(
+  "staff may NOT pos:void",
+  hasChronoPermission("staff", { pos: ["void"] }) === false,
+);
+check(
+  "staff may NOT pos:manageProducts",
+  hasChronoPermission("staff", { pos: ["manageProducts"] }) === false,
+);
+check("admin may pos:void", hasChronoPermission("admin", { pos: ["void"] }));
+check(
+  "admin may pos:manageProducts",
+  hasChronoPermission("admin", { pos: ["manageProducts"] }),
+);
+check(
+  "owner may pos:void and pos:manageProducts",
+  hasChronoPermission("owner", { pos: ["void"] }) &&
+    hasChronoPermission("owner", { pos: ["manageProducts"] }),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

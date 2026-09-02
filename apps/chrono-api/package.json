@@ -17,6 +17,7 @@
     "test:permissions": "tsx src/e2e/permissions.test.ts",
     "test:overlap": "tsx src/modules/reservation/overlap.test.ts",
     "test:wallet-concurrency": "tsx src/modules/wallet/concurrency.test.ts",
+    "test:pos-concurrency": "tsx src/modules/pos/concurrency.test.ts",
     "test:billing-transactions": "tsx src/e2e/billing-transactions.test.ts",
     "test:billing-pricing": "DB_DRIVER=pglite tsx src/e2e/billing-pricing.test.ts",
     "test:notification-templates": "tsx src/e2e/notification-templates.test.ts",
