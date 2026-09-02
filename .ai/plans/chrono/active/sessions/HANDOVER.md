@@ -90,3 +90,23 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   374 passed, `rls:proof` → `RLS PROOF: PASS ✅`, `test:session-concurrency`
   → 4 passed. Committed (`af8ce16`). Phase 3 done — Phase 4 (background
   expiry sweep, reuses `closeSession` directly) is next.
+- 2026-09-02 — Phase 4 (background expiry sweep) built locally, per Pass 2's
+  exact spec: `expiry.ts`'s `runSessionExpirySweepOnce()` (a `withAdmin`
+  due-row scan, batch-capped at 200, `WHERE status IN ('active','paused') AND
+  scheduledEndAt < now()`, so an open-ended session is never touched) closes
+  each due row via `withTenant(row.tenantId, tx => closeSession(...))` —
+  reusing Phase 3's function directly, never a second billing
+  implementation — wrapped by `startSessionExpiryWorker()` (`setInterval` +
+  `.unref()`, `SESSION_EXPIRY_SWEEP_INTERVAL_MS` env override, default
+  60s), wired into `index.ts` mirroring `startRetentionWorker()`'s exact
+  structure (bootstrap call + `stop...()` in the `SIGINT`/`SIGTERM`
+  handler). Verified with a throwaway script (per the plan's own "no
+  dedicated automated test file required" note, deleted after use) against
+  a real Postgres test DB: seeded one past-due session (`scheduledEndAt` 5
+  minutes ago) and one open-ended session, ran the sweep once — the
+  past-due session closed (`status: "ended"`, station `"available"`,
+  exactly one wallet debit recorded), the open-ended session stayed
+  untouched. `pnpm --filter @agora/chrono-api typecheck` clean. Committed
+  (`135966f`). Phase 4 done — Phase 5 (web UI) is next, Jules-eligible now
+  that the backend is fully landed. **`sessions` backend is now
+  complete — every core Wave-1 module has a full backend.**
