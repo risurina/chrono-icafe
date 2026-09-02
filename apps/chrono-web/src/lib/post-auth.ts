@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { adminApi } from "@/lib/admin-client";
+import { api } from "@/lib/rpc";
 import {
   isTenantHost,
   isTrustedHost,
@@ -19,6 +20,46 @@ export {
 } from "agora/client";
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+
+type OnboardingChecklistSummary = {
+  completedCount: number;
+  allDone: boolean;
+  dismissed: boolean;
+};
+
+/**
+ * Derivable "brand-new, untouched tenant" condition for the onboarding-wizard
+ * redirect (onboarding-wizard plan, Phase 3, "Open Question 1 — resolved").
+ * Deliberately NOT a stored "first login" flag — this plan forbids any new
+ * persisted cursor, so the condition is read straight off the same onboarding
+ * state the checklist card renders: zero items done, not all done (redundant
+ * once zero are done, kept for clarity), and not dismissed. True exactly once
+ * in practice, and self-corrects the moment the owner does or dismisses
+ * anything — no owner can ever get stuck in the wizard.
+ */
+function checklistIsUntouched(state: OnboardingChecklistSummary): boolean {
+  return !state.dismissed && !state.allDone && state.completedCount === 0;
+}
+
+/**
+ * Fetch the onboarding checklist for an explicit tenant slug — used for the
+ * brand-new-workspace path below, where we are still on the apex host and the
+ * typed `api` client (which derives its tenant header from the CURRENT host)
+ * cannot be pointed at the just-created tenant.
+ */
+async function fetchChecklistForSlug(slug: string): Promise<OnboardingChecklistSummary | null> {
+  try {
+    const res = await fetch(`${API_URL}/onboarding/checklist`, {
+      credentials: "include",
+      headers: { "x-tenant-slug": slug },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as OnboardingChecklistSummary;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Where a freshly-authenticated user should land.
@@ -49,7 +90,13 @@ export async function resolveLandingUrl(nextHost?: string | null): Promise<strin
       return `${window.location.protocol}//${nextHost}${next}`;
     }
   }
-  if (isTenantHost(host)) return "/dashboard";
+  if (isTenantHost(host)) {
+    const res = await api.rpc.onboarding.checklist.$get();
+    if (res.ok && checklistIsUntouched(await res.json())) {
+      return "/dashboard/setup";
+    }
+    return "/dashboard";
+  }
 
   // A platform admin holds no tenant membership by convention (see
   // .ai/rules/rbac.md), so it must be checked before the org lookup below —
@@ -60,5 +107,7 @@ export async function resolveLandingUrl(nextHost?: string | null): Promise<strin
   const orgs = await authClient.organization.list();
   const first = orgs.data?.[0];
   if (!first) return "/new-workspace?welcome=1";
-  return `${window.location.protocol}//${first.slug}.${APP_DOMAIN}/dashboard`;
+  const checklist = await fetchChecklistForSlug(first.slug);
+  const landing = checklist && checklistIsUntouched(checklist) ? "/dashboard/setup" : "/dashboard";
+  return `${window.location.protocol}//${first.slug}.${APP_DOMAIN}${landing}`;
 }

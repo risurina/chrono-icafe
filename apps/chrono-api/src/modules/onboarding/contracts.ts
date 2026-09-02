@@ -32,7 +32,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   createBranch: {
     label: "Create your first branch",
     description: "Add the venue location your stations and staff belong to.",
-    href: "/branches",
+    href: "/dashboard/setup#createBranch",
     stage: "Venue",
     requiredPermission: { branch: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
@@ -48,7 +48,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   addStationGroup: {
     label: "Add a station group",
     description: "Group your stations by rate or type before adding them.",
-    href: "/stations",
+    href: "/dashboard/setup#addStationGroup",
     stage: "Venue",
     requiredPermission: { station: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
@@ -64,7 +64,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   addStation: {
     label: "Add a station",
     description: "Add the first PC or seat customers will book or walk up to.",
-    href: "/stations",
+    href: "/dashboard/setup#addStation",
     stage: "Venue",
     requiredPermission: { station: ["create"] },
     wizardStep: { inlineable: true, skippable: false },
@@ -80,7 +80,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   inviteStaff: {
     label: "Invite a staff member",
     description: "Bring a teammate onto the workspace.",
-    href: "/settings/members",
+    href: "/dashboard/setup#inviteStaff",
     stage: "Team",
     requiredPermission: { staff: ["invite"] },
     wizardStep: { inlineable: true, skippable: false },
@@ -112,7 +112,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   addProducts: {
     label: "Add POS products",
     description: "List the snacks, drinks, or extras you sell at the counter.",
-    href: "/pos/products",
+    href: "/dashboard/setup#addProducts",
     stage: "Trading",
     requiredPermission: { pos: ["manageProducts"] },
     wizardStep: { inlineable: true, skippable: false },
@@ -128,7 +128,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   pairDevice: {
     label: "Create a device pairing code",
     description: "Generate a code so a kiosk PC can pair with this workspace.",
-    href: "/devices",
+    href: "/dashboard/setup#pairDevice",
     stage: "Trading",
     requiredPermission: { device: ["manage"] },
     wizardStep: { inlineable: true, skippable: true },
@@ -148,7 +148,7 @@ export const CHRONO_ONBOARDING_ITEMS = {
   openShift: {
     label: "Open your first shift",
     description: "Start a cash-drawer shift so staff can begin serving customers.",
-    href: "/shifts",
+    href: "/dashboard/setup#openShift",
     stage: "Trading",
     requiredPermission: { shift: ["open"] },
     wizardStep: { inlineable: true, skippable: false },
