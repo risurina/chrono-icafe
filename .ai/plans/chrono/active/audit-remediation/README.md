@@ -6,10 +6,18 @@ implementation state from `git` itself rather than from any status table — a
 precaution added after an earlier audit produced two false blockers by trusting a
 stale snapshot.
 
-This plan owns **only the cross-module remediation**. A finding that belongs
-entirely inside one module's own plan (an unresolved Open Question, an
-unexpanded phase) stays with that plan and is listed under "Delegated back" at
-the end.
+This plan owns **only the cross-module correctness and documentation
+remediation**. A finding that belongs entirely inside one module's own plan (an
+unresolved Open Question, an unexpanded phase) stays with that plan and is
+listed under "Delegated back" at the end.
+
+**Phases 3, 6 and 8 are absent by design — they moved to
+`.ai/plans/chrono/active/security-hardening/`** (as its Phases 1, 3 and 4):
+the device pairing surface, the DTO/`qrSecret` exposure, and the public
+tenant-resolution boundary. The remaining numbers are deliberately NOT
+renumbered, so `f756dca`'s "Phase 1" and every handover reference stay valid.
+Nothing is owned by both plans — if a finding appears in both, the ownership is
+wrong and must be fixed rather than implemented twice.
 
 **Verdict spread:** 8 APPROVED WITH CONDITIONS, 14 NEEDS REVISION. No plan was
 clean. Two "approved" modules carry blockers — the verdict reflected that the
@@ -80,18 +88,19 @@ customer CRUD — they belong in Chrono. Moving them is a behaviour-preserving
 refactor **only if** the grant sets are reproduced exactly; otherwise a member
 silently loses access on their next request.
 
-### The `qrSecret` exposure is latent but scheduled
+### Moved out: the security-class findings
 
-`station/routes.ts:122,163` return `tx.select()` raw rows. `chronoStation`
-carries `qrSecret` (an HMAC signing key) and `qrSecretVersion`, currently unpopulated
-— so nothing leaks today. The `qr` module's Phase 3 populates that column, at
-which point every `station:read` holder, `staff` included, receives the signing
-key in a list response and can forge that station's QR codes indefinitely.
+The device pairing surface, the raw-rows/`qrSecret` exposure, and the
+public-host status filter were originally Phases 3, 6 and 8 here. They now live
+in `.ai/plans/chrono/active/security-hardening/`, because they share a reviewer
+mindset (what does an unauthenticated or under-privileged actor get?) and a
+verification style (negative tests — assert the thing is *refused*) that the
+correctness work does not. Kept alongside the money-concurrency fixes they read
+as lower priority than they are.
 
-This must land **before** qr Phase 3, not after. It is the same
-raw-rows-as-transport defect the branches, members, and loyalty audits each
-found independently (`.ai/rules/dto.md`), which is why Phase 6 fixes the
-pattern rather than only this instance.
+The one dependency to keep in view from here: the DTO sweep must land **before**
+`qr` Phase 3 populates `chronoStation.qrSecret`, or every `station:read` holder
+receives an HMAC signing key in a list response.
 
 ### Out of scope
 
@@ -186,51 +195,6 @@ constraint — `ADD CONSTRAINT` fails on a violating row. Expect zero.
 
 ---
 
-## Phase 3 — Devices: throttle pairing, and make the code unguessable
-
-Two blockers, one endpoint.
-
-**Files to update**
-
-- `apps/chrono-api/src/app.ts` — put a rate limiter in front of
-  `POST /api/v1/device/pair` and `POST /api/v1/device/auth`, using the existing
-  `createRateLimiter` + `clientIp` from `agora/server`
-  (`packages/agora/src/server/rate-limit.ts:172,184`; precedent at
-  `app.ts:350-367`). Key per-IP **and** per-pairing-code. Pin concrete limits in
-  the code, not "some throttle".
-- `apps/chrono-api/src/modules/device/schema.ts` — add a partial unique index on
-  `pairingCode` where `status = 'active'`, so two tenants cannot hold the same
-  live code. Migration via `db:generate --name add_device_pairing_code_unique`.
-  Pre-flight for existing duplicates first.
-- `apps/chrono-api/src/modules/device/routes.ts` — generate the code from
-  `crypto.randomBytes` over an unambiguous uppercase alphabet (no `O`/`0`/`I`/`1`),
-  ≥10 chars, replacing `createId().slice(0,8).toUpperCase()` (`:224`); refuse to
-  mint on unique-violation and retry.
-
-**Also decide and record** (audit finding 3): `/pair` currently overwrites the
-shared provisioning token's `tokenHash` on every redemption, so with
-`maxUses > 1` each PC invalidates the previous one. Either enforce
-single-redemption or move minted tokens to child rows. Pick one and write it in
-the devices plan.
-
-**Acceptance criteria**
-
-- Exceeding the pairing limit returns 429, not a pairing attempt.
-- Two tenants cannot both hold the same active pairing code.
-- A generated code is ≥10 chars from the restricted alphabet.
-- Existing successful pairing flow still works end to end.
-
-**Verification**
-
-- `pnpm --filter @agora/chrono-api typecheck`
-- `pnpm --filter @agora/chrono-api rls:proof`
-- devices e2e spec
-
-**Execution start point:** `apps/chrono-api/src/app.ts`, beside the existing
-auth limiter.
-
----
-
 ## Phase 4 — Shifts: close ownership + row lock
 
 **Files to update**
@@ -300,42 +264,6 @@ members lose access.
 
 ---
 
-## Phase 6 — DTO sweep: stop returning raw Drizzle rows
-
-Closes the latent `qrSecret` exposure and the pattern behind it. **Must land
-before `qr` Phase 3.**
-
-**Files to update**
-
-- `apps/chrono-api/src/modules/station/routes.ts` — explicit column lists (or a
-  `toStationDto`) on both GETs (`:122`, `:163`) and every `.returning()`;
-  `qrSecret`/`qrSecretVersion` must never appear in a response.
-- `apps/chrono-api/src/modules/station/contracts.ts` — add the response schema.
-- `apps/chrono-api/src/modules/member/routes.ts:159,186,212` and
-  `portal-routes.ts:28,63` — add `toMemberProfile()`; dates as ISO strings.
-- `apps/chrono-api/src/modules/loyalty/routes.ts:200,231,262` — use the already
-  defined but unused `loyaltyAccountSchema`/`loyaltyTransactionSchema`; make the
-  zero-state a stable `{ account: dto | null }` rather than a shape-shifting
-  object.
-- `apps/chrono-api/src/modules/branch/routes.ts:72,82` — explicit columns.
-
-**Acceptance criteria**
-
-- No station response body contains `qrSecret` — assert this in a test, not by
-  inspection.
-- No route returns a raw `$inferSelect` row; dates cross the wire as ISO
-  strings.
-- The web app still typechecks against the narrowed shapes.
-
-**Verification**
-
-- `pnpm typecheck`
-- `pnpm --filter @agora/chrono-api test:permissions`
-
-**Execution start point:** `apps/chrono-api/src/modules/station/routes.ts:122`.
-
----
-
 ## Phase 7 — Money helpers + remove the float fallbacks
 
 **Files to update**
@@ -364,29 +292,6 @@ before `qr` Phase 3.**
 - `pnpm --filter @agora/chrono-api test:wallet-concurrency`
 
 **Execution start point:** `apps/chrono-api/src/modules/wallet/money.ts`.
-
----
-
-## Phase 8 — Foundation: make `resolveOrgFromRequest` status-aware
-
-`public-stations` and `tenant-landing` independently both assumed
-`resolveOrgFromRequest` (`packages/agora/src/server/host.ts:29`) filters
-`organization.status`. It does not — a `suspended`/`cancelled`/`archived`/
-`deleting` tenant still resolves. Two plans making the same wrong assumption is
-a signal about the helper, not about the plans.
-
-**Decision required before implementing:** either (a) filter terminal statuses
-inside the helper — safest, but changes existing `/public/tenant` and
-`/public/branding` behaviour, so it needs its own check for callers relying on
-resolution-regardless-of-status; or (b) leave the helper and export a
-`TERMINAL_TENANT_STATUSES` set plus a documented note, requiring each public
-route to check. **Recommendation: (a)**, since (b) reproduces the exact
-assumption that caused this.
-
-This phase touches `packages/agora` and therefore belongs in a foundation plan
-per `.ai/rules/feature-planning.md`. **Split it out to
-`.ai/plans/agora/active/public-host-status-filter/` before implementing** —
-recorded here only so the finding is not lost.
 
 ---
 

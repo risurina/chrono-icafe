@@ -3,8 +3,12 @@
 Tracks `.ai/plans/chrono/active/audit-remediation/README.md`.
 
 **No phase here is delegated to Jules** — see the plan's Delegation section.
-Every phase is a concurrency fix, an authorization change, a credential-exposure
-fix, or a foundation edit.
+Every phase is a concurrency fix, an authorization change, or a foundation edit.
+
+**Phase numbers 3, 6 and 8 are intentionally missing.** They moved to
+`.ai/plans/chrono/active/security-hardening/` (as its Phases 1, 3 and 4).
+The remaining phases are NOT renumbered, so `f756dca`'s "Phase 1" and every
+reference below stay valid.
 
 ## Phase status
 
@@ -12,12 +16,9 @@ fix, or a foundation edit.
 |---|---|---|---|
 | 1 — POS refund row lock + atomic stock restore | local | done | committed `f756dca`; negative test confirmed the bug was real (see log) |
 | 2 — Reservations exclusion constraint + reopen plan | local | not started | needs `btree_gist`; run the pre-flight overlap query first |
-| 3 — Devices: throttle pairing + unique/high-entropy code | local | not started | two blockers on one unauthenticated endpoint |
 | 4 — Shifts: close ownership + row lock | local | not started | adds `shift:closeAny`, admin-only |
 | 5 — Move Chrono customer permissions out of `packages/agora` | local | not started | behaviour-preserving ONLY if grants reproduced exactly |
-| 6 — DTO sweep (closes latent `qrSecret` exposure) | local | not started | **must land before `qr` Phase 3** |
 | 7 — Money helpers + remove float fallbacks | local | not started | adds multiply/subtract/compare to `wallet/money.ts` |
-| 8 — Foundation: status-aware `resolveOrgFromRequest` | local | not started | **split to `.ai/plans/agora/` before implementing** — touches `packages/agora` |
 | 9 — Documentation sweep (9a–9e) | local | not started | one commit per pattern |
 
 ## Log
@@ -69,5 +70,13 @@ fix, or a foundation edit.
   `tenant-landing` independently made the SAME wrong assumption about
   `resolveOrgFromRequest` filtering `organization.status`. Two plans converging
   on one false belief points at the helper's contract, not at the plan authors —
-  which is why Phase 8 proposes fixing the helper rather than patching both
-  call sites.
+  which is why the remedy fixes the helper rather than patching both call sites.
+  That work is now `security-hardening` Phase 4.
+- 2026-09-02 — Split: the security-class phases (3 devices, 6 DTO/`qrSecret`,
+  8 public-host status filter) moved to
+  `.ai/plans/chrono/active/security-hardening/` and were REMOVED here, rather
+  than duplicated. This is a direct application of a finding from the audit
+  itself — the `pos` and `reconciliation` plans both claimed ownership of the
+  same lines in `shift/routes.ts:194`, and that ambiguity is what let the
+  `shifts` plan keep asserting `expectedCashAmount` is "always null" after
+  `a69b5cc` made it real. One owner per finding.
