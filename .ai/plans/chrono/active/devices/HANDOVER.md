@@ -54,3 +54,12 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `newStationName`/`newStationNumber` all optional at the Zod layer. No local
   fixups needed. `pnpm --filter @agora/chrono-api typecheck` clean. Committed
   (`f39623e`). Phase 2 done.
+
+- 2026-09-02 — Phase 3 (device-auth middleware + device-facing routes) landed
+  locally, committed (`bddcba6`). Manual tenant-isolation test (11 checks
+  against a real running server + real Postgres) passed. One gap in the
+  original plan's `/auth` branch spec (a device's own token + a different
+  fingerprint than on file) resolved fail-closed (401) rather than inventing
+  new mutating behavior — worth a developer look before this ships for real.
+  Phase 5 (web UI) delegated to Jules, session `14444600378578250185`.
+  Background poller running.
