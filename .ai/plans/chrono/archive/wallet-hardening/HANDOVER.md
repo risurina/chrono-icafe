@@ -106,3 +106,23 @@ more than writing it.
   built), `credits` (station-group-scoped lots), `loyalty` (points) — and stay
   separate ledgers. A unified customer-facing view spanning all three is a
   separate plan, not yet written.
+
+- 2026-09-02 — **Verification gap CLOSED. Plan complete.**
+  `pnpm --filter @agora/chrono-api test:wallet-concurrency` re-run on a quiet
+  tree (no concurrent session touching `db/schema.ts` or the shared
+  `TEST_DATABASE_URL`): **4/4 passed** — no call rejected, final balance equals
+  the arithmetic sum of every delta (50.00), transaction-row count equals the
+  call count (20), and replaying the ledger in `createdAt` order reconstructs
+  the same final balance. That was the last item outstanding on this plan
+  (Phases 1-4 had already landed: `f9b3736`, `beab675`, `ac9a7cc`, plus the
+  plan/handover correction).
+
+  Standing caveat, unchanged and NOT a defect in this plan: `tableDdl()` in the
+  test harnesses does not emit CHECK constraints, so migration `0010`'s two
+  `check()` constraints are inert for the automated suite. They were verified
+  live against Postgres by hand at the time (a wrong `balanceAfter` and a
+  `type = 'transfer'` INSERT are each rejected by name). This is one instance of
+  a broader shared-harness limitation — the same generator also drops the
+  `WHERE` clause on partial unique indexes, which caused a false collision while
+  building `reconciliation`'s route test. Worth a dedicated harness fix
+  eventually; it belongs to no single feature plan.
