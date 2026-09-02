@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   BarChart3,
   MessageSquare,
+  CreditCard,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -81,6 +82,7 @@ const BASE_NAV: NavItem[] = [
 
   { type: "label", name: "Money" },
   { type: "item", name: "Wallets", href: "/wallets", icon: Wallet },
+  { type: "item", name: "Payments", href: "/payments", icon: CreditCard },
   { type: "item", name: "Credits", href: "/credits", icon: Coins },
   { type: "item", name: "POS", href: "/pos", icon: ShoppingCart },
   { type: "item", name: "Vouchers", href: "/vouchers", icon: Ticket },
@@ -123,6 +125,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/reservations": "Reservations",
   "/dashboard/inquiries": "Inquiries",
   "/dashboard/wallets": "Wallets",
+  "/dashboard/payments": "Payments",
   "/dashboard/credits": "Credits",
   "/dashboard/pos": "POS",
   "/dashboard/pos/products": "POS Products",

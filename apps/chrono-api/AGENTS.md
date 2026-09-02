@@ -63,6 +63,7 @@ phase status):
 - `branch`, `station`, `member` (`ChronoMemberProfiles`), `shift` — schema + routes +
   permission gates landed; web UI landed for stations/shifts.
 - `device` — schema + RLS landed (kiosk pairing/bearer-auth routes not yet built).
+- `payment` — schema + routes + permission gates landed; web UI + e2e landed.
 - `wallet` — schema + RLS landed (routes not yet built).
 - `session` — contracts + money helpers in progress; no schema/routes yet.
 - `pos` and `reservation` landed ahead of their originally planned wave (`pos`: schema +
