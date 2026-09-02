@@ -46,3 +46,21 @@ exposure, and a foundation change. See the plan's Delegation section.
   the previous one. Either enforce single-redemption or move minted tokens to
   child rows. Must be decided and written into the `devices` plan as part of
   Phase 1.
+- 2026-09-02 — Phase 2 (unauthenticated-route convention doc) landed
+  (`ee9ca08`): apps/chrono-api/AGENTS.md now has a full "Unauthenticated
+  routes" section naming exact exports and current file:line precedents.
+- 2026-09-02 — Phase 3 (DTO sweep, closes qrSecret path) landed
+  (`3feeea8`): station/member/loyalty/branch routes now use explicit DTOs,
+  no raw Drizzle rows. qrSecret-leak test proved non-vacuous (confirmed
+  the secret really existed in the DB row, confirmed it's genuinely
+  absent from the route response). typecheck clean (5/5 packages),
+  test:permissions 380/380 unchanged.
+- 2026-09-02 — Phase 5 (ctaHref validation) landed directly (`954256a`)
+  since tenant-landing's contracts.ts already existed — only accepts
+  https:// absolute or same-origin relative paths, rejects javascript:.
+- 2026-09-02 — Phase 4 (foundation) spec-only plan created at
+  `.ai/plans/agora/active/public-host-status-filter/README.md`
+  (`d728191`) per feature-planning.md's foundation/business-app split
+  rule. NOT implemented — Phase 1 of that plan (audit 11 call sites)
+  needs developer input before any code changes, since some call sites
+  may legitimately need to keep serving a terminal-status tenant.
