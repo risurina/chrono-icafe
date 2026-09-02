@@ -12,6 +12,7 @@ import { app } from "./app";
 import { registerWebhookQueueJob } from "agora/webhooks";
 import { startQueueWorker } from "agora/queue";
 import { startSessionExpiryWorker } from "./modules/session/expiry";
+import { startCreditExpiryWorker } from "./modules/credit/expiry";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -43,6 +44,10 @@ const stopRetentionWorker = startRetentionWorker();
 // end route calls — see .ai/plans/chrono/active/sessions/README.md, Phase 4.
 const stopSessionExpiryWorker = startSessionExpiryWorker();
 
+// Chrono: sweeps expired-but-not-yet-consumed credit grants — see
+// .ai/plans/chrono/active/credits/README.md, Phase 4.
+const stopCreditExpiryWorker = startCreditExpiryWorker();
+
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     stopEmailWorker();
@@ -50,6 +55,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopWebhooksWorker();
     stopRetentionWorker();
     stopSessionExpiryWorker();
+    stopCreditExpiryWorker();
     server.close(() => process.exit(0));
   });
 }
