@@ -9,6 +9,15 @@ export type MemberProfile = {
   phone: string | null;
 };
 
+export type MemberOnboarding = {
+  applicationStatus: MemberApplicationStatus;
+  appliedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  wallet: { balance: string; currency: string; exists: boolean };
+  memberRateEligible: boolean;
+};
+
 async function call<T>(
   path: string,
   body?: unknown,
@@ -28,3 +37,17 @@ async function call<T>(
 export const getMyMembership = () => call<MemberProfile>("/me");
 export const applyForMembership = (phone?: string) =>
   call<MemberProfile>("/apply", { phone });
+
+/** customer-onboarding Phase 2's read route — own state only, never `profile`-keyed
+ * like the two calls above (the API returns the onboarding shape at the top level). */
+export async function getMyOnboarding(): Promise<{
+  data: MemberOnboarding | null;
+  error: string | null;
+}> {
+  const res = await tenantFetch()(`${API_URL}/portal/members/me/onboarding`);
+  const json = (await res.json().catch(() => null)) as
+    | (MemberOnboarding & { error?: string })
+    | null;
+  if (!res.ok) return { data: null, error: json?.error ?? "Request failed" };
+  return { data: json, error: null };
+}

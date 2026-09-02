@@ -14,7 +14,9 @@ import { useMemberSession } from "@/lib/member-client";
 import {
   getMyMembership,
   applyForMembership,
+  getMyOnboarding,
   type MemberProfile,
+  type MemberOnboarding,
 } from "@/lib/member-application";
 import {
   getMyWalletBalance,
@@ -42,6 +44,8 @@ export default function PortalHome() {
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
+  const [onboarding, setOnboarding] = useState<MemberOnboarding | null>(null);
+
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [walletHistory, setWalletHistory] = useState<WalletTransaction[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
@@ -64,6 +68,14 @@ export default function PortalHome() {
       mounted = false;
     };
   }, []);
+
+  function loadOnboarding() {
+    getMyOnboarding().then(({ data }) => {
+      if (data) setOnboarding(data);
+    });
+  }
+
+  useEffect(loadOnboarding, []);
 
   useEffect(() => {
     let mounted = true;
@@ -111,6 +123,7 @@ export default function PortalHome() {
     } else {
       setProfile(data);
       setApplying(false);
+      loadOnboarding();
     }
   }
 
@@ -181,29 +194,51 @@ export default function PortalHome() {
           {loading ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : profile ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 items-center">
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>
-                <Badge
-                  variant={
-                    profile.applicationStatus === "approved"
-                      ? "success"
-                      : profile.applicationStatus === "rejected"
-                        ? "destructive"
-                        : "warning"
-                  }
-                  className="capitalize"
-                >
-                  {profile.applicationStatus}
-                </Badge>
-              </dd>
-              {profile.phone ? (
-                <>
-                  <dt className="text-muted-foreground">Phone</dt>
-                  <dd>{profile.phone}</dd>
-                </>
-              ) : null}
-            </dl>
+            <div className="space-y-4">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 items-center">
+                <dt className="text-muted-foreground">Status</dt>
+                <dd>
+                  <Badge
+                    variant={
+                      profile.applicationStatus === "approved"
+                        ? "success"
+                        : profile.applicationStatus === "rejected"
+                          ? "destructive"
+                          : "warning"
+                    }
+                    className="capitalize"
+                  >
+                    {profile.applicationStatus}
+                  </Badge>
+                </dd>
+                {profile.phone ? (
+                  <>
+                    <dt className="text-muted-foreground">Phone</dt>
+                    <dd>{profile.phone}</dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {profile.applicationStatus === "pending" ? (
+                <p className="text-muted-foreground">
+                  A staff member needs to review your application before you get
+                  member-rate pricing. This usually doesn&apos;t take long — you can
+                  still play at standard rates in the meantime, and we&apos;ll let you
+                  know by email as soon as a decision is made.
+                </p>
+              ) : profile.applicationStatus === "rejected" ? (
+                <p className="text-muted-foreground">
+                  Your application wasn&apos;t approved. If you think this was a
+                  mistake, please contact the venue directly — re-applying from here
+                  isn&apos;t available yet.
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  You&apos;re approved — you now qualify for member-rate pricing where
+                  it&apos;s available.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               <p>You haven&apos;t applied for membership yet.</p>
@@ -231,6 +266,21 @@ export default function PortalHome() {
               <p className="text-2xl font-semibold tracking-tight">
                 {wallet?.currency ?? "PHP"} {wallet?.balance ?? "0.00"}
               </p>
+              {/* `exists: false` (not a balance === "0.00" check) is what actually
+                  means "never topped up" — a zero balance after a top-up and a spend
+                  is a normal state, not an empty one. */}
+              {onboarding && !onboarding.wallet.exists ? (
+                <p className="text-sm text-muted-foreground">
+                  You haven&apos;t added funds yet. Visit the venue counter to top up
+                  your wallet.
+                </p>
+              ) : null}
+              {profile?.applicationStatus === "approved" ? (
+                <p className="text-sm text-muted-foreground">
+                  Ready to play? Visit the venue and ask staff to start a session at a
+                  station.
+                </p>
+              ) : null}
               {walletHistory.length === 0 ? (
                 <p className="text-muted-foreground">No transactions yet.</p>
               ) : (

@@ -43,6 +43,19 @@ export default function MembersPage() {
     null,
   );
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  const loadPendingCount = useCallback(async () => {
+    const res = await api.rpc["member-profiles"]["pending-count"].$get();
+    if (res.ok) {
+      const body = await res.json();
+      setPendingCount(body.pendingCount);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPendingCount();
+  }, [loadPendingCount]);
 
   const loadAll = useCallback(async () => {
     const res = await api.rpc["member-profiles"].$get({
@@ -77,9 +90,11 @@ export default function MembersPage() {
       if (res.ok) {
         toast.success("Application approved.");
         loadAll();
+        loadPendingCount();
       } else if ((res.status as number) === 409) {
         toast.info("This application has already been approved.");
         loadAll();
+        loadPendingCount();
       } else if ((res.status as number) === 403) {
         toast.error("Only admins can approve or reject applications.");
       } else {
@@ -103,9 +118,11 @@ export default function MembersPage() {
       if (res.ok) {
         toast.success("Application rejected.");
         loadAll();
+        loadPendingCount();
       } else if ((res.status as number) === 409) {
         toast.info("This application has already been rejected.");
         loadAll();
+        loadPendingCount();
       } else if ((res.status as number) === 403) {
         toast.error("Only admins can approve or reject applications.");
       } else {
@@ -141,7 +158,12 @@ export default function MembersPage() {
   return (
     <Stack gap={8}>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+        <Row items="center" gap={2}>
+          <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+          {pendingCount ? (
+            <Badge variant="warning">{pendingCount} pending</Badge>
+          ) : null}
+        </Row>
         <p className="text-sm text-muted-foreground">
           Review venue membership applications and manage member details.
         </p>
