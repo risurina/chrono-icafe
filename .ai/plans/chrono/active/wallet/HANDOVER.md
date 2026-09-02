@@ -112,3 +112,11 @@ Jules session ids for this plan are recorded in `.ai/handover/jules-sessions.md`
   `16503940939407002333`. Phase 5 (e2e spec) delegated to Jules, session
   `13077439649558572904`, fired in parallel. Background pollers running
   (30-min rule applies to each).
+- 2026-09-02 — Phase 4 (web UI) session `16503940939407002333` is
+  **Awaiting User Feedback** (stalled on a clarifying question) — could not
+  reply via Playwright MCP right now (browser locked by another concurrent
+  session). Check https://jules.google.com/session/16503940939407002333
+  manually, or retry the browser-reply flow once the lock clears.
+- 2026-09-02 — Phase 5 (e2e spec) pulled: staff/admin permission-tier gate
+  test matches the real landed grants (staff: read/credit/debit, not
+  adjust). No `as any`, typecheck clean. Committed (`b337c02`).
