@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Timer } from "lucide-react";
 import {
   Button,
   Input,
@@ -13,10 +15,17 @@ import {
   Field,
   Row,
   AuthLayout,
+  PageShell,
+  Main,
+  SiteHeader,
+  SiteFooter,
+  ThemeToggle,
   toast,
 } from "agora/ui";
 import { slugSchema } from "agora";
 import { authClient, useSession } from "@/lib/auth-client";
+
+const currentYear = new Date().getFullYear();
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
 
@@ -82,15 +91,43 @@ export default function NewBusinessPage() {
     location.href = `${proto}//${parsed.data}.${APP_DOMAIN}/dashboard`;
   }
 
+  const header = (
+    <SiteHeader
+      maxWidth="full"
+      brand={
+        <Link href="/" className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Timer className="h-3.5 w-3.5" aria-hidden />
+          </span>
+          <span>Chrono</span>
+        </Link>
+      }
+      actions={<ThemeToggle />}
+    />
+  );
+
+  const footer = (
+    <SiteFooter
+      maxWidth="full"
+      brand={<span>© {currentYear} Chrono. All rights reserved.</span>}
+    />
+  );
+
   if (isPending) {
     return (
-      <AuthLayout>
-        <Card>
-          <CardHeader>
-            <CardTitle>&nbsp;</CardTitle>
-          </CardHeader>
-        </Card>
-      </AuthLayout>
+      <PageShell>
+        {header}
+        <Main>
+          <AuthLayout className="min-h-0 py-16">
+            <Card>
+              <CardHeader>
+                <CardTitle>&nbsp;</CardTitle>
+              </CardHeader>
+            </Card>
+          </AuthLayout>
+        </Main>
+        {footer}
+      </PageShell>
     );
   }
 
@@ -102,54 +139,60 @@ export default function NewBusinessPage() {
   }
 
   return (
-    <AuthLayout>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {welcome ? "Welcome — create your business" : "Create a new business"}
-          </CardTitle>
-          <CardDescription>
-            {welcome
-              ? "Your account is ready. Name your business to finish setting up."
-              : "You'll be the owner of this new tenant."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <Field>
-              <Label htmlFor="business">Business name</Label>
-              <Input
-                id="business"
-                required
-                value={business}
-                onChange={(e) => {
-                  setBusinessTouched(true);
-                  setBusiness(e.target.value);
-                }}
-              />
-            </Field>
-            <Field>
-              <Label htmlFor="slug">Business URL</Label>
-              <Row items="center" gap={1}>
-                <Input
-                  id="slug"
-                  value={effectiveSlug}
-                  onChange={(e) => {
-                    setSlugTouched(true);
-                    setSlug(slugify(e.target.value));
-                  }}
-                />
-                <span className="whitespace-nowrap text-sm text-muted-foreground">
-                  .{APP_DOMAIN}
-                </span>
-              </Row>
-            </Field>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating…" : "Create business"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </AuthLayout>
+    <PageShell>
+      {header}
+      <Main>
+        <AuthLayout className="min-h-0 py-16">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {welcome ? "Welcome — create your business" : "Create a new business"}
+              </CardTitle>
+              <CardDescription>
+                {welcome
+                  ? "Your account is ready. Name your business to finish setting up."
+                  : "You'll be the owner of this new tenant."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={onSubmit} className="space-y-4">
+                <Field>
+                  <Label htmlFor="business">Business name</Label>
+                  <Input
+                    id="business"
+                    required
+                    value={business}
+                    onChange={(e) => {
+                      setBusinessTouched(true);
+                      setBusiness(e.target.value);
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <Label htmlFor="slug">Business URL</Label>
+                  <Row items="center" gap={1}>
+                    <Input
+                      id="slug"
+                      value={effectiveSlug}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setSlug(slugify(e.target.value));
+                      }}
+                    />
+                    <span className="whitespace-nowrap text-sm text-muted-foreground">
+                      .{APP_DOMAIN}
+                    </span>
+                  </Row>
+                </Field>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Creating…" : "Create business"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </AuthLayout>
+      </Main>
+      {footer}
+    </PageShell>
   );
 }
