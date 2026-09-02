@@ -22,3 +22,24 @@
   gates + concurrency proof) is next; per this module's own permission-edit +
   money-path correctness concerns, keep it local, not Jules (same reasoning as
   `wallet`'s own HANDOVER.md header).
+- 2026-09-02 — Phase 3 built locally, per Pass 2's exact spec.
+  `pos: ["read", "sell", "void", "manageProducts"]` added to the per-app
+  extension seam (`apps/chrono-api/src/auth/permissions.ts` — Open Question 1
+  resolved per the plan's own recommendation: staff holds read/sell, admin+
+  adds void/manageProducts). `service.ts` (`lockAndValidateProducts` —
+  ascending-id-order row lock, `checkout` — idempotent on `idempotencyKey`,
+  server-side pricing, stock decrement, `debitWallet` for wallet tenders;
+  `refundSale` — wallet-portion reversal via `creditWallet`, stock
+  restoration, status flip; `calculatePosExpectedCash` for the future
+  `reconciliation` module's shift-close wiring), `routes.ts` (products
+  CRUD-minus-delete + restock, sales list/detail/checkout/refund, every
+  mutating route validating foreign ids inside its own `withTenant` call),
+  wired into `rpc.ts`. Added the `pos` gate cases to `permissions.test.ts`
+  and a new `concurrency.test.ts` (`test:pos-concurrency`) proving the stock
+  row lock against a real Postgres connection: 10 concurrent single-unit
+  checkouts against a product with `stockQuantity: 10` → exactly 10 succeed,
+  final stock is exactly 0 (never negative), and an 11th checkout correctly
+  409s as insufficient stock. `pnpm --filter @agora/chrono-api typecheck`
+  clean, `test:permissions` → 349 passed, `rls:proof` → `RLS PROOF: PASS ✅`,
+  `test:pos-concurrency` → 3 passed. Committed (`17963ea`). Phase 3 done —
+  Phase 4 (shift-close reconciliation wiring) is next.
