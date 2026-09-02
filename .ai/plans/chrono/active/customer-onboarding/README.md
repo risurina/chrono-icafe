@@ -163,12 +163,38 @@ On approve/reject, send the customer an email via the foundation's `EmailSender`
 (`agora/server` — `.ai/rules/providers.md`; never a direct vendor call), fired **only on a
 real status transition** (Decision 4).
 
-**Unresolved and blocking — do not delegate this part.** The recipient is a
-`tenantMember`, who is **not** a Better Auth `user`. Whether the foundation's
-`notificationTemplate` path (`packages/agora/src/db/schema/auth.ts:278`) can address a
-`tenantMember` at all is **unverified**, and no template key is named yet. Confirm the
-recipient-resolution path against the foundation before writing Phase 1; if it cannot
-address a tenantMember, this becomes a foundation-level question, not a Chrono one.
+**Resolved (was "unresolved and blocking").** Two separate foundation email paths exist,
+and they answer this differently:
+
+- `notificationTemplate` (`packages/agora/src/db/schema/auth.ts:278`,
+  `contracts/notification-templates.ts`) is a **platform-global, code-defined registry
+  with no per-app extension seam** (unlike permissions/feature-flags/modules), and its own
+  file comment says so explicitly: it "applies to staff/account-holder emails only" —
+  reset-password / verify-email / invite, addressed by a Better Auth `user`. There is no
+  `registerAppXxx()`-style seam to add a Chrono key to it, and adding one directly would
+  violate `.ai/rules/business-app.md` ("packages/agora is business-domain-neutral"). So
+  **this path cannot, and must not, be used** for a `tenantMember` recipient.
+- **The actual precedent already exists and already addresses a `tenantMember`:**
+  `packages/agora/src/member-auth/index.ts`'s own (private, unexported) `sendMemberEmail(
+  tenantId, to, subject, bodyHtml)` helper (used today for the customer password-reset
+  email, `member-auth/index.ts:441`) does exactly this — reads `tenantBranding` for the
+  tenant, calls `renderBrandedEmail()` (`agora/server/email.ts`, provider-agnostic,
+  branded), then `sendTransactionalEmail({ ...email, to }, { tenantId })`. `to` is a plain
+  email string (`OutboundEmail.to: string`) — nothing in this path resolves a `user` id,
+  so a `tenantMember.email` works identically to any other recipient. This confirms the
+  plan's premise (Decision "no new identity, no new table") extends to notifications too:
+  no foundation change is needed, and this was never actually a foundation-level question.
+
+**Implementation approach for Phase 1**: since `sendMemberEmail` is private to
+`member-auth/index.ts` (not exported, and member-auth is a foundation module Chrono must
+not fork), Chrono's own `apps/chrono-api/src/modules/member/routes.ts` adds a small
+**local** equivalent (same 6-line body: read `tenantBranding` via `withTenant`, call
+`renderBrandedEmail()`, call `sendTransactionalEmail()` from `agora/server`) rather than
+importing the private one — mirroring the pattern, not reaching across the module
+boundary. Two hardcoded subject/bodyHtml pairs (approved / rejected) live as local
+constants in that file — no registry, no admin-editable override, matching how this
+plan's Out of Scope already excludes a `rejectionReason` field (the copy is generic,
+"Your application to {{tenantName}} was not approved", no reason placeholder).
 
 ### Web UI
 
@@ -211,7 +237,10 @@ informational panel, not a toast.
   via `buildFeatureFlagRegistry()` (create the file if this is Chrono's first own flag).
 - `apps/chrono-api/src/modules/member/portal-routes.ts` — honour the flag at signup.
 - `apps/chrono-api/src/modules/member/routes.ts` — provision wallet + loyalty inside the
-  existing approve transaction; emit the notification.
+  existing approve transaction; emit the notification via a new local
+  `sendMemberOnboardingEmail(tenantId, to, subject, bodyHtml)` helper (mirrors
+  `member-auth/index.ts`'s private `sendMemberEmail` — see "Notifications" above; do not
+  import the private one, do not touch `notificationTemplate`).
 
 **Step-by-step tasks**
 1. Register `chrono.autoApproveMembers` (default `false`) in the **existing**
@@ -335,6 +364,17 @@ mocked).
 plan A's fixture.
 
 ---
+
+## Unblocked (2026-09-02)
+
+This plan was flagged blocked on "an unresolved notification-recipient question before
+Phase 1 can start" — see "Notifications" under Pass 2 above, now resolved: the
+foundation's `notificationTemplate` registry cannot address a `tenantMember` (by design,
+platform-staff-only, no extension seam), but `member-auth/index.ts`'s existing
+`sendMemberEmail` pattern already does, via a plain `to` email string. Phase 1 adds a
+local equivalent in Chrono's own `member/routes.ts` rather than either extending the
+foundation registry or importing the private helper. No foundation change, no new open
+question — Phase 1 can start.
 
 ## Open Questions (developer to confirm)
 
