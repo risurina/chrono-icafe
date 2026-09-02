@@ -5,3 +5,12 @@
   schema/RLS design stays local, never Jules). Background poller running
   (consolidated with 7 other sessions fired the same round).
 - 2026-09-02 — Phase 1 (schema, migration, RLS) landed locally, committed as part of a 9-module batch (`9943aa5`). All 15 new tables registered in APP_TENANT_TABLES, RLS forced, `rls:proof` PASS, whole-workspace typecheck clean.
+- 2026-09-02 — Phase 3 (service, routes, permission gates, concurrency test)
+  landed locally, committed (`b302c52`). Concurrency test (10 concurrent
+  redemptions against maxRedemptions:1) passed deterministically twice:
+  exactly 1 success, 9 rejected. `test:permissions` 371/0 failed including
+  5 new promo gate cases (staff denied manage, admin/owner allowed).
+  **Phase 4 (POS checkout integration) is now unblockable** —
+  pos/routes.ts exists. Must coordinate with vouchers' own Phase 4 on the
+  discount-stacking-rules open question — both touch the same checkout
+  transaction.
