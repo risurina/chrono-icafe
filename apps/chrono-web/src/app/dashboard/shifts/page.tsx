@@ -215,7 +215,14 @@ export default function ShiftsPage() {
     },
     { key: "openingCashAmount", header: "Opening Cash", render: (s) => s.openingCashAmount },
     { key: "actualCashAmount", header: "Actual Cash", render: (s) => s.actualCashAmount ?? "—" },
-    { key: "expectedVariance", header: "Expected / Variance", render: () => "—" },
+    {
+      key: "expectedVariance",
+      header: "Expected / Variance",
+      render: (s) =>
+        s.expectedCashAmount == null
+          ? "—"
+          : `${s.expectedCashAmount} / ${s.differenceAmount ?? "—"}`,
+    },
     { key: "actions", header: "", render: renderActions },
   ];
 
