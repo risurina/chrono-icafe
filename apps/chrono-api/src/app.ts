@@ -196,7 +196,7 @@ async function maintenanceReadOnlyGate(c: Context, next: () => Promise<void>) {
 }
 
 // Local-provider branding uploads are served read-only from this dir (relative to
-// the API cwd, matching packages/agora storage.ts). S3/R2 providers serve assets
+// the API cwd, matching packages/agora providers/storage/). S3/R2 providers serve assets
 // straight from the bucket, so this route is simply inert for them.
 const uploadsDir = process.env.STORAGE_LOCAL_DIR ?? ".uploads";
 
@@ -339,7 +339,7 @@ export const app = baseApp
   // The local `StorageAdapter`'s dev-fallback upload/download proxy — the
   // counterpart to the S3/Cloudinary presigned-upload flow when
   // `STORAGE_PROVIDER=local`. `signUpload`/`signedDownloadUrl` in
-  // `packages/agora/src/server/storage.ts` mint tickets pointing here; this is
+  // `packages/agora/src/server/providers/storage/` mint tickets pointing here; this is
   // a plain (not cryptographically signed) dev fallback, matching that file's
   // documented "may proxy bytes; acceptable and documented" stance — never used
   // in production, where STORAGE_PROVIDER is s3/cloudinary.
