@@ -1,5 +1,6 @@
 import "dotenv/config";
 import "./auth-bootstrap";
+import { randomBytes } from "node:crypto";
 import { auth } from "agora/auth";
 import { adminDb, withTenant, withAdmin, schema, eq, and, pool, adminPool } from "agora/db";
 import { hashMemberPassword } from "agora/member-auth";
@@ -54,6 +55,13 @@ const TENANTS = [
 ];
 
 const PASSWORD = "Password123!";
+
+// Approved in both acme and contoso — one global identity, two independent
+// linked tenantMember rows (agora/customer-auth). Sign in once at the apex
+// /portal/login, then visit either tenant's /portal with no second login.
+const GLOBAL_CUSTOMER_EMAIL = "global@customer.test";
+const GLOBAL_CUSTOMER_NAME = "Global Customer";
+const GLOBAL_CUSTOMER_TENANT_SLUGS = ["acme", "contoso"];
 
 const PLATFORM_ADMIN_EMAIL = "platform@agora.test";
 const PLATFORM_ADMIN_NAME = "Platform Admin";
@@ -279,6 +287,58 @@ async function ensureBranchesAndStations(orgId: string) {
   });
 }
 
+/**
+ * Seed one global customer (agora/customer-auth, cookie `agora_customer`)
+ * approved in every tenant listed in `tenantIds` — a linked `tenantMember`
+ * row (`customerId` set, `status: "active"`) per tenant, created the same
+ * way `POST /portal/customer/apply` would. Exercises the multi-tenant
+ * session-bridge flow (`.ai/plans/agora/archive/global-customers`) without
+ * driving the UI.
+ */
+async function ensureGlobalCustomer(tenantIds: string[]): Promise<void> {
+  const [existing] = await adminDb
+    .select({ id: schema.customer.id })
+    .from(schema.customer)
+    .where(eq(schema.customer.email, GLOBAL_CUSTOMER_EMAIL))
+    .limit(1);
+
+  let customerId = existing?.id;
+  if (!customerId) {
+    const [created] = await adminDb
+      .insert(schema.customer)
+      .values({
+        email: GLOBAL_CUSTOMER_EMAIL,
+        name: GLOBAL_CUSTOMER_NAME,
+        passwordHash: await hashMemberPassword(PASSWORD),
+      })
+      .returning({ id: schema.customer.id });
+    if (!created) throw new Error("Could not create global customer");
+    customerId = created.id;
+  }
+
+  for (const tenantId of tenantIds) {
+    await withTenant(tenantId, async (tx) => {
+      const [existingLink] = await tx
+        .select({ id: schema.tenantMember.id })
+        .from(schema.tenantMember)
+        .where(eq(schema.tenantMember.email, GLOBAL_CUSTOMER_EMAIL))
+        .limit(1);
+      if (existingLink) return;
+      await tx.insert(schema.tenantMember).values({
+        tenantId,
+        email: GLOBAL_CUSTOMER_EMAIL,
+        name: GLOBAL_CUSTOMER_NAME,
+        // Unusable placeholder — this row only ever authenticates via the
+        // global customer session, never a tenant-local password (mirrors
+        // agora/customer-auth's own apply route).
+        passwordHash: `scrypt$${randomBytes(16).toString("hex")}$${randomBytes(64).toString("hex")}`,
+        customerId,
+        status: "active",
+      });
+    });
+  }
+}
+
 async function seed() {
   await ensurePlatformAdmin();
   await ensurePlatformViewer();
@@ -331,6 +391,17 @@ async function seed() {
     // eslint-disable-next-line no-console
     console.log(
       `Seeded ${t.slug} (staff ${t.ownerEmail} · customer ${t.memberEmail} / ${PASSWORD})`,
+    );
+  }
+
+  const globalCustomerTenantIds = GLOBAL_CUSTOMER_TENANT_SLUGS.map(
+    (slug) => orgIdBySlug[slug],
+  ).filter((id): id is string => !!id);
+  if (globalCustomerTenantIds.length > 0) {
+    await ensureGlobalCustomer(globalCustomerTenantIds);
+    // eslint-disable-next-line no-console
+    console.log(
+      `Seeded global customer ${GLOBAL_CUSTOMER_EMAIL} / ${PASSWORD} (approved in ${GLOBAL_CUSTOMER_TENANT_SLUGS.join(", ")})`,
     );
   }
 
