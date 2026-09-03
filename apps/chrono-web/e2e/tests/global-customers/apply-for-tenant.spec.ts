@@ -40,14 +40,14 @@ test.describe("Global customer — apply to a tenant", () => {
     // ── Global customer sign-up (separate identity/cookie, unaffected by
     // the staff session above) ──
     const customerEmail = faker.internet.email({ provider: "example.com" });
-    await page.goto("/customer/sign-up");
+    await page.goto("/portal/sign-up");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
     await page.getByLabel("Your name").fill("Global Test Customer");
     await page.getByLabel("Email").fill(customerEmail);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
     await page.getByRole("button", { name: /create account/i }).click();
-    await page.waitForURL(/\/customer$/, { timeout: 30_000 });
+    await page.waitForURL(/\/portal$/, { timeout: 30_000 });
     await expect(page.getByText("Welcome, Global Test Customer")).toBeVisible();
 
     // ── Apply to tenant A's portal (happy path) ──
