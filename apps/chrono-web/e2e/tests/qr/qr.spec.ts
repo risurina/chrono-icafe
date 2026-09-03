@@ -98,7 +98,7 @@ test.describe("QR", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eqr${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -177,7 +177,7 @@ test.describe("QR", () => {
   test("business-rule gate: a tampered token renders a clear failure, not a 500", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eqrtamper${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
 
@@ -189,7 +189,7 @@ test.describe("QR", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eqrbal${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -229,7 +229,7 @@ test.describe("QR", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eqra${uniq}`;
     const slugB = `e2eqrb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

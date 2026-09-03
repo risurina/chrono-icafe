@@ -84,7 +84,7 @@ async function pairAndApproveDevice(
   stationName: string;
 }> {
   const tokenName = `${faker.word.adjective()} Setup Token`;
-  const fingerprint = faker.string.alphanumeric(32);
+  const fingerprint = faker.string.alphanumeric(32).toLowerCase();
   const hostname = `PC-${faker.string.numeric(3)}`;
   const stationName = `${faker.word.noun()} Station`;
   const stationNumber = faker.string.numeric(3);
@@ -187,7 +187,7 @@ test.describe("Realtime device channel", () => {
   test("device gate: a pending_approval device is refused before the handshake completes", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ertdev${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
     const branchName = `${faker.company.name()} Branch`;
@@ -213,7 +213,7 @@ test.describe("Realtime device channel", () => {
       data: { pairingCode },
     });
     const { provisioningToken } = (await pairRes.json()) as { provisioningToken: string };
-    const fingerprint = faker.string.alphanumeric(32);
+    const fingerprint = faker.string.alphanumeric(32).toLowerCase();
     const authRes = await page.request.post(`${API_URL}/api/v1/device/auth`, {
       data: { provisioningToken, fingerprint, hostname: `PC-${faker.string.numeric(3)}` },
     });
@@ -228,7 +228,7 @@ test.describe("Realtime device channel", () => {
   test("an approved device receives events on its own channel; a device never receives another device's events; revocation closes the socket", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ertdch${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
     const branchName = `${faker.company.name()} Branch`;

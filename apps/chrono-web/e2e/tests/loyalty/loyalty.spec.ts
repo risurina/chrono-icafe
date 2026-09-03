@@ -57,7 +57,7 @@ test.describe("Loyalty", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eloyalty${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -120,7 +120,7 @@ test.describe("Loyalty", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eloyaltygate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -197,7 +197,7 @@ test.describe("Loyalty", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eloyaltya${uniq}`;
     const slugB = `e2eloyaltyb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

@@ -24,7 +24,7 @@ test.describe("Vouchers", () => {
   test("happy path: issue voucher, confirm active, cancel second voucher, confirm status updates", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2evoucher${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -97,7 +97,7 @@ test.describe("Vouchers", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2evouchera${uniq}`;
     const slugB = `e2evoucherb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

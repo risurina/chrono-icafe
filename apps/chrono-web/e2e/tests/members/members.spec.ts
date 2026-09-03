@@ -40,7 +40,7 @@ test.describe("Members", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2emema${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -116,7 +116,7 @@ test.describe("Members", () => {
   });
 
   test("role gate: staff can view list but cannot approve or reject", async ({ page, browser }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ememb${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -190,7 +190,7 @@ test.describe("Members", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ememca${uniq}`;
     const slugB = `e2ememcb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

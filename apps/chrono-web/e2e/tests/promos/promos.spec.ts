@@ -40,7 +40,7 @@ async function signUp(
 
 test.describe("Promos", () => {
   test("happy path: create, pause, and archive", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2epromos${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -94,7 +94,7 @@ test.describe("Promos", () => {
   });
 
   test("role gate: staff cannot manage promos, admin/owner can", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2epromogate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -159,7 +159,7 @@ test.describe("Promos", () => {
   });
 
   test("tenant isolation: tenant A's promo not visible to tenant B, and direct API 404s", async ({ page, browser }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2epromoa${uniq}`;
     const slugB = `e2epromob${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

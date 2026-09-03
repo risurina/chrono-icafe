@@ -51,13 +51,13 @@ async function createBranch(
 
 test.describe("Devices", () => {
   test("happy path: generate pairing code, pair device, approve, revoke", async ({ page, request }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2edev${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
     const branchName = `${faker.company.name()} Branch`;
     const tokenName = `${faker.word.adjective()} Setup Token`;
-    const fingerprint = faker.string.alphanumeric(32);
+    const fingerprint = faker.string.alphanumeric(32).toLowerCase();
     const hostname = `PC-${faker.string.numeric(3)}`;
     const newStationName = `${faker.word.noun()} Station`;
     const newStationNumber = faker.string.numeric(3);
@@ -134,7 +134,7 @@ test.describe("Devices", () => {
   });
 
   test("role gate: staff gets 403 on approve/revoke", async ({ page, request }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2edevrole${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -142,7 +142,7 @@ test.describe("Devices", () => {
     const base = `http://${slug}.localtest.me:3000`;
     const branchName = `${faker.company.name()} Branch`;
     const tokenName = `${faker.word.adjective()} Staff Token`;
-    const fingerprint = faker.string.alphanumeric(32);
+    const fingerprint = faker.string.alphanumeric(32).toLowerCase();
     const hostname = `PC-Staff-${faker.string.numeric(3)}`;
     const newStationName = `${faker.word.noun()} Staff Station`;
 
@@ -214,7 +214,7 @@ test.describe("Devices", () => {
   });
 
   test("tenant isolation: devices scoped to tenant and cross-tenant heartbeat 401s or doesn't leak", async ({ page, browser, request }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2edevtena${uniq}`;
     const slugB = `e2edevtenb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });
@@ -224,7 +224,7 @@ test.describe("Devices", () => {
     const branchNameA = `${faker.company.name()} Branch A`;
     const branchNameB = `${faker.company.name()} Branch B`;
     const tokenName = `${faker.word.adjective()} Token`;
-    const fingerprint = faker.string.alphanumeric(32);
+    const fingerprint = faker.string.alphanumeric(32).toLowerCase();
     const hostname = `PC-A-${faker.string.numeric(3)}`;
 
     // Tenant A setup

@@ -72,7 +72,7 @@ test.describe("Wallet", () => {
     browser,
 
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ewallet${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -165,7 +165,7 @@ test.describe("Wallet", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ewalletgate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -241,7 +241,7 @@ test.describe("Wallet", () => {
     browser,
 
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ewalleta${uniq}`;
     const slugB = `e2ewalletb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

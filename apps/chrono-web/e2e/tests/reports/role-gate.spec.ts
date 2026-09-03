@@ -48,7 +48,7 @@ async function signUp(
 
 test.describe("Reports — role gate", () => {
   test("staff cannot see/use wallet-activity report; admin/owner can", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2erptgate${uniq}`;
     const staffSlug = `e2erptgateinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });

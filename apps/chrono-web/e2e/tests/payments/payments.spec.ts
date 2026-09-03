@@ -45,7 +45,7 @@ test.describe("Payments Module", () => {
   test("happy path: staff creates payment, settles it, status badge shows paid", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2epayments${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -97,7 +97,7 @@ test.describe("Payments Module", () => {
   test("role gate: staff sees no Void/Refund, admin sees them and can refund", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2epaygate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -179,7 +179,7 @@ test.describe("Payments Module", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2epayisoa${uniq}`;
     const slugB = `e2epayisob${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

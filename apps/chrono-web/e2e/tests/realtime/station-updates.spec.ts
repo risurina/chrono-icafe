@@ -160,7 +160,7 @@ test.describe("Realtime station updates", () => {
   test("staff subscribed to a branch receives station.status when a station is created", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ert${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -222,7 +222,7 @@ test.describe("Realtime station updates", () => {
     page,
     browser,
   }) => {
-    const uniqA = faker.string.alphanumeric(8);
+    const uniqA = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2erta${uniqA}`;
     const baseA = `http://${slugA}.localtest.me:3000`;
 
@@ -235,7 +235,7 @@ test.describe("Realtime station updates", () => {
 
     const bContext = await browser.newContext();
     const bPage = await bContext.newPage();
-    const uniqB = faker.string.alphanumeric(8);
+    const uniqB = faker.string.alphanumeric(8).toLowerCase();
     const slugB = `e2ertb${uniqB}`;
     const baseB = `http://${slugB}.localtest.me:3000`;
     await signUp(bPage, {

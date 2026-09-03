@@ -87,7 +87,7 @@ test.describe("Reports — dashboard overview", () => {
   test("happy path: overview tiles reflect a completed cash sale and an open shift", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2erpt${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const branchName = `Branch ${uniq}`;

@@ -69,7 +69,7 @@ test.describe("Invite a customer", () => {
   }) => {
     // Business name/URL is auto-lowercased by the sign-up page's own slugify(),
     // so the typed value must already be lowercase or the two would diverge.
-    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const uniq = faker.string.alphanumeric(8).toLowerCase().toLowerCase();
     const slug = `e2einva${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const inviteeEmail = faker.internet.email({ provider: "example.com" });
@@ -112,7 +112,7 @@ test.describe("Invite a customer", () => {
   });
 
   test("role gate: staff cannot see or use the Invite action", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const uniq = faker.string.alphanumeric(8).toLowerCase().toLowerCase();
     const slug = `e2einvb${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -150,7 +150,7 @@ test.describe("Invite a customer", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const uniq = faker.string.alphanumeric(8).toLowerCase().toLowerCase();
     const slugA = `e2einvca${uniq}`;
     const slugB = `e2einvcb${uniq}`;
     const ownerAEmail = faker.internet.email({ provider: "example.com" });

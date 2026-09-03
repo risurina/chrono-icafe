@@ -116,7 +116,7 @@ test.describe("Credits", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ecredits${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -185,7 +185,7 @@ test.describe("Credits", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ecreditsgate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -258,7 +258,7 @@ test.describe("Credits", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ecreditsa${uniq}`;
     const slugB = `e2ecreditsb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

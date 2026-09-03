@@ -64,7 +64,7 @@ async function createBranch(
 
 test.describe("Security Alerts", () => {
   test("happy path: report, acknowledge, resolve", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esecalert${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const branchName = `Branch ${uniq}`;
@@ -100,7 +100,7 @@ test.describe("Security Alerts", () => {
   test("role gate: staff without securityAlert:manage cannot report/acknowledge/resolve", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esecgate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -166,7 +166,7 @@ test.describe("Security Alerts", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eseciso a${uniq}`.replace(/\s/g, "");
     const slugB = `e2eseciso b${uniq}`.replace(/\s/g, "");
     const emailA = faker.internet.email({ provider: "example.com" });

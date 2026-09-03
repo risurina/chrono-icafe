@@ -49,7 +49,7 @@ test.describe("Tenant landing — public page", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2elanding${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -77,7 +77,7 @@ test.describe("Tenant landing — public page", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2elandinga${uniq}`;
     const slugB = `e2elandingb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

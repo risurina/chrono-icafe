@@ -43,7 +43,7 @@ async function signUp(
 
 test.describe("Branches", () => {
   test("create (auto-generated code), edit, and disable a branch", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ebr${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -75,7 +75,7 @@ test.describe("Branches", () => {
   });
 
   test("search, sort, and switch view update the URL", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ebrl${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -110,7 +110,7 @@ test.describe("Branches", () => {
   });
 
   test("a staff-role member can list but not create a branch", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ebrr${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -160,7 +160,7 @@ test.describe("Branches", () => {
   test("a branch from one tenant never appears in another tenant's list", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ebra${uniq}`;
     const slugB = `e2ebrb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

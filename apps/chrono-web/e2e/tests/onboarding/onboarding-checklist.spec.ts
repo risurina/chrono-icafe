@@ -101,7 +101,7 @@ test.describe("Onboarding checklist", () => {
   test("happy path: 0/7 on signup, card visible, count increments after creating a branch", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eonb${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -141,7 +141,7 @@ test.describe("Onboarding checklist", () => {
   test("actionable flag: staff sees the same counts as owner but 4 items read-only, and staff can still dismiss", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eonbgate${uniq}`;
     const staffSlug = `e2eonbgateinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
@@ -209,7 +209,7 @@ test.describe("Onboarding checklist", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eonba${uniq}`;
     const slugB = `e2eonbb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

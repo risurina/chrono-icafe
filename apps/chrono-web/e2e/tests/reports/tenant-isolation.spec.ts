@@ -56,7 +56,7 @@ test.describe("Reports — tenant isolation", () => {
   test("tenant B never sees tenant A's revenue/shift data; cross-tenant branchId 404s", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2erptisoa${uniq}`;
     const slugB = `e2erptisob${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

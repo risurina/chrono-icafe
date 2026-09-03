@@ -72,7 +72,7 @@ test.describe("Reconciliation — role gate", () => {
   test("staff and admin/owner can both read a shift's breakdown; no own-shifts-only split", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ereconrbac${uniq}`;
     const staffSlug = `e2ereconrbacinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });

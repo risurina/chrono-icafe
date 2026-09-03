@@ -51,7 +51,7 @@ test.describe("Tenant landing — editor role gate", () => {
     page,
     request,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2elandgate${uniq}`;
     const staffSlug = `e2elandgateinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });

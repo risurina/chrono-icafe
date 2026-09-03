@@ -33,7 +33,7 @@ async function signUpWorkspace(
 /** Mint an API key for the signed-in tenant via the existing /rpc/api-keys route. */
 async function mintApiKey(page: import("@playwright/test").Page): Promise<string> {
   const res = await page.request.post(`${API_URL}/rpc/api-keys`, {
-    data: { name: `test-v1-key-${faker.string.alphanumeric(8)}`, role: "owner" },
+    data: { name: `test-v1-key-${faker.string.alphanumeric(8).toLowerCase()}`, role: "owner" },
   });
   expect(res.ok()).toBeTruthy();
   const body = (await res.json()) as { apiKey: { secret: string } };
@@ -43,7 +43,7 @@ async function mintApiKey(page: import("@playwright/test").Page): Promise<string
 test.describe("Public API v1", () => {
   test("API key auth, envelope shape, and cross-tenant isolation", async ({ page, browser }) => {
     test.setTimeout(120_000);
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `test-v1-a-${uniq}`;
     const slugB = `test-v1-b-${uniq}`;
 
@@ -74,7 +74,7 @@ test.describe("Public API v1", () => {
     expect(badAuth.status()).toBe(401);
 
     // Happy path: create via v1, envelope shape, then list via v1.
-    const projectName = `Test Project ${faker.string.alphanumeric(6)}`;
+    const projectName = `Test Project ${faker.string.alphanumeric(6).toLowerCase()}`;
     const createRes = await page.request.post(`${API_URL}/api/v1/projects`, {
       headers: { Authorization: `Bearer ${secretA}` },
       data: { name: projectName },
@@ -122,7 +122,7 @@ test.describe("Public API v1", () => {
 
   test("rate limiting: exceeding the per-tenant budget returns 429", async ({ page }) => {
     test.setTimeout(60_000);
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `test-v1-rl-${uniq}`;
     await signUpWorkspace(page, {
       name: faker.person.fullName(),

@@ -59,7 +59,7 @@ test.describe("Reconciliation — tenant isolation", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ereconisoa${uniq}`;
     const slugB = `e2ereconisob${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

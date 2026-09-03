@@ -84,7 +84,7 @@ test.describe("Reconciliation — expected-cash computation", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2erecon${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const memberEmail = faker.internet.email({ provider: "example.com" });

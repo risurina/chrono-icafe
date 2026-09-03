@@ -37,7 +37,7 @@ async function createBranch(
 
 test.describe("Shifts", () => {
   test("happy path: open a shift, assert it lists as open, close it, assert it lists as closed", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eshift${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -79,7 +79,7 @@ test.describe("Shifts", () => {
   });
 
   test("business-rule gate: prevents opening a second shift in the same branch when one is already open", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eshift2${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -134,7 +134,7 @@ test.describe("Shifts", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eshifta${uniq}`;
     const slugB = `e2eshiftb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

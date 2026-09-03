@@ -50,6 +50,7 @@ async function signUp(
   await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
+    waitUntil: "commit",
   });
 }
 
@@ -152,7 +153,7 @@ test.describe("Sessions", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esess${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });
@@ -251,7 +252,7 @@ test.describe("Sessions", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esessgate${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -331,7 +332,7 @@ test.describe("Sessions", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2esessa${uniq}`;
     const slugB = `e2esessb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });
@@ -404,7 +405,7 @@ test.describe("Sessions", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esesscred${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const customerEmail = faker.internet.email({ provider: "example.com" });

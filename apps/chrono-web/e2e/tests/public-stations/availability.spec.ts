@@ -52,7 +52,7 @@ async function findBranchId(
 
 test.describe("Public Stations Availability", () => {
   test("happy path, cross-tenant isolation, and 404s", async ({ page, browser }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2epubstaa${uniq}`;
     const slugB = `e2epubstab${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

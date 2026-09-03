@@ -80,7 +80,7 @@ test.describe("Stations", () => {
   test("happy path: create station group, create station, edit station, delete station", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2esta${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -143,7 +143,7 @@ test.describe("Stations", () => {
   });
 
   test("role gate: staff can create/edit but gets 403 on delete", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2estar${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const staffEmail = faker.internet.email({ provider: "example.com" });
@@ -207,7 +207,7 @@ test.describe("Stations", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2estatena${uniq}`;
     const slugB = `e2estatenb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

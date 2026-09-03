@@ -89,7 +89,7 @@ test.describe("Reservations", () => {
   test("create a walk-in reservation, check it in, then create and cancel a second one", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eres${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -175,7 +175,7 @@ test.describe("Reservations", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eresa${uniq}`;
     const slugB = `e2eresb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

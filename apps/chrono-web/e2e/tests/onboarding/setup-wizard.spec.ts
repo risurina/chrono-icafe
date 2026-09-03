@@ -98,7 +98,7 @@ test.describe("Onboarding setup wizard", () => {
   test("happy path: complete all seven steps inline, then land on the completion card", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ewiz${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -169,7 +169,7 @@ test.describe("Onboarding setup wizard", () => {
   test("role gate: staff sees 4 locked / 3 actionable steps, and a forged branch-create call still 403s", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ewizgate${uniq}`;
     const staffSlug = `e2ewizgateinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
@@ -240,7 +240,7 @@ test.describe("Onboarding setup wizard", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2ewiza${uniq}`;
     const slugB = `e2ewizb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });
@@ -285,7 +285,7 @@ test.describe("Onboarding setup wizard", () => {
   test("resume: reloading the wizard after completing three steps resumes at the fourth", async ({
     page,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2ewizresume${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;

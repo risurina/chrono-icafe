@@ -93,7 +93,7 @@ test.describe("POS", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2epos${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const memberEmail = faker.internet.email({ provider: "example.com" });
@@ -182,7 +182,7 @@ test.describe("POS", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2eposgate${uniq}`;
     const staffSlug = `e2eposgateinv${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
@@ -285,7 +285,7 @@ test.describe("POS", () => {
     page,
     browser,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eposa${uniq}`;
     const slugB = `e2eposb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });

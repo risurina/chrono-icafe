@@ -48,7 +48,7 @@ async function portalSignUp(
 
 test.describe("Inquiries", () => {
   test("happy path: public submit, staff assign/reply/resolve/close", async ({ page }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2einq${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -105,7 +105,7 @@ test.describe("Inquiries", () => {
     page,
     context,
   }) => {
-    const uniq = faker.string.alphanumeric(8);
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slug = `e2einqrole${uniq}`;
     const ownerEmail = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
@@ -145,8 +145,8 @@ test.describe("Inquiries", () => {
   });
 
   test("tenant + cross-member isolation", async ({ page, browser }) => {
-    const uniqA = faker.string.alphanumeric(8);
-    const uniqB = faker.string.alphanumeric(8);
+    const uniqA = faker.string.alphanumeric(8).toLowerCase();
+    const uniqB = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2einqa${uniqA}`;
     const slugB = `e2einqb${uniqB}`;
     const baseA = `http://${slugA}.localtest.me:3000`;
