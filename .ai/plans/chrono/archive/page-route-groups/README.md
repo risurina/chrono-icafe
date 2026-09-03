@@ -1,6 +1,22 @@
 # Plan — Group `apps/chrono-web/src/app` into 5 Route Groups
 
-Status: **Draft** (not yet accepted — do not implement)
+Status: **Implemented** (2026-09-03) — both phases complete on branch
+`unified-customer-portal`. Handoff notes:
+- Phase 1 commit `4c9ae59`, Phase 2 commit `8d9b2ab`.
+- Verification: `pnpm --filter @agora/chrono-web typecheck`, `pnpm --filter @agora/chrono-web
+  build`, and a final full-workspace `pnpm --filter agora typecheck` (all 7 packages) all
+  pass. Every move showed as a pure rename (`0 insertions, 0 deletions`).
+- Ran into transient Windows file locks mid-move (`auth/`, `login/`, `q/` — held open by
+  a leftover `next dev` process from an earlier manual smoke-check in this same
+  worktree); killed the three specific PIDs and the retried `git mv`s succeeded cleanly.
+  No content was affected.
+- Manual browser spot-check / re-scanning a real QR token was not performed in this pass
+  (no interactive browser tool available); relying on typecheck + build + route-listing
+  diff as the verification signal.
+- This closes the 3-plan sequence: `unified-customer-portal` → agora
+  `page-route-groups` → this plan.
+
+Status (original): **Draft** (not yet accepted — do not implement)
 App: `chrono` (business app, mirroring a foundation convention)
 Type: internal reorganization only — Next.js route groups (`(name)/`) are excluded from
 the URL, so no route path, response shape, or public behavior changes anywhere in this
