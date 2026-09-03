@@ -46,8 +46,8 @@ async function signUpWorkspace(
   await page.getByLabel("Your name").fill(opts.name);
   await page.getByLabel("Email").fill(opts.email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(opts.slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(opts.slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -80,7 +80,7 @@ async function rowAction(adminPage: Page, slug: string, item: string | RegExp) {
 }
 
 test.describe("Platform Admin Organizations", () => {
-  test("platform admin suspends and reactivates a workspace; a non-owner staff member loses and regains dashboard access", async ({
+  test("platform admin suspends and reactivates a business; a non-owner staff member loses and regains dashboard access", async ({
     page,
     browser,
   }) => {
@@ -137,7 +137,7 @@ test.describe("Platform Admin Organizations", () => {
     await adminContext.close();
   });
 
-  test("platform admin archives then reactivates a workspace; archive blocks tenant access", async ({
+  test("platform admin archives then reactivates a business; archive blocks tenant access", async ({
     page,
     browser,
   }) => {

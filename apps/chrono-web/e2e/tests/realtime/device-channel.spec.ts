@@ -38,8 +38,8 @@ async function signUp(
   await page.getByLabel("Full name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -63,7 +63,7 @@ async function resolveTenantId(page: Page, slug: string): Promise<string> {
     });
     return res.ok ? ((await res.json()) as { tenantId: string }) : null;
   }, slug);
-  if (!me) throw new Error("Failed to resolve tenantId for the workspace.");
+  if (!me) throw new Error("Failed to resolve tenantId for the business.");
   return me.tenantId;
 }
 

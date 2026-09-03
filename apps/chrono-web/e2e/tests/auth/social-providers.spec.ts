@@ -9,8 +9,8 @@ import { test, expect } from "@playwright/test";
  * The IdP hop itself is out of reach here — no real Google consent screen — so
  * these specs cover what the browser genuinely owns: that the sign-in pages
  * render exactly the methods the platform offers, that the platform admin page
- * enforces the invariants visibly, and that the zero-workspace apex user is
- * routed to workspace creation instead of a dead end. The gate behind those
+ * enforces the invariants visibly, and that the zero-business apex user is
+ * routed to business creation instead of a dead end. The gate behind those
  * screens is proven in `apps/api/src/e2e/run.ts`.
  *
  * Each test restores whatever it toggled, because this suite runs
@@ -172,17 +172,17 @@ test.describe("Platform sign-in methods", () => {
 });
 
 test.describe("Post-authentication routing", () => {
-  test("a user with no workspace lands on workspace creation, not a dead end", async ({
+  test("a user with no business lands on business creation, not a dead end", async ({
     page,
   }) => {
     // The platform admin deliberately holds no tenant membership, which makes
     // it the exact case that used to be sent to /dashboard on a tenant-less
     // host and see nothing.
     await signIn(page, PLATFORM_ADMIN_EMAIL);
-    await page.waitForURL(/\/(new-workspace|admin|dashboard)/, { timeout: 20_000 });
-    expect(page.url()).toContain("/new-workspace");
+    await page.waitForURL(/\/(new-business|admin|dashboard)/, { timeout: 20_000 });
+    expect(page.url()).toContain("/new-business");
     await expect(
-      page.getByRole("heading", { name: /welcome — create your workspace/i }),
+      page.getByRole("heading", { name: /welcome — create your business/i }),
     ).toBeVisible();
   });
 

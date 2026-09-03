@@ -13,8 +13,8 @@ async function signUp(
   await page.getByLabel("Your name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -31,7 +31,7 @@ test.describe("Vouchers", () => {
     const code1 = faker.string.alphanumeric(8).toUpperCase();
     const code2 = faker.string.alphanumeric(8).toUpperCase();
 
-    // 1. Owner signs up the workspace
+    // 1. Owner signs up the business
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // 2. Navigate to Vouchers page

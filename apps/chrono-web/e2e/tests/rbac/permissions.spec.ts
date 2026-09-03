@@ -13,7 +13,7 @@ import { test, expect } from "@playwright/test";
  * this file asserts, is that the *rendered page* follows the permission set: the
  * owner sees the gated controls, and the permission set behind them is real.
  *
- * Every assertion here must be able to fail. A test that signs up a fresh workspace
+ * Every assertion here must be able to fail. A test that signs up a fresh business
  * is always signed in as `owner` (`creatorRole: "owner"`), so it cannot demonstrate
  * denial — attempting that in the browser would be a test that passes no matter what.
  */
@@ -40,7 +40,7 @@ async function fetchMe(
   }, tenantSlug);
 }
 
-/** Sign up a fresh workspace; returns its slug and tenant base URL. */
+/** Sign up a fresh business; returns its slug and tenant base URL. */
 async function createWorkspace(page: import("@playwright/test").Page, tag: string) {
   const uniq = Date.now();
   const slug = `test-rbac${tag}${uniq}`.replace(/[^a-z0-9-]/g, "");
@@ -52,8 +52,8 @@ async function createWorkspace(page: import("@playwright/test").Page, tag: strin
   await page.getByLabel("Your name").fill("PW RBAC");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
-  await page.getByLabel("Workspace name").fill(slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -84,7 +84,7 @@ test.describe("RBAC permission gating", () => {
     // staff:invite is held, so the invite form renders with the enabled copy.
     await expect(page.getByPlaceholder("teammate@example.com")).toBeVisible();
     await expect(
-      page.getByText(/invite a teammate to this workspace/i),
+      page.getByText(/invite a teammate to this business/i),
     ).toBeVisible();
     await expect(
       page.getByText(/you don't have permission to invite teammates/i),

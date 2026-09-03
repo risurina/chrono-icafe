@@ -38,8 +38,8 @@ async function signUpWorkspace(
   await page.getByLabel("Your name").fill(opts.name);
   await page.getByLabel("Email").fill(opts.email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(opts.slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(opts.slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -149,7 +149,7 @@ test.describe("Impersonation scope", () => {
     // rule that frontend checks are visibility-only and follow from whatever
     // permissions the session actually has.
     await expect(
-      adminPage.getByRole("button", { name: "Suspend workspace" }),
+      adminPage.getByRole("button", { name: "Suspend business" }),
     ).toHaveCount(0);
 
     // Direct API confirmation of the 403, and that the tenant stayed active.

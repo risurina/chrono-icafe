@@ -32,7 +32,7 @@ async function signInStaff(
   });
 }
 
-/** Sign up a fresh workspace; returns its slug. */
+/** Sign up a fresh business; returns its slug. */
 async function createWorkspace(
   page: import("@playwright/test").Page,
   tag: string,
@@ -47,8 +47,8 @@ async function createWorkspace(
   await page.getByLabel("Your name").fill("PW Announce");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });

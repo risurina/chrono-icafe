@@ -25,8 +25,8 @@ test.describe("Members invite", () => {
     await page.getByLabel("Your name").fill("PW Members");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(slug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },
@@ -58,8 +58,8 @@ test.describe("Members invite", () => {
     await page.getByLabel("Your name").fill("PW Members");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(slug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },
@@ -106,8 +106,8 @@ test.describe("Members invite", () => {
     await page.getByLabel("Your name").fill("PW Members");
     await page.getByLabel("Email").fill(ownerEmail);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(slug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },
@@ -126,7 +126,7 @@ test.describe("Members invite", () => {
     // Recover the accept link from the real email sent via Resend.
     const inviteLink = await findInviteLinkInTempInbox(inbox);
 
-    // Sign the invitee out and create their own account (their own workspace),
+    // Sign the invitee out and create their own account (their own business),
     // matching how a real invitee would arrive with an existing session.
     await page.goto(`${base}/dashboard/settings/crew`);
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -138,8 +138,8 @@ test.describe("Members invite", () => {
     await page.getByLabel("Your name").fill("PW Invitee");
     await page.getByLabel("Email").fill(inviteeEmail);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(inviteeSlug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(inviteeSlug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${inviteeSlug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },

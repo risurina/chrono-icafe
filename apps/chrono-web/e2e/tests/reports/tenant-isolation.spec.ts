@@ -20,8 +20,8 @@ async function signUp(
   await page.getByLabel("Your name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -79,7 +79,7 @@ test.describe("Reports — tenant isolation", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("500.00").or(page.getByText("Open shifts"))).toBeVisible();
 
-    // Tenant B: fresh workspace, no data — overview must show zero, never tenant A's numbers.
+    // Tenant B: fresh business, no data — overview must show zero, never tenant A's numbers.
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
     await page.goto(`${baseB}/dashboard/reports`);
     await page.waitForLoadState("networkidle");

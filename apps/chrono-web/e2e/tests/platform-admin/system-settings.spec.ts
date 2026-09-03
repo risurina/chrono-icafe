@@ -142,7 +142,7 @@ test.describe("Platform System Settings", () => {
     const toggle = page.getByRole("switch", { name: /toggle maintenance mode/i });
     await toggle.click();
     // The confirm dialog names the platform-wide blast radius before any write.
-    await expect(page.getByText(/affects every workspace on the platform/i)).toBeVisible();
+    await expect(page.getByText(/affects every business on the platform/i)).toBeVisible();
 
     // Cancelling leaves the value unchanged.
     await page.getByRole("button", { name: "Cancel" }).click();

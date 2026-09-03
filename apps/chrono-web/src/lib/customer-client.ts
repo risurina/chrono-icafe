@@ -6,6 +6,8 @@
 export {
   customerAuth,
   applyForTenantMembership,
+  getMyTenantMemberships,
   type GlobalCustomerUser,
+  type GlobalCustomerMembership,
 } from "agora/client";
 export { useGlobalCustomerSession } from "agora/client/react";

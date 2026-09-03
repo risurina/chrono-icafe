@@ -29,8 +29,8 @@ async function signUpWorkspace(
   await page.getByLabel("Your name").fill(opts.name);
   await page.getByLabel("Email").fill(opts.email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByLabel("Workspace name").fill(opts.slug);
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByLabel("Business name").fill(opts.slug);
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -94,7 +94,7 @@ test.describe("Platform Admin — Feature Flags", () => {
     page,
     browser,
   }) => {
-    // Two workspace sign-ups plus several full navigations exceed the default
+    // Two business sign-ups plus several full navigations exceed the default
     // 90s budget on a cold dev-server compile (first test to hit these routes).
     test.setTimeout(180_000);
     const uniq = Date.now();

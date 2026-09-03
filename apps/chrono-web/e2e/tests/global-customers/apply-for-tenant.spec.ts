@@ -20,9 +20,9 @@ async function signUpNewWorkspace(page: Page): Promise<{ slug: string }> {
   await page.getByLabel("Your name").fill(faker.person.fullName());
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
-  await page.getByLabel("Workspace name").fill(slug);
+  await page.getByLabel("Business name").fill(slug);
 
-  await page.getByRole("button", { name: /create workspace/i }).click();
+  await page.getByRole("button", { name: /create business/i }).click();
   await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
     timeout: 60_000,
   });
@@ -34,7 +34,7 @@ test.describe("Global customer — apply to a tenant", () => {
   test("signs up once, applies to two tenants independently, isolated per tenant", async ({
     page,
   }) => {
-    // ── Tenant A: create workspace (owner session A is now active) ──
+    // ── Tenant A: create business (owner session A is now active) ──
     const { slug: slugA } = await signUpNewWorkspace(page);
 
     // ── Global customer sign-up (separate identity/cookie, unaffected by
@@ -53,11 +53,11 @@ test.describe("Global customer — apply to a tenant", () => {
     // ── Apply to tenant A's portal (happy path) ──
     await page.goto(`http://${slugA}.localtest.me:3000/portal`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: "Join this workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Join this business" })).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     // Reloads into the member area once the linked tenantMember exists.
     await expect(
-      page.getByText("You're signed in as a customer of this workspace."),
+      page.getByText("You're signed in as a customer of this business."),
     ).toBeVisible({ timeout: 15_000 });
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
@@ -66,7 +66,7 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
 
-    // ── Tenant B: create a second, independent workspace. ──
+    // ── Tenant B: create a second, independent business. ──
     const { slug: slugB } = await signUpNewWorkspace(page);
 
     // Before applying to B, tenant B's own customer list must NOT show this
@@ -79,16 +79,29 @@ test.describe("Global customer — apply to a tenant", () => {
     // second global sign-up) ──
     await page.goto(`http://${slugB}.localtest.me:3000/portal`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: "Join this workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Join this business" })).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(
-      page.getByText("You're signed in as a customer of this workspace."),
+      page.getByText("You're signed in as a customer of this business."),
     ).toBeVisible({ timeout: 15_000 });
 
     // Now tenant B's own list shows it too — a distinct row from tenant A's.
     await page.goto(`http://${slugB}.localtest.me:3000/dashboard/settings/customers`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
+
+    // ── The apex "Your businesses" list surfaces both memberships — the
+    // customer's own cross-tenant view, distinct from either tenant's
+    // (tenant-scoped) customer list above. ──
+    await page.goto("http://localtest.me:3000/portal");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("Your businesses")).toBeVisible();
+    await expect(
+      page.locator(`a[href="http://${slugA}.localtest.me:3000/portal"]`),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(`a[href="http://${slugB}.localtest.me:3000/portal"]`),
+    ).toBeVisible();
   });
 
   test("a tenant-only customer signup is unaffected by the global identity", async ({
@@ -109,7 +122,7 @@ test.describe("Global customer — apply to a tenant", () => {
       timeout: 30_000,
     });
     await expect(
-      page.getByText("You're signed in as a customer of this workspace."),
+      page.getByText("You're signed in as a customer of this business."),
     ).toBeVisible();
   });
 });

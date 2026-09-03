@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 /**
  * Browser coverage for the notification bell's single-browser-reachable
  * slice: it renders on the tenant dashboard (not the admin portal), opens to
- * an empty state for a fresh workspace, and is scoped to /rpc/notification-
+ * an empty state for a fresh business, and is scoped to /rpc/notification-
  * feed (never fabricates content on an empty/error response).
  *
  * The multi-member happy path, per-user isolation (a different member of the
@@ -16,7 +16,7 @@ import { test, expect } from "@playwright/test";
  * `apps/web/e2e/tests/auth/password-reset.spec.ts`).
  */
 test.describe("Notification bell", () => {
-  test("renders on the tenant dashboard with an empty state for a fresh workspace", async ({
+  test("renders on the tenant dashboard with an empty state for a fresh business", async ({
     page,
   }) => {
     const uniq = Date.now();
@@ -28,8 +28,8 @@ test.describe("Notification bell", () => {
     await page.getByLabel("Your name").fill("PW Bell");
     await page.getByLabel("Email").fill(`pwbell${uniq}@example.com`);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(slug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Sign-up onboarding", () => {
-  test("creates a workspace and lands on the tenant dashboard", async ({ page }) => {
+  test("creates a business and lands on the tenant dashboard", async ({ page }) => {
     const uniq = Date.now();
     const slug = `e2e${uniq}`;
     const email = `pw${uniq}@example.com`;
@@ -16,9 +16,9 @@ test.describe("Sign-up onboarding", () => {
     await page.getByLabel("Your name").fill("PW Tester");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug); // slug auto-derives
+    await page.getByLabel("Business name").fill(slug); // slug auto-derives
 
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByRole("button", { name: /create business/i }).click();
 
     // Redirects to {slug}.localtest.me:3000/dashboard on success.
     await page.waitForURL(

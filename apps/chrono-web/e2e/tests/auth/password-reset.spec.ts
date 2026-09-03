@@ -17,15 +17,15 @@ test.describe("Password reset request", () => {
     const slug = `e2e${uniq}`;
     const email = `pw${uniq}@example.com`;
 
-    // Create a workspace so we're on a real tenant subdomain.
+    // Create a business so we're on a real tenant subdomain.
     await page.goto("/sign-up");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1500);
     await page.getByLabel("Your name").fill("PW Tester");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
-    await page.getByLabel("Workspace name").fill(slug);
-    await page.getByRole("button", { name: /create workspace/i }).click();
+    await page.getByLabel("Business name").fill(slug);
+    await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
       new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
       { timeout: 60_000 },
