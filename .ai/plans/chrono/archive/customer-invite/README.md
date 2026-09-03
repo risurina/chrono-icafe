@@ -1,5 +1,56 @@
 # Chrono — Invite a Customer
 
+**Status:** Done — implemented and verified.
+
+- Phase 1 (foundation `member-auth` mechanism) — complete.
+- Phase 2 (Chrono API route + permissions) — complete.
+- Phase 3 (portal accept-invite page + dashboard Invite dialog) — complete.
+- Phase 4 (e2e spec, `apps/chrono-web/e2e/tests/members/invite-customer.spec.ts`)
+  — complete; all 3 scenarios (happy path, role gate, cross-tenant isolation)
+  pass against real dev servers.
+- Verification: `pnpm typecheck` (workspace), `pnpm --filter @agora/chrono-api
+  rls:proof` (PASS, non-vacuous), `pnpm --filter @agora/chrono-api
+  test:permissions` (399/399, including the `memberProfile:invite` gate),
+  full Playwright run of the e2e spec (3/3 passed).
+
+## Follow-on bugs found and fixed during verification
+
+All four were discovered while getting the Phase 4 e2e spec to actually run
+end to end; none were pre-known when the plan was written.
+
+1. **Real bug in this feature (Phase 3):** `apps/chrono-web/src/app/
+   (member-portal)/portal/tenant-portal-layout.tsx`'s `PUBLIC` allowlist never
+   included `/portal/accept-invite`, so the layout's own auth guard redirected
+   every unauthenticated invitee straight to `/portal/login` before they could
+   see the "set your password" form — the invite link was completely
+   non-functional. Fixed by adding the route to `PUBLIC`.
+2. **Pre-existing, unrelated to this feature:** `apps/chrono-web/src/app/
+   globals.css` and `apps/agora-web/src/app/globals.css` both had a stale
+   Tailwind `@source` path (`packages/agora/src/ui`, from before an internal
+   `packages/agora/src` reorg into domain groups — see commit `03affe1`) that
+   no longer resolves to `packages/agora/src/presentation/ui`. Tailwind
+   silently dropped every utility class used only inside the shared `agora/ui`
+   library — in particular `Dialog`'s centering classes (`top-1/2 left-1/2
+   -translate-x-1/2 -translate-y-1/2`) — so every `Dialog` in both
+   `apps/agora-web` and `apps/chrono-web` rendered off-screen. This blocks any
+   Dialog-based e2e flow, not just this one. Fixed by correcting the path in
+   both apps' `globals.css`.
+3. **Test-only, this plan's own spec:** the sign-up helper referenced
+   pre-rebrand field labels ("Workspace name" / "create workspace") that no
+   longer match the current `/sign-up` page copy ("Business name" / "Business
+   URL" / "Create business") — a drift affecting the shared `signUp()` helper
+   pattern copied across roughly 65 other e2e spec files in
+   `apps/chrono-web/e2e/tests/`, not something specific to this plan. Fixed
+   locally in this spec only; the other ~65 files are unaffected by this plan
+   and were left as-is.
+4. **Test-only, this plan's own spec:** two case-sensitivity bugs (the emailed
+   invite link is searched for by exact string match against the server's
+   always-lowercased recipient address; a table-row locator matched the
+   original mixed-case faker email against the server's lowercased stored
+   value) and a Playwright strict-mode violation (sonner renders its error
+   toast twice in the DOM — a visible copy plus an accessibility-live-region
+   duplicate — so a text locator needed `.first()`). All fixed in this spec.
+
 ## Context
 
 `/dashboard/members` (`apps/chrono-web/src/app/dashboard/members/page.tsx`) today only

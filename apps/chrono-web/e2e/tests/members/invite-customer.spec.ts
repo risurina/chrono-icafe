@@ -179,7 +179,9 @@ test.describe("Invite a customer", () => {
     await inviteePage.goto(crossTenantLink);
     await inviteePage.getByLabel("Password").fill("Password123!");
     await inviteePage.getByRole("button", { name: "Activate account" }).click();
-    await expect(inviteePage.getByText(/invalid or has expired/i)).toBeVisible();
+    // sonner renders the error toast twice in the DOM (visual + a11y-live-region
+    // duplicate), so scope to the first match rather than hitting strict mode.
+    await expect(inviteePage.getByText(/invalid or has expired/i).first()).toBeVisible();
     await inviteeCtx.close();
 
     // The original, correct-host link still works.
