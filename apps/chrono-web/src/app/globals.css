@@ -8,73 +8,79 @@
 
 /* Chrono's own copy of the design tokens (overrides agora/ui/globals.css,
  * imported earlier in layout.tsx). */
+
+/* Elegant-gold palette, sourced from the karta-oikos/chrono live theme.
+ * See .ai/plans/chrono/active/chrono-theme-colors/palette-source.md for the
+ * raw extracted values and the WCAG-AA contrast deviations noted below. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #faf9f6;
+  --foreground: #1c1917;
+  --card: #fff;
+  --card-foreground: #1c1917;
+  --popover: #fff;
+  --popover-foreground: #1c1917;
+  --primary: #8a6508;
+  --primary-foreground: #faf9f6;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #8a6508;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --accent: #f5f5f4;
+  --accent-foreground: #8a6508;
+  --destructive: #c0392b;
+  --border: #b8860b26;
+  --input: #b8860b26;
+  --ring: #b8860b;
+  --chart-1: #b8860b;
+  --chart-2: #10b981;
+  --chart-3: #3b82f6;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
   --radius: 0.45rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #fff;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #8a6508;
+  --sidebar-primary-foreground: #faf9f6;
+  --sidebar-accent: #f5f5f4;
+  --sidebar-accent-foreground: #8a6508;
+  --sidebar-border: #b8860b26;
+  --sidebar-ring: #b8860b;
 }
 
+/* Elegant-gold palette (dark) — verbatim from the karta-oikos/chrono live
+ * theme; see palette-source.md. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #080806;
+  --foreground: #f8f1e3;
+  --card: #17140d;
+  --card-foreground: #f8f1e3;
+  --popover: #17140d;
+  --popover-foreground: #f8f1e3;
+  --primary: #d6a84f;
+  --primary-foreground: #080806;
+  --secondary: #201b10;
+  --secondary-foreground: #f7d77a;
+  --muted: #11100c;
+  --muted-foreground: #b8aa90;
+  --accent: #201b10;
+  --accent-foreground: #d6a84f;
+  --destructive: #d9534f;
+  --border: #d6a84f38;
+  --input: #d6a84f38;
+  --ring: #d6a84f;
+  --chart-1: #d6a84f;
+  --chart-2: #34d399;
+  --chart-3: #60a5fa;
+  --chart-4: #fbbf24;
+  --chart-5: #f87171;
+  --sidebar: #11100c;
+  --sidebar-foreground: #f8f1e3;
+  --sidebar-primary: #d6a84f;
+  --sidebar-primary-foreground: #080806;
+  --sidebar-accent: #201b10;
+  --sidebar-accent-foreground: #d6a84f;
+  --sidebar-border: #d6a84f38;
+  --sidebar-ring: #d6a84f;
 }
 
 /* Map the design tokens (from agora/ui/globals.css) to Tailwind color/radius
@@ -128,6 +134,26 @@
   * {
     border-color: var(--border);
   }
+
+  /* Uniform theme-switch transition: fixes the distorted dark/light flip
+   * (some elements cross-fading via scattered .transition-colors utilities
+   * while everything else snapped instantly) by giving every element the
+   * same color transition. Nested inside @layer base so it stays below
+   * Tailwind's utilities layer and never overrides transition-transform/
+   * transition-opacity/duration-* utilities (Sheet, Dialog, Switch, etc.).
+   * Scoped to background-color/border-color/color only — box-shadow is
+   * excluded so focus-visible rings (ring-* = box-shadow) still appear
+   * instantly rather than fading in. */
+  @media (prefers-reduced-motion: no-preference) {
+    *,
+    *::before,
+    *::after {
+      transition-property: background-color, border-color, color;
+      transition-timing-function: ease;
+      transition-duration: 150ms;
+    }
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
