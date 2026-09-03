@@ -89,6 +89,34 @@ export async function applyGrantDelta(
 }
 
 /**
+ * Read-only eligibility check — true if the member holds at least one active,
+ * unexpired grant that `scoreGrantEligibility` would accept for
+ * `targetStationGroupId`. No row locking (nothing is mutated), unlike
+ * `consumeCredits`. Used by `session/service.ts`'s `startSession` to let a
+ * member with $0 wallet balance but a valid credit grant still start a
+ * session — see the credit-session-billing plan.
+ */
+export async function hasEligibleCreditBalance(
+  tx: TenantTx,
+  args: { tenantId: string; memberId: string; stationGroupId: string | null },
+): Promise<boolean> {
+  const candidates = await tx
+    .select({ creditPolicy: chronoCreditGrant.creditPolicy, stationGroupId: chronoCreditGrant.stationGroupId })
+    .from(chronoCreditGrant)
+    .where(
+      and(
+        eq(chronoCreditGrant.tenantId, args.tenantId),
+        eq(chronoCreditGrant.memberId, args.memberId),
+        eq(chronoCreditGrant.status, "granted"),
+        gt(chronoCreditGrant.remainingQuantity, 0),
+        or(isNull(chronoCreditGrant.expiresAt), gt(chronoCreditGrant.expiresAt, new Date())),
+      ),
+    );
+
+  return candidates.some((g) => scoreGrantEligibility(g, args.stationGroupId) < 99);
+}
+
+/**
  * Consumes `quantityMinutes` from a member's eligible lots, in deterministic
  * priority order — eligibility score, then `priority` ascending, then
  * `expiresAt` ascending (soonest-expiring first, never-expiring last), then

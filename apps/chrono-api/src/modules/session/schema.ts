@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../branch/schema";
-import { chronoStation } from "../station/schema";
+import { chronoStation, chronoStationGroup } from "../station/schema";
 import { chronoWalletTransaction } from "../wallet/schema";
 
 export const chronoSession = pgTable(
@@ -46,8 +46,22 @@ export const chronoSession = pgTable(
     rateSnapshot: numeric("rateSnapshot", { precision: 12, scale: 2 }).notNull(),
     rateSource: text("rateSource").notNull(), // "group_hourly" | "group_member"
     currency: text("currency").notNull().default("PHP"),
-    // Full computed cost vs. what was actually debited (capped at the wallet
-    // balance at close time) — see "Session close" in Pass 2.
+    // Snapshot of the station's pricing group at start (mirrors rateSnapshot/
+    // rateSource/branchId's own freeze-at-start precedent) — scopes which
+    // ChronoCreditGrants are eligible to pay for THIS session at close, immune
+    // to a later station/group reassignment mid-session. Nullable only
+    // because rows created before this column existed have none; a null value
+    // just means a strict_group_only lot won't be drawn from for that
+    // pre-migration session (any_station lots are unaffected).
+    stationGroupId: text("stationGroupId").references(() => chronoStationGroup.id, {
+      onDelete: "set null",
+    }),
+    // Minutes drawn from the member's ChronoCreditGrants at close, consumed
+    // BEFORE any money is billed (credit-session-billing plan). finalAmount/
+    // amountCharged below price only the remaining time NOT covered by
+    // credits — they are no longer "full cost of the whole session" once
+    // credits are in play, only "cost of the money-billed portion."
+    creditMinutesConsumed: integer("creditMinutesConsumed").notNull().default(0),
     finalAmount: numeric("finalAmount", { precision: 12, scale: 2 }),
     amountCharged: numeric("amountCharged", { precision: 12, scale: 2 }),
     walletTransactionId: text("walletTransactionId").references(

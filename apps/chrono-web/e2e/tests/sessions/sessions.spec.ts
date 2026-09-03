@@ -399,4 +399,88 @@ test.describe("Sessions", () => {
 
     await ctxB.close();
   });
+
+  test("credit grants: a member with $0 wallet balance and a credit grant can start a session, and closing it consumes credit minutes before touching the wallet", async ({
+    page,
+    browser,
+  }) => {
+    const uniq = faker.string.alphanumeric(8);
+    const slug = `e2esesscred${uniq}`;
+    const ownerEmail = faker.internet.email({ provider: "example.com" });
+    const customerEmail = faker.internet.email({ provider: "example.com" });
+    const customerName = faker.person.fullName();
+    const base = `http://${slug}.localtest.me:3000`;
+
+    await signUp(page, { name: "Sessions Owner", email: ownerEmail, slug });
+
+    const ctxCust = await browser.newContext();
+    const pageCust = await ctxCust.newPage();
+    await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
+    await ctxCust.close();
+
+    await createBranchStationAndGroup(page, base, {
+      branchName: `Branch ${uniq}`,
+      groupName: `Group ${uniq}`,
+      groupCode: `G${uniq}`.slice(0, 12),
+      stationNumber: `S${uniq}`.slice(0, 12),
+      stationName: `Station ${uniq}`,
+    });
+    const memberId = await findMemberId(page, customerEmail);
+
+    // No wallet top-up — the member starts at $0.00. Grant 60 minutes of
+    // credit instead of cash.
+    const grantRes = await page.request.post(
+      `${API_URL}/rpc/credits/members/${memberId}/grant`,
+      { data: { quantityMinutes: 60, reason: "e2e: credit-funded session" } },
+    );
+    expect(grantRes.ok()).toBeTruthy();
+
+    // Starting a session with $0 wallet balance used to 422 unconditionally —
+    // it now succeeds because the member holds an eligible credit grant.
+    await page.goto(`${base}/dashboard/sessions`);
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "Start Session" }).click();
+    await page.getByRole("combobox").filter({ hasText: "Select a station" }).click();
+    await page.getByRole("option", { name: new RegExp(`Station ${uniq}`) }).click();
+    await page.getByLabel("Member ID").fill(memberId);
+    await page.getByRole("button", { name: "Start session" }).click();
+    await expect(page.getByText("Session started.")).toBeVisible();
+
+    const listRes = await page.request.get(`${API_URL}/rpc/sessions`, {
+      params: { pageSize: "20" },
+    });
+    const listBody = (await listRes.json()) as { items: { id: string; status: string }[] };
+    const sessionId = listBody.items.find((s) => s.status === "active")!.id;
+
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "End" }).click();
+    await expect(page.getByText("Session ended.")).toBeVisible();
+
+    // The brief automated-test session is fully covered by the credit grant —
+    // the wallet is never touched.
+    const walletRes = await page.request.get(`${API_URL}/rpc/wallets/${memberId}`);
+    expect(walletRes.ok()).toBeTruthy();
+    const walletBody = (await walletRes.json()) as { wallet: { balance: string } };
+    expect(walletBody.wallet.balance).toBe("0.00");
+
+    const endedRes = await page.request.get(`${API_URL}/rpc/sessions`, {
+      params: { pageSize: "20" },
+    });
+    const endedBody = (await endedRes.json()) as {
+      items: { id: string; status: string; creditMinutesConsumed: number; amountCharged: string | null }[];
+    };
+    const ended = endedBody.items.find((s) => s.id === sessionId);
+    expect(ended?.status).toBe("ended");
+    expect(ended?.creditMinutesConsumed ?? 0).toBeGreaterThanOrEqual(1);
+    expect(ended?.amountCharged === null || Number(ended?.amountCharged) === 0).toBe(true);
+
+    const grantsRes = await page.request.get(
+      `${API_URL}/rpc/credits/members/${memberId}/grants`,
+      { params: { pageSize: "10" } },
+    );
+    expect(grantsRes.ok()).toBeTruthy();
+    const grantsBody = (await grantsRes.json()) as { items: { remainingQuantity: number }[] };
+    expect(grantsBody.items[0]?.remainingQuantity).toBeLessThan(60);
+  });
 });

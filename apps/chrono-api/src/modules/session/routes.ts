@@ -74,6 +74,7 @@ export function sessionRoutes() {
               rateSource: chronoSession.rateSource,
               finalAmount: chronoSession.finalAmount,
               amountCharged: chronoSession.amountCharged,
+              creditMinutesConsumed: chronoSession.creditMinutesConsumed,
               createdAt: chronoSession.createdAt,
             })
             .from(chronoSession)

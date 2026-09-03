@@ -1,0 +1,3 @@
+ALTER TABLE "ChronoSessions" ADD COLUMN "stationGroupId" text;--> statement-breakpoint
+ALTER TABLE "ChronoSessions" ADD COLUMN "creditMinutesConsumed" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "ChronoSessions" ADD CONSTRAINT "ChronoSessions_stationGroupId_ChronoStationGroups_id_fk" FOREIGN KEY ("stationGroupId") REFERENCES "public"."ChronoStationGroups"("id") ON DELETE set null ON UPDATE no action;

@@ -4,6 +4,7 @@ import { createId } from "agora";
 import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { debitWallet } from "../wallet/service";
 import { chronoWallet } from "../wallet/schema";
+import { consumeCredits, hasEligibleCreditBalance } from "../credit/service";
 import { chronoStation, chronoStationGroup } from "../station/schema";
 import { chronoDevice } from "../device/schema";
 import { publishStationTransition } from "../station/routes";
@@ -170,7 +171,18 @@ export async function startSession(
     .limit(1);
   const balance = wallet?.balance ?? "0.00";
   if (Number(balance) <= 0) {
-    throw new HttpError(422, "Insufficient wallet balance to start a session.");
+    // Zero wallet balance is only a hard block if the member ALSO has no
+    // credit grant eligible for this station's group — a member who paid for
+    // a minutes package and has nothing left in cash must still be able to
+    // start a session (see credit-session-billing plan).
+    const hasCredits = await hasEligibleCreditBalance(tx, {
+      tenantId: args.tenantId,
+      memberId: args.memberId,
+      stationGroupId: station.stationGroupId,
+    });
+    if (!hasCredits) {
+      throw new HttpError(422, "Insufficient wallet balance to start a session.");
+    }
   }
 
   const scheduledEndAt = args.durationMinutes
@@ -192,6 +204,7 @@ export async function startSession(
         scheduledEndAt,
         rateSnapshot,
         rateSource,
+        stationGroupId: station.stationGroupId,
       })
       .returning();
   } catch (err) {
@@ -251,7 +264,25 @@ export async function closeSession(
       locked.pausedDurationSeconds -
       pausedNow,
   );
-  const finalAmount = computeMeteredCharge(billableSeconds, locked.rateSnapshot);
+  // Credits pay for elapsed time BEFORE any money is billed (credit-session-
+  // billing plan): round the elapsed time up to whole minutes (pay for any
+  // started minute), draw down the member's eligible ChronoCreditGrants in
+  // their existing priority/expiry order, then price only the leftover
+  // seconds in money. A member with no grants simply consumes 0 and this is
+  // a no-op — identical to today's behavior.
+  const creditMinutesElapsed = Math.ceil(billableSeconds / 60);
+  const { consumed: creditMinutesConsumed } = await consumeCredits(tx, {
+    tenantId: args.tenantId,
+    memberId: locked.memberId,
+    quantityMinutes: creditMinutesElapsed,
+    stationGroupId: locked.stationGroupId,
+    reason: `Session ${locked.id}`,
+    referenceType: "session",
+    referenceId: locked.id,
+    performedByUserId: args.performedByUserId ?? undefined,
+  });
+  const moneyBillableSeconds = Math.max(0, billableSeconds - creditMinutesConsumed * 60);
+  const finalAmount = computeMeteredCharge(moneyBillableSeconds, locked.rateSnapshot);
 
   const [wallet] = await tx
     .select({ balance: chronoWallet.balance })
@@ -280,6 +311,7 @@ export async function closeSession(
       status: "ended",
       endedAt: now,
       actualBillableSeconds: billableSeconds,
+      creditMinutesConsumed,
       finalAmount,
       amountCharged,
       walletTransactionId,
