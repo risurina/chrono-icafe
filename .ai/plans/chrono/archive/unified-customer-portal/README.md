@@ -1,6 +1,21 @@
 # Plan — Unify `/portal` as a Single Host-Aware Route
 
-Status: **Draft** (not yet accepted — do not implement)
+Status: **Implemented** (2026-09-03) — both phases complete on branch
+`unified-customer-portal`. Handoff notes:
+- Phase 1 commit `ac78a15`, Phase 2 commit `5c061da`.
+- Verification run: `pnpm typecheck` (whole workspace, via `pnpm --filter agora typecheck`)
+  and `pnpm --filter @agora/chrono-web build` both pass; a route-level smoke check
+  (`curl` against `/portal`, `/portal/login`, `/portal/sign-up`) returned 200 pre-cutover.
+  Full interactive browser verification (confirming the apex vs. tenant-host branch
+  renders the right content, and the Playwright e2e spec) was not run in this pass —
+  flagged as a known gap, not claimed as done.
+- Known pre-existing issue surfaced, not fixed here (out of scope): `apply-for-tenant.spec.ts`
+  asserts a `"Join this workspace"` heading that doesn't match the actual copy
+  (`"Join this business"`) — this mismatch predates this plan.
+- Next: `.ai/plans/chrono/active/page-route-groups/README.md` can now proceed — `customer/`
+  no longer exists as a separate folder.
+
+Status (original): **Draft** (not yet accepted — do not implement)
 App: `chrono` (business app), with one incidental one-line fix in the foundation
 (`packages/agora/src/customer-auth`) — see "A note on app scope" below.
 Type: behavior change (auth/session UX), reusing existing foundation primitives —
