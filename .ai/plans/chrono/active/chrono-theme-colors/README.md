@@ -110,7 +110,8 @@ verification is re-scoped to an unbranded tenant; a cold-load check is added;
    both `card`/`background`) since it renders as text (error messages) more
    often than as a filled surface in this codebase's `agora/ui` components.
 2. Replace every color value in `.dark` with the gold-dark palette (verbatim
-   from the source — already clean contrast, 7.8–17.8:1):
+   from the source — clean contrast throughout, ≥4.6:1 on every text pair,
+   most well above that):
    `background:#080806` `foreground:#f8f1e3` `card:#17140d`
    `card-foreground:#f8f1e3` `popover:#17140d` `popover-foreground:#f8f1e3`
    `primary:#d6a84f` `primary-foreground:#080806` `secondary:#201b10`
@@ -167,7 +168,8 @@ requested), fixing the pre-existing tenant-branding override behavior.
    `transition-all`/`duration-*` utility in the app (Sheet slide-in, Dialog
    overlay fade, Switch thumb, disclosure chevrons all use those utilities in
    `packages/agora/src/presentation/ui/components/{sheet,dialog,switch}.tsx`
-   and `components/custom/{faq-item,sidebar-layout}.tsx`). Nesting inside
+   (flat in `components/`, not a `components/ui/` subfolder) and
+   `components/custom/{faq-item,sidebar-layout}.tsx`). Nesting inside
    `@layer base` keeps this rule in the lowest-precedence layer, so every
    Tailwind utility class continues to win exactly as before.
 
@@ -212,6 +214,19 @@ requested), fixing the pre-existing tenant-branding override behavior.
 3. Existing per-element `.transition-colors` Tailwind utility usages are
    unaffected: they live in the `utilities` layer, which continues to
    override `@layer base` regardless of the new rule's presence.
+4. **Named cold-load fallback.** `Providers` (and next-themes' pre-hydration
+   script) renders inside `<body>` at `layout.tsx:58`, after the branding
+   `<style>` tag — not in `<head>`. If the Phase 9 cold-load check below
+   shows a visible fade on first paint in dark mode, apply this fallback
+   rather than improvising one: change the transition selector to
+   `html.theme-ready *, html.theme-ready *::before, html.theme-ready
+   *::after` (scoped under the same `@media` guard), and add
+   `useEffect(() => document.documentElement.classList.add("theme-ready"),
+   [])` to `apps/chrono-web/src/app/providers.tsx`, so the transition only
+   ever applies after the first paint has already resolved the correct
+   theme class. **`disableTransitionOnChange` on `ThemeProvider` is
+   explicitly not this fallback** — it would suppress the toggle fade this
+   plan adds, not fix the cold-load case.
 
 **Acceptance criteria**
 - Toggling the theme via `ThemeToggle`
@@ -219,13 +234,17 @@ requested), fixing the pre-existing tenant-branding override behavior.
   rendered in the dashboard header —
   `packages/agora/src/presentation/ui/components/custom/sidebar-layout.tsx:302`)
   fades background/border/text color together at the same ~150ms pace — no
-  element visibly snapping instantly while others fade.
+  broad surface (page background, cards, borders, body text) snaps
+  instantly. Elements carrying their own explicit Tailwind `transition-*`
+  utility (Sheet content, Switch thumb, disclosure chevrons) retain that
+  utility's property list by design and are not expected to fade their
+  colors in lockstep with the rest of the page.
 - No transition applied when the OS/browser has "reduce motion" enabled.
 - **Regression check:** after the change, a Sheet still slides in
   (`transition-transform`), a Dialog overlay still fades
   (`transition-opacity`), and the Switch thumb still animates — all
-  unaffected, confirmed by the Phase 9 verification below, not just by
-  inspection of the CSS.
+  unaffected, confirmed by the "Verification (end-to-end)" section below,
+  not just by inspection of the CSS.
 - Keyboard focus rings (`:focus-visible`) appear instantly, not faded in.
 
 **Out of scope:** a `disableTransitionOnChange` prop change on

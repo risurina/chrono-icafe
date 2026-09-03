@@ -50,9 +50,16 @@ https://chrono.izur.com.ph/_next/static/chunks/15_6pk03z6c4i.css
   `#10b981`, `#3b82f6`, `#f59e0b`) plus the CSS named color `darkgoldenrod` (`#b8860b`)
   as the brand gold. The live site's own `primary`/`secondary-foreground`/
   `accent-foreground` all use `#b8860b` at ~3:1 contrast against their backgrounds,
-  which fails WCAG AA text contrast (4.5:1) — see plan-auditor Finding 2. This plan
-  **deviates from the verbatim source** by using a darker gold, `#8a6508`, for the
-  four *text/foreground* roles listed in Phase 1 below, while keeping `#b8860b` for
-  the four *decorative* roles (`ring`, `border`, `input`, `chart-1`) where only the
-  3:1 non-text floor applies and `#b8860b` already clears it. This is a deliberate,
-  documented accessibility fix, not a copy error.
+  which fails WCAG AA text contrast (4.5:1) — see plan-audit Finding 2. This plan
+  **deviates from the verbatim source** in two ways, both documented in `README.md`,
+  Phase 1:
+  1. Five *text/foreground* roles use a darker gold, `#8a6508`, instead of the
+     source's `#b8860b`: `primary`, `secondary-foreground`, `accent-foreground`,
+     `sidebar-primary`, `sidebar-accent-foreground`. `#b8860b` is kept for the four
+     *decorative* roles (`ring`, `border`, `input`, `chart-1`) where only the 3:1
+     non-text floor applies and `#b8860b` already clears it.
+  2. `destructive` uses `#c0392b` instead of the source's `#ef4444` (3.76:1, fails
+     AA text) — `#c0392b` clears 4.5:1 on both `card` and `background`, since
+     `agora/ui` renders this token as text (error messages) more often than as a
+     filled surface.
+  Both are deliberate, documented accessibility fixes, not copy errors.
