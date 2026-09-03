@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Scan the foundation's UI components (outside this app dir) for classes. */
-@source "../../../../packages/agora/src/ui";
+@source "../../../../packages/agora/src/presentation/ui";
 
 /* next-themes toggles a `.dark` class on <html>. */
 @custom-variant dark (&:is(.dark *));

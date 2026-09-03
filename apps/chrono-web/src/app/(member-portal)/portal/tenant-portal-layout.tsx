@@ -17,7 +17,13 @@ import {
 import { memberAuth, useMemberSession } from "@/lib/member-client";
 import { applyForTenantMembership, useGlobalCustomerSession } from "@/lib/customer-client";
 
-const PUBLIC = ["/portal/login", "/portal/sign-up", "/portal/forgot", "/portal/reset"];
+const PUBLIC = [
+  "/portal/login",
+  "/portal/sign-up",
+  "/portal/forgot",
+  "/portal/reset",
+  "/portal/accept-invite",
+];
 
 /**
  * Shown instead of redirecting to /portal/login when a signed-in GLOBAL

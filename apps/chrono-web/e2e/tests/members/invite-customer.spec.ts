@@ -15,8 +15,11 @@ const DEV_LOG_PATH = process.env.DEV_LOG_PATH ?? "/tmp/agora-dev.log";
 
 async function findInviteLink(toEmail: string): Promise<string> {
   const deadline = Date.now() + 15_000;
+  // The server always lowercases the recipient before logging, so match
+  // case-insensitively rather than assuming toEmail's own casing survives.
   const pattern = new RegExp(
     `\\[email:console\\] to=${toEmail.replace(/[.+]/g, "\\$&")}.*?link=(\\S+)`,
+    "i",
   );
   while (Date.now() < deadline) {
     const log = readFileSync(DEV_LOG_PATH, "utf8");
@@ -79,7 +82,8 @@ test.describe("Invite a customer", () => {
     await expect(page.getByText("Invite sent.")).toBeVisible();
 
     // Row appears immediately, already approved — no separate approve step.
-    const row = page.getByRole("row", { name: new RegExp(inviteeEmail) });
+    // The server lowercases the stored email, so match case-insensitively.
+    const row = page.getByRole("row", { name: new RegExp(inviteeEmail, "i") });
     await expect(row.getByText("approved", { exact: true })).toBeVisible();
 
     const inviteLink = await findInviteLink(inviteeEmail);
