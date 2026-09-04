@@ -144,7 +144,7 @@ each `.premium-*` visibly responds to a `--primary` change; no hardcoded hex out
 
 **Decision (must be explicit — `ChronoLandingPages` has live rows):** the foundation's
 `TenantLandingPages` becomes the source of truth for `config`/`sections`/`themePreset`/
-`isPublished`. `ChronoLandingPages` **survives** as a chrono-only extension for
+publish state. `ChronoLandingPages` **survives** as a chrono-only extension for
 chrono-specific fields, and its six existing content columns are **migrated into the
 foundation row's `config`** by a one-time data migration, then left in place (read-only,
 unread) rather than dropped — dropping them is a separate cleanup once the new path is
@@ -156,12 +156,15 @@ proven in production.
    (currently `:76-126`). Foundation tables reach an app *only* through this explicit
    re-export; without it drizzle-kit never sees the table, chrono's `db:generate` emits
    nothing for it, and `db:migrate` then throws in `applyRls`. Do this **first**.
-2. Data migration: for every `ChronoLandingPages` row, upsert a `TenantLandingPages` row
-   with `config` built from `heroTagline`/`aboutBody`/`amenitiesBody`/`contactOverride`/
-   `ctaLabel`/`ctaHref`.
-3. **Backfill `isPublished = true`, `publishedAt = updatedAt` for every migrated row.**
-   Without this, the publish gate takes every already-configured tenant's live page dark on
-   deploy, with no action on their part.
+2. Data migration: for every `ChronoLandingPages` row, upsert a `TenantLandingPages` row,
+   building `{ config, sections, themePreset }` from `heroTagline`/`aboutBody`/
+   `amenitiesBody`/`contactOverride`/`ctaLabel`/`ctaHref` and writing it to **both**
+   `draft` and `published` — so existing pages stay live *and* the tenant's editor opens
+   on their current content rather than an empty draft.
+3. **Set `publishedAt = updatedAt` on every migrated row.** Publication is derived from
+   `published IS NOT NULL`, which task 2 satisfies — without that write, the publish gate
+   would take every already-configured tenant's live page dark on deploy, with no action on
+   their part.
 4. `pnpm --filter @agora/chrono-api db:generate --name chrono_landing_page_migrate_to_foundation`
    then `pnpm --filter @agora/chrono-api db:migrate`. **Root `db:*` scripts target the
    scaffold `@agora/api`** (`package.json:18-19`) — the `--filter` is required. Never
