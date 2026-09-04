@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./app": "./src/app.ts",
-    "./realtime": "./src/modules/realtime/contracts.ts"
+    "./realtime": "./src/modules/realtime/contracts.ts",
+    "./station": "./src/modules/station/contracts.ts"
   },
   "scripts": {
     "dev": "tsx src/index.ts",

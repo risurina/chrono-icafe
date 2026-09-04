@@ -32,6 +32,7 @@ import {
   buttonVariants,
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
+import { StationRefresh } from "./station-refresh";
 
 /**
  * Chrono's tenant landing sections.
@@ -648,6 +649,195 @@ export function TenantTestimonials({
             })}
           </Row>
         ) : null}
+      </Stack>
+    </Section>
+  );
+}
+
+/* ───────────────────────────── station matrix ────────────────────────── */
+
+/**
+ * Semantic tone per station status — no raw colour literals.
+ *
+ * Keyed to the API's `stationStatusSchema`, which today is exactly these three.
+ * A status the server adds later renders through the `offline` fallback below
+ * rather than crashing on a missing key.
+ */
+const STATION_TONE = {
+  available: { dot: "bg-chart-2", text: "text-chart-2", label: "Available" },
+  maintenance: { dot: "bg-chart-4", text: "text-chart-4", label: "Maintenance" },
+  offline: { dot: "bg-muted-foreground", text: "text-muted-foreground", label: "Offline" },
+} as const;
+
+export type StationStatus = keyof typeof STATION_TONE;
+
+export type TenantStationsProps = {
+  branches: readonly {
+    id: string;
+    name: string;
+    code: string;
+    stations: readonly {
+      id: string;
+      name: string;
+      status: StationStatus;
+    }[];
+  }[];
+  aggregate: { total: number; available: number; inUse: number } | null;
+  isOpen?: boolean;
+};
+
+/**
+ * The live floor grid. Server-rendered off `/public/stations`, which is itself
+ * cached for 10s — a client-side poller would add a socket per visitor for data
+ * that changes on the order of minutes.
+ */
+export function TenantStations({
+  branches,
+  aggregate,
+  isOpen = true,
+}: TenantStationsProps) {
+  const stations = branches.flatMap((b) => b.stations);
+  if (stations.length === 0) return null;
+
+  const counts = {
+    available: stations.filter((s) => s.status === "available").length,
+    maintenance: stations.filter((s) => s.status === "maintenance").length,
+    offline: stations.filter((s) => s.status === "offline").length,
+    // "In session" is not a station status — the API derives occupancy in its
+    // aggregate, so read it there rather than recomputing it wrongly here.
+    inUse: aggregate?.inUse ?? 0,
+  };
+
+  return (
+    <Section
+      id="stations"
+      maxWidth="full"
+      border="bottom"
+      data-testid="landing-section-stations"
+    >
+      <Stack gap={0} className="py-24">
+        <Row
+          justify="between"
+          items="center"
+          className="mb-12 flex-col gap-6 md:flex-row"
+        >
+          <Col gap={4}>
+            <span className={EYEBROW}>Live monitor</span>
+            <h2 className={TITLE}>Station matrix</h2>
+          </Col>
+          <StationRefresh
+            totalLabel={`${aggregate?.total ?? stations.length} stations`}
+          />
+        </Row>
+
+        <Grid cols={4} gap={4} className="items-start">
+          {/* Network status rail */}
+          <Col gap={4} className={cn(PANEL, "lg:col-span-1")}>
+            <Row items="center" gap={2}>
+              <Zap className="h-4 w-4 text-primary" aria-hidden />
+              <span className="text-xs font-black uppercase tracking-widest">
+                Network status
+              </span>
+            </Row>
+
+            <Row
+              justify="between"
+              items="center"
+              className="rounded-xl border border-chart-2/30 bg-chart-2/5 px-4 py-3"
+            >
+              <span className={LABEL}>Lounge status</span>
+              <span className="text-xs font-black uppercase tracking-widest text-chart-2">
+                {isOpen ? "Open" : "Closed"}
+              </span>
+            </Row>
+
+            {(
+              [
+                ["available", "Stations available", "available"],
+                ["inUse", "Players online", "offline"],
+                ["maintenance", "Maintenance", "maintenance"],
+                ["offline", "Offline", "offline"],
+              ] as const
+            ).map(([key, label, tone]) => (
+              <Row
+                key={key}
+                justify="between"
+                items="center"
+                className="rounded-xl border border-border px-4 py-3"
+              >
+                <Row items="center" gap={3}>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      STATION_TONE[tone].dot,
+                    )}
+                  />
+                  <span className={LABEL}>{label}</span>
+                </Row>
+                <span className="text-sm font-black">{counts[key]}</span>
+              </Row>
+            ))}
+          </Col>
+
+          {/* Station grid, one block per branch */}
+          <Stack gap={8} className={cn(PANEL, "col-span-4 lg:col-span-3")}>
+            {branches
+              .filter((branch) => branch.stations.length > 0)
+              .map((branch) => (
+                <Col key={branch.id} gap={4}>
+                  {branches.length > 1 ? (
+                    <span className={LABEL}>{branch.name}</span>
+                  ) : null}
+                  <Row wrap gap={4}>
+                    {branch.stations.map((station) => {
+                      const tone =
+                        STATION_TONE[station.status as StationStatus] ??
+                        STATION_TONE.offline;
+                      return (
+                        <Col
+                          key={station.id}
+                          gap={2}
+                          className="w-[140px] rounded-xl border border-border p-3 transition-colors hover:border-primary/40"
+                          data-testid={`landing-station-${station.name}`}
+                        >
+                          <Col
+                            gap={2}
+                            className="rounded-lg bg-primary/5 p-4"
+                          >
+                            <Row items="center" gap={2}>
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                                  tone.dot,
+                                )}
+                              />
+                              <span
+                                className={cn(
+                                  "text-[9px] font-black uppercase tracking-widest",
+                                  tone.text,
+                                )}
+                              >
+                                {tone.label}
+                              </span>
+                            </Row>
+                            <Monitor
+                              className="mx-auto h-6 w-6 text-primary"
+                              aria-hidden
+                            />
+                          </Col>
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            {station.name}
+                          </span>
+                        </Col>
+                      );
+                    })}
+                  </Row>
+                </Col>
+              ))}
+          </Stack>
+        </Grid>
       </Stack>
     </Section>
   );

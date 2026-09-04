@@ -50,7 +50,9 @@ import { resolveLandingConfig } from "agora";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
+import { getTenantStations } from "@/lib/stations";
 import { LandingSections } from "@/components/landing/render";
+import type { ChronoLandingData } from "@/components/landing/registry";
 import {
   MarketingHeader,
   MarketingFooter,
@@ -750,7 +752,10 @@ export default async function Home() {
   // hiding one is a settings change, not a code change. This replaces a
   // hardcoded three-card placeholder that never read the tenant's config at all.
   const heading = branding?.displayName?.trim() || tenant.name;
-  const landing = await getTenantLanding();
+  const [landing, stations] = await Promise.all([
+    getTenantLanding(),
+    getTenantStations(),
+  ]);
 
   return (
     <PageShell>
@@ -766,7 +771,11 @@ export default async function Home() {
           surface="tenant"
           sections={landing?.sections ?? null}
           resolved={landing?.resolved ?? resolveLandingConfig([])}
-          context={{ tenantName: heading, tenantSlug: landing?.tenantSlug ?? null }}
+          context={{
+            tenantName: heading,
+            tenantSlug: landing?.tenantSlug ?? null,
+            data: { stations } satisfies ChronoLandingData,
+          }}
         />
       </Main>
 

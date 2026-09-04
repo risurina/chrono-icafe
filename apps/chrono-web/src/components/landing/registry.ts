@@ -6,6 +6,7 @@ import {
 } from "agora";
 import {
   TenantHero,
+  TenantStations,
   TenantRates,
   TenantSpecs,
   TenantGames,
@@ -15,7 +16,24 @@ import {
   TenantContact,
   TenantFaq,
   TenantCta,
+  type TenantStationsProps,
 } from "./tenant-sections";
+
+/**
+ * Chrono's own live-data shape, carried through
+ * `LandingSectionContext.data` — the foundation's untyped seam for
+ * request-time data (it cannot know an app's shape at its own build time).
+ * Narrowed here, once, so every `propsFrom` below stays typed.
+ */
+export type ChronoLandingData = {
+  stations?: {
+    branches: TenantStationsProps["branches"];
+    aggregate: TenantStationsProps["aggregate"];
+  } | null;
+};
+
+const chronoData = (ctx: LandingSectionContext): ChronoLandingData =>
+  (ctx.data ?? {}) as ChronoLandingData;
 
 /**
  * Chrono's landing section vocabulary.
@@ -81,9 +99,26 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
       primaryCta: r.hero.primaryCta ?? { label: "View rates", href: "#rates" },
       secondaryCta: r.hero.secondaryCta ?? { label: "Find us", href: "#location" },
       branchName: ctx.tenantName,
+      // Same live snapshot the station matrix renders, so the hero gauges can
+      // never disagree with the grid below them.
+      summary: chronoData(ctx).stations?.aggregate ?? null,
       specLines: [DEFAULTS.specs.gpu, DEFAULTS.specs.network].filter(Boolean),
       gameTags: HERO_GAME_TAGS,
     }),
+  }),
+  stations: defineLandingSection({
+    key: "stations",
+    label: "Station matrix",
+    surface: "tenant",
+    defaultEnabled: true,
+    // Between hero (10) and rates (20) — a visitor checks whether there's a
+    // free seat before they check what it costs.
+    defaultOrder: 15,
+    Component: TenantStations,
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => {
+      const live = chronoData(ctx).stations;
+      return { branches: live?.branches ?? [], aggregate: live?.aggregate ?? null };
+    },
   }),
   rates: defineLandingSection({
     key: "rates",
