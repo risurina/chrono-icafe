@@ -18,13 +18,15 @@ the primitives, contracts, registry builder, resolvers, theme-preset mechanism,
 
 **Per-phase dependency** — not every chrono phase waits on the whole foundation plan:
 
-| Chrono phase | Blocked by (foundation) |
+| Chrono phase | Blocked by |
 |---|---|
 | 1 — brand system | *nothing* — can run in parallel from day one |
 | 2 — palettes | Phase 3 (preset mechanism) |
 | 3 — storage + migration | Phase 4 (`TenantLandingPages`) — **must follow it immediately**, see the ordering hazard in that phase |
 | 4 — registry + config | Phase 2 (contracts, registry builder, resolvers) |
-| 5a-i / 5a-ii / 5b — sections | *nothing* (5a-i touches `agora/ui` directly) |
+| 5a-i — missing `agora/ui` primitives | *nothing* — but it edits `packages/agora/src/presentation/ui/index.ts`, which foundation Phase 1 also edits: **do not run the two concurrently** |
+| 5a-ii — SaaS sections | chrono 5a-i |
+| 5b — tenant sections | chrono 5a-i |
 | 6 — routes | Phase 5 (route factory) |
 | 7a / 7b — page rebuilds | Phase 1 (header/footer primitives) + chrono 4, 5 |
 | 8 — editor | chrono 4, 6 |
@@ -134,8 +136,10 @@ each `.premium-*` visibly responds to a `--primary` change; no hardcoded hex out
 > `"TenantLandingPages"` to `BASE_TENANT_TABLES`, and `applyRls()` runs `ALTER TABLE` over
 > that list for **every** app. Chrono's `db:migrate` is
 > `tsx src/db/migrate.ts && tsx src/db/rls.run.ts`, so between the foundation phase landing
-> and task 1 below completing, **chrono's `db:migrate` and `rls:proof` will fail** on a
-> table its database doesn't have. Ship these two phases back-to-back with no chrono DB run
+> and task 1 below completing, **chrono's `db:migrate`, `rls:proof`, and `test:e2e` will all
+> fail** on a table its database doesn't have. (The offline e2e harness calls the same
+> `applyRls([...BASE_TENANT_TABLES, ...APP_TENANT_TABLES])` against PGlite —
+> `apps/chrono-api/src/e2e/run.ts:287`.) Ship these two phases back-to-back with no chrono DB run
 > in between.
 
 **Decision (must be explicit — `ChronoLandingPages` has live rows):** the foundation's
@@ -245,16 +249,17 @@ independently reviewable.
 
 **Files:** `apps/chrono-web/src/components/landing/sections/tenant-*.tsx` (new)
 
-**Tasks** — same rules as 5a for: hero, station availability, rates, specs, about,
+**Tasks** — same rules as **5a-ii** for: hero, station availability, rates, specs, about,
 amenities, location/branches, FAQ, final CTA.
 
-**Acceptance / Verify:** as 5a.
+**Acceptance / Verify:** as **5a-ii**.
 **Out of scope:** SaaS sections; page assembly.
 **Start:** `apps/chrono-web/src/components/landing/sections/tenant-hero.tsx` (new file).
 
 ## Phase 6 — Routes
 
-**Files:** `apps/chrono-api/src/modules/landing-page/routes.ts`, `apps/chrono-api/src/app.ts`
+**Files:** `apps/chrono-api/src/routes/rpc.ts`,
+`apps/chrono-api/src/modules/landing-page/routes.ts`, `apps/chrono-api/src/app.ts`
 
 **Tasks**
 1. **Replace, don't co-mount.** Chrono's `landingPageRoutes()` already owns
@@ -264,16 +269,24 @@ amenities, location/branches, FAQ, final CTA.
    silently shadow the other — and it would break Phase 9's own 403 assertion, since the
    legacy handler returns 400 on unknown keys *before* any permission check.
    So: **delete `landingPageRoutes()` and mount the foundation factory in its place, in this
-   phase**, at the same `/rpc/landing-page` path so no client changes:
+   phase.** The mount lives in `apps/chrono-api/src/routes/rpc.ts` (**not** `app.ts`):
+   remove the import at `:82` and replace `.route("/landing-page", landingPageRoutes())` at
+   `:1445` with
    ```ts
    .route("/", landingRoutes({ permission: { landingPage: ["manage"] } }))
    ```
-   passing chrono's own resource through the injected-permission seam (the foundation
-   defaults to `branding:manage` for the scaffold, which would otherwise silently swap
-   chrono's gate and desync it from the `<Can>` gate in the editor). Use chrono's typed
-   wrapper `apps/chrono-api/src/auth/require-permission.ts`, since `agora/auth`'s
-   `PermissionRequest` doesn't know chrono's resources.
-   Phase 8 (editor) and Phase 9 (e2e) both keep calling `/rpc/landing-page` unchanged.
+   keeping the handler chain unbroken so `RpcType` stays inferable. `.route("/", …)` is
+   correct because the factory declares its own absolute `/landing-page` path internally —
+   the same shape as `brandingRoutes()`, which declares `.get("/branding")`
+   (`packages/agora/src/core/server/routes/branding.ts:46`). The public path is therefore
+   unchanged and Phase 8 (editor) and Phase 9 (e2e) keep calling `/rpc/landing-page`.
+   The `permission` option carries chrono's own resource through the foundation's
+   injected-permission seam (the foundation defaults to `branding:manage` for the scaffold,
+   which would otherwise silently swap chrono's gate and desync it from the `<Can>` gate in
+   the editor). Note the option is typed `Record<string, readonly string[]>` and the
+   foundation casts once internally — chrono's typed wrapper
+   (`apps/chrono-api/src/auth/require-permission.ts`) re-types `requirePermission`'s own
+   argument and plays no part in making this call type-safe.
 2. Mount chrono's theme-preset public route with its **own** rate-limit bucket (not
    `landingPageIpLimiter`, which bounds the heavier content read and would contend with
    dashboard renders), recording **before** the DB work.
@@ -286,7 +299,8 @@ resolves branches; tenant A's config never appears for tenant B.
 
 **Verify:** `pnpm typecheck`; `curl` both public routes on two tenant hosts.
 **Out of scope:** the route factory itself (foundation Phase 5).
-**Start:** `apps/chrono-api/src/app.ts:583`.
+**Start:** `apps/chrono-api/src/routes/rpc.ts:1445` (task 1), then
+`apps/chrono-api/src/app.ts:583` (tasks 2-3).
 
 ## Phase 7a — SaaS page rebuild
 
