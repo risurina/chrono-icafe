@@ -90,6 +90,7 @@ export const {
   notificationTemplate,
   domain,
   tenantBranding,
+  tenantLandingPage,
   tenantFeatureFlag,
   tenantMember,
   tenantMemberSession,
