@@ -1,4 +1,4 @@
-import { and, eq, withTenant, type TenantTx } from "agora/db";
+import { and, eq, sql, withTenant, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { createId } from "agora";
 import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
@@ -11,6 +11,7 @@ import { publishStationTransition } from "../station/routes";
 import { chronoMemberProfile } from "../member/schema";
 import * as base from "agora/db/schema";
 import { chronoSession, type ChronoSessionRow } from "./schema";
+import { chronoReservation } from "../reservation/schema";
 import { computeMeteredCharge, capMoney } from "./money";
 import { chronoSessionStatusSchema, type SessionStateEvent } from "../realtime/contracts";
 
@@ -110,7 +111,37 @@ export async function startSession(
   if (!station) {
     throw new HttpError(404, "Station not found.");
   }
-  if (station.status !== "available") {
+
+  // Reservation claim / soft-lock (reservations-queue-and-self-service plan).
+  // A "hold" reservation locks a station even while chronoStation.status
+  // still reads "available" — the sweep flips a direct reservation to "hold"
+  // at startAt, or promotes a queued member, without touching station.status
+  // until an actual session claims it. Row-locked so a claim and a hold-
+  // expiry sweep tick can't race each other.
+  const [liveHold] = await tx
+    .select()
+    .from(chronoReservation)
+    .where(
+      and(
+        eq(chronoReservation.tenantId, args.tenantId),
+        eq(chronoReservation.stationId, args.stationId),
+        eq(chronoReservation.status, "hold"),
+        sql`${chronoReservation.holdExpiresAt} > now()`,
+      ),
+    )
+    .for("update")
+    .limit(1);
+
+  if (liveHold) {
+    // Someone else's live hold — refuse regardless of station.status, for
+    // BOTH a member's own QR-scan attempt and a staff-initiated session
+    // start (no staff override in this pass: staff who want to seat a
+    // walk-in on a held station cancel the hold through the staff board
+    // first, rather than silently overriding a member's claim window).
+    if (liveHold.memberId !== args.memberId) {
+      throw new HttpError(409, "STATION_OCCUPIED");
+    }
+  } else if (station.status !== "available") {
     throw new HttpError(409, "STATION_OCCUPIED");
   }
   if (!station.stationGroupId) {
@@ -218,6 +249,21 @@ export async function startSession(
     .update(chronoStation)
     .set({ status: "occupied", updatedAt: new Date() })
     .where(eq(chronoStation.id, station.id));
+
+  // Claim the hold this session start just consumed, if any — same
+  // transaction as the session insert.
+  if (liveHold && liveHold.memberId === args.memberId) {
+    await tx
+      .update(chronoReservation)
+      .set({
+        status: "checked_in",
+        checkedInAt: new Date(),
+        claimedAt: new Date(),
+        sessionId: row!.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(chronoReservation.id, liveHold.id));
+  }
 
   return row!;
 }

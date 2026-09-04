@@ -84,6 +84,7 @@ import { memberPortalRoutes } from "./modules/member/portal-routes";
 import { walletPortalRoutes } from "./modules/wallet/portal-routes";
 import { creditPortalRoutes } from "./modules/credit/portal-routes";
 import { sessionPortalRoutes } from "./modules/session/portal-routes";
+import { reservationPortalRoutes } from "./modules/reservation/portal-routes";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -538,6 +539,9 @@ export const app = baseApp
   // Chrono: customer-facing inquiry self-service (submit / own list / own
   // thread) — gated by memberMiddleware() inside inquiryPortalRoutes() itself.
   .route("/portal/inquiries", inquiryPortalRoutes())
+  // reservation self-service (reservations-queue-and-self-service plan) —
+  // gated by memberMiddleware() inside reservationPortalRoutes() itself.
+  .route("/portal/reservations", reservationPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);
