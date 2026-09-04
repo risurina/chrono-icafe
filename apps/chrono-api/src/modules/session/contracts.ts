@@ -23,3 +23,37 @@ export const sessionListQuerySchema = listQuerySchema(['startedAt', 'createdAt']
 export type SessionStatus = z.infer<typeof sessionStatusSchema>;
 export type StartSessionInput = z.infer<typeof startSessionSchema>;
 export type ExtendSessionInput = z.infer<typeof extendSessionSchema>;
+
+// --- Member portal DTOs (Phase B) ---------------------------------------
+
+export const portalSessionListQuerySchema = listQuerySchema(['startedAt', 'createdAt']);
+
+export const portalSessionSummarySchema = z.object({
+  id: z.string(),
+  stationId: z.string(),
+  stationName: z.string(),
+  status: sessionStatusSchema,
+  startedAt: z.string(),
+  scheduledEndAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
+  actualBillableSeconds: z.number().int().nullable(),
+  amountCharged: z.string().nullable(),
+  currency: z.string(),
+});
+
+export const portalSessionDetailSchema = portalSessionSummarySchema.extend({
+  rateSnapshot: z.string(),
+  creditMinutesConsumed: z.number().int(),
+});
+
+export const portalTodayUsageSchema = z.object({
+  billableSeconds: z.number().int(),
+  sessionCount: z.number().int(),
+  amountCharged: z.string(),
+  currency: z.string(),
+  timezone: z.string(),
+});
+
+export type PortalSessionSummary = z.infer<typeof portalSessionSummarySchema>;
+export type PortalSessionDetail = z.infer<typeof portalSessionDetailSchema>;
+export type PortalTodayUsage = z.infer<typeof portalTodayUsageSchema>;
