@@ -1120,3 +1120,26 @@ lock.
 6. **"Reset branch policy to tenant default"** — not built (no DELETE route on
    `ChronoReservationPolicies`) unless confirmed wanted; a branch row, once created,
    stays until manually edited back.
+
+## Closure (2026-09-04)
+
+All 8 phases implemented and committed to `main` directly (developer's explicit call —
+skip the branch/worktree hand-off for this run). Verified green:
+`pnpm typecheck` (workspace), `rls:proof`, `test:permissions` (402/402), `test:overlap`
+(7/7, including the new `hold`-status regression case), `test:sweep` (5/5),
+`test:session-concurrency` (4/4), `test:session-realtime` (16/16).
+
+One real infra fix landed along the way: `overlap.test.ts`/`sweep.test.ts` ran their
+migration DDL through `adminPool.query()` per statement, which intermittently raced a
+later statement against an earlier `CREATE TABLE`'s commit under this environment's
+Postgres proxy (a different random table missing each run). Fixed by routing the whole
+migration sequence through one dedicated connection (`adminPool.connect()`).
+
+**Not run**: the Phase 7 e2e spec (`member-self-service.spec.ts`) is written and
+typechecked but not executed — per `.ai/rules/e2e-testing.md`, this suite is
+developer-run (headed Playwright, needs `pnpm dev:chrono` already running), which this
+environment has neither a live dev server nor a display for. Run it before relying on
+this feature in production.
+
+**Not built**: a staff policy-editor UI page and a "reset branch policy to tenant
+default" route (Deferred items 5–6 above) — API-only for now.
