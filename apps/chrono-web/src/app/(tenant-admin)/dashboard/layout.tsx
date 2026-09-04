@@ -273,6 +273,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         items={NAV}
         bottomItems={BOTTOM_NAV}
         basePath="/dashboard"
+        defaultExpandAllGroups
         sidebarTop={<TenantSwitcher organizations={orgs} />}
         sidebarBottom={
           <UserMenu name={session.user.name} email={session.user.email} />
