@@ -21,6 +21,7 @@ import {
   Field,
   Stack,
   Row,
+  toast,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
 
@@ -45,6 +46,16 @@ type StorageIntegration = {
   folder: string | null;
 } | null;
 
+type CustomerPaymentIntegration = {
+  provider: "paymongo";
+  currency: string;
+  statementLabel: string | null;
+  enabled: boolean;
+  hasApiKey: boolean;
+  hasWebhookSecret: boolean;
+  webhookUrl: string | null;
+} | null;
+
 /**
  * Settings → Integrations: connect the tenant's own providers (email + object
  * storage). Secrets are stored encrypted and never returned. The platform env
@@ -53,6 +64,8 @@ type StorageIntegration = {
 export default function IntegrationsPage() {
   const [email, setEmail] = useState<EmailIntegration>(null);
   const [storage, setStorage] = useState<StorageIntegration>(null);
+  const [customerPayment, setCustomerPayment] =
+    useState<CustomerPaymentIntegration>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   // Email form state
@@ -73,6 +86,18 @@ export default function IntegrationsPage() {
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [storageEnabled, setStorageEnabled] = useState(false);
   const [folder, setFolder] = useState("");
+
+  // Customer-payment form state (tenant -> its own customers, not platform billing)
+  const [cpProvider, setCpProvider] = useState<"paymongo">("paymongo");
+  const [cpApiKey, setCpApiKey] = useState("");
+  const [cpWebhookSecret, setCpWebhookSecret] = useState("");
+  const [cpCurrency, setCpCurrency] = useState("php");
+  const [cpStatementLabel, setCpStatementLabel] = useState("");
+  const [cpEnabled, setCpEnabled] = useState(false);
+  const [cpReveal, setCpReveal] = useState<{
+    webhookUrl: string;
+    webhookToken: string;
+  } | null>(null);
 
   async function load() {
     const res = await api.rpc.integrations.$get();
@@ -98,6 +123,14 @@ export default function IntegrationsPage() {
         setAccessKeyId(storageConn.accessKeyId);
         setStorageEnabled(storageConn.enabled);
         setFolder(storageConn.folder ?? "");
+      }
+      const cpConn = body.customerPayment as CustomerPaymentIntegration;
+      setCustomerPayment(cpConn);
+      if (cpConn) {
+        setCpProvider(cpConn.provider);
+        setCpCurrency(cpConn.currency);
+        setCpStatementLabel(cpConn.statementLabel ?? "");
+        setCpEnabled(cpConn.enabled);
       }
     } else if ((res.status as number) === 403) {
       setMsg("Only admins can manage integrations.");
@@ -225,6 +258,85 @@ export default function IntegrationsPage() {
       setMsg("Storage integration removed.");
     } else {
       setMsg("Could not remove the storage integration.");
+    }
+  }
+
+  async function saveCustomerPayment(rotateWebhookToken = false) {
+    setCpReveal(null);
+    const json: Record<string, unknown> = {
+      provider: cpProvider,
+      currency: cpCurrency,
+      statementLabel: cpStatementLabel || undefined,
+      enabled: cpEnabled,
+      rotateWebhookToken,
+    };
+    // Only send a secret when the admin actually typed one (keeps the stored one).
+    if (cpApiKey) json.apiKey = cpApiKey;
+    if (cpWebhookSecret) json.webhookSecret = cpWebhookSecret;
+    const res = await api.rpc.integrations["customer-payment"].$put({
+      json: json as never,
+    });
+    if (res.ok) {
+      const body = (await res.json()) as {
+        customerPayment: CustomerPaymentIntegration;
+        webhookReveal?: { webhookUrl: string; webhookToken: string };
+      };
+      setCpApiKey("");
+      setCpWebhookSecret("");
+      await load();
+      if (body.webhookReveal) setCpReveal(body.webhookReveal);
+      toast.success(
+        rotateWebhookToken
+          ? "Webhook URL rotated — copy the new URL below now."
+          : "Customer-payment integration saved.",
+      );
+    } else if ((res.status as number) === 403) {
+      toast.error("Only admins can manage integrations.");
+    } else if ((res.status as number) === 400) {
+      toast.error(
+        "An API key and a webhook secret are both required to create the integration.",
+      );
+    } else {
+      toast.error("Could not save the customer-payment integration.");
+    }
+  }
+
+  async function testCustomerPayment() {
+    const res = await api.rpc.integrations["customer-payment"].test.$post();
+    if (res.ok) {
+      const body = (await res.json()) as {
+        ok: boolean;
+        testable: boolean;
+        reason?: string;
+      };
+      toast.success(
+        body.testable
+          ? "Customer-payment connection ok."
+          : `Connection recorded — ${body.reason ?? "no automated probe exists for this provider."}`,
+      );
+    } else if ((res.status as number) === 403) {
+      toast.error("Only admins can test the connection.");
+    } else if ((res.status as number) === 404) {
+      toast.error("No customer-payment integration configured yet.");
+    } else {
+      toast.error("Customer-payment connection test failed.");
+    }
+  }
+
+  async function deleteCustomerPayment() {
+    const res = await api.rpc.integrations["customer-payment"].$delete();
+    if (res.ok) {
+      setCustomerPayment(null);
+      setCpProvider("paymongo");
+      setCpApiKey("");
+      setCpWebhookSecret("");
+      setCpCurrency("php");
+      setCpStatementLabel("");
+      setCpEnabled(false);
+      setCpReveal(null);
+      toast.success("Customer-payment integration removed.");
+    } else {
+      toast.error("Could not remove the customer-payment integration.");
     }
   }
 
@@ -495,6 +607,156 @@ export default function IntegrationsPage() {
                 ? `Enabled — ${storage.bucket} (${storage.region})`
                 : `Configured — ${storage.bucket} (disabled)`
               : "Not configured (using platform default)"}
+          </Badge>
+        </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Customer payments</CardTitle>
+          <CardDescription>
+            Let your own customers pay you online through your own PayMongo account.
+            Money goes directly to you — Agora never touches it, and there is no
+            platform fallback: online payment is unavailable to your customers until
+            this is configured.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {cpReveal ? (
+            <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-4">
+              <p className="text-sm font-medium">
+                Webhook URL — shown only now, copy it before leaving this page
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Paste this into PayMongo → Developers → Webhooks. It cannot be
+                retrieved again after you navigate away; use &ldquo;Rotate webhook
+                URL&rdquo; below if you lose it.
+              </p>
+              <Field>
+                <Label htmlFor="cpWebhookUrl">Webhook URL</Label>
+                <Input id="cpWebhookUrl" readOnly value={cpReveal.webhookUrl} />
+              </Field>
+            </div>
+          ) : null}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveCustomerPayment();
+            }}
+            className="space-y-4"
+          >
+            <Field>
+              <Label htmlFor="cpProvider">Provider</Label>
+              <Select value={cpProvider} onValueChange={(v) => setCpProvider(v as "paymongo")}>
+                <SelectTrigger id="cpProvider">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paymongo">PayMongo</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <Label htmlFor="cpApiKey">Secret key</Label>
+              <Input
+                id="cpApiKey"
+                type="password"
+                placeholder={
+                  customerPayment?.hasApiKey ? "•••••••• (leave blank to keep)" : ""
+                }
+                value={cpApiKey}
+                onChange={(e) => setCpApiKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Your PayMongo secret key. Stored encrypted; never shown again after
+                saving.
+              </p>
+            </Field>
+            <Field>
+              <Label htmlFor="cpWebhookSecret">Webhook signing secret</Label>
+              <Input
+                id="cpWebhookSecret"
+                type="password"
+                placeholder={
+                  customerPayment?.hasWebhookSecret
+                    ? "•••••••• (leave blank to keep)"
+                    : ""
+                }
+                value={cpWebhookSecret}
+                onChange={(e) => setCpWebhookSecret(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                From PayMongo → Developers → Webhooks, once you create the endpoint.
+                Stored encrypted; never shown again after saving.
+              </p>
+            </Field>
+            <Field>
+              <Label htmlFor="cpCurrency">Currency</Label>
+              <Input
+                id="cpCurrency"
+                placeholder="php"
+                maxLength={3}
+                value={cpCurrency}
+                onChange={(e) => setCpCurrency(e.target.value.toLowerCase())}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="cpStatementLabel">Statement label (optional)</Label>
+              <Input
+                id="cpStatementLabel"
+                placeholder="ACME"
+                value={cpStatementLabel}
+                onChange={(e) => setCpStatementLabel(e.target.value)}
+              />
+            </Field>
+            <ListRow
+              actions={
+                <Button
+                  type="button"
+                  variant={cpEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCpEnabled((v) => !v)}
+                >
+                  {cpEnabled ? "On" : "Off"}
+                </Button>
+              }
+            >
+              <p className="text-sm font-medium">Enabled</p>
+            </ListRow>
+            <Row>
+              <Button type="submit">Save integration</Button>
+              <Button type="button" variant="outline" onClick={testCustomerPayment}>
+                Test connection
+              </Button>
+              {customerPayment ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => saveCustomerPayment(true)}
+                >
+                  Rotate webhook URL
+                </Button>
+              ) : null}
+              {customerPayment ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={deleteCustomerPayment}
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </Row>
+          </form>
+        </CardContent>
+        <CardFooter>
+          <Badge variant={customerPayment?.enabled ? "success" : "secondary"}>
+            {customerPayment
+              ? customerPayment.enabled
+                ? `Enabled — ${customerPayment.provider}`
+                : `Configured — ${customerPayment.provider} (disabled)`
+              : "Not configured (customers cannot pay online)"}
           </Badge>
         </CardFooter>
       </Card>
