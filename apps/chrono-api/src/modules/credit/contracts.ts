@@ -102,3 +102,90 @@ export type ConsumeCreditsInput = z.infer<typeof consumeCreditsSchema>;
 export type CreditProductStatus = z.infer<typeof creditProductStatusSchema>;
 export type CreditPolicy = z.infer<typeof creditPolicySchema>;
 export type CreditGrantStatus = z.infer<typeof creditGrantStatusSchema>;
+
+// --- Member portal DTOs (Phase C) ---------------------------------------
+
+/**
+ * No idempotency key in this pass — see the plan's documented fallback
+ * ("skip the migration; rely on the rate limiter + a disabled purchase
+ * button client-side"). Double-submit protection is client-side (disable
+ * the button while the request is in flight) plus the 10/15min member rate
+ * limiter at the app.ts mount site.
+ */
+export const portalPurchaseCreditProductSchema = z.object({
+  productId: z.string().min(1),
+});
+export type PortalPurchaseCreditProductInput = z.infer<typeof portalPurchaseCreditProductSchema>;
+
+export const portalCreditProductDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+  quantityMinutes: z.number().int(),
+  priceAmount: z.string(),
+  validityDays: z.number().int().nullable(),
+});
+export type PortalCreditProductDto = z.infer<typeof portalCreditProductDtoSchema>;
+
+export const portalCreditGrantDtoSchema = z.object({
+  id: z.string(),
+  productId: z.string().nullable(),
+  status: creditGrantStatusSchema,
+  originalQuantity: z.number().int(),
+  remainingQuantity: z.number().int(),
+  expiresAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type PortalCreditGrantDto = z.infer<typeof portalCreditGrantDtoSchema>;
+
+export const portalCreditLedgerEntryDtoSchema = z.object({
+  id: z.string(),
+  grantId: z.string(),
+  type: z.string(),
+  quantityDelta: z.number().int(),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type PortalCreditLedgerEntryDto = z.infer<typeof portalCreditLedgerEntryDtoSchema>;
+
+type CreditGrantRow = {
+  id: string;
+  productId: string | null;
+  status: string;
+  originalQuantity: number;
+  remainingQuantity: number;
+  expiresAt: Date | null;
+  createdAt: Date;
+};
+
+export function toPortalCreditGrantDto(row: CreditGrantRow): PortalCreditGrantDto {
+  return {
+    id: row.id,
+    productId: row.productId,
+    status: row.status as CreditGrantStatus,
+    originalQuantity: row.originalQuantity,
+    remainingQuantity: row.remainingQuantity,
+    expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+type CreditLedgerEntryRow = {
+  id: string;
+  grantId: string;
+  type: string;
+  quantityDelta: number;
+  reason: string | null;
+  createdAt: Date;
+};
+
+export function toPortalCreditLedgerEntryDto(row: CreditLedgerEntryRow): PortalCreditLedgerEntryDto {
+  return {
+    id: row.id,
+    grantId: row.grantId,
+    type: row.type,
+    quantityDelta: row.quantityDelta,
+    reason: row.reason,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
