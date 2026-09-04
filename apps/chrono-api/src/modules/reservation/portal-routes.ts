@@ -53,7 +53,7 @@ export function reservationPortalRoutes() {
       if (!reservation || reservation.status !== "pending") {
         return c.json({ reservation, queuePosition: null });
       }
-      const [{ value: position }] = await withTenant(tenantId, (tx) =>
+      const [positionRow] = await withTenant(tenantId, (tx) =>
         tx
           .select({ value: sql<number>`count(*)::int` })
           .from(chronoReservation)
@@ -66,7 +66,7 @@ export function reservationPortalRoutes() {
             ),
           ),
       );
-      return c.json({ reservation, queuePosition: position + 1 });
+      return c.json({ reservation, queuePosition: (positionRow?.value ?? 0) + 1 });
     })
 
     // Resolved policy for a station's branch — the UI needs this before

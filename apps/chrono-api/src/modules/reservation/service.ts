@@ -1,5 +1,4 @@
 import { and, eq, gt, inArray, isNull, sql, withTenant, type TenantTx } from "agora/db";
-import * as base from "agora/db/schema";
 import { HttpError } from "agora/server";
 import { createId } from "agora";
 import { chronoStation } from "../station/schema";
@@ -272,7 +271,6 @@ export async function joinQueue(args: {
     const policy = await resolveReservationPolicy(tx, tenantId, station.branchId);
     if (!policy.enabled) throw new HttpError(403, "RESERVATIONS_DISABLED");
 
-    const now = new Date();
     const [activeRow] = await tx
       .select({ status: chronoReservation.status })
       .from(chronoReservation)

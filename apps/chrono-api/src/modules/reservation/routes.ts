@@ -11,6 +11,7 @@ import {
   inArray,
   isNotNull,
   not,
+  sql,
   type TenantTx,
 } from "agora/db";
 import * as base from "agora/db/schema";
@@ -32,6 +33,7 @@ import {
 } from "./contracts";
 import { resolveReservationPolicy } from "./service";
 import { listQuerySchema } from "agora";
+import { z } from "zod";
 
 /**
  * Statuses that occupy a station and therefore participate in the overlap check.
@@ -552,7 +554,10 @@ export function reservationRoutes() {
         requirePermission(c.var.tenant.permissions, { reservation: ["managePolicy"] });
         const { tenantId } = c.var.tenant;
         const branchId = c.req.query("branchId") ?? null;
-        const input = c.req.valid("json");
+        const parsed = c.req.valid("json");
+        // Drizzle's numeric column type expects a string, matching every other
+        // money column in this codebase (e.g. ChronoSessions.rateSnapshot).
+        const input = { ...parsed, cancellationFeeAmount: String(parsed.cancellationFeeAmount) };
 
         const policy = await withTenant(tenantId, async (tx) => {
           if (branchId) {
