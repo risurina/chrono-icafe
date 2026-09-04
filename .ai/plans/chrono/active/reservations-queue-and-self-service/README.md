@@ -158,9 +158,11 @@ status: text("status").notNull().default("confirmed"),
 fromQueue: boolean("fromQueue").notNull().default(false),
 requestedDurationMinutes: integer("requestedDurationMinutes"),
 // Captured at queue-join time (a queue entry has no startAt yet to derive a
-// duration from). NULL for a Flow-1 direct reservation, where startAt/endAt are
-// set at creation and imply the duration already. Required (not null) whenever
-// fromQueue=true — enforced by the CHECK constraint below.
+// duration from) — see Contracts: joinQueueSchema takes durationMinutes explicitly
+// (round-2 audit BLOCKER 2: the first draft named this column but never actually
+// collected it from the join request). NULL for a Flow-1 direct reservation, where
+// startAt/endAt are set at creation and imply the duration already. Required
+// (not null) whenever fromQueue=true — enforced by the CHECK constraint below.
 holdExpiresAt: timestamp("holdExpiresAt"),
 claimedAt: timestamp("claimedAt"), // set when the QR-scan claim consumes the hold
 sessionId: text("sessionId").references(() => chronoSession.id, { onDelete: "set null" }),
@@ -171,19 +173,36 @@ cancelledLateFeeAmount: numeric("cancelledLateFeeAmount", { precision: 12, scale
 // as ChronoSessions.rateSnapshot).
 ```
 
+**`createdByUserId` becomes nullable (round-2 audit BLOCKER 1).** The existing column
+(`schema.ts:54-56`) is `notNull().references(() => base.user.id, ...)` — every
+member-portal insert (`POST /portal/reservations`, `.../queue`) has no staff `user.id`
+at all; the actor is a `tenantMember`. Drop `.notNull()` (`ALTER COLUMN
+"createdByUserId" DROP NOT NULL`), mirroring the existing nullable
+`chronoSession.startedByUserId` precedent (the QR flow already passes `null` there,
+`qr/public-routes.ts:257`). Invariant, documented in a schema comment: every row has
+**either** `createdByUserId` (staff-created, path 1) **or** `memberId` (member
+self-service, this plan) — `recordAudit`'s `actorType` ("staff" vs "member" vs
+"system") is the authoritative discriminator for who created/mutated a row, not a new
+column.
+
 **Breaking change requiring care**: `startAt`/`endAt` are currently `notNull()`. A queue
 entry (`fromQueue: true`, `status: "pending"`) has neither until it is promoted to `hold`
-— at which point promotion (Phase 5.3) sets **concrete** `startAt = now()`,
-`endAt = now() + requestedDurationMinutes` in the same write that flips `status`. A
+— at which point promotion (Phase 3's `promoteNextInQueue`, see below) sets **concrete**
+`startAt = now()`, `endAt = min(now() + requestedDurationMinutes, <next conflicting
+active window's start on this station, if any>)` in the same write that flips `status`
+(the clamp is a round-2 fix — see "Promotion can violate its own constraint" below). A
 queue row is therefore *never* in a state where `status` is anything other than
-`'pending'` while `startAt`/`endAt` are NULL — this is what fixes audit BLOCKER 3 (the
-original draft tried to promote to `hold` while leaving the window NULL, which its own
-CHECK constraint would have rejected).
+`'pending'` while `startAt`/`endAt` are NULL.
 
-**Resolution — schema + two hand-written migration edits (audit BLOCKERs 1–2):**
+**Resolution — schema + three hand-written migration edits (audit BLOCKERs 1–2, round-2
+BLOCKER 2):**
 1. Make `startAt`/`endAt` nullable (drop `.notNull()`).
 2. Add a CHECK constraint: `(status = 'pending' AND "startAt" IS NULL AND "endAt" IS
-   NULL) OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)`.
+   NULL AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL)) OR
+   ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)` — the trailing
+   `"fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL` clause is the round-2
+   fix: a `pending` **queue** row must carry its requested duration from the moment it's
+   created, or promotion (which reads that column) has nothing to compute `endAt` from.
 3. **`DROP CONSTRAINT chrono_reservation_no_overlap` and re-add it** (an exclusion
    constraint's `WHERE` cannot be `ALTER`ed in place) as:
    ```sql
@@ -206,23 +225,34 @@ CHECK constraint would have rejected).
    two-layer guarantee agree — this file is **in scope for Phase 1**, narrowly (see
    Phase 1's Files to Update).
 
-**One-active-reservation-per-member — DB backstop (audit CONDITION 14).** The
-application-level check in Phase 3 cannot serialize two concurrent
-`POST /portal/reservations` from the same member (identical "can't lock a row that
-doesn't exist yet" gap the original overlap check had). Add a partial unique index:
+**One-active-reservation-per-member — DB backstop (audit CONDITION 14; scope fixed in
+round 2, CONDITION 7).** The application-level check in Phase 3 cannot serialize two
+concurrent `POST /portal/reservations` from the same member (identical "can't lock a
+row that doesn't exist yet" gap the original overlap check had). **Scoped to
+member-originated rows only** — `"createdByUserId" IS NULL` (per the invariant above:
+every member-portal insert has a NULL `createdByUserId`) — so it does **not** apply to
+staff bookings made on a member's behalf (path 1's existing `memberId`-optional staff
+booking, which must keep working exactly as today; a front-desk clerk taking a second
+phone booking for the same regular member at a different time is routine and must not
+409):
 ```sql
 CREATE UNIQUE INDEX chrono_reservation_one_active_per_member_uq
   ON "ChronoReservations" ("tenantId", "memberId")
-  WHERE status IN ('confirmed', 'hold', 'checked_in', 'pending') AND "memberId" IS NOT NULL;
+  WHERE status IN ('confirmed', 'hold', 'checked_in', 'pending')
+    AND "memberId" IS NOT NULL AND "createdByUserId" IS NULL;
 ```
-This enforces exactly **one** active reservation/queue-entry per member — i.e.
-`maxActiveReservationsPerMember` is fixed at `1` in practice; the policy column with that
-name is kept (parity with the prompt's field list, and because the resolver still needs
-somewhere to read it from) but the DB constraint does not generalize to N>1. **(judgment
-call, confirm or override):** if a tenant genuinely needs `N>1` later, replace the unique
-index with a `SELECT count(*) ... FOR UPDATE` guard under an advisory lock — deferred
-until asked for, since the prompt's own default is `1` and every example uses `1`. Map
-Postgres `23505` on this index to the 409 `RESERVATION_ALREADY_ACTIVE` the routes already
+`checked_in` stays in the predicate deliberately: a member currently playing (via a
+claimed reservation) still counts as "has an active engagement" and should not be able
+to also hold a second future booking — one engagement at a time is the intended rule,
+not an oversight. This enforces exactly **one** active reservation/queue-entry per
+member — i.e. `maxActiveReservationsPerMember` is fixed at `1` in practice; the policy
+column with that name is kept (parity with the prompt's field list, and because the
+resolver still needs somewhere to read it from) but the DB constraint does not
+generalize to N>1. **(judgment call, confirm or override):** if a tenant genuinely needs
+`N>1` later, replace the unique index with a `SELECT count(*) ... FOR UPDATE` guard
+under an advisory lock — deferred until asked for, since the prompt's own default is `1`
+and every example uses `1`. Map Postgres `23505` on this index to the 409
+`RESERVATION_ALREADY_ACTIVE` the routes already
 need, mirroring how `session/service.ts:210-215` maps its own uniqueness violation.
 
 **2. New table `ChronoMemberReservationRestrictions`**
@@ -237,14 +267,36 @@ export const chronoMemberReservationRestriction = pgTable(
     tenantId: text("tenantId").notNull().references(() => base.organization.id, { onDelete: "cascade" }),
     branchId: text("branchId").notNull().references(() => chronoBranch.id, { onDelete: "cascade" }),
     memberId: text("memberId").notNull().references(() => base.tenantMember.id, { onDelete: "cascade" }),
-    type: text("type").notNull(), // "reservation_ban" | "queue_ban"
-    reason: text("reason").notNull(),
+    // "reservation_ban" | "queue_ban" | "queue_failure" — round-2 audit BLOCKER 3 added
+    // "queue_failure": the first draft tried to record a queue-hold-expiry FAILURE as
+    // a "reservation_ban"/"queue_ban" row before the failure count reached
+    // queueFailureLimit, which would have made assertNotBanned block on failure #1
+    // regardless of the configured limit. A failure record and a ban are different
+    // things and now have different types; assertNotBanned filters
+    // type IN ('reservation_ban','queue_ban') only — never 'queue_failure'.
+    type: text("type").notNull(),
     // "queue_hold_expired" | "late_cancellation" | "no_show" |
-    // "scheduled_time_cancellation" | "admin_manual"
+    // "scheduled_time_cancellation" | "admin_manual" | "queue_failure_limit"
+    // ("queue_failure_limit" — round-2 addition — is the reason on the QUEUE_BAN row
+    // inserted once queueFailureLimit is reached; distinct from "queue_hold_expired",
+    // which is the reason on each individual failure record.)
+    reason: text("reason").notNull(),
     reservationId: text("reservationId").references(() => chronoReservation.id, { onDelete: "set null" }),
     stationId: text("stationId").references(() => chronoStation.id, { onDelete: "set null" }),
     startsAt: timestamp("startsAt").notNull().defaultNow(),
-    expiresAt: timestamp("expiresAt").notNull(),
+    // Nullable (round-2 fix): a "queue_failure" row is a pure history record, not a
+    // ban — it has no expiry of its own (its 'active'-ness is meaningless; only the
+    // failure COUNT matters). A "reservation_ban"/"queue_ban" row always sets this.
+    // "Active" for a ban = expiresAt IS NOT NULL AND expiresAt > now() AND
+    // liftedAt IS NULL (see liftedAt below).
+    expiresAt: timestamp("expiresAt"),
+    // Round-2 RISK 13 fix: a wrongly-issued ban otherwise has no remedy short of
+    // waiting out reservationBanDurationHours/queueBanDurationHours (default 24h).
+    // Staff lift via POST /reservations/restrictions/:id/lift (Phase 4) sets these
+    // two columns rather than deleting the row — history stays immutable, "active"
+    // just also requires liftedAt IS NULL.
+    liftedAt: timestamp("liftedAt"),
+    liftedByUserId: text("liftedByUserId").references(() => base.user.id, { onDelete: "set null" }),
     metadataJson: jsonb("metadataJson").$type<Record<string, unknown>>(),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
@@ -252,24 +304,33 @@ export const chronoMemberReservationRestriction = pgTable(
   (t) => [
     index("chrono_reservation_restriction_tenant_idx").on(t.tenantId),
     index("chrono_reservation_restriction_member_idx").on(t.tenantId, t.memberId),
-    // Branch-scoped (audit CONDITION 11): a ban is checked and counted per branch,
-    // matching the per-branch policy surface — a ban earned at branch A must not
-    // silently block branch B. `assertNotBanned` (Phase 3) and the failure counter
-    // (Phase 5.2) both take `branchId` and must agree with this index's column order.
+    // Branch-scoped (audit CONDITION 11, wiring fixed round-2 CONDITION 8): a ban is
+    // checked and counted per branch, matching the per-branch policy surface — a ban
+    // earned at branch A must not silently block branch B. `assertNotBanned` (Phase 3)
+    // and the failure counter (Phase 5.2) both take `branchId` and must query this
+    // exact column order.
     index("chrono_reservation_restriction_active_idx")
       .on(t.tenantId, t.memberId, t.branchId, t.type, t.expiresAt),
-    // Dedupe backstop for duplicate sweep runs (audit SUGGESTION 16): tenant-scoped,
-    // only applies when a reservationId exists (a manual/admin ban has none).
+    // Dedupe backstop for duplicate sweep runs. Round-2 fix: `type` added to the key —
+    // without it, inserting the QUEUE_BAN row (same reservationId, and originally no
+    // distinct reason) collided with the already-inserted queue_failure row's unique
+    // key and the ban silently never landed (its insert's 23505 was swallowed by the
+    // "insert and ignore conflict" idempotency discipline). `reason` is now also
+    // distinct per type ("queue_hold_expired" vs "queue_failure_limit"), so this index
+    // is not strictly required to be 4-column to fix the collision — kept 4-column
+    // anyway as the more robust invariant (never rely on reason-uniqueness alone).
     uniqueIndex("chrono_reservation_restriction_no_dup_uq")
-      .on(t.tenantId, t.reservationId, t.reason)
+      .on(t.tenantId, t.reservationId, t.reason, t.type)
       .where(sql`${t.reservationId} is not null`),
   ],
 );
 ```
-Immutable history — no update/delete route; "active" is computed as
-`expiresAt > now()` at query time, never a separate boolean flag (avoids a second
-source of truth). This table (not `chronoReservation.status`) is the audit source of
-truth per the prompt's explicit requirement.
+Immutable history — no update/delete route (a lift is an append via `liftedAt`/
+`liftedByUserId`, never a delete); "active" is computed as `type IN ('reservation_ban',
+'queue_ban') AND expiresAt IS NOT NULL AND expiresAt > now() AND liftedAt IS NULL` at
+query time, never a separate boolean flag (avoids a second source of truth). This table
+(not `chronoReservation.status`) is the audit source of truth per the prompt's explicit
+requirement.
 
 **3. New table `ChronoReservationPolicies`**
 (`apps/chrono-api/src/modules/reservation/policy-schema.ts`):
@@ -322,6 +383,25 @@ resolver returns code defaults when neither row exists) — zero migration/backf
 satisfying "existing tenants with old reservation settings must continue working" (there
 were no old reservation settings to begin with — path 1 never had a policy surface).
 
+**Partial-unique-index test-harness landmine (round-2 audit CONDITION 5) — decided: fix
+the shared harness helper.** This plan adds three partial unique indexes
+(`chrono_reservation_policy_one_default_uq`, `chrono_reservation_one_active_per_member_uq`,
+`chrono_reservation_restriction_no_dup_uq`). `uniqueIndexDdls()` (`apps/chrono-api/src/
+e2e/run.ts:90-100`) and the equivalent helper duplicated in `session/realtime.test.ts:50`,
+`reservation/overlap.test.ts:60-70`, and `session/concurrency.test.ts` map a table's
+unique indexes to raw DDL **by columns only**, silently dropping the `.where()`
+predicate — so in every test harness these three indexes would apply as full
+(non-partial) unique constraints: a tenant could hold only one policy row total (making
+the plan's own "branch overrides tenant default" test impossible to write), and any
+harness-created second reservation for one member in any status would collide.
+`session/realtime.test.ts:313-321` already documents this exact class of false collision
+for an existing index. **Decision: fix `uniqueIndexDdls()` once** (append the index's
+`.where` SQL when present) **and apply the identical fix to the three other harnesses
+that duplicate it**, rather than declaring these three indexes only in the hand-written
+migration SQL (the alternative the audit offered) — a shared fix benefits every future
+partial index this codebase adds, not just this plan's three. Added as an explicit Phase
+1 task and file.
+
 **4. `APP_TENANT_TABLES`**: add `"ChronoMemberReservationRestrictions"` and
 `"ChronoReservationPolicies"` in `apps/chrono-api/src/db/schema.ts`, re-export both new
 tables, mirroring the existing `chronoReservation` re-export.
@@ -330,11 +410,18 @@ tables, mirroring the existing `chronoReservation` re-export.
 
 Add: `reservationStatusSchema` gains the new statuses; `createDirectReservationSchema`
 (member-facing subset — no `memberId` param, taken from session; no `customerName`/
-`customerPhone`); `joinQueueSchema` (`{ stationId }` only); `cancelReservationSchema`
-stays; `reservationPolicySchema`/`updateReservationPolicySchema` (admin PATCH, all 13
-fields, `.strict()`); restriction row DTO (never expose `metadataJson` internals the UI
-doesn't need — allowlist `type`, `reason`, `expiresAt` only per the prompt's "do not
-expose unnecessary internal penalty information").
+`customerPhone`); `joinQueueSchema = z.object({ stationId: z.string().min(1),
+durationMinutes: z.number().int().min(15).max(MAX_WINDOW_HOURS * 60) })` — **round-2 fix
+(BLOCKER 2)**: the first draft specified `{ stationId }` only while separately claiming
+`requestedDurationMinutes` was "captured from the join request" — it never was, nothing
+collected it. `durationMinutes` is now a required field on the join request, reusing the
+existing `MAX_WINDOW_HOURS` (12h) cap from `contracts.ts:14` as its upper bound, same as
+a direct reservation's window; `cancelReservationSchema` stays; `reservationPolicySchema`/
+`updateReservationPolicySchema` (admin PATCH, all 13 fields, `.strict()`); restriction row
+DTO (never expose `metadataJson` internals the UI doesn't need — allowlist `type`,
+`reason`, `expiresAt` only per the prompt's "do not expose unnecessary internal penalty
+information"; `liftedAt`/`liftedByUserId` never returned to the member either — staff-only
+via the restriction-history route).
 
 ### Routes — three surfaces
 
@@ -350,12 +437,22 @@ routes.ts`, mounted `.route("/portal/reservations", reservationPortalRoutes())` 
 - `GET /portal/reservations/restrictions` — the member's own active
   `RESERVATION_BAN`/`QUEUE_BAN` rows (type + `expiresAt` only).
 - `POST /portal/reservations` — direct reservation (Flow 1) — body: `stationId`,
-  `startAt`, `durationMinutes`. Validates policy, advance window, ban, one-active-cap,
-  station currently `available`(-shaped — see Phase 3), inserts `confirmed`.
-- `POST /portal/reservations/queue` — join queue (Flow 2) — body: `stationId`. Validates
-  policy, `allowQueueFor*`, ban, one-active-cap, station state is occupied/held (not
-  plain available — reject with a message pointing at direct reservation instead).
-  Inserts `pending`, `fromQueue: true`.
+  `startAt`, `durationMinutes`. Validates policy, advance window, ban, one-active-cap.
+  **Station-state gate (round-2 fix, CONDITION 11 — the first draft's "station currently
+  `available`(-shaped)" was never defined, and read literally would have blocked the most
+  common real booking: reserving a station 3 hours out while someone is playing on it
+  now).** Concretely: **do not** gate on `chronoStation.status` reading `available` at
+  all for a future-dated Flow-1 booking — the EXCLUDE constraint (now covering `hold`) is
+  the real double-booking guarantee, and the station's *current* occupant is irrelevant to
+  a *future* slot. Gate only on `status NOT IN ('maintenance', 'offline')` → 403 if it is.
+  On success, inserts `confirmed`.
+- `POST /portal/reservations/queue` — join queue (Flow 2) — body: `stationId`,
+  `durationMinutes`. Validates policy, `allowQueueFor*`, ban, one-active-cap, and gates on
+  the station's **current** state being `occupied`, or having a live `hold`/`checked_in`
+  reservation covering now (not `maintenance`/`offline`, and not a plain `available` state
+  with no active occupant — reject that case with a message pointing at direct reservation
+  instead, since there's nothing to queue behind). Inserts `pending`, `fromQueue: true`,
+  `requestedDurationMinutes: input.durationMinutes`, `startAt`/`endAt` left NULL.
 - `POST /portal/reservations/:id/confirm` — Flow 2 Option B (schedule from a live hold);
   409 if not currently `hold` or not the caller's own row.
 - `POST /portal/reservations/:id/cancel` — computes on-time vs late per
@@ -368,11 +465,14 @@ All gated by `memberMiddleware()`, reading `c.var.member.{tenantId,memberId}` �
 `requirePermission`/staff role.
 
 **B. Staff dashboard extension** (`apps/chrono-api/src/modules/reservation/routes.ts` —
-extend, don't replace): `GET /reservations/:id/restrictions?memberId=` (staff support
-view, gated `reservation:read`, same tier as today) and `GET`/`PATCH /reservations/
-policy?branchId=` (gated by a **new** permission action `reservation:managePolicy` —
-policy config is not routine front-desk work, unlike booking/cancel; see Permission
-vocabulary below).
+extend, don't replace): `GET /reservations/restrictions?memberId=` (staff support view,
+gated `reservation:read`, same tier as today, paginated per `listQuerySchema`/
+`.ai/rules/pagination.md` — audit SUGGESTION 16); `GET`/`PATCH /reservations/
+policy?branchId=` (gated `reservation:managePolicy` — see Permission vocabulary below);
+`POST /reservations/restrictions/:id/lift` (round-2 RISK 13 fix — sets `liftedAt`/
+`liftedByUserId` on a wrongly-issued or no-longer-warranted ban, never a delete; gated
+`reservation:managePolicy`, same tier as policy config since lifting a ban is an
+override decision, not routine front-desk work).
 
 **C. Background sweep** — see Phase 5.
 
@@ -479,22 +579,44 @@ Two new race surfaces beyond path 1's existing EXCLUDE constraint:
 
 **Files to Update:**
 - `apps/chrono-api/src/modules/reservation/schema.ts` (extend: new columns, nullable
-  `startAt`/`endAt`)
+  `startAt`/`endAt`, nullable `createdByUserId`)
 - `apps/chrono-api/src/modules/reservation/restriction-schema.ts` (new)
 - `apps/chrono-api/src/modules/reservation/policy-schema.ts` (new)
 - `apps/chrono-api/src/db/schema.ts` (re-exports + `APP_TENANT_TABLES` additions)
 - `apps/chrono-api/src/modules/reservation/routes.ts` — **narrow, required edit** (audit
-  CONDITION 6), not out of scope: add `"hold"` to `ACTIVE_STATUSES` (line 30); make
-  `assertNoOverlap` skip/never receive NULL-window rows (its `startAt`/`endAt` params
-  become non-optional call-site guarantees — a `pending` row is never passed in, since it
-  has no window to check); fix the two now-`Date | null` typecheck breaks at
-  `existing.startAt`/`existing.endAt` (line ~339) by keeping `PATCH` restricted to rows
-  that already have a concrete window (`fromQueue: false`), which is already implied by
-  its current `status !== "confirmed"` guard — confirm that guard still excludes every
-  NULL-window state (it does: NULL-window rows are only ever `pending`).
-- The staff reservation board list route (`GET /reservations`) — exclude `pending` rows
-  from the default query (a queue entry has nothing for the board to display) unless the
-  caller explicitly passes `status=pending`; note this in the same commit.
+  CONDITION 6, null-narrowing detail fixed round-2 CONDITION 9), not out of scope:
+  - add `"hold"` to `ACTIVE_STATUSES` (line 30);
+  - inside `assertNoOverlap`'s row-lock loop (line ~161-167): add
+    `isNotNull(chronoReservation.startAt)` to the locked-row `where` conditions (`conds`,
+    line ~151-156) so NULL-window (`pending`) rows are never selected, **and** narrow with
+    `if (!row.startAt || !row.endAt) continue;` inside the loop before the comparison at
+    line 164 — `isNotNull` alone does not narrow Drizzle's inferred `Date | null` return
+    type, this is a real `tsc` error, not just a runtime concern;
+  - in the `PATCH` handler (line ~339-340): add
+    `if (!existing.startAt || !existing.endAt) { throw new HttpError(409, "This
+    reservation has no scheduled time to edit."); }` before computing `nextStartAt`/
+    `nextEndAt` — a queue-originated `pending` row has nothing to PATCH a time onto (its
+    window doesn't exist until promotion); this also resolves the typecheck break, not
+    just a runtime guard.
+- The staff reservation board list route (`GET /reservations`) — **deferred to Phase 2**
+  (round-2 CONDITION 12): the `status=pending` opt-in needs `reservationStatusSchema` to
+  accept `"pending"` first, which Phase 2 adds; Phase 1 only needs the *default* query to
+  exclude `pending` (achievable with a hardcoded status list, no contract change), so add
+  that default-exclusion here and the explicit opt-in in Phase 2.
+- `apps/chrono-api/src/modules/reservation/overlap.test.ts` — **round-2 CONDITION 6**:
+  its hand-written constraint-recreation (lines ~192-197) duplicates the OLD predicate
+  (`status IN ('confirmed','checked_in')`); update it to the rewritten predicate
+  (`status IN ('confirmed','checked_in','hold') AND "startAt" IS NOT NULL`) and add one
+  new assertion: a booking overlapping a live `hold`-status row is refused. Without this
+  edit the test that exists specifically to prove the double-booking guarantee stops
+  testing the constraint actually shipped.
+- `apps/chrono-api/src/e2e/run.ts`'s `uniqueIndexDdls()` (line 90-100) — **round-2
+  CONDITION 5**: append the index's `.where` predicate SQL when present, instead of
+  columns-only DDL. Apply the identical fix to the duplicated helpers in
+  `session/realtime.test.ts:50`, `reservation/overlap.test.ts:60-70`, and
+  `session/concurrency.test.ts` — all four currently drop partial-index predicates,
+  which would make this plan's three new partial unique indexes behave as full unique
+  constraints in every test harness (see Schema section's landmine note).
 
 **Step-by-Step Tasks:**
 1. Write the three schema files per Pass 2 above (including the CHECK constraint and the
@@ -503,15 +625,20 @@ Two new race surfaces beyond path 1's existing EXCLUDE constraint:
 2. `pnpm --filter @agora/chrono-api db:generate --name reservation_queue_restrictions_policy`.
 3. Hand-edit the generated SQL (Drizzle cannot express any of these — same pattern the
    original EXCLUDE constraint migration used):
-   - the CHECK constraint for pending-vs-scheduled rows (Schema section, exact clause
-     above);
+   - `ALTER COLUMN "createdByUserId" DROP NOT NULL`;
+   - the CHECK constraint for pending-vs-scheduled rows, including the
+     `fromQueue`/`requestedDurationMinutes` clause (Schema section, exact clause above);
    - `DROP CONSTRAINT chrono_reservation_no_overlap` + re-`ADD CONSTRAINT` with the
      rewritten `WHERE` clause covering `hold` and requiring `"startAt" IS NOT NULL`
      (Schema section, exact SQL above) — **do not** assume the existing constraint is
      unaffected; it is not, and this is the migration's single most important edit;
-   - the `chrono_reservation_one_active_per_member_uq` partial unique index;
-   - the `chrono_reservation_restriction_no_dup_uq` partial unique index.
-4. Edit `routes.ts` per the Files-to-Update note above.
+   - the `chrono_reservation_one_active_per_member_uq` partial unique index (member-
+     originated rows only — `"createdByUserId" IS NULL`);
+   - the `chrono_reservation_restriction_no_dup_uq` partial unique index (now 4-column,
+     including `type`);
+   - the `chrono_reservation_policy_one_default_uq` partial unique index.
+4. Edit `routes.ts`, `overlap.test.ts`, and `e2e/run.ts` (+ the two other harness files)
+   per the Files-to-Update notes above.
 5. `pnpm --filter @agora/chrono-api db:migrate`.
 6. Pre-flight check (mirroring the archived plan's own precedent before its EXCLUDE
    constraint landed): query the real chrono DB for any existing row that would violate
@@ -519,17 +646,19 @@ Two new race surfaces beyond path 1's existing EXCLUDE constraint:
    a `hold` status or a second active reservation per member), but confirm rather than
    assume.
 
-**Acceptance Criteria:** migration applies cleanly against the real chrono DB; three
+**Acceptance Criteria:** migration applies cleanly against the real chrono DB; two new
 tables exist with forced RLS; existing `ChronoReservations` rows are untouched
-(`startAt`/`endAt` still populated, nullable change doesn't null out data); `routes.ts`
-and the staff board still typecheck and pass `overlap.test.ts` unmodified in assertions
-(only `ACTIVE_STATUSES` changes).
+(`startAt`/`endAt`/`createdByUserId` still populated, nullability changes don't null out
+data); `routes.ts` and the staff board typecheck; `overlap.test.ts` passes with its
+updated predicate and the new `hold`-overlap assertion; a harness test creating two
+policy rows for different branches of the same tenant, or two reservations in different
+statuses for one member, no longer false-collides.
 
 **Verification Commands:** `pnpm --filter @agora/chrono-api rls:proof` (must print `RLS
-PROOF: PASS ✅`), `pnpm typecheck`, `apps/chrono-api`'s existing `overlap.test.ts`
-(must still pass — it exercises the constraint this phase rewrites).
+PROOF: PASS ✅`), `pnpm typecheck`, `pnpm --filter @agora/chrono-api test:overlap`.
 
-**Out-of-Scope:** contracts, member/portal routes, permissions, sweep.
+**Out-of-Scope:** contracts, member/portal routes, permissions, sweep, the `status=pending`
+board opt-in (moved to Phase 2).
 
 **Execution Start Point:** `apps/chrono-api/src/modules/reservation/schema.ts`.
 
@@ -538,15 +667,23 @@ PROOF: PASS ✅`), `pnpm typecheck`, `apps/chrono-api`'s existing `overlap.test.
 **Files to Update:** `apps/chrono-api/src/modules/reservation/contracts.ts` (extend),
 `apps/chrono-api/src/auth/permissions.ts` (add `managePolicy` action for admin/owner).
 
-**Step-by-Step Tasks:** per Pass 2's Contracts + Permission vocabulary sections above.
+**Step-by-Step Tasks:** per Pass 2's Contracts + Permission vocabulary sections above,
+plus the `managePolicy` gate test (Permission vocabulary section: three cases — staff
+lacks it, admin has it, owner has it — in `apps/chrono-api/src/e2e/permissions.test.ts`),
+plus (round-2 CONDITION 12) add `"pending"` to `reservationStatusSchema` and wire the
+staff board's explicit `status=pending` opt-in query param now that the contract accepts
+it (Phase 1 already added the default-exclusion; this phase completes the opt-in path).
 
 **Acceptance Criteria:** every new route in Phases 3–4 has a matching Zod schema; the
-member-portal DTOs never include `metadataJson`, staff-only reasons, or another member's
-data.
+member-portal DTOs never include `metadataJson`, `liftedAt`/`liftedByUserId`, staff-only
+reasons, or another member's data; `permissions.test.ts` fails if `managePolicy` is
+removed from the admin/owner grant.
 
-**Verification Commands:** `pnpm typecheck`.
+**Verification Commands:** `pnpm typecheck`, `pnpm --filter @agora/chrono-api
+test:permissions`.
 
-**Out-of-Scope:** routes.
+**Out-of-Scope:** routes (beyond the board's status-filter wiring, which is contract-only
+here — the route itself was already written in Phase 1).
 
 **Execution Start Point:** `apps/chrono-api/src/modules/reservation/contracts.ts`.
 
@@ -555,38 +692,81 @@ data.
 **Files to Update:** `apps/chrono-api/src/modules/reservation/portal-routes.ts` (new),
 `apps/chrono-api/src/modules/reservation/service.ts` (new — extract the policy-
 resolution + ban-check + overlap-aware insert logic shared by both the member routes and
-Phase 5's sweep, so the sweep isn't duplicating route logic), `apps/chrono-api/src/
-modules/session/service.ts` (extend `startSession` per Pass 2's three-case claim logic),
-`apps/chrono-api/src/app.ts` (mount `/portal/reservations`).
+Phase 5's sweep, so the sweep isn't duplicating route logic; **also owns
+`promoteNextInQueue`, moved here from Phase 5 per round-2 CONDITION 12** — Phase 4's
+cancel-triggers-promotion path needs it before Phase 5 exists, and a phase cannot depend
+on a helper a *later* phase defines), `apps/chrono-api/src/modules/session/service.ts`
+(extend `startSession` per Pass 2's three-case claim logic), `apps/chrono-api/src/
+modules/session/routes.ts` (staff `POST /:id/end` — decide/implement the soft-lock
+override below), `apps/chrono-api/src/app.ts` (mount `/portal/reservations`).
 
 **Step-by-Step Tasks:**
 1. `resolveReservationPolicy(tx, tenantId, branchId)` in `reservation/service.ts` — branch
    row else tenant-default row else hardcoded defaults (Pass 2).
-2. `assertNotBanned(tx, tenantId, memberId, type)` — reads
-   `ChronoMemberReservationRestrictions` for an unexpired row of that `type`.
-3. `createDirectReservation` / `joinQueue` / `confirmHold` / `cancelReservation` in
+2. `assertNotBanned(tx, tenantId, memberId, branchId, type)` — **round-2 fix, CONDITION
+   8**: the first draft's signature dropped `branchId` despite the schema/index being
+   branch-scoped; this reads `ChronoMemberReservationRestrictions` filtered on
+   `(tenantId, memberId, branchId, type)`, `expiresAt IS NOT NULL AND expiresAt > now()
+   AND liftedAt IS NULL`, matching `chrono_reservation_restriction_active_idx`'s exact
+   column order — never `type = 'queue_failure'` (that's a history record, not a ban).
+3. `promoteNextInQueue(tenantId, stationId)` — its **own** top-level `withTenant` call
+   (invoked from three different already-committed contexts — Phase 4's explicit cancel,
+   and Phase 5's two session-end call sites — so it opens its own transaction rather than
+   assuming one is open): `pg_advisory_xact_lock(hashtext('chrono_reservation_station_'
+   || stationId))`, lock all `pending` rows for that station `FOR UPDATE ... ORDER BY
+   createdAt ASC`, and if one exists, promote it — **clamping the promoted window**
+   against the next conflicting active reservation on that station (round-2 BLOCKER 4,
+   detailed in Phase 5 since the sweep is this helper's other major caller; Phase 3 states
+   the same clamp rule so the member-triggered path in Phase 4 doesn't get a weaker
+   guarantee than the sweep's).
+4. `createDirectReservation` / `joinQueue` / `confirmHold` / `cancelReservation` in
    `service.ts`, each wrapped by the caller's `withTenant` transaction, reusing
    `assertNoOverlap`-style row locks from the existing `routes.ts` where a scheduled
-   window is involved (Flow 1 only — Flow 2 has no window to overlap-check).
-4. `portal-routes.ts` — five routes per Pass 2 Route section A, thin: validate → call
-   service function → `c.json`.
-5. Extend `startSession` per the three-case claim logic; extend `closeSession` with
-   **no** change (Phase 5 owns promotion, not this phase — keep this phase's diff
-   reviewable).
-6. Mount in `app.ts`.
+   window is involved (Flow 1 only — Flow 2 has no window to overlap-check until
+   promotion). `joinQueue` inserts with `requestedDurationMinutes: input.durationMinutes`
+   (the field the Contracts fix above now actually collects).
+5. `portal-routes.ts` — five routes per Pass 2 Route section A, thin: validate → call
+   service function → `c.json`. **Audit placement (round-2 RISK 14)**: every
+   `recordAudit(...)` call in these routes runs **after** the route's own `withTenant`
+   transaction commits, mirroring `recordStaffAudit`'s existing placement in
+   `reservation/routes.ts:294` and the `publishSessionTransition` after-commit rule — never
+   inside the transaction.
+6. **`startSession` claim logic + staff soft-lock decision (round-2 CONDITION 10):**
+   extend `startSession` per Pass 2's three-case claim logic. Two corrections to the first
+   draft's description: (a) `startSession` **receives** a `TenantTx` from its caller
+   (`service.ts:95-101`) — it does not open its own transaction, so the claim-lookup code
+   is added inside the existing function body, not "inside a transaction it opens"; (b)
+   `startSession` has **two** real callers — the QR flow (`qr/public-routes.ts:254`) and
+   the **staff** `POST /rpc/sessions` (`session/routes.ts:103`) — so case 2's
+   `STATION_OCCUPIED` 409 also fires for a staff-initiated walk-in on a soft-locked
+   station unless explicitly overridden. **Decision: no staff override in this pass** — a
+   soft-locked station stays soft-locked for staff too (a staff member wanting to seat a
+   walk-in on a member's held station should cancel/void the hold through the staff board
+   first, not silently override it, since the held member has no way to know their claim
+   was taken). This is a deliberate, stated change to the staff session-start flow, not
+   an oversight — moved out of "Out-of-Scope" for that reason. `session/routes.ts`
+   requires no code change (the 409 is thrown from inside `startSession`, which it
+   already calls and already surfaces errors from) — only this documented behavior
+   change and its regression tests.
+7. Mount in `app.ts`.
 
 **Acceptance Criteria:** a member can create a direct reservation, get 400 outside the
 advance window, get 409 on a second active reservation, get 403 when banned; a member can
-join a queue on an occupied station and see their position; starting a session on a
-station the member holds claims it (reservation → `checked_in`, `sessionId` set); starting
-a session on a station someone else holds still 409s `STATION_OCCUPIED`.
+join a queue on an occupied station (with a captured `durationMinutes`) and see their
+position; starting a session on a station the member holds claims it (reservation →
+`checked_in`, `sessionId` set); starting a session on a station someone else holds still
+409s `STATION_OCCUPIED` for both a member (QR) and a staff-initiated start; the existing
+`session/realtime.test.ts` and `session/concurrency.test.ts` still pass unmodified in
+their non-reservation assertions (they call `startSession` directly and must not
+regress).
 
 **Verification Commands:** `pnpm typecheck`, `pnpm --filter @agora/chrono-api rls:proof`
-(session-service touched), manual `pnpm dev:chrono` smoke test of each route via
-`{slug}.localtest.me:3000`'s portal session cookie.
+(session-service touched), `pnpm --filter @agora/chrono-api test:session-realtime`,
+`pnpm --filter @agora/chrono-api test:session-concurrency`, manual `pnpm dev:chrono`
+smoke test of each route via `{slug}.localtest.me:3000`'s portal session cookie.
 
-**Out-of-Scope:** cancellation fee/ban path (Phase 4), background promotion/expiry
-(Phase 5), UI (Phase 6).
+**Out-of-Scope:** cancellation fee/ban path (Phase 4), the sweep's own activation/
+hold-expiry logic and its `withAdmin` scan (Phase 5), UI (Phase 6).
 
 **Execution Start Point:** `apps/chrono-api/src/modules/reservation/service.ts`.
 
@@ -596,7 +776,7 @@ a session on a station someone else holds still 409s `STATION_OCCUPIED`.
 `cancelReservation`), `apps/chrono-api/src/modules/reservation/portal-routes.ts` (cancel
 route — may already exist as a stub from Phase 3; fill in the fee/ban branch),
 `apps/chrono-api/src/modules/reservation/routes.ts` (staff `GET`/`PATCH .../policy`,
-`GET .../restrictions`).
+`GET .../restrictions`, `POST .../restrictions/:id/lift`).
 
 **Step-by-Step Tasks:**
 1. `cancelReservation`: resolve policy, compute `isLate = now >= startAt -
@@ -615,14 +795,20 @@ route — may already exist as a stub from Phase 3; fill in the fee/ban branch),
    boundary than session billing, and the prompt doesn't specify collection mechanics;
    recording-only is the safer default and is easy to upgrade to `debitWallet` later
    without a schema change (the amount is already captured on the row either way).
-3. On cancelling an active `hold` (either flow): after the cancel commits, call the same
-   station-promotion helper Phase 5 defines (extracted so both the sweep and an explicit
-   cancel can trigger "promote next in line" — avoids a queue member waiting an extra
-   sweep-interval after a cancel).
+3. On cancelling an active `hold` (either flow): after the cancel's own `withTenant`
+   commits, call `promoteNextInQueue(tenantId, stationId)` — defined in Phase 3's
+   `service.ts` (moved there, see Phase 3's CONDITION 12 note), not this phase — so both
+   the sweep (Phase 5) and this explicit cancel trigger "promote next in line" without
+   waiting an extra sweep-interval.
 4. Staff `GET/PATCH /reservations/policy?branchId=` — `PATCH` creates/updates the branch
    row (or the tenant-default row when `branchId` omitted), gated `managePolicy`.
 5. Staff `GET /reservations/restrictions?memberId=` — lists a member's restriction
-   history (staff sees full detail, unlike the member's own allowlisted view).
+   history (staff sees full detail, unlike the member's own allowlisted view), paginated.
+6. Staff `POST /reservations/restrictions/:id/lift` — sets `liftedAt = now()`,
+   `liftedByUserId = userId` on the row inside `withTenant`; 404 if the id doesn't belong
+   to the tenant, 409 if already lifted or already past `expiresAt`. Gated
+   `managePolicy`. `recordAudit`/`recordStaffAudit` after commit, per the same
+   after-commit rule Phase 3 states.
 
 **Acceptance Criteria:** on-time cancel → no fee, no ban; late cancel → fee amount
 recorded + `RESERVATION_BAN` for `reservationBanDurationHours`; queue cancel never bans or
@@ -637,13 +823,16 @@ immediately (not after up to one sweep interval).
 
 ### Phase 5 — Background sweep (activation, hold-expiry, promotion, no-show)
 
-**Files to Update:** `apps/chrono-api/src/modules/reservation/sweep.ts` (new, mirrors
-`session/expiry.ts`'s shape exactly), `apps/chrono-api/src/index.ts` (start the worker
-alongside `startSessionExpiryWorker()`), `apps/chrono-api/src/modules/session/routes.ts`
-(the `POST /:id/end` handler at line 249 — add the post-commit promotion call),
-`apps/chrono-api/src/modules/session/expiry.ts` (line 41 — same call, from the sweep's own
-already-committed `withTenant` result), `apps/chrono-api/.env.example`
-(`RESERVATION_SWEEP_INTERVAL_MS`).
+**Files to Update:** `apps/chrono-api/src/modules/reservation/sweep.ts` (new — mirrors
+`session/expiry.ts`'s `withAdmin`-scan-then-`withTenant`-per-row shape, but adds
+per-row `try/catch` isolation that `expiry.ts` doesn't need — see task 2 below for why),
+`apps/chrono-api/src/modules/reservation/service.ts` (extend `promoteNextInQueue`,
+defined in Phase 3, with the window-clamp logic — task 5 below), `apps/chrono-api/src/
+index.ts` (start the worker alongside `startSessionExpiryWorker()`), `apps/chrono-api/
+src/modules/session/routes.ts` (the `POST /:id/end` handler at line 249 — add the
+post-commit promotion call), `apps/chrono-api/src/modules/session/expiry.ts` (line 41 —
+same call, from the sweep's own already-committed `withTenant` result),
+`apps/chrono-api/.env.example` (`RESERVATION_SWEEP_INTERVAL_MS`).
 
 **Step-by-Step Tasks:**
 1. **Cross-tenant scan (audit CONDITION 9)**: `ChronoReservations` is RLS-forced, so a
@@ -652,33 +841,53 @@ already-committed `withTenant` result), `apps/chrono-api/.env.example`
    `{ id, tenantId, stationId, branchId }` for the relevant `WHERE`, `.limit(200)`
    (same batch cap), then processes each due row inside its own
    `withTenant(row.tenantId, tx => ...)`.
-2. **5.1 Activation**: due rows = `confirmed` with `startAt <= now`. Inside
+2. **Per-row error isolation (round-2 BLOCKER 4, part 1)**: unlike `expiry.ts`, which has
+   no per-row `try/catch` (acceptable there because `closeSession` cannot itself throw a
+   constraint violation), this sweep's promotion step (5.3) *can* throw (see below) — so
+   each due row's `withTenant(...)` call in 5.1/5.2/5.3 is wrapped in its own `try/catch`
+   that logs via `logger.error({ msg: "reservation sweep row failed", reservationId,
+   error })` and `continue`s to the next row, exactly so one bad/conflicting row cannot
+   stall the other 199 rows in the batch, forever, every tick.
+3. **5.1 Activation**: due rows = `confirmed` with `startAt <= now`. Inside
    `withTenant`: lock the reservation row `FOR UPDATE`, re-check `status === 'confirmed'`,
    set `status = 'hold'`, `holdExpiresAt = now + holdPeriodMinutes` (policy-resolved per
    branch). This is what makes the station exclusively the member's from `startAt`
-   (Phase 3's soft-lock reads this `hold` state).
-3. **5.2 Hold-expiry → no-show / queue-failure**: due rows = `hold` with
+   (Phase 3's soft-lock reads this `hold` state). This step cannot violate the EXCLUDE
+   constraint (the row already held its window under `confirmed`; only its `status`
+   changes) — no clamping needed here, only in 5.3.
+4. **5.2 Hold-expiry → no-show / queue-failure**: due rows = `hold` with
    `holdExpiresAt < now`. Inside `withTenant`: lock `FOR UPDATE`, re-check, branch on
    `fromQueue`:
-   - `fromQueue: false` → `status = "no_show"`, insert `RESERVATION_BAN`
-     (`noShowBanDurationHours`, `reason: "no_show"`).
-   - `fromQueue: true` → `status = "queue_expired"`, insert a restriction with
-     `reason: "queue_hold_expired"`, **then** count that member's `queue_hold_expired`
-     restrictions **(judgment call, confirm or override):** cumulative-forever per
-     `(memberId, branchId)` — every such restriction ever recorded, not windowed —
-     matching the prompt's literal "failure #3 → ban" example, which names no expiry on
-     the count itself. If the count reaches `queueFailureLimit`, insert a `QUEUE_BAN`
-     restriction too (`queueBanDurationHours`).
-4. **5.3 Promotion**: `promoteNextInQueue(tenantId, stationId)` — its own top-level
-   `withTenant` call (it is invoked from three different already-committed contexts, so
-   it opens its own transaction rather than assuming one): wrap the whole body in
-   `pg_advisory_xact_lock(hashtext('chrono_reservation_station_' || stationId))`, then
-   lock all `pending` rows for that station `FOR UPDATE ... ORDER BY createdAt ASC`,
-   promote the first (if any) to `hold` — setting concrete `startAt`/`endAt` from
-   `requestedDurationMinutes` per the Schema section's "queue row window" resolution —
-   with a fresh `holdExpiresAt`. Called from: 5.2's queue-expiry branch (same tenant/
-   station just freed), and the two post-commit call sites below.
-5. **Session-end trigger (audit CONDITION 10 — `closeSession` cannot run post-commit
+   - `fromQueue: false` → `status = "no_show"`, insert a **`reservation_ban`** row
+     (`reason: "no_show"`, `noShowBanDurationHours`).
+   - `fromQueue: true` → `status = "queue_expired"`, insert a **`queue_failure`** row
+     (`reason: "queue_hold_expired"`, `expiresAt: NULL` — a history record, not a ban;
+     see Schema's round-2 fix for why this is its own `type`), **then** count that
+     member's `queue_failure`/`queue_hold_expired` rows **(judgment call, confirm or
+     override):** cumulative-forever per `(memberId, branchId)` — every such record ever
+     inserted, not windowed — matching the prompt's literal "failure #3 → ban" example,
+     which names no expiry on the count itself. If the count reaches `queueFailureLimit`,
+     insert a **`queue_ban`** row too (`reason: "queue_failure_limit"`,
+     `queueBanDurationHours`) — a distinct `reason` from the failure records themselves,
+     so the dedupe index (`tenantId, reservationId, reason, type`) does not collide the
+     ban with the failure it was triggered by.
+5. **5.3 Promotion, with the window clamp (round-2 BLOCKER 4, part 2 — `promoteNextInQueue`
+   itself is defined in Phase 3's `service.ts`; this phase only adds the clamp and calls
+   it from the sites below):** promoting a `pending` row sets `startAt = now()`,
+   `endAt = now() + requestedDurationMinutes`. Because `hold` now participates in the
+   EXCLUDE constraint (Phase 1's B1 fix), that raw `endAt` can collide with an existing
+   `confirmed`/`checked_in`/`hold` row further out on the same station — the promotion
+   `UPDATE` would then throw `23P01` with no fallback, which is exactly the "sweep batch
+   dies" failure BLOCKER 4 identified. Fix: before writing, query the same
+   `ACTIVE_STATUSES` set for the next row on this station with `startAt > now()` ordered
+   by `startAt ASC LIMIT 1`; if found and `now() + requestedDurationMinutes >
+   thatRow.startAt`, clamp `endAt = thatRow.startAt` instead. If the clamped window would
+   be **under a stated minimum** (15 minutes — matching `joinQueueSchema`'s own floor),
+   skip the promotion entirely for this row (leave it `pending`, it will be reconsidered
+   next tick or on the next station-free event) and `recordAudit` a
+   `chronoReservation.promotionBlocked` system event rather than silently losing the
+   queue member's place.
+6. **Session-end trigger (audit CONDITION 10 — `closeSession` cannot run post-commit
    code itself; the hook lives at its callers):**
    - `session/routes.ts:249`, after the existing `publishSessionTransition` call following
      `closeSession`'s `withTenant`, add `await promoteNextInQueue(tenantId,
@@ -686,8 +895,11 @@ already-committed `withTenant` result), `apps/chrono-api/.env.example`
    - `session/expiry.ts:41`, same addition after its own `publishSessionTransition` call,
      using `row.tenantId` / `result.session.stationId`.
    Both mirror the existing "publish after commit, never inside the transaction" rule
-   those files already follow for `publishSessionTransition`.
-6. Sweep runs on the same interval pattern as `session/expiry.ts`
+   those files already follow for `publishSessionTransition` — `promoteNextInQueue` opens
+   its own `withTenant`/advisory lock, so nesting it inside `closeSession`'s own
+   transaction would also be a deadlock surface (round-2 RISK 14), not just a style
+   mismatch.
+7. Sweep runs on the same interval pattern as `session/expiry.ts`
    (`RESERVATION_SWEEP_INTERVAL_MS`, default 60_000, documented in
    `apps/chrono-api/.env.example` — not the root one).
 
@@ -696,11 +908,16 @@ of `startAt`; an unclaimed hold becomes `no_show`/`queue_expired` within one tic
 `holdExpiresAt`, exactly once even if the sweep overlaps itself (test: fire two
 concurrent `runReservationSweepOnce()` calls, assert only one transition + one
 restriction row); a queue member is promoted within one tick of the station freeing via
-session end, sweep-driven expiry, or explicit cancel.
+session end, sweep-driven expiry, or explicit cancel; a promotion that would overlap a
+later booking is clamped, not refused outright, unless the clamped window is under 15
+minutes; a threshold `queue_ban` row is inserted and distinct from the `queue_failure`
+row that triggered it (not swallowed by the dedupe index); one row throwing inside a
+sweep tick does not prevent the other due rows in the same tick from processing.
 
 **Verification Commands:** `pnpm typecheck`, `pnpm --filter @agora/chrono-api rls:proof`, the
-new `sweep.test.ts` (idempotency + promotion-ordering + advisory-lock races, mirroring
-`overlap.test.ts`'s use of a real `TEST_DATABASE_URL`, not a mock).
+new `sweep.test.ts` (idempotency + promotion-ordering + clamp-under-conflict +
+advisory-lock races + per-row error isolation, mirroring `overlap.test.ts`'s use of a
+real `TEST_DATABASE_URL`, not a mock).
 
 **Out-of-Scope:** UI.
 
@@ -735,10 +952,11 @@ added there, never as a page-local component, per `component-first-ui.md`).
 5. All markup via `agora/ui` primitives only — no raw `div`/`button`/`input`.
 
 **Acceptance Criteria:** manually exercised in a real browser against `pnpm dev:chrono`
-(`.ai/rules/AGENTS.md`'s "For UI or frontend changes... test in a browser" rule) — golden
-path (reserve → claim via session start), queue path (join → promoted → claim), a banned
-member sees the correct banner, a late cancel shows the correct fee preview before
-confirming.
+(the root `CLAUDE.md`'s "For UI or frontend changes, start the dev server and use the
+feature in a browser before reporting the task as complete" rule — corrected citation,
+round-2 audit SUGGESTION 15: there is no `.ai/rules/AGENTS.md`) — golden path (reserve →
+claim via QR scan at the station), queue path (join → promoted → claim), a banned member
+sees the correct banner, a late cancel shows the correct fee preview before confirming.
 
 **Verification Commands:** `pnpm typecheck`, `pnpm build` (web), manual browser pass.
 
@@ -855,10 +1073,11 @@ lock.
 - A staff-facing policy-editor **UI page** (Deferred item 5).
 - Blackout windows (oikos's `reservation-blackout.ts`) — not requested in this prompt;
   not built.
-- Any change to `apps/chrono-api/src/seed.ts` beyond what's needed to keep it typechecking
-  against the new nullable `startAt`/`endAt` columns (the file already shows as modified
-  in `git status` — inspect it at Phase 1 to confirm nothing else in that diff is
-  unrelated/stray before committing on top of it).
+- Any change to `apps/chrono-api/src/seed.ts` — **round-2 correction (SUGGESTION 15)**:
+  it contains no `chronoReservation` reference at all, so this plan needs no seed change;
+  it already shows as modified in `git status` from unrelated prior work — inspect it at
+  Phase 1 only to confirm that pre-existing diff isn't accidentally clobbered, never to
+  add reservation-related seed data (out of scope regardless).
 
 ## Decisions made (judgment calls — resolved here, not left open, per the developer's own
 "use judgment and document the call" instruction; override any of these at any time)
@@ -881,6 +1100,17 @@ lock.
 4. **The claim path is QR-scan-at-station only** — no new in-portal "start session"
    endpoint. Matches the existing device/QR architecture and the prompt's own "member
    logs into PC" phrasing. (Pass 1, Phase 3.)
+5. **A staff-initiated session start on a station soft-locked by a member's live hold is
+   refused (409), same as a member's own QR-scan attempt** — no staff override in this
+   pass. Staff who want to seat a walk-in on a held station cancel the hold through the
+   staff board first, rather than silently overriding a member's claim window. This is a
+   real, deliberate change to the existing staff `POST /rpc/sessions` behavior, not an
+   incidental side effect. (Phase 3, round-2 audit CONDITION 10.)
+6. **A wrongly-issued ban can be lifted by staff** (`POST /reservations/restrictions/:id/
+   lift`, `managePolicy`-gated) rather than only expiring after up to 24h — added in
+   round 2 after the audit flagged the immutable-history design as having no remedy path.
+   The lift is an append (`liftedAt`/`liftedByUserId`), not a delete — history stays
+   intact. (Schema, Phase 4.)
 
 ## Deferred, not blocking (confirm before or after — neither changes schema or Phase 1–5)
 
