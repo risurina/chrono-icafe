@@ -19,6 +19,21 @@ existing branding override does. If the developer wants the dashboard to stay vi
 neutral while only the public page re-themes, that's a bigger, different change — call
 it out now if so.
 
+## Revision note (post plan-audit)
+
+The plan-auditor's first pass returned `NEEDS REVISION`. All findings are folded in
+below: Phase 1/6 commands now target `@agora/chrono-api`/`dev:chrono` (root scripts
+hardcode the scaffold, not Chrono — confirmed in `package.json`); the false "no
+`Select` primitive exists" claim is removed and swatch buttons are re-justified on
+their own merit; the new public route gets its own rate limiter instead of an
+unlimited-by-precedent exemption; the neon-green palette's contrast ratios are
+recomputed and its light `--ring`/`--chart-1` are darkened to actually clear the 3:1
+non-text floor; the `globals.css` copy ranges are corrected (and note a manual
+post-ship edit to `.dark`'s `--card`); Phase 3's out-of-scope note is corrected re
+`/public/landing-page`'s response shape; the two layout fetches are parallelized and
+the default-preset case now emits no CSS (matching `brandingCss()`'s own precedent);
+and one of the two identically-named helper functions is renamed.
+
 ## Current state (read, not guessed)
 
 - **Landing-page module already exists and is the right home for this.**
@@ -46,24 +61,39 @@ it out now if so.
   `primaryColor`/`accentColor` override (if set via the existing branding settings page)
   continues to win over the preset default, exactly matching today's precedent that a
   more specific, explicitly-set value beats a broader default.
-- **`apps/chrono-web/src/app/globals.css:11-78`'s hardcoded elegant-gold `:root`/`.dark`
-  blocks stay exactly as they are** — they become the **fallback** rendered before any
-  JS/fetch resolves (and the value used for an apex host / no-tenant-context render,
-  where `getRequestTenant()` yields no slug/host). No changes to this file in this plan.
-- **No `Select` primitive exists in `agora/ui`** (checked `packages/agora/src/presentation/ui/index.ts`
-  exports — no `Select`/`Dropdown`). Rather than adding a new shared primitive for a
-  single two-option picker, the preset picker uses swatch-style `Button`s (existing
-  primitive), one per preset, with a selected/unselected visual state — no new
-  foundation component needed. If a third+ preset later makes buttons unwieldy, revisit
-  with a `Select` primitive addition to `packages/agora/src/presentation/ui` at that time (not now).
-- **`/public/branding` has no rate limiter** (`apps/chrono-api/src/app.ts:551-572`) —
-  it's a narrow, non-sensitive, cheap single-row read via `withAdmin`, called on every
-  layout render. This plan's new public theme-preset endpoint mirrors that same,
-  already-accepted risk profile — **not** `/public/landing-page`'s 60/min/IP limiter,
-  which exists to bound the heavier public **content** read and shouldn't be doubled up
-  by every dashboard navigation (the layout renders on every server render, dashboard
-  included, so reusing the content-rate-limited endpoint would contend staff dashboard
-  traffic against real public visitor traffic on the same limiter).
+- **`apps/chrono-web/src/app/globals.css`'s hardcoded elegant-gold `:root`/`.dark`
+  blocks stay exactly as they are** (`:root` at lines 15-48, declarations 16-47; `.dark`
+  at lines 52-84, declarations 53-83 — verified against the current file, not assumed)
+  — they become the **fallback** rendered before any JS/fetch resolves (and the value
+  used for an apex host / no-tenant-context render, where `getRequestTenant()` yields no
+  slug/host). No changes to this file in this plan. Note: `.dark`'s `--card` was
+  manually edited post-ship to `#080806` (was `#17140d`, commit `c2afa492`, outside this
+  plan) — the `elegant-gold` preset entry must copy the **current** file content,
+  including that edit, not the values from the archived `chrono-theme-colors` plan.
+- **`agora/ui` already exports a `Select` primitive**
+  (`packages/agora/src/presentation/ui/components/select.tsx`, re-exported from
+  `packages/agora/src/presentation/ui/index.ts:6-15` as `Select`/`SelectTrigger`/
+  `SelectContent`/`SelectItem`/etc.) — an earlier draft of this plan incorrectly
+  claimed it didn't exist. It was available and deliberately **not** used: a color
+  theme choice benefits from showing the actual color swatch inline, which a `Select`
+  dropdown's closed state hides — so this plan still uses swatch-style `Button`s
+  (existing primitive, `variant="default"` for the selected preset /
+  `variant="outline"` for the rest), each visually representing its `primary` color,
+  composed via `Stack`/`Button` per `.ai/rules/component-first-ui.md`. If a third+
+  preset later makes a button row unwieldy, revisit with `Select` at that time — it's
+  a legitimate option now too, this is a UX call, not a missing-primitive workaround.
+- **The new public theme-preset route gets its own rate limiter, not an
+  unlimited-by-precedent exemption.** `apps/chrono-api/AGENTS.md`'s own
+  "Unauthenticated routes" convention requires every such route to be rate-limited
+  with a concrete pinned number — `/public/branding` (`apps/chrono-api/src/app.ts:551-572`)
+  is itself an unremediated gap in that convention, not a stated exception, so this
+  plan does not lean on it as precedent. Phase 3 adds a dedicated
+  `themePresetIpLimiter`, sized generously above real per-user layout-render traffic
+  but well below abuse volume, following the exact `blockedFor`/`record`/429/
+  `Retry-After` shape already used by `landingPageIpLimiter`
+  (`apps/chrono-api/src/app.ts:583-596`) — a separate bucket, so dashboard-render
+  traffic never contends with `/public/landing-page`'s public-visitor traffic on the
+  same limiter.
 - **Existing e2e coverage to extend, not duplicate.**
   `apps/chrono-web/e2e/tests/tenant-landing/{edit-role-gate,public-page}.spec.ts`
   already cover the landing-page editor's happy path, role gate (`staff` blocked,
@@ -81,8 +111,12 @@ it out now if so.
 1. Add `themePreset: text("themePreset")` (nullable, no default — `null` means "use the
    default preset") to the `chronoLandingPage` table definition, alongside the existing
    columns.
-2. `pnpm db:generate --name chrono_landing_page_theme_preset` then `pnpm db:migrate`.
-   **Never `pnpm db:push`** (`.ai/rules/database.md`).
+2. `pnpm --filter @agora/chrono-api db:generate --name chrono_landing_page_theme_preset`
+   then `pnpm --filter @agora/chrono-api db:migrate`. **Chrono is not wired into the
+   root `db:generate`/`db:migrate` scripts** (`.ai/rules/business-app.md` step 5) —
+   those hardcode `@agora/api` (the scaffold, confirmed in root `package.json:18-19`)
+   — so the `--filter` is required, not optional. **Never `pnpm db:push`**
+   (`.ai/rules/database.md`).
 3. No `APP_TENANT_TABLES` change needed — `ChronoLandingPages` is already registered
    (`apps/chrono-api/src/db/schema.ts:259`); this is a column addition to an
    already-RLS-forced table.
@@ -92,9 +126,10 @@ exists, nullable, on `ChronoLandingPages`.
 
 **Out of scope:** any new table; changing `TenantBrandings` (foundation).
 
-**Verification:** `pnpm --filter @agora/api rls:proof` (schema touched — must still
-print `RLS PROOF: PASS ✅`, since a new column on an already-forced table doesn't change
-isolation but the rule requires re-proving after any schema change).
+**Verification:** `pnpm --filter @agora/chrono-api rls:proof` (Chrono's own proof
+script, `apps/chrono-api/src/rls-proof.ts` — **not** `pnpm --filter @agora/api
+rls:proof`, which proves the scaffold's isolation, not Chrono's) — must still print
+`RLS PROOF: PASS ✅`. Also `pnpm --filter @agora/chrono-api typecheck`.
 
 **Execution start point:** `apps/chrono-api/src/modules/landing-page/schema.ts:5`.
 
@@ -127,8 +162,8 @@ isolation but the rule requires re-proving after any schema change).
    > = {
      "elegant-gold": {
        label: "Elegant Gold",
-       light: { /* verbatim copy of globals.css:16-45's current :root hex values */ },
-       dark: { /* verbatim copy of globals.css:48-78's current .dark hex values */ },
+       light: { /* verbatim copy of globals.css:16-47's current :root hex values, incl. all sidebar-* keys */ },
+       dark: { /* verbatim copy of globals.css:53-83's current .dark hex values, incl. all sidebar-* keys and the current --card:#080806 */ },
      },
      "neon-green": {
        label: "Neon Green",
@@ -141,19 +176,28 @@ isolation but the rule requires re-proving after any schema change).
    `apps/chrono-web/src/app/globals.css` `:root`/`.dark` blocks (the just-implemented
    WCAG-AA-corrected values, including the darkened `#8a6508`/`#c0392b`/`#6b6660`) — no
    re-deriving, no redoing the contrast work.
-4. **`neon-green`'s values are new — pin exact hex here, already AA-checked** (so
-   Jules/implementer does not need a contrast pass of their own):
+4. **`neon-green`'s values are new — pin exact hex here.** Contrast ratios below were
+   recomputed with the standard WCAG 2.x relative-luminance formula (not eyeballed) —
+   an earlier draft of this plan stated different numbers for these same pairs; the
+   values below are the corrected ones and supersede any others.
    - Light: `background:#f7fdf9 foreground:#0f1f13 card:#fff card-foreground:#0f1f13
      popover:#fff popover-foreground:#0f1f13 primary:#0f7a3d primary-foreground:#f7fdf9
      secondary:#e8f7ee secondary-foreground:#0f7a3d muted:#e8f7ee muted-foreground:#4d6b57
      accent:#e8f7ee accent-foreground:#0f7a3d destructive:#c0392b border:#22c55e26
-     input:#22c55e26 ring:#22c55e chart-1:#22c55e chart-2:#3b82f6 chart-3:#f59e0b
+     input:#22c55e26 ring:#0f7a3d chart-1:#0f7a3d chart-2:#3b82f6 chart-3:#f59e0b
      chart-4:#a855f7 chart-5:#ef4444 sidebar:#fff sidebar-foreground:#0f1f13
      sidebar-primary:#0f7a3d sidebar-primary-foreground:#f7fdf9 sidebar-accent:#e8f7ee
-     sidebar-accent-foreground:#0f7a3d sidebar-border:#22c55e26 sidebar-ring:#22c55e`.
-     (`primary-foreground` on `primary` = 5.9:1; `secondary-foreground`/
-     `accent-foreground` `#0f7a3d` on `#e8f7ee` = 5.4:1; `muted-foreground` `#4d6b57` on
-     `#e8f7ee` = 5.1:1 — all clear WCAG AA 4.5:1.)
+     sidebar-accent-foreground:#0f7a3d sidebar-border:#22c55e26 sidebar-ring:#0f7a3d`.
+     Note `ring`/`chart-1` use `#0f7a3d` (reusing `primary`), **not** the brighter
+     `#22c55e` — `#22c55e` measures only 2.21:1 on `background` and 2.28:1 on `card`,
+     failing the WCAG 1.4.11 non-text 3:1 floor that a focus ring must clear;
+     `#0f7a3d` measures 5.26:1 on `background` and 5.42:1 on `card`. Text-role ratios:
+     `primary-foreground` on `primary` = 5.26:1; `secondary-foreground`/
+     `accent-foreground` `#0f7a3d` on `#e8f7ee` = 4.90:1; `muted-foreground` `#4d6b57`
+     on `#e8f7ee` = 5.33:1 — all clear WCAG AA 4.5:1. (`border`/`input`'s `#22c55e26`
+     alpha token composites to ~1.13:1 against white — the same order as elegant-gold's
+     own `#b8860b26` at ~1.16:1; this is an accepted, inherited pattern for hairline
+     borders, not a new regression.)
    - Dark: `background:#06120a foreground:#e7fbee card:#0d1f14 card-foreground:#e7fbee
      popover:#0d1f14 popover-foreground:#e7fbee primary:#39e675 primary-foreground:#06120a
      secondary:#12331e secondary-foreground:#8ff5b0 muted:#0a1a11 muted-foreground:#9fd6b3
@@ -162,9 +206,9 @@ isolation but the rule requires re-proving after any schema change).
      chart-4:#c084fc chart-5:#f87171 sidebar:#0a1a11 sidebar-foreground:#e7fbee
      sidebar-primary:#39e675 sidebar-primary-foreground:#06120a sidebar-accent:#12331e
      sidebar-accent-foreground:#39e675 sidebar-border:#39e67538 sidebar-ring:#39e675`.
-     (`primary #39e675` on `background #06120a` = 12.9:1; `foreground` on `background` =
-     14.8:1 — clean, matching the dark-mode pattern already established for elegant-gold
-     where dark values don't need the AA correction light values needed.)
+     `primary #39e675` on `background #06120a` = 11.60:1; `foreground` on `background`
+     = 17.69:1 — clean, no correction needed (dark palettes consistently clear AA by a
+     wide margin, matching elegant-gold's own dark block).
 5. Add `themePresetCss(presetKey: string | null | undefined): string` to
    `theme-presets.ts` — resolves an unknown/null key to `DEFAULT_THEME_PRESET`, then
    builds `` `:root{--background:${light.background};...}.dark{--background:${dark.background};...}` ``
@@ -196,38 +240,60 @@ and the web registry is deliberately not worth a shared package boundary yet).
    other change needed to `GET`/`PATCH /rpc/landing-page` — the existing partial-upsert
    `PATCH` handler (`routes.ts:35-61`) already spreads `input` (which now may include
    `themePreset`) into the insert/update, since `updateLandingPageSchema` validates it.
-2. Add `getPublicThemePreset(tenantId: string): Promise<string | null>` to `routes.ts`,
-   alongside `getPublicLandingPageContent` — a narrow `withAdmin` read of just the
-   `themePreset` column (not the full row), same reasoning as `getPublicLandingPageContent`'s
-   existing doc comment (no tenant session exists pre-auth).
-3. In `app.ts`, add a new public route mounted alongside the existing `/public/branding`
-   and `/public/landing-page` block:
+2. Add `readThemePresetForTenant(tenantId: string): Promise<string | null>` to
+   `routes.ts`, alongside `getPublicLandingPageContent` — a narrow `withAdmin` read of
+   just the `themePreset` column (not the full row), with an explicit
+   `.where(eq(chronoLandingPage.tenantId, tenantId))`. Named differently from the
+   web-side helper added in Phase 4 (`getPublicThemePreset`, an HTTP fetch) — the two
+   are not the same function and having them share a name invites confusion in review.
+   **State plainly: this read uses `withAdmin`, which bypasses RLS** (there is no
+   tenant session pre-auth, same as `getPublicLandingPageContent`'s existing doc
+   comment) — the explicit `tenantId` filter in the query is the *only* thing
+   preventing a cross-tenant read here, RLS provides no defence in depth on this path.
+   This is an accepted, existing pattern (identical to `getPublicLandingPageContent`
+   and `/public/branding`), not a new risk, but it must be stated rather than implied.
+3. In `app.ts`, add `const themePresetIpLimiter = createRateLimiter(300, 60 * 1000,
+   "theme-preset-ip"); // 300 / min — generous for layout-render traffic, well below
+   abuse volume` alongside the existing limiters (`app.ts:152-171`). Then add the new
+   public route mounted alongside the existing `/public/branding` and
+   `/public/landing-page` block, following `/public/landing-page`'s own
+   `blockedFor`/`record`/429 shape (`app.ts:583-596`) rather than `/public/branding`'s
+   unlimited one:
    ```ts
    // Public: Chrono's selected landing-page theme preset key for the current host
-   // (pre-auth). Mirrors /public/branding's risk profile (narrow, non-sensitive,
-   // cheap single-column read, no rate limiter) rather than /public/landing-page's
-   // 60/min/IP limiter — that limiter exists to bound the heavier public *content*
-   // read and must not be shared with every dashboard layout render (dashboard,
-   // not just the public page, resolves this on every render — see
-   // .ai/plans/chrono/archive/chrono-landing-theme-presets/README.md).
+   // (pre-auth). Rate-limited per apps/chrono-api/AGENTS.md's "Unauthenticated
+   // routes" convention — a dedicated bucket (themePresetIpLimiter), not
+   // landingPageIpLimiter, so staff dashboard renders (which hit this on every
+   // layout render, not just public /about visits) never contend with real public
+   // visitor traffic on /public/landing-page's own limiter.
    .get("/public/theme-preset", async (c) => {
+     const ip = clientIp(c);
+     const retryAfter = await themePresetIpLimiter.blockedFor(ip);
+     if (retryAfter !== null) {
+       return c.json({ error: "Too many requests. Try again later." }, 429, {
+         "Retry-After": String(retryAfter),
+       });
+     }
      const org = await resolveOrgFromRequest(c);
      if (!org) return c.json({ themePreset: null }, 404);
-     const themePreset = await getPublicThemePreset(org.id);
+     const themePreset = await readThemePresetForTenant(org.id);
+     await themePresetIpLimiter.record(ip);
      return c.json({ themePreset });
    })
    ```
-   Import `getPublicThemePreset` alongside the existing `getPublicLandingPageContent`
+   Import `readThemePresetForTenant` alongside the existing `getPublicLandingPageContent`
    import (`app.ts:63`).
 
 **Acceptance criteria:** `PATCH /rpc/landing-page {"themePreset":"neon-green"}` (as
 owner) persists and round-trips via `GET /rpc/landing-page`; `GET /public/theme-preset`
 on that tenant's host returns `{"themePreset":"neon-green"}` with no auth; on a
 different tenant's host it returns that tenant's own (independent) value or `null` —
-never the first tenant's.
+never the first tenant's; exceeding 300 req/min/IP on the new route returns 429 with
+`Retry-After`.
 
-**Out of scope:** changing `landingPageIpLimiter` or `/public/landing-page`'s existing
-behavior/shape.
+**Out of scope:** changing `landingPageIpLimiter` or `/public/landing-page`'s
+`landingPage.content` response *behavior* — though note its shape does gain a
+`themePreset` field as a side effect of Phase 2's shared `toContent()` (see Phase 4).
 
 **Verification:** `pnpm typecheck`; manual `curl` against both routes locally before
 the browser/e2e pass in Phase 6.
@@ -243,10 +309,13 @@ immediately after the existing `/public/landing-page` block).
 
 **Step-by-step tasks**
 1. In `layout.tsx`, alongside the existing `getPublicBranding()` call, add a fetch for
-   the theme preset. Add a small `cache()`-wrapped helper (mirroring `getPublicBranding()`'s
-   own shape at `packages/agora/src/presentation/next/index.ts:60-79`) in
+   the theme preset. Add a small `cache()`-wrapped helper in
    `apps/chrono-web/src/lib/theme-presets.ts` (same file as the registry, since it's
-   chrono-web-local, not foundation):
+   chrono-web-local, not foundation) — mirroring `getPublicBranding()`'s own shape
+   (`packages/agora/src/presentation/next/index.ts:60-79`) closely, including its
+   apex-host guard (`t.kind === "apex"` there vs. the equivalent `!tenant.slug &&
+   !tenant.host` check here — `getRequestTenant()` makes both forms equivalent, kept
+   consistent in spirit rather than copy-pasted):
    ```ts
    export const getPublicThemePreset = cache(async (): Promise<string | null> => {
      const tenant = await getRequestTenant();
@@ -265,11 +334,23 @@ immediately after the existing `/public/landing-page` block).
      }
    });
    ```
-2. In `layout.tsx`, call `getPublicThemePreset()` and `themePresetCss(themePreset)`,
-   and render the result as a **new** `<style id="chrono-theme-preset">` tag, placed
-   immediately **before** the existing `{css ? <style id="tenant-branding" .../> : null}`
-   block (so branding's explicit `--primary`/`--accent` override continues to win in
-   the cascade — later source order wins for two unlayered rules of equal specificity).
+2. In `layout.tsx`, fetch branding and the preset **in parallel**, not sequentially —
+   `const [branding, themePreset] = await Promise.all([getPublicBranding(),
+   getPublicThemePreset()]);` — the root layout is on the critical path of every
+   render, and two independent awaits must not become a waterfall.
+3. In `theme-presets.ts`, `themePresetCss(presetKey)` returns `""` (not a full
+   `:root{…}.dark{…}` block) when the resolved key is `null`/unset **and** equals
+   `DEFAULT_THEME_PRESET` — mirroring `brandingCss()`'s own precedent
+   (`packages/agora/src/presentation/next/index.ts:124`, which returns `""` for no
+   branding rather than re-emitting default values). This keeps `globals.css`'s
+   hardcoded elegant-gold block as the real, exercised fallback (per "Current state"
+   above) instead of it being silently shadowed by an always-present duplicate style
+   tag on every single page load, including the apex.
+4. Render the result as a **new** `<style id="chrono-theme-preset">` tag (skipped
+   entirely when `themePresetCss()` returns `""`), placed immediately **before** the
+   existing `{css ? <style id="tenant-branding" .../> : null}` block (so branding's
+   explicit `--primary`/`--accent` override continues to win in the cascade — later
+   source order wins for two unlayered rules of equal specificity).
 3. In the dashboard settings page, add a "Theme" `Card` above (or below) the existing
    content card: for each key in `CHRONO_THEME_PRESET_KEYS`, render a swatch `Button`
    (label = preset's `label`, `variant={form.themePreset === key ? "default" : "outline"}`)
@@ -315,8 +396,11 @@ the Context section above.
      for the exact methodology (darken text-role colors, keep decorative-role colors
      as-is where only the 3:1 non-text floor applies).
    - Storage: `ChronoLandingPages.themePreset` (nullable; `null` = default preset),
-     read publicly via `GET /public/theme-preset` (no rate limiter, mirrors
-     `/public/branding`'s risk profile — not `/public/landing-page`'s IP limiter).
+     read publicly via `GET /public/theme-preset`, rate-limited via its own
+     `themePresetIpLimiter` (300/min/IP) per the "Unauthenticated routes" convention
+     above — a separate bucket from `/public/landing-page`'s `landingPageIpLimiter`
+     since this route is also hit on every dashboard layout render, not just public
+     visits.
    - **Reserved extension point (not built): custom color picker.** A tenant picking
      arbitrary colors, not just a named preset, is the natural next step. When built,
      it should **layer on top of presets, not replace them** — exactly how
@@ -354,9 +438,10 @@ merged code.
 **Step-by-step tasks**
 1. In `edit-role-gate.spec.ts`: extend the existing admin/owner-can-save assertion to
    also select "Neon Green" via the new swatch buttons, save, and assert the button's
-   selected visual state persists after reload (covers the **role gate** transitively —
-   the same `<Can resource="landingPage" action="manage">` gate already tested there
-   covers the new field, since it's the same form/route).
+   selected visual state persists after reload. Also add `themePreset: "neon-green"`
+   to the existing direct-PATCH-as-staff request body (alongside `heroTagline`) so the
+   403 role gate is proven for this specific field, not just inferred from the form
+   being hidden.
 2. In `public-page.spec.ts`: extend the **happy path** to additionally select a preset
    for tenant A, then assert (via `page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--primary'))`
    or similar) that `/about` renders with that preset's `--primary` value. Extend the
@@ -373,9 +458,12 @@ gate, cross-tenant isolation) are all covered for the new field, per
 **Out of scope:** a new, separate spec file — this plan extends the existing suite
 rather than duplicating its setup/signup helpers.
 
-**Verification:** `pnpm dev` (or the suite's own server assumptions — check
-`apps/chrono-web/playwright.config.ts` for `webServer`), then run the two spec files,
-then the full suite.
+**Verification:** `pnpm dev:chrono` (**not** root `pnpm dev`, which starts the
+scaffold `@agora/api`/`@agora/web` on the same port 3000 — `apps/chrono-web` has no
+`webServer` in its `playwright.config.ts` and expects a server already running).
+`edit-role-gate.spec.ts`'s `findInviteLink()` helper reads `DEV_LOG_PATH` (default
+`/tmp/agora-dev.log`), so run `dev:chrono` with output teed to that path. Then run the
+two spec files, then the full suite.
 
 **Execution start point:**
 `apps/chrono-web/e2e/tests/tenant-landing/edit-role-gate.spec.ts` (read in full before
@@ -383,9 +471,11 @@ editing — reuse its `signUp`/`findInviteLink` helpers rather than duplicating 
 
 ## Verification (end-to-end, whole plan)
 
-1. `pnpm typecheck` after every phase.
-2. `pnpm --filter @agora/api rls:proof` after Phase 1 (schema change) — must print
-   `RLS PROOF: PASS ✅`.
+1. `pnpm --filter @agora/chrono-api typecheck` and `pnpm --filter @agora/chrono-web
+   typecheck` after every phase (root `pnpm typecheck` also covers both via Turborepo
+   and is fine to run instead).
+2. `pnpm --filter @agora/chrono-api rls:proof` after Phase 1 (schema change) — must
+   print `RLS PROOF: PASS ✅`. **Not** `@agora/api rls:proof` (proves the scaffold).
 3. Manual `curl`/browser check of `GET /public/theme-preset` on two different tenant
    hosts after Phase 3, confirming independent values (no cross-tenant leak) before
    writing the e2e assertions in Phase 6.
@@ -398,8 +488,6 @@ editing — reuse its `signUp`/`findInviteLink` helpers rather than duplicating 
   Phase 5, not built).
 - Any change to `packages/agora` (foundation) — `TenantBrandings`, `brandingCss()`,
   `PublicBranding` all stay as they are.
-- A `Select`/dropdown primitive addition to `agora/ui` (swatch buttons suffice for two
-  presets today).
 - Per-surface theme scoping (dashboard vs. public page rendering different themes).
 - Any change to `apps/chrono-web/src/app/globals.css` (the elegant-gold `:root`/`.dark`
   blocks there remain the fallback, unchanged).
