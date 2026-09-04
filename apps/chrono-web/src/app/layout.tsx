@@ -4,6 +4,9 @@ import "agora/ui/globals.css"; // design tokens (CSS vars)
 import "./globals.css"; // Tailwind v4 entry + token→utility mapping
 import { Providers } from "./providers";
 import { getPublicBranding, brandingCss } from "@/lib/branding";
+import { themePresetCss } from "agora";
+import { CHRONO_THEME_PRESETS } from "@/lib/theme-presets";
+import { getTenantLanding } from "@/lib/landing";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -53,14 +56,31 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const branding = await getPublicBranding();
+  // Both resolve from the same request; run them in parallel rather than
+  // serialising two fetches on the critical path of every render.
+  const [branding, landing] = await Promise.all([
+    getPublicBranding(),
+    getTenantLanding(),
+  ]);
   const css = brandingCss(branding);
+  const presetCss = themePresetCss(CHRONO_THEME_PRESETS, landing?.themePreset);
 
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${brunoAceSC.variable} font-sans antialiased`}
       >
+        {/* Order matters. The preset goes FIRST so the tenant's own
+            primaryColor/accentColor (emitted by brandingCss below) still wins
+            over it — both are unlayered :root rules at equal specificity, so
+            later source order decides. Empty for the default preset, whose
+            values already live in globals.css. */}
+        {presetCss ? (
+          <style
+            id="chrono-theme-preset"
+            dangerouslySetInnerHTML={{ __html: presetCss }}
+          />
+        ) : null}
         {/* Tenant color tokens + sanitized custom CSS, inlined into the initial
             HTML so branded colors paint on first render (no layout shift). */}
         {css ? (

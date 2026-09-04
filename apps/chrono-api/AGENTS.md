@@ -32,9 +32,14 @@ promos, POS, reservations, reporting/reconciliation, security alerts, QR flows, 
 inquiries sit on top of that spine.
 
 **Source**: an existing mature implementation at
-`C:\Users\ronni\project\izur\oikos` (`apps/chrono-api` + `apps/chrono-web` +
-`packages/chrono`, built on a sibling foundation `@risurina/oikos`) is **prior art, not a
-spec.** This is a reimplementation on the Agora foundation, not a faithful port — oikos
+`/Users/risurina/karta/karta-tenant` (`apps/chrono-api` + `apps/chrono-web` +
+`packages/oikos`, built on a sibling foundation `@risurina/oikos`) is **prior art, not a
+spec.** (An earlier revision of this file gave a Windows path,
+`C:\Users\ronni\project\izur\oikos`, which is not reachable from a macOS
+checkout — the source IS available at the path above, so do not conclude it is
+inaccessible. Its live site is https://chrono.izur.com.ph/.)
+
+This is a reimplementation on the Agora foundation, not a faithful port — oikos
 shows what the product needs to do, not how every detail must be built. Default to
 improving on oikos wherever its design is weak (dead/unused schema, missing constraints,
 awkward naming, no transactional atomicity, a workaround for a problem Agora's
@@ -147,3 +152,92 @@ For any such route:
 See `.ai/plans/chrono/active/security-hardening/README.md` Phase 2 for the full
 reasoning (the rate-limiting gap found across the `devices`/`qr`/`inquiries`/
 `public-stations` plans was one convention gap, not four separate bugs).
+
+## Landing pages
+
+Chrono's public surfaces are the apex marketing page (`(saas-landing)/page.tsx`)
+and each tenant's own landing page (`/about` on the tenant host). The **tenant**
+page is fully configurable; the marketing page is not (its copy is Chrono's, not
+a tenant's).
+
+The machinery is the **foundation's** — config schema, section registry,
+resolvers, `TenantLandingPages` storage, the route factory, and the
+draft/publish gate all live in `packages/agora`. See `.ai/rules/business-app.md`,
+"Extension seams", for the contract. Chrono owns only its vocabulary and its
+appearance.
+
+### Adding a section
+
+One entry in `apps/chrono-web/src/components/landing/registry.ts`:
+
+```ts
+myThing: defineLandingSection({
+  key: "myThing",
+  label: "My thing",          // shown in the settings editor
+  surface: "tenant",
+  defaultEnabled: true,        // false = opt-in only
+  defaultOrder: 60,            // spaced by 10 so you can slot between
+  Component: TenantMyThing,
+  propsFrom: (r, ctx) => ({ /* select from resolved config */ }),
+}),
+```
+
+**No page file changes.** `/about` renders whatever `resolveLandingSections()`
+returns, so ordering and visibility are settings, not code. `defineLandingSection`
+type-checks `Component` against its own `propsFrom`, so a mismatch is a compile
+error even though the registry map itself is prop-type-erased.
+
+Sections live in `components/landing/tenant-sections.tsx`, composed **only** from
+`agora/ui` primitives — no raw `div`/`span`/`ul` chrome. Give every section root
+a `data-testid`; the e2e spec asserts presence *and* absence.
+
+### Theme presets
+
+`apps/chrono-web/src/lib/theme-presets.ts` registers Chrono's palettes through
+the foundation's `buildThemePresetRegistry`. `elegant-gold` is the default and
+its values already ship in `app/globals.css`, so `themePresetCss()` emits
+nothing for it and the stylesheet stays the real fallback.
+
+**Every new palette must clear WCAG AA before merging**: 4.5:1 for text pairs,
+and 3:1 for any non-text role that carries meaning — `ring` above all, since it
+is the focus indicator. `neon-green` uses `#0f7a3d` rather than the brighter
+`#22c55e` for exactly this reason (that measures 2.21:1 on `background`). Method
+and worked examples: `.ai/plans/chrono/archive/chrono-theme-colors/palette-source.md`.
+
+A tenant's own `primaryColor`/`accentColor` (branding settings) **beat** their
+preset, because `brandingCss()` is injected after the preset `<style>`. Note it
+emits no `.dark` variant, so a brand colour applies identically in both modes
+rather than resolving per-mode.
+
+### The brand lockup
+
+`components/landing/chrono-brand.tsx` — owl mark (`public/brand/chrono-owl.png`)
+plus the wordmark in `font-chrono` (**Bruno Ace SC**, loaded via `next/font` in
+`app/layout.tsx`, mapped to the token in `@theme inline`). Both `.premium-*`
+utilities and the wordmark's gradient follow `var(--primary)`, so a preset or a
+tenant brand colour retints the whole surface with no component change.
+
+The owl is the **marketing** default only. A tenant with a logo gets it through
+`BrandHeader`; never hardcode the owl on a branded tenant's page.
+
+### Draft and publish
+
+`draft` and `published` are separate snapshots. The editor writes `draft`;
+`/public/landing-page` returns `published` only. So **editing a live page changes
+nothing publicly until Publish is pressed** — a single row plus an `isPublished`
+boolean would gate only the first publish and let every later save go straight
+out. Unpublish clears `published` and keeps `publishedAt` as the last-published
+marker.
+
+Publish and unpublish each write one audit row. The public read uses `withAdmin`
+and therefore **bypasses RLS** — its explicit `tenantId` filter is the only
+isolation on that path, so `rls:proof` does not cover it and the cross-tenant
+e2e case is the real proof.
+
+### Legacy columns
+
+`ChronoLandingPages`' six original content columns are still read, as the
+*lower-precedence* layer of the config cascade
+(`apps/chrono-web/src/lib/landing.ts`), so a tenant who configured a page before
+this feature keeps their content and anything set in the new editor wins.
+Dropping those columns is a later cleanup, once the new path is proven.
