@@ -11,10 +11,27 @@ best practise coding"*, *"make sure easy to customize in future project"* — ma
 repo's own rule that oikos is **prior art, not a spec**
 (`apps/chrono-api/AGENTS.md`). Match the visual result; write the implementation fresh.
 
-**Depends on:** `.ai/plans/agora/active/tenant-landing-foundation/README.md`, which lands
-first and provides the primitives, contracts, registry builder, resolvers, theme-preset
-mechanism, `tenant_landing_page` storage, and route factory. This plan supplies only
-Chrono's **vocabulary and appearance**. Do not rebuild any of that machinery here.
+**Depends on:** `.ai/plans/agora/active/tenant-landing-foundation/README.md`, which provides
+the primitives, contracts, registry builder, resolvers, theme-preset mechanism,
+`TenantLandingPages` storage, and route factory. This plan supplies only Chrono's
+**vocabulary and appearance**. Do not rebuild any of that machinery here.
+
+**Per-phase dependency** — not every chrono phase waits on the whole foundation plan:
+
+| Chrono phase | Blocked by (foundation) |
+|---|---|
+| 1 — brand system | *nothing* — can run in parallel from day one |
+| 2 — palettes | Phase 3 (preset mechanism) |
+| 3 — storage + migration | Phase 4 (`TenantLandingPages`) — **must follow it immediately**, see the ordering hazard in that phase |
+| 4 — registry + config | Phase 2 (contracts, registry builder, resolvers) |
+| 5a-i / 5a-ii / 5b — sections | *nothing* (5a-i touches `agora/ui` directly) |
+| 6 — routes | Phase 5 (route factory) |
+| 7a / 7b — page rebuilds | Phase 1 (header/footer primitives) + chrono 4, 5 |
+| 8 — editor | chrono 4, 6 |
+| 9 — e2e | chrono 7a, 7b, 8 |
+| 10 — docs | everything |
+
+Foundation Phases 6–8 (scaffold surface, scaffold e2e, foundation docs) block nothing here.
 
 **Supersedes:** `.ai/plans/chrono/archive/chrono-landing-theme-presets/` — its palette
 values and cascade rationale are carried into Phase 2 and Phase 6 below.
@@ -110,10 +127,19 @@ each `.premium-*` visibly responds to a `--primary` change; no hardcoded hex out
 
 ## Phase 3 — Chrono storage decision + migration
 
-**Files:** `apps/chrono-api/src/modules/landing-page/schema.ts`, migration
+**Files:** `apps/chrono-api/src/db/schema.ts`,
+`apps/chrono-api/src/modules/landing-page/schema.ts`, migration
+
+> **Ordering hazard — read before starting.** The foundation plan's Phase 4 adds
+> `"TenantLandingPages"` to `BASE_TENANT_TABLES`, and `applyRls()` runs `ALTER TABLE` over
+> that list for **every** app. Chrono's `db:migrate` is
+> `tsx src/db/migrate.ts && tsx src/db/rls.run.ts`, so between the foundation phase landing
+> and task 1 below completing, **chrono's `db:migrate` and `rls:proof` will fail** on a
+> table its database doesn't have. Ship these two phases back-to-back with no chrono DB run
+> in between.
 
 **Decision (must be explicit — `ChronoLandingPages` has live rows):** the foundation's
-`tenant_landing_page` becomes the source of truth for `config`/`sections`/`themePreset`/
+`TenantLandingPages` becomes the source of truth for `config`/`sections`/`themePreset`/
 `isPublished`. `ChronoLandingPages` **survives** as a chrono-only extension for
 chrono-specific fields, and its six existing content columns are **migrated into the
 foundation row's `config`** by a one-time data migration, then left in place (read-only,
@@ -121,13 +147,18 @@ unread) rather than dropped — dropping them is a separate cleanup once the new
 proven in production.
 
 **Tasks**
-1. Data migration: for every `ChronoLandingPages` row, upsert a `tenant_landing_page` row
+1. **Re-export the foundation table into chrono's schema** — add `tenantLandingPage` to the
+   `export const { … } = base;` destructuring block in `apps/chrono-api/src/db/schema.ts`
+   (currently `:76-126`). Foundation tables reach an app *only* through this explicit
+   re-export; without it drizzle-kit never sees the table, chrono's `db:generate` emits
+   nothing for it, and `db:migrate` then throws in `applyRls`. Do this **first**.
+2. Data migration: for every `ChronoLandingPages` row, upsert a `TenantLandingPages` row
    with `config` built from `heroTagline`/`aboutBody`/`amenitiesBody`/`contactOverride`/
    `ctaLabel`/`ctaHref`.
-2. **Backfill `isPublished = true`, `publishedAt = updatedAt` for every migrated row.**
+3. **Backfill `isPublished = true`, `publishedAt = updatedAt` for every migrated row.**
    Without this, the publish gate takes every already-configured tenant's live page dark on
    deploy, with no action on their part.
-3. `pnpm --filter @agora/chrono-api db:generate --name chrono_landing_page_migrate_to_foundation`
+4. `pnpm --filter @agora/chrono-api db:generate --name chrono_landing_page_migrate_to_foundation`
    then `pnpm --filter @agora/chrono-api db:migrate`. **Root `db:*` scripts target the
    scaffold `@agora/api`** (`package.json:18-19`) — the `--filter` is required. Never
    `db:push`.
@@ -166,7 +197,33 @@ cover order/hide/unknown-key behaviour — no duplicate test here.
 **Out of scope:** the resolver/registry machinery (foundation Phase 2).
 **Start:** `apps/chrono-web/src/components/landing/registry.ts` (new file).
 
-## Phase 5a — SaaS section components
+## Phase 5a-i — Any missing `agora/ui` primitives
+
+**Files:** `packages/agora/src/presentation/ui/components/**`,
+`packages/agora/src/presentation/ui/index.ts`
+
+**Tasks**
+1. Walk the 24 planned sections (5a-ii + 5b) against the existing export list and identify
+   every primitive they need that does not yet exist. Confirmed present already: `Section`,
+   `Grid`, `Stack`, `Row`, `Container`, `Card*`, `StatTile`, `FaqItem`, `SectionHeading`,
+   `Table*`, `Badge`, `Button`, `Sheet`, `Switch`, `Select`, `Testimonial`, `Stepper`.
+2. Add each missing one to `packages/agora/src/presentation/ui/components/` and export it
+   (`.ai/rules/component-first-ui.md`: *"If a needed primitive does not exist, add it in
+   `packages/agora/src/presentation/ui` first — do not invent local shell wrappers in app
+   files."*).
+
+This is its own phase because it is the only **foundation-touching** work in the section
+build; landing and reviewing it before 24 files depend on it keeps those phases
+independently reviewable.
+
+**Acceptance:** the section build can proceed with zero new raw HTML chrome in
+`apps/chrono-web`; every new primitive is exported and used by at least one planned section.
+
+**Verify:** `pnpm typecheck`.
+**Out of scope:** the sections themselves.
+**Start:** `packages/agora/src/presentation/ui/index.ts`.
+
+## Phase 5a-ii — SaaS section components
 
 **Files:** `apps/chrono-web/src/components/landing/sections/*.tsx` (new)
 
@@ -174,19 +231,14 @@ cover order/hide/unknown-key behaviour — no duplicate test here.
 1. The 15 SaaS sections: hero, dashboard preview, positioning strip, problems, solution,
    modules, roles, comparison, how-it-works, benefits, showcase, mobile preview, pricing,
    FAQ, final CTA. One file each, one typed props object each.
-2. Composed **only** from `agora/ui` primitives (`Section`, `Grid`, `Stack`, `Card*`,
-   `StatTile`, `FaqItem`, `SectionHeading`, `Table*`, `Badge`, `Button`) — no raw
-   `div`/`span`/`ul` chrome, the reference's biggest violation. `data-testid` on every
-   section root.
-3. **If a section needs a primitive that does not exist, add it to
-   `packages/agora/src/presentation/ui/components/` and export it from `index.ts` before
-   writing the section** (`.ai/rules/component-first-ui.md`) — do not invent a local wrapper.
+2. Composed **only** from `agora/ui` primitives — no raw `div`/`span`/`ul` chrome, the
+   reference's biggest violation. `data-testid` on every section root.
 
 **Acceptance:** every section renders from props alone; zero raw HTML chrome outside
 `packages/agora`.
 
 **Verify:** `pnpm typecheck`.
-**Out of scope:** tenant sections; page assembly.
+**Out of scope:** tenant sections; page assembly; adding primitives (5a-i).
 **Start:** `apps/chrono-web/src/components/landing/sections/hero.tsx` (new file).
 
 ## Phase 5b — Tenant section components
@@ -205,9 +257,23 @@ amenities, location/branches, FAQ, final CTA.
 **Files:** `apps/chrono-api/src/modules/landing-page/routes.ts`, `apps/chrono-api/src/app.ts`
 
 **Tasks**
-1. Mount the foundation's `landingRoutes()` and `createPublicLandingRoute()`. Keep chrono's
-   existing `/rpc/landing-page` working during transition, reading through to the
-   foundation row.
+1. **Replace, don't co-mount.** Chrono's `landingPageRoutes()` already owns
+   `GET`/`PATCH /rpc/landing-page` (`.../landing-page/routes.ts:25-36`), and the foundation
+   factory registers the same absolute path (mirroring `brandingRoutes()`'s
+   `.get("/branding")`). Mounting both makes Hono serve whichever registers first and
+   silently shadow the other — and it would break Phase 9's own 403 assertion, since the
+   legacy handler returns 400 on unknown keys *before* any permission check.
+   So: **delete `landingPageRoutes()` and mount the foundation factory in its place, in this
+   phase**, at the same `/rpc/landing-page` path so no client changes:
+   ```ts
+   .route("/", landingRoutes({ permission: { landingPage: ["manage"] } }))
+   ```
+   passing chrono's own resource through the injected-permission seam (the foundation
+   defaults to `branding:manage` for the scaffold, which would otherwise silently swap
+   chrono's gate and desync it from the `<Can>` gate in the editor). Use chrono's typed
+   wrapper `apps/chrono-api/src/auth/require-permission.ts`, since `agora/auth`'s
+   `PermissionRequest` doesn't know chrono's resources.
+   Phase 8 (editor) and Phase 9 (e2e) both keep calling `/rpc/landing-page` unchanged.
 2. Mount chrono's theme-preset public route with its **own** rate-limit bucket (not
    `landingPageIpLimiter`, which bounds the heavier content read and would contend with
    dashboard renders), recording **before** the DB work.
@@ -363,8 +429,11 @@ note survives the plan merge.
 ## Out of scope (whole plan)
 
 - Everything in the foundation plan (primitives, contracts, registry builder, resolvers,
-  preset mechanism, `tenant_landing_page`, route factory, scaffold surface).
+  preset mechanism, `TenantLandingPages`, route factory, scaffold surface).
 - Dropping `ChronoLandingPages`' six legacy columns (a later cleanup once proven).
 - Content/industry presets, a live-preview pane, a draft-preview URL, per-section custom CSS.
 - The `theme-elite` palette, `.premium-glow-cyan/-violet`, `.glass-panel`.
-- Any new permission resource — `landingPage:manage` already covers this surface.
+- Any new permission resource. Chrono's landing surface stays gated on its existing
+  **`landingPage:manage`**, passed into the foundation factory via its injected-permission
+  option (Phase 6). The foundation's own default, `branding:manage`, applies to the
+  scaffold only — the two plans must not disagree on this.
