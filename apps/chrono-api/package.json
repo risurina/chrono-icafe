@@ -26,6 +26,8 @@
     "test:session-realtime": "tsx src/modules/session/realtime.test.ts",
     "test:member-concurrency": "tsx src/modules/member/concurrency.test.ts",
     "test:onboarding-registry": "tsx ../../packages/agora/src/contracts/onboarding.test.ts",
+    "test:loyalty-level": "tsx src/modules/loyalty/level.test.ts",
+    "test:loyalty-concurrency": "tsx src/modules/loyalty/service.test.ts",
     "test:host-status-filter": "tsx src/modules/landing-page/host-status-filter.test.ts",
     "test:report-aggregation": "tsx src/modules/report/aggregation.test.ts",
     "test:billing-transactions": "tsx src/e2e/billing-transactions.test.ts",

@@ -3,32 +3,18 @@ import { HttpError } from "agora/server";
 import { chronoLoyaltyAccount, chronoLoyaltyTransaction } from "./schema";
 import type { ChronoLoyaltyAccountRow } from "./schema";
 import { MAX_POINTS_BALANCE } from "./contracts";
+import { LOYALTY_TIERS, tierFor } from "./level";
 
-/**
- * Tier thresholds, kept from oikos as a reasonable default (see
- * .ai/plans/chrono/active/loyalty/README.md, Pass 2 — "Tier thresholds").
- * Ordered highest-first so `tierFor` can early-return on the first match.
- */
-export const LOYALTY_TIERS = [
-  { key: "platinum", minLifetimePoints: 5000 },
-  { key: "gold", minLifetimePoints: 3000 },
-  { key: "silver", minLifetimePoints: 1000 },
-  { key: "bronze", minLifetimePoints: 0 },
-] as const;
+// Re-exported for backward compatibility — the curve and its lookup now live
+// in level.ts so the read path (computeLevel) and this write path share one
+// definition and can never drift. See level.ts.
+export { LOYALTY_TIERS, tierFor };
 
 /**
  * A code constant for this pass — applied by whichever caller invokes
  * `earnLoyaltyPoints` with a spend amount (Phase 4). See Open Question 3.
  */
 export const LOYALTY_POINTS_PER_CURRENCY_UNIT = 1;
-
-/** First LOYALTY_TIERS entry whose threshold the lifetime total clears. */
-export function tierFor(lifetimePoints: number): (typeof LOYALTY_TIERS)[number]["key"] {
-  for (const tier of LOYALTY_TIERS) {
-    if (lifetimePoints >= tier.minLifetimePoints) return tier.key;
-  }
-  return "bronze";
-}
 
 /**
  * Reads (creating on first use) the loyalty account row for a member — never

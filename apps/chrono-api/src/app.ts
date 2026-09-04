@@ -86,6 +86,8 @@ import { walletPortalRoutes } from "./modules/wallet/portal-routes";
 import { creditPortalRoutes } from "./modules/credit/portal-routes";
 import { sessionPortalRoutes } from "./modules/session/portal-routes";
 import { reservationPortalRoutes } from "./modules/reservation/portal-routes";
+import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
+import { promoPortalRoutes } from "./modules/promo/portal-routes";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -543,6 +545,12 @@ export const app = baseApp
   // reservation self-service (reservations-queue-and-self-service plan) —
   // gated by memberMiddleware() inside reservationPortalRoutes() itself.
   .route("/portal/reservations", reservationPortalRoutes())
+  // Chrono: customer-facing loyalty read surface (level/history) — gated
+  // by memberMiddleware() inside loyaltyPortalRoutes() itself.
+  .route("/portal/loyalty", loyaltyPortalRoutes())
+  // Chrono: customer-facing active-promotions read surface — gated by
+  // memberMiddleware() inside promoPortalRoutes() itself.
+  .route("/portal/promos", promoPortalRoutes())
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);

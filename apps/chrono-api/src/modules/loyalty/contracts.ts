@@ -79,6 +79,53 @@ export type RedeemPointsInput = z.infer<typeof redeemPointsSchema>;
 export type AdjustPointsInput = z.infer<typeof adjustPointsSchema>;
 export type LoyaltyAccountListQuery = z.infer<typeof loyaltyAccountListQuerySchema>;
 
+// --- Member portal DTOs (Phase A) --------------------------------------
+// Deliberately narrower than the staff DTOs above: no performedByUserId,
+// accountId, or tenantId leaked to the member's own browser.
+
+export const portalLoyaltyLevelSchema = z.object({
+  tier: loyaltyTierSchema,
+  nextTier: loyaltyTierSchema.nullable(),
+  pointsToNext: z.number().int().nullable(),
+  progressPercent: z.number().int().min(0).max(100),
+});
+
+export const portalLoyaltyAccountSchema = z.object({
+  pointsBalance: z.number().int(),
+  lifetimePoints: z.number().int(),
+  tier: loyaltyTierSchema,
+});
+
+export const portalLoyaltyMeSchema = z.object({
+  account: portalLoyaltyAccountSchema.nullable(),
+  level: portalLoyaltyLevelSchema,
+  memberSince: z.string(),
+});
+
+export const portalLoyaltyTransactionSchema = z.object({
+  id: z.string(),
+  type: loyaltyTransactionTypeSchema,
+  points: z.number().int(),
+  balanceAfter: z.number().int(),
+  reason: z.string(),
+  createdAt: z.string(),
+});
+
+export type PortalLoyaltyLevel = z.infer<typeof portalLoyaltyLevelSchema>;
+export type PortalLoyaltyMe = z.infer<typeof portalLoyaltyMeSchema>;
+export type PortalLoyaltyTransaction = z.infer<typeof portalLoyaltyTransactionSchema>;
+
+export function toPortalLoyaltyTransactionDto(row: LoyaltyTransactionRow): PortalLoyaltyTransaction {
+  return {
+    id: row.id,
+    type: row.type as LoyaltyTransactionType,
+    points: row.points,
+    balanceAfter: row.balanceAfter,
+    reason: row.reason,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 type LoyaltyAccountRow = {
   id: string;
   tenantId: string;

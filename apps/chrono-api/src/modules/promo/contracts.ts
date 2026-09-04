@@ -60,3 +60,22 @@ export type UpdatePromoInput = z.infer<typeof updatePromoSchema>;
 export type ValidatePromoInput = z.infer<typeof validatePromoSchema>;
 export type PromoStatus = z.infer<typeof promoStatusSchema>;
 export type PromoDiscountType = z.infer<typeof promoDiscountTypeSchema>;
+
+// --- Member portal DTO (Phase D) ----------------------------------------
+// Safe fields only — never counts, ids beyond the promo's own, or anything
+// that would let a member infer another promo's usage.
+
+export const portalPromoDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string().nullable(),
+  description: z.string().nullable(),
+  discountType: promoDiscountTypeSchema,
+  discountValue: z.string(),
+  minSpend: z.string().nullable(),
+  startsAt: z.string().nullable(),
+  endsAt: z.string(),
+  branchName: z.string().nullable(),
+});
+
+export type PortalPromoDto = z.infer<typeof portalPromoDtoSchema>;
