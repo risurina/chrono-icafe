@@ -61,6 +61,7 @@ import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { publicStationRoutes } from "./modules/station/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
+import { readPublishedLandingPage } from "agora/server/routes";
 import {
   tenantBranding,
   tenantSsoConnection,
@@ -592,11 +593,20 @@ export const app = baseApp
         "Retry-After": String(retryAfter),
       });
     }
-    const org = await resolveOrgFromRequest(c);
-    if (!org) return c.json({ landingPage: null }, 404);
-    const result = await getPublicLandingPageContent(org.id);
+    // Record before the DB work, not after: recording afterwards lets a
+    // concurrent burst all do their work before any of it is counted.
     await landingPageIpLimiter.record(ip);
-    return c.json({ landingPage: result });
+    const org = await resolveOrgFromRequest(c);
+    if (!org) return c.json({ landingPage: null, published: null }, 404);
+    // `content`/`branches`/`hasStations` stay as-is — chrono's venue sections
+    // need them and they are already-public facts. `published` is the new
+    // foundation snapshot (config/sections/themePreset), and it is gated: it is
+    // null until the tenant publishes, so a draft never reaches a visitor.
+    const [result, published] = await Promise.all([
+      getPublicLandingPageContent(org.id),
+      readPublishedLandingPage(org.id),
+    ]);
+    return c.json({ landingPage: result, published });
   })
   // Public: does the current host's tenant offer SSO login? (pre-auth hint the
   // /login page uses to show a "Sign in with SSO" button). Reveals only whether

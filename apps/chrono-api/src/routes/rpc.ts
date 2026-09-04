@@ -79,7 +79,7 @@ import { sessionRoutes } from "../modules/session/routes";
 import { reportRoutes } from "../modules/report/routes";
 import { securityAlertRoutes } from "../modules/security-alert/routes";
 import { inquiryRoutes } from "../modules/inquiry/routes";
-import { landingPageRoutes } from "../modules/landing-page/routes";
+import { landingRoutes } from "agora/server/routes";
 import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { voucherRoutes } from "../modules/voucher/routes";
 import { promoRoutes } from "../modules/promo/routes";
@@ -1442,7 +1442,14 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   .route("/inquiries", inquiryRoutes())
 
   // ── Chrono: landing-page settings editor, staff-facing (RLS-protected, admin+ manage) — apps/chrono-api/src/modules/landing-page ──
-  .route("/landing-page", landingPageRoutes())
+  // The foundation factory REPLACES chrono's own landingPageRoutes() rather
+  // than co-mounting: both declare /rpc/landing-page, and Hono would serve
+  // whichever registered first while silently shadowing the other. The factory
+  // declares its own absolute path, so this mounts at "/" — same shape as
+  // brandingRoutes(). `permission` carries chrono's own resource through the
+  // foundation's injected-gate seam; the default (branding:manage) is the
+  // scaffold's, and using it here would desync the API from the editor's <Can>.
+  .route("/", landingRoutes({ permission: { landingPage: ["manage"] } }))
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())

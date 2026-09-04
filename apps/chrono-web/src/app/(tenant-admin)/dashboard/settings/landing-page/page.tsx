@@ -12,51 +12,89 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
+  Row,
   Stack,
+  Badge,
   toast,
   Can,
 } from "agora/ui";
+import type { LandingSnapshot, SectionsConfig } from "agora";
 import { api } from "@/lib/rpc";
+import { ThemePicker } from "@/components/dashboard/landing/theme-picker";
+import { SectionsEditor } from "@/components/dashboard/landing/sections-editor";
+import { TENANT_SECTION_CHOICES } from "@/components/landing/registry";
+
+/**
+ * Landing-page settings.
+ *
+ * Content, theme and section layout all write the tenant's DRAFT; Publish
+ * copies the draft to what visitors see. That split is why editing a live page
+ * is safe — nothing here changes the public page until Publish is pressed.
+ *
+ * The three editing concerns are separate components (theme picker, sections
+ * editor, and the content form below) rather than one file; the prior-art
+ * equivalent is a single 815-line component.
+ */
 
 type LandingPageForm = {
-  heroTagline: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  aboutTitle: string;
   aboutBody: string;
-  amenitiesBody: string;
-  contactOverride: string;
   ctaLabel: string;
   ctaHref: string;
 };
 
 const EMPTY: LandingPageForm = {
-  heroTagline: "",
+  heroTitle: "",
+  heroSubtitle: "",
+  aboutTitle: "",
   aboutBody: "",
-  amenitiesBody: "",
-  contactOverride: "",
   ctaLabel: "",
   ctaHref: "",
 };
 
 type Permissions = Record<string, string[]>;
 
-// Turn "" into null for a partial upsert; leave other values as-is — matches
-// the branding settings page's own toPayload() convention.
-function toPayload(f: LandingPageForm) {
-  const nn = (v: string) => (v.trim() === "" ? null : v.trim());
+const nn = (v: string) => (v.trim() === "" ? undefined : v.trim());
+
+/** Turn the flat form into the foundation's nested config shape. */
+function toConfig(f: LandingPageForm): LandingSnapshot["config"] {
+  const cta =
+    nn(f.ctaLabel) && nn(f.ctaHref)
+      ? { label: f.ctaLabel.trim(), href: f.ctaHref.trim() }
+      : undefined;
   return {
-    heroTagline: nn(f.heroTagline),
-    aboutBody: nn(f.aboutBody),
-    amenitiesBody: nn(f.amenitiesBody),
-    contactOverride: nn(f.contactOverride),
-    ctaLabel: nn(f.ctaLabel),
-    ctaHref: nn(f.ctaHref),
+    hero: {
+      title: nn(f.heroTitle),
+      subtitle: nn(f.heroSubtitle),
+      primaryCta: cta,
+    },
+    about: { title: nn(f.aboutTitle), body: nn(f.aboutBody) },
+  };
+}
+
+function fromConfig(config: LandingSnapshot["config"]): LandingPageForm {
+  return {
+    heroTitle: config?.hero?.title ?? "",
+    heroSubtitle: config?.hero?.subtitle ?? "",
+    aboutTitle: config?.about?.title ?? "",
+    aboutBody: config?.about?.body ?? "",
+    ctaLabel: config?.hero?.primaryCta?.label ?? "",
+    ctaHref: config?.hero?.primaryCta?.href ?? "",
   };
 }
 
 export default function LandingPageSettingsPage() {
   const [form, setForm] = useState<LandingPageForm>(EMPTY);
+  const [sections, setSections] = useState<SectionsConfig>({});
+  const [themePreset, setThemePreset] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<Permissions | undefined>(undefined);
+  const [isPublished, setIsPublished] = useState(false);
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const set = <K extends keyof LandingPageForm>(k: K, v: LandingPageForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -74,17 +112,12 @@ export default function LandingPageSettingsPage() {
         setPermissions(me.permissions);
       }
       if (contentRes.ok) {
-        const { content } = await contentRes.json();
-        if (content) {
-          setForm({
-            heroTagline: content.heroTagline ?? "",
-            aboutBody: content.aboutBody ?? "",
-            amenitiesBody: content.amenitiesBody ?? "",
-            contactOverride: content.contactOverride ?? "",
-            ctaLabel: content.ctaLabel ?? "",
-            ctaHref: content.ctaHref ?? "",
-          });
-        }
+        const data = await contentRes.json();
+        setForm(fromConfig(data.draft?.config));
+        setSections(data.draft?.sections ?? {});
+        setThemePreset(data.draft?.themePreset ?? null);
+        setIsPublished(data.isPublished);
+        setPublishedAt(data.publishedAt);
       }
       setLoading(false);
     })();
@@ -95,7 +128,9 @@ export default function LandingPageSettingsPage() {
 
   async function onSave() {
     setSaving(true);
-    const res = await api.rpc["landing-page"].$patch({ json: toPayload(form) });
+    const res = await api.rpc["landing-page"].$patch({
+      json: { config: toConfig(form), sections, themePreset },
+    });
     setSaving(false);
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -105,13 +140,102 @@ export default function LandingPageSettingsPage() {
     toast.success("Landing page updated.");
   }
 
+  async function onPublish() {
+    setPublishing(true);
+    const res = await api.rpc["landing-page"].publish.$post();
+    setPublishing(false);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      toast.error(body?.error ?? "Could not publish the landing page.");
+      return;
+    }
+    const data = await res.json();
+    setIsPublished(true);
+    setPublishedAt(data.publishedAt);
+    toast.success("Landing page published.");
+  }
+
+  async function onUnpublish() {
+    setPublishing(true);
+    const res = await api.rpc["landing-page"].unpublish.$post();
+    setPublishing(false);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      toast.error(body?.error ?? "Could not unpublish the landing page.");
+      return;
+    }
+    setIsPublished(false);
+    toast.success("Landing page unpublished.");
+  }
+
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
     <Can permissions={permissions} resource="landingPage" action="manage">
-      <Stack>
+      <Stack gap={4}>
+        <Card>
+          <CardHeader>
+            <Row className="items-center justify-between">
+              <Stack gap={1}>
+                <CardTitle>Publishing</CardTitle>
+                <CardDescription>
+                  Edits are saved as a draft. Your public page only changes when
+                  you publish.
+                </CardDescription>
+              </Stack>
+              <Badge variant={isPublished ? "default" : "secondary"}>
+                {isPublished ? "Live" : "Draft"}
+              </Badge>
+            </Row>
+          </CardHeader>
+          <CardFooter>
+            <Row wrap className="items-center gap-3">
+              <Button
+                onClick={onPublish}
+                disabled={publishing}
+                data-testid="landing-publish"
+              >
+                {publishing ? "Working…" : isPublished ? "Publish changes" : "Publish"}
+              </Button>
+              {isPublished ? (
+                <Button
+                  variant="outline"
+                  onClick={onUnpublish}
+                  disabled={publishing}
+                  data-testid="landing-unpublish"
+                >
+                  Unpublish
+                </Button>
+              ) : null}
+              {publishedAt ? (
+                <span className="text-sm text-muted-foreground">
+                  Last published {new Date(publishedAt).toLocaleString()}
+                </span>
+              ) : null}
+            </Row>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Pick a colour theme, then choose which sections appear and in what
+              order.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <ThemePicker value={themePreset} onChange={setThemePreset} />
+            <SectionsEditor
+              choices={TENANT_SECTION_CHOICES}
+              value={sections}
+              onChange={setSections}
+            />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Public landing page</CardTitle>
@@ -120,40 +244,29 @@ export default function LandingPageSettingsPage() {
               sign-in required.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="heroTagline">Hero tagline</Label>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="heroTitle">Hero tagline</Label>
               <Input
-                id="heroTagline"
-                value={form.heroTagline}
-                onChange={(e) => set("heroTagline", e.target.value)}
+                id="heroTitle"
+                value={form.heroTitle}
+                onChange={(e) => set("heroTitle", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="aboutBody">About</Label>
-              <Textarea
-                id="aboutBody"
-                rows={4}
-                value={form.aboutBody}
-                onChange={(e) => set("aboutBody", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="amenitiesBody">Amenities</Label>
-              <Textarea
-                id="amenitiesBody"
-                rows={4}
-                value={form.amenitiesBody}
-                onChange={(e) => set("amenitiesBody", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contactOverride">Contact override</Label>
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="heroSubtitle">Hero subtitle</Label>
               <Input
-                id="contactOverride"
-                placeholder="Leave blank to show your branches' own contact info"
-                value={form.contactOverride}
-                onChange={(e) => set("contactOverride", e.target.value)}
+                id="heroSubtitle"
+                value={form.heroSubtitle}
+                onChange={(e) => set("heroSubtitle", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="aboutTitle">About heading</Label>
+              <Input
+                id="aboutTitle"
+                value={form.aboutTitle}
+                onChange={(e) => set("aboutTitle", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -164,7 +277,16 @@ export default function LandingPageSettingsPage() {
                 onChange={(e) => set("ctaLabel", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="about">About</Label>
+              <Textarea
+                id="about"
+                rows={4}
+                value={form.aboutBody}
+                onChange={(e) => set("aboutBody", e.target.value)}
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="ctaHref">Call-to-action link</Label>
               <Input
                 id="ctaHref"
@@ -175,7 +297,7 @@ export default function LandingPageSettingsPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={onSave} disabled={saving}>
+            <Button onClick={onSave} disabled={saving} data-testid="landing-save">
               {saving ? "Saving…" : "Save"}
             </Button>
           </CardFooter>
