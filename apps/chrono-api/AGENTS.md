@@ -69,7 +69,13 @@ phase status):
   permission gates landed; web UI landed for stations/shifts.
 - `device` — schema + RLS landed (kiosk pairing/bearer-auth routes not yet built).
 - `payment` — schema + routes + permission gates landed; web UI + e2e landed.
-- `wallet` — schema + RLS landed (routes not yet built).
+  Member-facing online checkout (credit-purchase / wallet-topup via the
+  tenant's own PayMongo account, webhook-driven fulfilment) landed API-side
+  (`.ai/plans/chrono/active/member-credit-purchase/README.md`, Phases
+  C1–C4); its web UI is superseded by `member-area`'s Phase 7, and its e2e
+  spec is deferred until that UI lands.
+- `wallet` — schema + RLS landed (staff routes not yet built; the member
+  self-service top-up path is routed via `payment`'s own checkout, above).
 - `session` — contracts + money helpers in progress; no schema/routes yet.
 - `pos` and `reservation` landed ahead of their originally planned wave (`pos`: schema +
   contracts; `reservation`: schema, contracts, routes, web UI, e2e — plan archived at
@@ -172,6 +178,51 @@ For any such route:
 See `.ai/plans/chrono/active/security-hardening/README.md` Phase 2 for the full
 reasoning (the rate-limiting gap found across the `devices`/`qr`/`inquiries`/
 `public-stations` plans was one convention gap, not four separate bugs).
+
+`POST /payments/customer/webhook/:token` (member-credit-purchase plan) is the
+newest member of this family: rate-limited 120/min per IP
+(`customerPaymentWebhookLimiter`, `app.ts`), resolves its tenant from the path
+token via `findTenantByCustomerPaymentWebhookToken` (a `withAdmin` read — no
+session exists on an inbound webhook, so the token-hash match is the only
+isolation on this specific path, same stance as the foundation's
+`readPublishedLandingPage`), and never returns a raw row (just
+`{ received, ignored?, deduped? }`). It is the one exception to "reject
+terminal statuses": a suspended tenant's already-pending payment can still be
+fulfilled by a webhook that predates the suspension — this surface does not
+gate on tenant lifecycle status at all, since it never serves data back to
+the caller (PayMongo), only records/mutates one row.
+
+## Member online checkout (member-credit-purchase plan)
+
+A member buys a credit pack or tops up their wallet online, from
+`{slug}.APP_DOMAIN/portal/credits`, via `modules/payment/portal-routes.ts`
+(mounted `/portal/payments`, `memberMiddleware()`-gated):
+
+- `GET /portal/payments/gateway` — `{ available, currency }`, read directly off
+  the tenant's `customerPayment` integration row (not through
+  `resolveCustomerPaymentGateway`, so it reports honestly even when no secret
+  key is configured). The web UI must disable the Buy button rather than show
+  a button that 400s.
+- `POST /portal/payments/checkout` — `{ purpose: "credit_purchase" | "wallet_topup", productId? | amount? }`.
+  `memberId`/`tenantId` always come from `c.var.member`, never the body. A
+  `credit_purchase` reads its price server-side from the product; a
+  `wallet_topup` amount is client-supplied but bounded (₱20–₱10,000,
+  `modules/payment/contracts.ts`) and re-verified against the PSP-reported
+  amount at fulfilment. Rate-limited 10/15min per member. Returns
+  `{ paymentId, checkoutUrl }`.
+- `GET /portal/payments/:id` — the caller's own payment only (`memberId` is
+  part of the WHERE, not just tenant scope) — 404, not 403, for any other
+  payment (no existence leak).
+
+**Fulfilment is webhook-only** — `modules/payment/fulfilment.ts`'s
+`fulfilCustomerPayment` is the ONLY place a payment row is ever marked
+`paid`. The `/portal/credits?payment=<id>` return page the customer's browser
+lands on must poll `GET /portal/payments/:id`, never assume success from the
+redirect itself. See `.ai/plans/chrono/active/member-credit-purchase/README.md`
+for the full design (the two rollback traps around price drift and a
+product going unsellable between checkout and webhook delivery) and
+`docs/runbooks/customer-payment-webhook.md` for registering the webhook URL
+in PayMongo and what an amount-mismatch row means operationally.
 
 ## Landing pages
 
