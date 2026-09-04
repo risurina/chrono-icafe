@@ -148,7 +148,7 @@ export function TenantHeader({
             // `truncate` rather than wrap: a two-line wordmark broke the 80px
             // bar's vertical rhythm on a phone. A long venue name ellipsizes
             // instead, and the full name is still the page's <h1>.
-            <span className="block max-w-[9rem] truncate font-chrono text-base font-black uppercase tracking-tight text-primary sm:max-w-none sm:text-xl lg:text-2xl">
+            <span className="block max-w-[11rem] truncate font-chrono text-base font-black uppercase tracking-tight text-primary sm:max-w-none sm:text-xl lg:text-2xl">
               {displayName ?? tenantName}
             </span>
           )}

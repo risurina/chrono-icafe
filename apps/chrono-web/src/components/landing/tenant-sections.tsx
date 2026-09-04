@@ -703,20 +703,20 @@ export function TenantStations({
   const free = stations.filter((s) => s.status === "available").length;
   const anyFree = free > 0;
 
+  // `dot` is carried directly rather than as a STATION_TONE key: "in session"
+  // is a server-derived figure, not a station status, so it has no tone entry.
   const counts = [
-    { label: "Available", value: free, tone: "available" },
-    // Occupancy is not a station status — it is derived server-side, so read
-    // the aggregate rather than recomputing it wrongly from statuses.
-    { label: "In session", value: aggregate?.inUse ?? 0, tone: "occupied" },
+    { label: "Available", value: free, dot: STATION_TONE.available.dot },
+    { label: "In session", value: aggregate?.inUse ?? 0, dot: "bg-primary" },
     {
       label: "Maintenance",
       value: stations.filter((s) => s.status === "maintenance").length,
-      tone: "maintenance",
+      dot: STATION_TONE.maintenance.dot,
     },
     {
       label: "Offline",
       value: stations.filter((s) => s.status === "offline").length,
-      tone: "offline",
+      dot: STATION_TONE.offline.dot,
     },
   ] as const;
 
@@ -738,7 +738,7 @@ export function TenantStations({
 
         <Grid cols={4} gap={4} className="items-start">
           {/* Status rail */}
-          <Col gap={5} className={cn(PANEL, "col-span-4 lg:col-span-1")}>
+          <Col gap={4} className={cn(PANEL, "col-span-4 lg:col-span-1")}>
             <Row items="center" gap={2}>
               <Zap className="h-4 w-4 shrink-0 text-primary" aria-hidden />
               <span className="text-xs font-black uppercase tracking-widest">
@@ -796,7 +796,7 @@ export function TenantStations({
             </Row>
 
             <Col gap={2}>
-              {counts.map(({ label, value, tone }) => (
+              {counts.map(({ label, value, dot }) => (
                 <Row
                   key={label}
                   justify="between"
@@ -806,10 +806,7 @@ export function TenantStations({
                   <Row items="center" gap={3}>
                     <span
                       aria-hidden
-                      className={cn(
-                        "h-2 w-2 shrink-0 rounded-full",
-                        STATION_TONE[tone].dot,
-                      )}
+                      className={cn("h-2 w-2 shrink-0 rounded-full", dot)}
                     />
                     <span className={LABEL}>{label}</span>
                   </Row>
@@ -860,7 +857,11 @@ export function TenantStations({
                         Each card is tinted by its own status — the reference
                         renders every card identically amber, so its statuses
                         are legible only by reading each badge. */}
-                    <Grid cols={4} gap={4} className="grid-cols-2 sm:grid-cols-3">
+                    <Grid
+                      cols={4}
+                      gap={4}
+                      className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                    >
                       {branch.stations.map((station) => {
                         const tone =
                           STATION_TONE[station.status as StationStatus] ??
