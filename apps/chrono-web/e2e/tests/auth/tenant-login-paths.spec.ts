@@ -113,13 +113,15 @@ test.describe("Tenant login paths", () => {
     });
 
     // Sidebar links render the public /admin/* URL, never the physical /dashboard
-    // tree. This is an in-app Next.js <Link> (client-side transition, no full page
-    // load), so assert with toHaveURL — it polls the URL directly rather than
-    // waiting on a "load" event that a client-side route change never fires.
-    await page.getByRole("link", { name: "Branches" }).click();
-    await expect(page).toHaveURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin/branches(\\?|$)`), {
-      timeout: 15_000,
-    });
+    // tree (a fresh business lands on the setup wizard, but the same sidebar wraps
+    // it — check the href directly rather than clicking through the wizard).
+    await expect(page.getByRole("link", { name: "Branches" })).toHaveAttribute(
+      "href",
+      "/admin/branches",
+    );
+    await page.goto(`${base}/admin/branches`);
+    await expect(page).toHaveURL(`${base}/admin/branches`);
+    await expect(page.getByRole("heading", { name: "Branches" })).toBeVisible();
   });
 
   test("customer: /login is the member sign-in → /portal; /portal/login redirects to /login; apex /login stays staff", async ({
