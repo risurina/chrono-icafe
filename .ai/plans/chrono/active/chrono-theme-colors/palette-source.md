@@ -51,7 +51,7 @@ https://chrono.izur.com.ph/_next/static/chunks/15_6pk03z6c4i.css
   as the brand gold. The live site's own `primary`/`secondary-foreground`/
   `accent-foreground` all use `#b8860b` at ~3:1 contrast against their backgrounds,
   which fails WCAG AA text contrast (4.5:1) — see plan-audit Finding 2. This plan
-  **deviates from the verbatim source** in two ways, both documented in `README.md`,
+  **deviates from the verbatim source** in three ways, all documented in `README.md`,
   Phase 1:
   1. Five *text/foreground* roles use a darker gold, `#8a6508`, instead of the
      source's `#b8860b`: `primary`, `secondary-foreground`, `accent-foreground`,
@@ -62,4 +62,8 @@ https://chrono.izur.com.ph/_next/static/chunks/15_6pk03z6c4i.css
      AA text) — `#c0392b` clears 4.5:1 on both `card` and `background`, since
      `agora/ui` renders this token as text (error messages) more often than as a
      filled surface.
-  Both are deliberate, documented accessibility fixes, not copy errors.
+  3. `muted-foreground` uses `#6b6660` instead of the source's `#78716c` (4.40:1 on
+     `muted`, marginally fails AA) — flagged during branch review since the pair
+     renders directly in `agora/ui`'s tabs and notification-bell components.
+     `#6b6660` clears ~5.2:1 on `muted` and ~5.4:1 on `background`.
+  All three are deliberate, documented accessibility fixes, not copy errors.

@@ -87,7 +87,7 @@ verification is re-scoped to an unbranded tenant; a cold-load check is added;
    `background:#faf9f6` `foreground:#1c1917` `card:#fff`
    `card-foreground:#1c1917` `popover:#fff` `popover-foreground:#1c1917`
    `primary:#8a6508` `primary-foreground:#faf9f6` `secondary:#f5f5f4`
-   `secondary-foreground:#8a6508` `muted:#f5f5f4` `muted-foreground:#78716c`
+   `secondary-foreground:#8a6508` `muted:#f5f5f4` `muted-foreground:#6b6660`
    `accent:#f5f5f4` `accent-foreground:#8a6508` `destructive:#c0392b`
    `border:#b8860b26` `input:#b8860b26` `ring:#b8860b`
    `chart-1:#b8860b` `chart-2:#10b981` `chart-3:#3b82f6` `chart-4:#f59e0b`
@@ -109,6 +109,11 @@ verification is re-scoped to an unbranded tenant; a cold-load check is added;
    darkened from the source's `#ef4444` to `#c0392b` (3.76:1 → passes 4.5:1 on
    both `card`/`background`) since it renders as text (error messages) more
    often than as a filled surface in this codebase's `agora/ui` components.
+   `muted-foreground` is darkened from the source's `#78716c` to `#6b6660`
+   (4.40:1 on `muted` — marginally fails AA; flagged during branch review
+   since the pair renders directly in `agora/ui`'s `tabs`/`notification-bell`
+   components) — `#6b6660` clears ~5.2:1 on `muted` and ~5.4:1 on
+   `background`.
 2. Replace every color value in `.dark` with the gold-dark palette (verbatim
    from the source — clean contrast throughout, ≥4.6:1 on every text pair,
    most well above that):
