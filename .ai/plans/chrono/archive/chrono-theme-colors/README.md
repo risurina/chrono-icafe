@@ -1,5 +1,22 @@
 # Chrono-web: elegant-gold color theme + smooth dark/light transition
 
+## Handoff note
+
+**Status: implemented and reviewed.** Branch `feature/chrono-elegant-gold-theme`,
+3 commits: `f7933ad1` (palette + transition), `50f168b9` (fix-review: darkened
+`muted-foreground` for AA). Plan-audited twice (NEEDS REVISION → APPROVED WITH
+CONDITIONS) before implementation, branch-reviewed once after (APPROVE WITH
+NITS, one Warning fixed). `pnpm typecheck` green throughout.
+
+**Not run:** the plan's live browser smoke check (cold-load-in-dark-mode fade
+check, Sheet/Dialog/Switch animation regression check, palette render on an
+unbranded tenant) — no root `.env` was present in this worktree, so `pnpm dev`
+could not start the DB-backed app. This is a genuine verification gap, not a
+skipped step; the developer should run it once `pnpm dev` is available (see
+"Verification (end-to-end)" below) before considering this fully done. If the
+cold-load check shows a visible fade in dark mode, apply the named fallback
+in Phase 2, step 4.
+
 ## Context
 
 The developer wants `apps/chrono-web` to adopt the "elegant gold" color palette
