@@ -38,9 +38,15 @@ const HEADER_PROPS = {
 
 const NAV_LINK = "font-medium transition-colors hover:text-foreground";
 
-/** The gold pill: semantic `bg-primary` + a primary-tinted glow. */
+/**
+ * The gold pill: semantic `bg-primary` + a primary-tinted glow.
+ *
+ * Compact below `sm`: at 390px the full-size pill crowded the wordmark and the
+ * hamburger into each other. It stays visible rather than moving into the
+ * drawer — it is the surface's primary action.
+ */
 const CTA_PILL =
-  "h-10 rounded-full px-6 text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-primary/20";
+  "h-9 shrink-0 rounded-full px-4 text-[9px] font-bold uppercase tracking-widest shadow-lg shadow-primary/20 sm:h-10 sm:px-6 sm:text-[10px]";
 
 const NAV = [
   { label: "Features", href: "/#features" },
@@ -75,13 +81,18 @@ export function MarketingHeader() {
       }
       actions={
         <>
-          <ThemeToggle />
+          {/* The toggle is a nicety, and at 390px it competed with the brand
+              and the CTA for the same 40px. It returns at `sm`. */}
+          <Row className="hidden sm:flex">
+            <ThemeToggle />
+          </Row>
           <Link
             href="/contact"
             className={cn(buttonVariants(), CTA_PILL)}
             data-testid="marketing-cta"
           >
-            Request Private Demo
+            <span className="sm:hidden">Book demo</span>
+            <span className="hidden sm:inline">Request Private Demo</span>
           </Link>
         </>
       }
@@ -133,7 +144,11 @@ export function TenantHeader({
             // face, matching the SaaS lockup's weight. `BrandHeader`'s text
             // fallback is small body copy, which reads as a stray label in an
             // 80px marketing bar.
-            <span className="font-chrono text-xl font-black uppercase tracking-tight text-primary lg:text-2xl">
+            //
+            // `truncate` rather than wrap: a two-line wordmark broke the 80px
+            // bar's vertical rhythm on a phone. A long venue name ellipsizes
+            // instead, and the full name is still the page's <h1>.
+            <span className="block max-w-[9rem] truncate font-chrono text-base font-black uppercase tracking-tight text-primary sm:max-w-none sm:text-xl lg:text-2xl">
               {displayName ?? tenantName}
             </span>
           )}
@@ -158,7 +173,9 @@ export function TenantHeader({
       }
       actions={
         <>
-          <ThemeToggle />
+          <Row className="hidden sm:flex">
+            <ThemeToggle />
+          </Row>
           <Link
             href="/login"
             className={cn(
@@ -173,7 +190,8 @@ export function TenantHeader({
             className={cn(buttonVariants(), CTA_PILL)}
             data-testid="tenant-cta"
           >
-            Member login
+            <span className="sm:hidden">Sign in</span>
+            <span className="hidden sm:inline">Member login</span>
           </Link>
         </>
       }

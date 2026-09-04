@@ -703,6 +703,23 @@ export function TenantStations({
   const free = stations.filter((s) => s.status === "available").length;
   const anyFree = free > 0;
 
+  const counts = [
+    { label: "Available", value: free, tone: "available" },
+    // Occupancy is not a station status — it is derived server-side, so read
+    // the aggregate rather than recomputing it wrongly from statuses.
+    { label: "In session", value: aggregate?.inUse ?? 0, tone: "occupied" },
+    {
+      label: "Maintenance",
+      value: stations.filter((s) => s.status === "maintenance").length,
+      tone: "maintenance",
+    },
+    {
+      label: "Offline",
+      value: stations.filter((s) => s.status === "offline").length,
+      tone: "offline",
+    },
+  ] as const;
+
   return (
     <Section
       id="stations"
@@ -714,143 +731,197 @@ export function TenantStations({
         <Row justify="between" items="center" className="mb-10 flex-col gap-6 md:flex-row">
           <Col gap={4}>
             <span className={EYEBROW}>Live monitor</span>
-            <h2 className={TITLE}>Seats available now</h2>
+            <h2 className={TITLE}>Station matrix</h2>
           </Col>
           <StationRefresh />
         </Row>
 
-        {/* The headline answers the only question a visitor actually has, so it
-            leads — rather than a rail of maintenance/offline counters, which is
-            operator data a customer has no use for. */}
-        <Row
-          items="center"
-          justify="between"
-          className={cn(
-            PANEL,
-            "mb-10 flex-col gap-8 p-8 md:flex-row",
-            anyFree ? "border-chart-2/30" : "border-primary/30",
-          )}
-        >
-          <Col gap={4} className="w-full">
-            <Row items="end" gap={3}>
-              <span
-                className={cn(
-                  "text-6xl font-black leading-none",
-                  anyFree ? "text-chart-2" : "text-muted-foreground",
-                )}
-                data-testid="landing-stations-free-count"
-              >
-                {free}
-              </span>
-              <span className="pb-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                of {total} stations free
+        <Grid cols={4} gap={4} className="items-start">
+          {/* Status rail */}
+          <Col gap={5} className={cn(PANEL, "col-span-4 lg:col-span-1")}>
+            <Row items="center" gap={2}>
+              <Zap className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <span className="text-xs font-black uppercase tracking-widest">
+                Network status
               </span>
             </Row>
-            <span className="block h-1.5 w-full overflow-hidden rounded-full bg-border">
+
+            {/* The rail leads with the only number a visitor came for, rather
+                than burying it as the first of four equal-weight counters. */}
+            <Col gap={3}>
+              <Row items="end" gap={2}>
+                <span
+                  className={cn(
+                    "text-5xl font-black leading-none",
+                    anyFree ? "text-chart-2" : "text-muted-foreground",
+                  )}
+                  data-testid="landing-stations-free-count"
+                >
+                  {free}
+                </span>
+                <span className="pb-1 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  of {total} free
+                </span>
+              </Row>
+              <span className="block h-1.5 w-full overflow-hidden rounded-full bg-border">
+                <span
+                  className={cn(
+                    "block h-full transition-all duration-1000",
+                    anyFree ? "bg-chart-2" : "bg-primary/40",
+                  )}
+                  style={{ width: `${total ? (free / total) * 100 : 0}%` }}
+                />
+              </span>
+            </Col>
+
+            <Row
+              justify="between"
+              items="center"
+              className={cn(
+                "rounded-xl border px-4 py-3",
+                isOpen
+                  ? "border-chart-2/30 bg-chart-2/5"
+                  : "border-border bg-card/30",
+              )}
+            >
+              <span className={LABEL}>Lounge status</span>
               <span
                 className={cn(
-                  "block h-full transition-all duration-1000",
-                  anyFree ? "bg-chart-2" : "bg-primary/40",
+                  "text-xs font-black uppercase tracking-widest",
+                  isOpen ? "text-chart-2" : "text-muted-foreground",
                 )}
-                style={{ width: `${total ? (free / total) * 100 : 0}%` }}
-              />
-            </span>
-            <span className={LABEL}>
-              {isOpen
-                ? anyFree
-                  ? "Open — walk in any time"
-                  : "Open — every station is busy right now"
-                : "Currently closed"}
-            </span>
+              >
+                {isOpen ? "Open" : "Closed"}
+              </span>
+            </Row>
+
+            <Col gap={2}>
+              {counts.map(({ label, value, tone }) => (
+                <Row
+                  key={label}
+                  justify="between"
+                  items="center"
+                  className="rounded-xl border border-border px-4 py-3"
+                >
+                  <Row items="center" gap={3}>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        STATION_TONE[tone].dot,
+                      )}
+                    />
+                    <span className={LABEL}>{label}</span>
+                  </Row>
+                  <span className="text-sm font-black">{value}</span>
+                </Row>
+              ))}
+            </Col>
+
+            {/* A live board with no next step is a dead end, so the state
+                itself picks the action. */}
+            <Link
+              href={anyFree ? "#location" : "/portal/login"}
+              className={cn(buttonVariants(), PILL_CTA, "w-full")}
+            >
+              {anyFree ? "Get directions" : "Reserve a seat"}
+            </Link>
           </Col>
 
-          {/* A live board with no next step is a dead end, so the state itself
-              picks the action: walk in when there is room, reserve when there
-              is not. */}
-          <Link
-            href={anyFree ? "#location" : "/portal/login"}
-            className={cn(buttonVariants(), PILL_CTA, "w-full shrink-0 md:w-auto")}
-          >
-            {anyFree ? "Get directions" : "Reserve a seat"}
-          </Link>
-        </Row>
+          {/* Station grid, grouped by branch */}
+          <Stack gap={8} className={cn(PANEL, "col-span-4 lg:col-span-3")}>
+            {branches
+              .filter((branch) => branch.stations.length > 0)
+              .map((branch) => {
+                const branchFree = branch.stations.filter(
+                  (s) => s.status === "available",
+                ).length;
+                return (
+                  <Col key={branch.id} gap={4}>
+                    <Row items="center" gap={3} wrap>
+                      <span className="text-xs font-black uppercase tracking-widest">
+                        {branch.name}
+                      </span>
+                      <span aria-hidden className="text-muted-foreground/40">
+                        ·
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-widest",
+                          branchFree > 0 ? "text-chart-2" : "text-muted-foreground",
+                        )}
+                      >
+                        {branchFree} of {branch.stations.length} free
+                      </span>
+                    </Row>
 
-        <Stack gap={8}>
-          {branches
-            .filter((branch) => branch.stations.length > 0)
-            .map((branch) => {
-              const branchFree = branch.stations.filter(
-                (s) => s.status === "available",
-              ).length;
-              return (
-                <Col key={branch.id} gap={4}>
-                  <Row items="center" gap={3} wrap>
-                    <span className="text-xs font-black uppercase tracking-widest">
-                      {branch.name}
-                    </span>
-                    <span aria-hidden className="text-muted-foreground/40">
-                      ·
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-black uppercase tracking-widest",
-                        branchFree > 0 ? "text-chart-2" : "text-muted-foreground",
-                      )}
-                    >
-                      {branchFree} of {branch.stations.length} free
-                    </span>
-                  </Row>
-
-                  {/* Colour-weighted chips: a free seat is bright and a busy one
-                      recedes, so the row is scannable without reading a single
-                      label — the thing a grid of identical icons cannot do. */}
-                  <Row wrap gap={3}>
-                    {branch.stations.map((station) => {
-                      const tone =
-                        STATION_TONE[station.status as StationStatus] ??
-                        STATION_TONE.offline;
-                      const isFree = station.status === "available";
-                      return (
-                        <Row
-                          key={station.id}
-                          items="center"
-                          gap={3}
-                          className={cn(
-                            "rounded-xl border px-4 py-3 transition-colors",
-                            isFree
-                              ? "border-chart-2/40 bg-chart-2/5"
-                              : "border-border bg-card/30 opacity-60",
-                          )}
-                          data-testid={`landing-station-${station.name}`}
-                        >
-                          <Monitor
+                    {/* A real grid, so cards fill the rail's remaining width
+                        instead of wrapping and leaving dead space beside it.
+                        Each card is tinted by its own status — the reference
+                        renders every card identically amber, so its statuses
+                        are legible only by reading each badge. */}
+                    <Grid cols={4} gap={4} className="grid-cols-2 sm:grid-cols-3">
+                      {branch.stations.map((station) => {
+                        const tone =
+                          STATION_TONE[station.status as StationStatus] ??
+                          STATION_TONE.offline;
+                        const isFree = station.status === "available";
+                        return (
+                          <Col
+                            key={station.id}
+                            gap={3}
                             className={cn(
-                              "h-4 w-4 shrink-0",
-                              isFree ? "text-chart-2" : "text-muted-foreground",
+                              "rounded-xl border p-3 transition-colors",
+                              isFree
+                                ? "border-chart-2/40 hover:border-chart-2"
+                                : "border-border opacity-70 hover:opacity-100",
                             )}
-                            aria-hidden
-                          />
-                          <Col gap={0}>
-                            <span className="text-xs font-black uppercase tracking-widest">
-                              {station.name}
-                            </span>
-                            <span
+                            data-testid={`landing-station-${station.name}`}
+                          >
+                            <Col
+                              gap={3}
                               className={cn(
-                                "text-[9px] font-bold uppercase tracking-widest",
-                                isFree ? "text-chart-2" : tone.text,
+                                "rounded-lg p-4",
+                                isFree ? "bg-chart-2/10" : "bg-muted/30",
                               )}
                             >
-                              {tone.label}
+                              <Row items="center" gap={2}>
+                                <span
+                                  aria-hidden
+                                  className={cn(
+                                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                                    tone.dot,
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    "truncate text-[9px] font-black uppercase tracking-widest",
+                                    tone.text,
+                                  )}
+                                >
+                                  {tone.label}
+                                </span>
+                              </Row>
+                              <Monitor
+                                className={cn(
+                                  "mx-auto h-7 w-7",
+                                  isFree ? "text-chart-2" : "text-muted-foreground",
+                                )}
+                                aria-hidden
+                              />
+                            </Col>
+                            <span className="truncate text-xs font-black uppercase tracking-widest">
+                              {station.name}
                             </span>
                           </Col>
-                        </Row>
-                      );
-                    })}
-                  </Row>
-                </Col>
-              );
-            })}
-        </Stack>
+                        );
+                      })}
+                    </Grid>
+                  </Col>
+                );
+              })}
+          </Stack>
+        </Grid>
       </Stack>
     </Section>
   );

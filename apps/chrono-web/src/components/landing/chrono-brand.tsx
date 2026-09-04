@@ -2,14 +2,16 @@ import Image from "next/image";
 import { Row, Stack } from "agora/ui";
 import { cn } from "agora/ui/cn";
 
+// The mark and wordmark step down on a phone: at 390px the full-size lockup
+// left no room for the CTA and the drawer trigger beside it.
 const MARK = {
-  sm: { px: 40, cls: "h-10 w-10" },
-  md: { px: 48, cls: "h-12 w-12" },
+  sm: { px: 40, cls: "h-8 w-8 sm:h-10 sm:w-10" },
+  md: { px: 48, cls: "h-9 w-9 sm:h-12 sm:w-12" },
 } as const;
 
 const WORDMARK = {
-  sm: "text-xl",
-  md: "text-2xl",
+  sm: "text-base sm:text-xl",
+  md: "text-lg sm:text-2xl",
 } as const;
 
 /**
