@@ -7,7 +7,15 @@ import { hashMemberPassword } from "agora/member-auth";
 import { createId } from "agora";
 import { project, tenantSubscription, tenantSubscriptionEvent } from "./db/schema";
 import { chronoBranch } from "./modules/branch/schema";
-import { chronoStation } from "./modules/station/schema";
+import { chronoStation, chronoStationGroup } from "./modules/station/schema";
+import { chronoDevice } from "./modules/device/schema";
+import {
+  chronoCreditProduct,
+  chronoCreditGrant,
+  chronoCreditPurchase,
+  chronoCreditGrantLedgerEntry,
+} from "./modules/credit/schema";
+import { chronoWallet, chronoWalletTransaction } from "./modules/wallet/schema";
 
 /**
  * Seed two demo tenants. Each gets a staff owner, a customer, and projects.
@@ -56,6 +64,17 @@ const TENANTS = [
 
 const PASSWORD = "Password123!";
 
+// A literal replica of karta-oikos/chrono's "gaming" demo tenant identities —
+// same emails, same shared placeholder password — kept separate from the
+// generic `.test`-tenant PASSWORD above so the two never get conflated.
+// SECURITY: this is a known, publicly-guessable placeholder password;
+// never seed it against a database backing a real production hostname.
+const GAMING_PASSWORD = "Izur1234!";
+const GAMING_OWNER_EMAIL = "gaming@izur.com.ph";
+const GAMING_STAFF_EMAIL = "staff-gaming@izur.com.ph";
+const GAMING_CUSTOMER_EMAIL = "player-gaming@izur.com.ph";
+const GAMING_DOMAIN_HOSTNAME = "chrono2.izur.com.ph";
+
 // Approved in both acme and contoso — one global identity, two independent
 // linked tenantMember rows (agora/customer-auth). Sign in once at the apex
 // /portal/login, then visit either tenant's /portal with no second login.
@@ -79,12 +98,13 @@ const SUBSCRIPTIONS: Record<
   acme: { plan: "pro", status: "active", seats: 10 },
   contoso: { plan: "pro", status: "past_due", seats: 10 },
   globex: { plan: "free", status: "trialing", seats: 3 },
+  gaming: { plan: "pro", status: "active", seats: 10 },
 };
 
-async function ensureUser(email: string, name: string): Promise<string> {
+async function ensureUser(email: string, name: string, password = PASSWORD): Promise<string> {
   try {
     const res = await auth.api.signUpEmail({
-      body: { email, password: PASSWORD, name },
+      body: { email, password, name },
     });
     return res.user.id;
   } catch {
@@ -229,20 +249,25 @@ async function ensureBranchesAndStations(orgId: string) {
     {
       code: "main",
       name: "Acme Main Branch",
+      groups: [
+        { code: "regular", name: "Regular", hourlyRate: "40.00", memberRate: "32.00" },
+        { code: "premium", name: "Premium", hourlyRate: "70.00", memberRate: "56.00" },
+      ],
       stations: [
-        { stationNumber: "PC-01", name: "Station 1", stationType: "pc", status: "available" },
-        { stationNumber: "PC-02", name: "Station 2", stationType: "pc", status: "available" },
-        { stationNumber: "PC-03", name: "Station 3", stationType: "pc", status: "maintenance" },
-        { stationNumber: "PC-04", name: "Station 4", stationType: "pc", status: "offline" },
+        { stationNumber: "PC-01", name: "Station 1", stationType: "pc", status: "available", group: "regular" },
+        { stationNumber: "PC-02", name: "Station 2", stationType: "pc", status: "available", group: "regular" },
+        { stationNumber: "PC-03", name: "Station 3", stationType: "pc", status: "maintenance", group: "premium" },
+        { stationNumber: "PC-04", name: "Station 4", stationType: "pc", status: "offline", group: "premium" },
       ],
     },
     {
       code: "vip",
       name: "Acme VIP Lounge",
+      groups: [{ code: "vip", name: "VIP", hourlyRate: "120.00", memberRate: "96.00" }],
       stations: [
-        { stationNumber: "VIP-01", name: "VIP Seat 1", stationType: "vip", status: "available" },
-        { stationNumber: "VIP-02", name: "VIP Seat 2", stationType: "vip", status: "available" },
-        { stationNumber: "VIP-03", name: "VIP Seat 3", stationType: "vip", status: "maintenance" },
+        { stationNumber: "VIP-01", name: "VIP Seat 1", stationType: "vip", status: "available", group: "vip" },
+        { stationNumber: "VIP-02", name: "VIP Seat 2", stationType: "vip", status: "available", group: "vip" },
+        { stationNumber: "VIP-03", name: "VIP Seat 3", stationType: "vip", status: "maintenance", group: "vip" },
       ],
     },
   ];
@@ -263,6 +288,30 @@ async function ensureBranchesAndStations(orgId: string) {
         branchId = newBranchId;
       }
 
+      const groupIdByCode: Record<string, string> = {};
+      for (const g of b.groups) {
+        const [existingGroup] = await tx
+          .select({ id: chronoStationGroup.id })
+          .from(chronoStationGroup)
+          .where(and(eq(chronoStationGroup.branchId, branchId), eq(chronoStationGroup.code, g.code)))
+          .limit(1);
+        if (existingGroup) {
+          groupIdByCode[g.code] = existingGroup.id;
+          continue;
+        }
+        const newGroupId = createId();
+        await tx.insert(chronoStationGroup).values({
+          id: newGroupId,
+          tenantId: orgId,
+          branchId,
+          name: g.name,
+          code: g.code,
+          hourlyRate: g.hourlyRate,
+          memberRate: g.memberRate,
+        });
+        groupIdByCode[g.code] = newGroupId;
+      }
+
       for (const s of b.stations) {
         const [existingStation] = await tx
           .select({ id: chronoStation.id })
@@ -277,6 +326,7 @@ async function ensureBranchesAndStations(orgId: string) {
           id: createId(),
           tenantId: orgId,
           branchId,
+          stationGroupId: groupIdByCode[s.group],
           name: s.name,
           stationNumber: s.stationNumber,
           stationType: s.stationType,
@@ -285,6 +335,299 @@ async function ensureBranchesAndStations(orgId: string) {
       }
     }
   });
+}
+
+/**
+ * Seed one approved device per acme station, four sellable credit packages
+ * (one locked to the main branch's "regular" tier, three spendable anywhere),
+ * and a demo wallet + credit-grant ledger trail for acme's customer — so the
+ * device/credit/wallet modules (schema-only until now) have real local demo
+ * data to render against. Idempotent: devices are looked up by stationId
+ * (fingerprints are random, so can't double as the idempotency key), products
+ * by their unique (tenantId, code), and the wallet/purchase/grant/ledger rows
+ * by the customer's existing wallet/purchase presence.
+ */
+async function seedGamingDemoData(orgId: string, ownerUserId: string, memberEmail: string) {
+  await withTenant(orgId, async (tx) => {
+    // --- devices: one approved device per station -------------------------
+    const stations = await tx
+      .select({ id: chronoStation.id, branchId: chronoStation.branchId })
+      .from(chronoStation);
+
+    for (const station of stations) {
+      const [existingDevice] = await tx
+        .select({ id: chronoDevice.id })
+        .from(chronoDevice)
+        .where(eq(chronoDevice.stationId, station.id))
+        .limit(1);
+      if (existingDevice) continue;
+
+      await tx.insert(chronoDevice).values({
+        id: createId(),
+        tenantId: orgId,
+        branchId: station.branchId,
+        stationId: station.id,
+        deviceFingerprint: randomBytes(16).toString("hex"),
+        tokenHash: randomBytes(32).toString("hex"),
+        status: "approved",
+        connectivityStatus: "online",
+        approvedByUserId: ownerUserId,
+        approvedAt: new Date(),
+      });
+    }
+
+    // --- credit products ----------------------------------------------------
+    const [mainBranch] = await tx
+      .select({ id: chronoBranch.id })
+      .from(chronoBranch)
+      .where(eq(chronoBranch.code, "main"))
+      .limit(1);
+    const [regularGroup] = mainBranch
+      ? await tx
+          .select({ id: chronoStationGroup.id })
+          .from(chronoStationGroup)
+          .where(
+            and(eq(chronoStationGroup.branchId, mainBranch.id), eq(chronoStationGroup.code, "regular")),
+          )
+          .limit(1)
+      : [];
+
+    const PRODUCTS = [
+      {
+        code: "regular-60",
+        name: "Regular Hour Pack",
+        quantityMinutes: 60,
+        priceAmount: "200.00",
+        creditPolicy: "strict_group_only",
+        stationGroupId: regularGroup?.id ?? null,
+      },
+      {
+        code: "any-station-30",
+        name: "Any-Station 30",
+        quantityMinutes: 30,
+        priceAmount: "150.00",
+        creditPolicy: "any_station",
+        stationGroupId: null,
+      },
+      {
+        code: "weekend-bundle",
+        name: "Weekend Gamer Pack",
+        quantityMinutes: 180,
+        priceAmount: "700.00",
+        creditPolicy: "any_station",
+        stationGroupId: null,
+      },
+    ];
+
+    const productIdByCode: Record<string, string> = {};
+    for (const p of PRODUCTS) {
+      const [existingProduct] = await tx
+        .select({ id: chronoCreditProduct.id })
+        .from(chronoCreditProduct)
+        .where(eq(chronoCreditProduct.code, p.code))
+        .limit(1);
+      if (existingProduct) {
+        productIdByCode[p.code] = existingProduct.id;
+        continue;
+      }
+      const newProductId = createId();
+      await tx.insert(chronoCreditProduct).values({
+        id: newProductId,
+        tenantId: orgId,
+        name: p.name,
+        code: p.code,
+        status: "active",
+        quantityMinutes: p.quantityMinutes,
+        priceAmount: p.priceAmount,
+        stationGroupId: p.stationGroupId,
+        creditPolicy: p.creditPolicy,
+      });
+      productIdByCode[p.code] = newProductId;
+    }
+
+    // --- wallet + a demo purchase for acme's customer ------------------------
+    const [member] = await tx
+      .select({ id: schema.tenantMember.id })
+      .from(schema.tenantMember)
+      .where(eq(schema.tenantMember.email, memberEmail))
+      .limit(1);
+    if (!member) return;
+
+    let [wallet] = await tx
+      .select({ id: chronoWallet.id, balance: chronoWallet.balance })
+      .from(chronoWallet)
+      .where(eq(chronoWallet.memberId, member.id))
+      .limit(1);
+
+    if (!wallet) {
+      const newWalletId = createId();
+      await tx.insert(chronoWallet).values({
+        id: newWalletId,
+        tenantId: orgId,
+        memberId: member.id,
+        balance: "1000.00",
+      });
+      await tx.insert(chronoWalletTransaction).values({
+        id: createId(),
+        tenantId: orgId,
+        walletId: newWalletId,
+        memberId: member.id,
+        type: "credit",
+        amount: "1000.00",
+        balanceBefore: "0.00",
+        balanceAfter: "1000.00",
+        reason: "seed top-up",
+        referenceType: "manual_topup",
+      });
+      wallet = { id: newWalletId, balance: "1000.00" };
+    }
+
+    const weekendProductId = productIdByCode["weekend-bundle"];
+    const [existingPurchase] = weekendProductId
+      ? await tx
+          .select({ id: chronoCreditPurchase.id })
+          .from(chronoCreditPurchase)
+          .where(
+            and(
+              eq(chronoCreditPurchase.memberId, member.id),
+              eq(chronoCreditPurchase.productId, weekendProductId),
+            ),
+          )
+          .limit(1)
+      : [];
+    if (existingPurchase || !weekendProductId) return;
+
+    const price = "700.00";
+    const balanceBefore = wallet.balance;
+    const balanceAfter = (Number(balanceBefore) - Number(price)).toFixed(2);
+
+    const purchaseWalletTxId = createId();
+    await tx.insert(chronoWalletTransaction).values({
+      id: purchaseWalletTxId,
+      tenantId: orgId,
+      walletId: wallet.id,
+      memberId: member.id,
+      type: "debit",
+      amount: `-${price}`,
+      balanceBefore,
+      balanceAfter,
+      reason: "seed credit purchase: weekend-bundle",
+      referenceType: "credit_purchase",
+    });
+    await tx
+      .update(chronoWallet)
+      .set({ balance: balanceAfter })
+      .where(eq(chronoWallet.id, wallet.id));
+
+    const grantId = createId();
+    await tx.insert(chronoCreditGrant).values({
+      id: grantId,
+      tenantId: orgId,
+      memberId: member.id,
+      productId: weekendProductId,
+      creditPolicy: "any_station",
+      originalQuantity: 180,
+      remainingQuantity: 180,
+      status: "granted",
+    });
+
+    const purchaseId = createId();
+    await tx.insert(chronoCreditPurchase).values({
+      id: purchaseId,
+      tenantId: orgId,
+      memberId: member.id,
+      productId: weekendProductId,
+      grantId,
+      quantityMinutes: 180,
+      priceAmount: price,
+      walletTransactionId: purchaseWalletTxId,
+    });
+
+    await tx.insert(chronoCreditGrantLedgerEntry).values({
+      id: createId(),
+      tenantId: orgId,
+      grantId,
+      memberId: member.id,
+      type: "granted",
+      quantityDelta: 180,
+      quantityBefore: 0,
+      quantityAfter: 180,
+      reason: "seed credit purchase",
+      referenceType: "purchase",
+      referenceId: purchaseId,
+    });
+  });
+}
+
+/**
+ * Idempotently point a hostname at a tenant (`agora/db/schema`'s `domain`
+ * table, `"Domains"`) — `resolveOrgFromRequest()`
+ * (`packages/agora/src/core/server/host.ts`) only checks `verifiedAt IS NOT
+ * NULL`, so setting it here is sufficient for local/demo routing (no real DNS
+ * verification flow is exercised).
+ */
+async function ensureCustomDomain(orgId: string, hostname: string) {
+  const [existing] = await adminDb
+    .select({ id: schema.domain.id })
+    .from(schema.domain)
+    .where(eq(schema.domain.hostname, hostname))
+    .limit(1);
+  if (existing) return;
+  await adminDb.insert(schema.domain).values({
+    id: createId(),
+    tenantId: orgId,
+    hostname,
+    verifiedAt: new Date(),
+    isPrimary: true,
+  });
+}
+
+/**
+ * A literal replica of karta-oikos/chrono's "gaming" demo tenant — owner,
+ * staff, and customer identities matching oikos's exact emails/password,
+ * reachable at `chrono2.izur.com.ph` via a seeded custom domain — layered on
+ * top of the same station-tier/device/credit/wallet demo data acme gets
+ * (`ensureBranchesAndStations` / `seedGamingDemoData`, both already generic
+ * over `orgId`).
+ */
+async function seedGamingTenant(): Promise<string> {
+  const ownerUserId = await ensureUser(GAMING_OWNER_EMAIL, "Gaming Owner", GAMING_PASSWORD);
+  const orgId = await ensureOrg("gaming", "Gaming Lounge");
+  await ensureMember(orgId, ownerUserId, "owner");
+
+  const staffUserId = await ensureUser(GAMING_STAFF_EMAIL, "Gaming Staff", GAMING_PASSWORD);
+  await ensureMember(orgId, staffUserId, "staff");
+
+  await ensureCustomDomain(orgId, GAMING_DOMAIN_HOSTNAME);
+
+  const sub = SUBSCRIPTIONS.gaming;
+  if (sub) await ensureSubscription(orgId, sub);
+
+  await withTenant(orgId, async (tx) => {
+    const [existingMember] = await tx
+      .select({ id: schema.tenantMember.id })
+      .from(schema.tenantMember)
+      .where(eq(schema.tenantMember.email, GAMING_CUSTOMER_EMAIL))
+      .limit(1);
+    if (!existingMember) {
+      await tx.insert(schema.tenantMember).values({
+        tenantId: orgId,
+        email: GAMING_CUSTOMER_EMAIL,
+        name: "Player One",
+        passwordHash: await hashMemberPassword(GAMING_PASSWORD),
+      });
+    }
+  });
+
+  await ensureBranchesAndStations(orgId);
+  await seedGamingDemoData(orgId, ownerUserId, GAMING_CUSTOMER_EMAIL);
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `Seeded gaming (owner ${GAMING_OWNER_EMAIL} · staff ${GAMING_STAFF_EMAIL} · customer ${GAMING_CUSTOMER_EMAIL} / ${GAMING_PASSWORD}) @ ${GAMING_DOMAIN_HOSTNAME}`,
+  );
+
+  return orgId;
 }
 
 /**
@@ -344,6 +687,7 @@ async function seed() {
   await ensurePlatformViewer();
 
   const orgIdBySlug: Record<string, string> = {};
+  orgIdBySlug.gaming = await seedGamingTenant();
 
   for (const t of TENANTS) {
     const userId = await ensureUser(t.ownerEmail, t.ownerName);
@@ -387,6 +731,10 @@ async function seed() {
         });
       }
     });
+
+    if (t.slug === "acme") {
+      await seedGamingDemoData(orgId, userId, t.memberEmail);
+    }
 
     // eslint-disable-next-line no-console
     console.log(
