@@ -47,10 +47,12 @@ import {
   updateCustomerSchema,
   upsertEmailIntegrationSchema,
   upsertStorageIntegrationSchema,
+  upsertCustomerPaymentIntegrationSchema,
   type AuditEvent,
   type Customer,
   type EmailIntegration,
   type StorageIntegration,
+  type CustomerPaymentIntegration,
   type Role,
   type ActiveAnnouncement,
   type AnnouncementTargeting,
@@ -100,7 +102,13 @@ import {
   moduleRoutes,
 } from "agora/server/routes";
 import { billingRoutes } from "agora/billing/routes";
-import { resolveEmailSender, resolveStorage } from "agora/server";
+import {
+  resolveEmailSender,
+  resolveStorage,
+  resolveCustomerPaymentGateway,
+  hashCustomerPaymentWebhookToken,
+  type CustomerPaymentIntegrationConfig,
+} from "agora/server";
 import { createTenantLifecycle } from "agora/tenant-lifecycle";
 import { tenantLifecycleRoutes } from "agora/tenant-lifecycle/routes";
 import * as appSchema from "../db/schema";
@@ -278,6 +286,18 @@ function tenantHostUrl(slug: string, path: string): string {
   const appDomain = process.env.APP_DOMAIN ?? "localtest.me:3000";
   const scheme = process.env.NODE_ENV === "production" ? "https" : "http";
   return `${scheme}://${slug}.${appDomain}${path}`;
+}
+
+/**
+ * Build this API's own public webhook URL for a customer-payment path token.
+ * Deviation from the plan: no server-side "this API's own public base URL"
+ * env var existed yet (NEXT_PUBLIC_API_URL is web-app/client-side only), so
+ * AGORA_API_PUBLIC_URL is introduced here, defaulting to the local dev API
+ * port for parity with the web app's own localhost default.
+ */
+function customerPaymentWebhookUrl(token: string): string {
+  const base = process.env.AGORA_API_PUBLIC_URL ?? "http://localhost:8787";
+  return `${base.replace(/\/$/, "")}/payments/customer/webhook/${token}`;
 }
 
 /**
@@ -1445,7 +1465,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   // ── Security: MFA/policy/SSO — foundation factory (agora/server/routes) ──
   .route("/", securityRoutes())
 
-  // ── Integrations: per-tenant provider connections (email is the only category) ──
+  // ── Integrations: per-tenant provider connections (email/storage/customerPayment) ──
   // The provider registry lives in agora/server; here we CRUD the encrypted
   // tenant_integration row and never return the stored key (only hasApiKey).
   .get("/integrations", async (c) => {
@@ -1459,9 +1479,13 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
     );
     const email = rows.find((r) => r.category === "email");
     const storage = rows.find((r) => r.category === "storage");
+    const customerPayment = rows.find((r) => r.category === "customerPayment");
     return c.json({
       email: email ? toEmailIntegration(email) : null,
       storage: storage ? toStorageIntegration(storage) : null,
+      customerPayment: customerPayment
+        ? toCustomerPaymentIntegration(customerPayment)
+        : null,
     });
   })
   .put(
@@ -1734,6 +1758,176 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
       metadata: { provider: storage.provider },
     });
     return c.json({ ok: true, provider: storage.provider });
+  })
+
+  // ── Integrations: per-tenant customer payments (tenant → its own customers) ──
+  // Distinct from platform billing: money moves customer → the TENANT's own
+  // PayMongo account. No platform env fallback — resolveCustomerPaymentGateway
+  // returns null for an unconfigured tenant, never a shared Agora account. See
+  // .ai/plans/agora/archive/tenant-customer-payments/README.md.
+  .put(
+    "/integrations/customer-payment",
+    zValidator("json", upsertCustomerPaymentIntegrationSchema),
+    async (c) => {
+      const { tenantId } = c.var.tenant;
+      requirePermission(c.var.tenant.permissions, { integration: ["manage"] });
+      const input = c.req.valid("json");
+
+      const [existing] = await withTenant(tenantId, (tx) =>
+        tx
+          .select()
+          .from(tenantIntegration)
+          .where(
+            and(
+              eq(tenantIntegration.tenantId, tenantId),
+              eq(tenantIntegration.category, "customerPayment"),
+            ),
+          )
+          .limit(1),
+      );
+
+      if (!existing && !input.apiKey) {
+        throw new HttpError(
+          400,
+          "An API key is required to create a customer-payment integration.",
+        );
+      }
+      if (!existing && !input.webhookSecret) {
+        throw new HttpError(
+          400,
+          "A webhook secret is required to create a customer-payment integration.",
+        );
+      }
+
+      let secretEnc = existing?.secretEnc ?? null;
+      if (input.apiKey) {
+        if (!hasEncryptionKey()) {
+          throw new Error("SSO_ENC_KEY is not configured on the server.");
+        }
+        secretEnc = encryptSecret(input.apiKey);
+      }
+
+      const existingConfig = (existing?.config ?? null) as
+        | CustomerPaymentIntegrationConfig
+        | null;
+      let webhookSecretEnc = existingConfig?.webhookSecretEnc ?? null;
+      if (input.webhookSecret) {
+        if (!hasEncryptionKey()) {
+          throw new Error("SSO_ENC_KEY is not configured on the server.");
+        }
+        webhookSecretEnc = encryptSecret(input.webhookSecret);
+      }
+      if (!webhookSecretEnc) {
+        throw new HttpError(
+          400,
+          "A webhook secret is required to create a customer-payment integration.",
+        );
+      }
+
+      // Mint a brand-new webhook path token on first configure or explicit
+      // rotation; otherwise keep the existing hash. Revealed ONCE in the
+      // response — only the hash is ever persisted.
+      const mintToken = !existing || input.rotateWebhookToken;
+      const webhookToken = mintToken ? createId() : null;
+      const webhookTokenHash = mintToken
+        ? hashCustomerPaymentWebhookToken(webhookToken!)
+        : (existingConfig?.webhookTokenHash ?? null);
+      if (!webhookTokenHash) {
+        throw new HttpError(
+          400,
+          "No webhook token configured — save again to mint one.",
+        );
+      }
+
+      const config: CustomerPaymentIntegrationConfig = {
+        webhookTokenHash,
+        webhookSecretEnc,
+        currency: input.currency,
+        ...(input.statementLabel ? { statementLabel: input.statementLabel } : {}),
+      };
+      const values = {
+        category: "customerPayment" as const,
+        provider: input.provider,
+        config,
+        secretEnc,
+        enabled: input.enabled,
+        updatedAt: new Date(),
+      };
+      const [row] = await withTenant(tenantId, (tx) =>
+        tx
+          .insert(tenantIntegration)
+          .values({ id: createId(), tenantId, ...values })
+          .onConflictDoUpdate({
+            target: [tenantIntegration.tenantId, tenantIntegration.category],
+            set: values,
+          })
+          .returning(),
+      );
+      await recordStaffAudit(c, {
+        action: "integration.customer_payment_updated",
+        targetType: "integration",
+        targetId: row?.id,
+        targetLabel: input.provider,
+        metadata: { provider: input.provider, enabled: input.enabled },
+      });
+      return c.json({
+        customerPayment: toCustomerPaymentIntegration(row!),
+        ...(webhookToken
+          ? {
+              webhookReveal: {
+                webhookUrl: customerPaymentWebhookUrl(webhookToken),
+                webhookToken,
+              },
+            }
+          : {}),
+      });
+    },
+  )
+  .delete("/integrations/customer-payment", async (c) => {
+    const { tenantId } = c.var.tenant;
+    requirePermission(c.var.tenant.permissions, { integration: ["manage"] });
+    const deleted = await withTenant(tenantId, (tx) =>
+      tx
+        .delete(tenantIntegration)
+        .where(
+          and(
+            eq(tenantIntegration.tenantId, tenantId),
+            eq(tenantIntegration.category, "customerPayment"),
+          ),
+        )
+        .returning(),
+    );
+    if (deleted.length === 0) {
+      throw new HttpError(404, "No customer-payment integration configured.");
+    }
+    await recordStaffAudit(c, {
+      action: "integration.customer_payment_deleted",
+      targetType: "integration",
+      targetId: deleted[0]?.id,
+    });
+    return c.json({ ok: true });
+  })
+  // Test connection: a real, bounded probe against the stored key. PayMongo
+  // exposes no cheap authenticated read on the account tier in use, so this
+  // reports { testable: false } rather than a fabricated pass — same stance
+  // as the platform `runIntegrationProbe`.
+  .post("/integrations/customer-payment/test", async (c) => {
+    const { tenantId } = c.var.tenant;
+    requirePermission(c.var.tenant.permissions, { integration: ["manage"] });
+    const gateway = await resolveCustomerPaymentGateway(tenantId);
+    if (!gateway) {
+      throw new HttpError(404, "No customer-payment integration configured.");
+    }
+    await recordStaffAudit(c, {
+      action: "integration.customer_payment_tested",
+      targetType: "integration",
+      metadata: { provider: gateway.id },
+    });
+    return c.json({
+      ok: true,
+      testable: false,
+      reason: "PayMongo exposes no safe cheap authenticated read to probe.",
+    });
   });
 
 export type RpcType = typeof rpc;
@@ -1856,6 +2050,33 @@ function toStorageIntegration(
     accessKeyId: cfg.accessKeyId ?? "",
     enabled: row.enabled,
     hasSecret: !!row.secretEnc,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Map a customer-payment integration row → wire contract. Never the API key,
+ * never the webhook-secret ciphertext, never the raw webhook token — only
+ * `hasApiKey`/`hasWebhookSecret` are the credential signals. `webhookUrl`
+ * cannot be reconstructed from the stored hash, so it is only ever non-null
+ * in the one-time reveal returned from the PUT that minted it.
+ */
+function toCustomerPaymentIntegration(
+  row: typeof tenantIntegration.$inferSelect,
+): CustomerPaymentIntegration {
+  const cfg = (row.config ?? {}) as CustomerPaymentIntegrationConfig;
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    category: "customerPayment",
+    provider: row.provider as CustomerPaymentIntegration["provider"],
+    currency: cfg.currency ?? "php",
+    statementLabel: cfg.statementLabel ?? null,
+    enabled: row.enabled,
+    hasApiKey: !!row.secretEnc,
+    hasWebhookSecret: !!cfg.webhookSecretEnc,
+    webhookUrl: null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
