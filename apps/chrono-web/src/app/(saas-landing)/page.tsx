@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Check,
-  MonitorPlay,
   Wallet,
   CalendarClock,
   MapPin,
@@ -24,9 +23,6 @@ import {
 import {
   cn,
   buttonVariants,
-  BrandHeader,
-  SiteHeader,
-  ThemeToggle,
   PageShell,
   Main,
   Section,
@@ -50,11 +46,15 @@ import {
   TableHead,
   TableCell,
 } from "agora/ui";
+import { resolveLandingConfig } from "agora";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
+import { getTenantLanding } from "@/lib/landing";
+import { LandingSections } from "@/components/landing/render";
 import {
   MarketingHeader,
   MarketingFooter,
+  TenantHeader,
   TenantFooter,
 } from "@/components/landing/marketing-chrome";
 import { HeroChips } from "@/components/landing/hero-chips";
@@ -743,180 +743,31 @@ export default async function Home() {
     );
   }
 
-  // Tenant host → branded mini-landing with both login paths.
+  // Tenant host → the registry-driven public landing page.
+  //
+  // Which sections render, and in what order, comes from the tenant's published
+  // config resolved against `CHRONO_LANDING_SECTIONS` — so re-ordering or
+  // hiding one is a settings change, not a code change. This replaces a
+  // hardcoded three-card placeholder that never read the tenant's config at all.
   const heading = branding?.displayName?.trim() || tenant.name;
-
-  const tenantHighlights = [
-    {
-      icon: MonitorPlay,
-      title: "Live seat availability",
-      description: "Check the floor map and see which stations are currently open.",
-    },
-    {
-      icon: Wallet,
-      title: "Your wallet & session history",
-      description: "View your current balance, top up, and review past visits.",
-    },
-    {
-      icon: CalendarClock,
-      title: "Book ahead",
-      description: "Reserve a station or private room for your next visit.",
-    },
-  ];
+  const landing = await getTenantLanding();
 
   return (
     <PageShell>
-      <SiteHeader
-        maxWidth="full"
-        brand={
-          <BrandHeader
-            compact
-            displayName={branding?.displayName}
-            logoUrl={branding?.logoUrl}
-            logoDarkUrl={branding?.logoDarkUrl}
-            fallback={tenant.name}
-          />
-        }
-        actions={
-          <>
-            <ThemeToggle />
-            <Link href="/portal/login" className={buttonVariants({ variant: "ghost" })}>
-              Sign in
-            </Link>
-            <Link href="/login" className={buttonVariants({ variant: "outline" })}>
-              Staff sign in
-            </Link>
-          </>
-        }
+      <TenantHeader
+        tenantName={heading}
+        displayName={branding?.displayName}
+        logoUrl={branding?.logoUrl}
+        logoDarkUrl={branding?.logoDarkUrl}
       />
 
       <Main>
-        <Section maxWidth="full" border="bottom" className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
-            style={{
-              background:
-                "radial-gradient(circle at top, color-mix(in oklch, var(--color-primary) 12%, transparent), transparent 60%)",
-            }}
-          />
-          <Stack gap={6} className="items-center py-24 text-center">
-            {branding?.tagline ? (
-              <Badge variant="secondary" className="max-w-sm text-balance uppercase tracking-widest">
-                {branding.tagline}
-              </Badge>
-            ) : null}
-            <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-              Welcome to <span className="text-primary">{heading}</span>
-            </h1>
-            <p className="max-w-xl text-balance text-muted-foreground sm:text-lg">
-              View live stations, check your wallet balance, and book your next session.
-            </p>
-            <Row wrap justify="center" gap={3} className="pt-2">
-              <Link
-                href="/stations"
-                className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
-              >
-                See live stations
-              </Link>
-              <Link
-                href="/portal/login"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "rounded-full px-6",
-                )}
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/portal/sign-up"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "lg" }),
-                  "rounded-full px-6",
-                )}
-              >
-                Create account
-              </Link>
-            </Row>
-          </Stack>
-        </Section>
-
-        <Section maxWidth="full" border="bottom" tone="muted">
-          <div className="py-16">
-            <Grid cols={3} gap={4}>
-              {tenantHighlights.map(({ icon: Icon, title, description }) => (
-                <Card key={title}>
-                  <CardHeader>
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <Icon className="h-5 w-5 text-primary" aria-hidden />
-                    </div>
-                    <CardTitle className="text-base">{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
-            </Grid>
-          </div>
-        </Section>
-
-        <Section maxWidth="full">
-          <div className="py-16">
-            <Stack gap={2} className="mb-8 items-center text-center">
-              <h2 className="text-heading-md font-semibold tracking-tight">
-                Choose how you&apos;d like to sign in
-              </h2>
-            </Stack>
-            <Grid cols={3} gap={4} className="mx-auto max-w-3xl">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Customers</CardTitle>
-                  <CardDescription>Access your member area.</CardDescription>
-                </CardHeader>
-                <CardFooter>
-                  <Row wrap>
-                    <Link href="/portal/login" className={buttonVariants()}>
-                      Sign in
-                    </Link>
-                    <Link
-                      href="/portal/sign-up"
-                      className={buttonVariants({ variant: "outline" })}
-                    >
-                      Create account
-                    </Link>
-                  </Row>
-                </CardFooter>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Staff</CardTitle>
-                  <CardDescription>Back-office dashboard.</CardDescription>
-                </CardHeader>
-                <CardFooter>
-                  <Link
-                    href="/login"
-                    className={buttonVariants({ variant: "secondary" })}
-                  >
-                    Staff sign in
-                  </Link>
-                </CardFooter>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>About this business</CardTitle>
-                  <CardDescription>Details about this business.</CardDescription>
-                </CardHeader>
-                <CardFooter>
-                  <Link
-                    href="/about"
-                    className={buttonVariants({ variant: "secondary" })}
-                  >
-                    View about page
-                  </Link>
-                </CardFooter>
-              </Card>
-            </Grid>
-          </div>
-        </Section>
+        <LandingSections
+          surface="tenant"
+          sections={landing?.sections ?? null}
+          resolved={landing?.resolved ?? resolveLandingConfig([])}
+          context={{ tenantName: heading, tenantSlug: landing?.tenantSlug ?? null }}
+        />
       </Main>
 
       <TenantFooter

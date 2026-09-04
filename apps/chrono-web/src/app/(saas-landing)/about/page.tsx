@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { PageShell, Main, SiteHeader, ThemeToggle, BrandHeader, buttonVariants } from "agora/ui";
-import Link from "next/link";
+import { PageShell, Main } from "agora/ui";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { LandingSections } from "@/components/landing/render";
-import { TenantFooter } from "@/components/landing/marketing-chrome";
+import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
 
 /**
  * A tenant's public landing page.
@@ -41,52 +40,11 @@ export default async function AboutPage() {
 
   return (
     <PageShell>
-      <SiteHeader
-        maxWidth="full"
-        transparentUntilScroll
-        brand={
-          <BrandHeader
-            compact
-            displayName={branding?.displayName}
-            logoUrl={branding?.logoUrl}
-            logoDarkUrl={branding?.logoDarkUrl}
-            fallback={venueName}
-          />
-        }
-        nav={
-          <>
-            <Link href="/stations" className="hover:text-foreground">
-              Stations
-            </Link>
-            <Link href="/about" className="hover:text-foreground">
-              About
-            </Link>
-          </>
-        }
-        mobileNav={
-          <>
-            <Link href="/stations" className="px-2 py-2">
-              Stations
-            </Link>
-            <Link href="/about" className="px-2 py-2">
-              About
-            </Link>
-            <Link href="/portal/login" className="px-2 py-2">
-              Member sign in
-            </Link>
-          </>
-        }
-        actions={
-          <>
-            <ThemeToggle />
-            <Link
-              href="/portal/login"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Member sign in
-            </Link>
-          </>
-        }
+      <TenantHeader
+        tenantName={venueName}
+        displayName={branding?.displayName}
+        logoUrl={branding?.logoUrl}
+        logoDarkUrl={branding?.logoDarkUrl}
       />
 
       <Main>

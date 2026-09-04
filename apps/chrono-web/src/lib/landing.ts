@@ -72,8 +72,14 @@ function legacyLayer(
  * Resolve the current host tenant's landing page.
  *
  * `cache()`-wrapped so `generateMetadata` and the page body share one request.
- * Returns `null` for the apex, an unknown host, or a tenant with nothing to
- * show, giving callers a single "404 this" case.
+ * Returns `null` only when there is no tenant to render at all — the apex, or a
+ * host that resolves to no workspace.
+ *
+ * **A landing-page fetch failure is NOT null.** `resolveLandingConfig` is total
+ * and every section carries defaults, so a tenant whose config is missing,
+ * unpublished, or briefly unreachable still gets a complete page built from
+ * defaults. Collapsing that into `null` used to 404 a live public host on a
+ * transient API error — the failure mode this split exists to prevent.
  *
  * Note the published snapshot is the *first* cascade layer and the legacy
  * columns the second, so the new editor always wins over pre-existing content.
@@ -86,47 +92,52 @@ export const getTenantLanding = cache(async (): Promise<TenantLanding | null> =>
   if (t.slug) headers["x-tenant-slug"] = t.slug;
   else if (t.host) headers["x-tenant-host"] = t.host;
 
+  const [landingRes, tenantRes] = await Promise.allSettled([
+    fetch(`${API_URL}/public/landing-page`, { headers, cache: "no-store" }),
+    fetch(`${API_URL}/public/tenant`, { headers, cache: "no-store" }),
+  ]);
+
+  // The tenant must exist; everything else degrades to defaults.
+  const tenantInfo = await readJson<{ tenant: { name: string; slug: string } | null }>(
+    tenantRes,
+  );
+  if (!tenantInfo?.tenant) return null;
+
+  const body = await readJson<{
+    landingPage: {
+      content: LegacyContent | null;
+      branches: BranchSummary[];
+      hasStations: boolean;
+    } | null;
+    published: { snapshot: unknown } | null;
+  }>(landingRes);
+
+  // Re-validate at the boundary rather than trusting a wire shape this side
+  // never checked itself.
+  const parsed = landingSnapshotSchema.safeParse(body?.published?.snapshot ?? {});
+  const snapshot = parsed.success ? parsed.data : {};
+
+  return {
+    resolved: resolveLandingConfig([
+      snapshot.config,
+      legacyLayer(body?.landingPage?.content ?? null, body?.landingPage?.branches[0]),
+    ]),
+    sections: snapshot.sections ?? null,
+    themePreset: snapshot.themePreset ?? null,
+    venueName: tenantInfo.tenant.name,
+    tenantSlug: t.slug ?? tenantInfo.tenant.slug,
+    hasStations: body?.landingPage?.hasStations ?? false,
+  };
+});
+
+/** Body of a settled, ok response — or `null` for anything else. */
+async function readJson<T>(
+  settled: PromiseSettledResult<Response>,
+): Promise<T | null> {
+  if (settled.status !== "fulfilled" || !settled.value.ok) return null;
   try {
-    const [landingRes, tenantRes] = await Promise.all([
-      fetch(`${API_URL}/public/landing-page`, { headers, cache: "no-store" }),
-      fetch(`${API_URL}/public/tenant`, { headers, cache: "no-store" }),
-    ]);
-    if (!landingRes.ok) return null;
-
-    const body = (await landingRes.json()) as {
-      landingPage: {
-        content: LegacyContent | null;
-        branches: BranchSummary[];
-        hasStations: boolean;
-      } | null;
-      published: { snapshot: unknown } | null;
-    };
-    if (!body.landingPage) return null;
-
-    const tenantInfo = tenantRes.ok
-      ? ((await tenantRes.json()) as {
-          tenant: { name: string; slug: string } | null;
-        }).tenant
-      : null;
-
-    // Re-validate at the boundary rather than trusting a wire shape this side
-    // never checked itself.
-    const parsed = landingSnapshotSchema.safeParse(body.published?.snapshot ?? {});
-    const snapshot = parsed.success ? parsed.data : {};
-
-    return {
-      resolved: resolveLandingConfig([
-        snapshot.config,
-        legacyLayer(body.landingPage.content, body.landingPage.branches[0]),
-      ]),
-      sections: snapshot.sections ?? null,
-      themePreset: snapshot.themePreset ?? null,
-      venueName: tenantInfo?.name ?? "This business",
-      tenantSlug: t.slug ?? null,
-      hasStations: body.landingPage.hasStations,
-    };
+    return (await settled.value.json()) as T;
   } catch {
-    // A brief API outage must not take a tenant's public host down.
     return null;
   }
-});
+}
