@@ -61,7 +61,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /**
  * Platform-wide subscription detail for a single tenant. This is the PLATFORM
  * view (mirrored data, override metadata, full history) — distinct from the
- * tenant's own `/dashboard/settings/billing` self-service surface.
+ * tenant's own `/admin/settings/billing` self-service surface.
  */
 export default function SubscriptionDetailPage() {
   const params = useParams<{ tenantId: string }>();
@@ -141,7 +141,7 @@ export default function SubscriptionDetailPage() {
           <CardDescription>
             This is the platform-wide view of the tenant&apos;s subscription. The
             tenant manages their own billing at their dashboard
-            (/dashboard/settings/billing); changes made here are staff overrides.
+            (/admin/settings/billing); changes made here are staff overrides.
           </CardDescription>
         </CardHeader>
       </Card>

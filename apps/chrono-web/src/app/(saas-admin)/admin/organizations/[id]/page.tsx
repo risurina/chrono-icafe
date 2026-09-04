@@ -543,7 +543,7 @@ export default function PlatformAdminOrganizationDetailPage() {
       json: { targetUserId: impersonateTarget.userId },
     });
     if (res.ok) {
-      window.location.href = `${window.location.protocol}//${org.slug}.${APP_DOMAIN}/dashboard`;
+      window.location.href = `${window.location.protocol}//${org.slug}.${APP_DOMAIN}/admin`;
       return;
     }
     setImpersonating(false);

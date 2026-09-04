@@ -211,7 +211,7 @@ export default function PlatformAdminOrganizationsPage() {
       json: { targetUserId: org.ownerId },
     });
     if (res.ok) {
-      window.location.href = `${window.location.protocol}//${org.slug}.${APP_DOMAIN}/dashboard`;
+      window.location.href = `${window.location.protocol}//${org.slug}.${APP_DOMAIN}/admin`;
       return;
     }
     if (res.status === 429) {
@@ -408,7 +408,7 @@ export default function PlatformAdminOrganizationsPage() {
             <span className="font-medium text-foreground">Super Admin view.</span> This
             is a platform-wide, cross-tenant surface. Actions here affect any tenant.
             A Tenant Admin, by contrast, only ever sees and manages their own
-            organization from <code className="text-xs">/dashboard/settings</code>.
+            organization from <code className="text-xs">/admin/settings</code>.
           </p>
         </CardContent>
       </Card>

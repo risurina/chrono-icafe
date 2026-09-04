@@ -88,7 +88,7 @@ export default function NewBusinessPage() {
     }
 
     const proto = location.protocol;
-    location.href = `${proto}//${parsed.data}.${APP_DOMAIN}/dashboard`;
+    location.href = `${proto}//${parsed.data}.${APP_DOMAIN}/admin`;
   }
 
   const header = (
