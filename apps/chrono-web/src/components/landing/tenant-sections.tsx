@@ -699,14 +699,9 @@ export function TenantStations({
   const stations = branches.flatMap((b) => b.stations);
   if (stations.length === 0) return null;
 
-  const counts = {
-    available: stations.filter((s) => s.status === "available").length,
-    maintenance: stations.filter((s) => s.status === "maintenance").length,
-    offline: stations.filter((s) => s.status === "offline").length,
-    // "In session" is not a station status — the API derives occupancy in its
-    // aggregate, so read it there rather than recomputing it wrongly here.
-    inUse: aggregate?.inUse ?? 0,
-  };
+  const total = aggregate?.total ?? stations.length;
+  const free = stations.filter((s) => s.status === "available").length;
+  const anyFree = free > 0;
 
   return (
     <Section
@@ -716,132 +711,151 @@ export function TenantStations({
       data-testid="landing-section-stations"
     >
       <Stack gap={0} className="py-24">
-        <Row
-          justify="between"
-          items="center"
-          className="mb-12 flex-col gap-6 md:flex-row"
-        >
+        <Row justify="between" items="center" className="mb-10 flex-col gap-6 md:flex-row">
           <Col gap={4}>
             <span className={EYEBROW}>Live monitor</span>
-            <h2 className={TITLE}>Station matrix</h2>
+            <h2 className={TITLE}>Seats available now</h2>
           </Col>
-          <StationRefresh
-            totalLabel={`${aggregate?.total ?? stations.length} stations`}
-          />
+          <StationRefresh />
         </Row>
 
-        <Grid cols={4} gap={4} className="items-start">
-          {/* Network status rail */}
-          <Col gap={4} className={cn(PANEL, "lg:col-span-1")}>
-            <Row items="center" gap={2}>
-              <Zap className="h-4 w-4 text-primary" aria-hidden />
-              <span className="text-xs font-black uppercase tracking-widest">
-                Network status
-              </span>
-            </Row>
-
-            <Row
-              justify="between"
-              items="center"
-              className="rounded-xl border border-chart-2/30 bg-chart-2/5 px-4 py-3"
-            >
-              <span className={LABEL}>Lounge status</span>
-              <span className="text-xs font-black uppercase tracking-widest text-chart-2">
-                {isOpen ? "Open" : "Closed"}
-              </span>
-            </Row>
-
-            {(
-              [
-                ["available", "Stations available", "available"],
-                ["inUse", "Players online", "offline"],
-                ["maintenance", "Maintenance", "maintenance"],
-                ["offline", "Offline", "offline"],
-              ] as const
-            ).map(([key, label, tone]) => (
-              <Row
-                key={key}
-                justify="between"
-                items="center"
-                className="rounded-xl border border-border px-4 py-3"
+        {/* The headline answers the only question a visitor actually has, so it
+            leads — rather than a rail of maintenance/offline counters, which is
+            operator data a customer has no use for. */}
+        <Row
+          items="center"
+          justify="between"
+          className={cn(
+            PANEL,
+            "mb-10 flex-col gap-8 p-8 md:flex-row",
+            anyFree ? "border-chart-2/30" : "border-primary/30",
+          )}
+        >
+          <Col gap={4} className="w-full">
+            <Row items="end" gap={3}>
+              <span
+                className={cn(
+                  "text-6xl font-black leading-none",
+                  anyFree ? "text-chart-2" : "text-muted-foreground",
+                )}
+                data-testid="landing-stations-free-count"
               >
-                <Row items="center" gap={3}>
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      STATION_TONE[tone].dot,
-                    )}
-                  />
-                  <span className={LABEL}>{label}</span>
-                </Row>
-                <span className="text-sm font-black">{counts[key]}</span>
-              </Row>
-            ))}
+                {free}
+              </span>
+              <span className="pb-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                of {total} stations free
+              </span>
+            </Row>
+            <span className="block h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <span
+                className={cn(
+                  "block h-full transition-all duration-1000",
+                  anyFree ? "bg-chart-2" : "bg-primary/40",
+                )}
+                style={{ width: `${total ? (free / total) * 100 : 0}%` }}
+              />
+            </span>
+            <span className={LABEL}>
+              {isOpen
+                ? anyFree
+                  ? "Open — walk in any time"
+                  : "Open — every station is busy right now"
+                : "Currently closed"}
+            </span>
           </Col>
 
-          {/* Station grid, one block per branch */}
-          <Stack gap={8} className={cn(PANEL, "col-span-4 lg:col-span-3")}>
-            {branches
-              .filter((branch) => branch.stations.length > 0)
-              .map((branch) => (
+          {/* A live board with no next step is a dead end, so the state itself
+              picks the action: walk in when there is room, reserve when there
+              is not. */}
+          <Link
+            href={anyFree ? "#location" : "/portal/login"}
+            className={cn(buttonVariants(), PILL_CTA, "w-full shrink-0 md:w-auto")}
+          >
+            {anyFree ? "Get directions" : "Reserve a seat"}
+          </Link>
+        </Row>
+
+        <Stack gap={8}>
+          {branches
+            .filter((branch) => branch.stations.length > 0)
+            .map((branch) => {
+              const branchFree = branch.stations.filter(
+                (s) => s.status === "available",
+              ).length;
+              return (
                 <Col key={branch.id} gap={4}>
-                  {branches.length > 1 ? (
-                    <span className={LABEL}>{branch.name}</span>
-                  ) : null}
-                  <Row wrap gap={4}>
+                  <Row items="center" gap={3} wrap>
+                    <span className="text-xs font-black uppercase tracking-widest">
+                      {branch.name}
+                    </span>
+                    <span aria-hidden className="text-muted-foreground/40">
+                      ·
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-widest",
+                        branchFree > 0 ? "text-chart-2" : "text-muted-foreground",
+                      )}
+                    >
+                      {branchFree} of {branch.stations.length} free
+                    </span>
+                  </Row>
+
+                  {/* Colour-weighted chips: a free seat is bright and a busy one
+                      recedes, so the row is scannable without reading a single
+                      label — the thing a grid of identical icons cannot do. */}
+                  <Row wrap gap={3}>
                     {branch.stations.map((station) => {
                       const tone =
                         STATION_TONE[station.status as StationStatus] ??
                         STATION_TONE.offline;
+                      const isFree = station.status === "available";
                       return (
-                        <Col
+                        <Row
                           key={station.id}
-                          gap={2}
-                          className="w-[140px] rounded-xl border border-border p-3 transition-colors hover:border-primary/40"
+                          items="center"
+                          gap={3}
+                          className={cn(
+                            "rounded-xl border px-4 py-3 transition-colors",
+                            isFree
+                              ? "border-chart-2/40 bg-chart-2/5"
+                              : "border-border bg-card/30 opacity-60",
+                          )}
                           data-testid={`landing-station-${station.name}`}
                         >
-                          <Col
-                            gap={2}
-                            className="rounded-lg bg-primary/5 p-4"
-                          >
-                            <Row items="center" gap={2}>
-                              <span
-                                aria-hidden
-                                className={cn(
-                                  "h-1.5 w-1.5 shrink-0 rounded-full",
-                                  tone.dot,
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "text-[9px] font-black uppercase tracking-widest",
-                                  tone.text,
-                                )}
-                              >
-                                {tone.label}
-                              </span>
-                            </Row>
-                            <Monitor
-                              className="mx-auto h-6 w-6 text-primary"
-                              aria-hidden
-                            />
+                          <Monitor
+                            className={cn(
+                              "h-4 w-4 shrink-0",
+                              isFree ? "text-chart-2" : "text-muted-foreground",
+                            )}
+                            aria-hidden
+                          />
+                          <Col gap={0}>
+                            <span className="text-xs font-black uppercase tracking-widest">
+                              {station.name}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-[9px] font-bold uppercase tracking-widest",
+                                isFree ? "text-chart-2" : tone.text,
+                              )}
+                            >
+                              {tone.label}
+                            </span>
                           </Col>
-                          <span className="text-xs font-black uppercase tracking-widest">
-                            {station.name}
-                          </span>
-                        </Col>
+                        </Row>
                       );
                     })}
                   </Row>
                 </Col>
-              ))}
-          </Stack>
-        </Grid>
+              );
+            })}
+        </Stack>
       </Stack>
     </Section>
   );
 }
+
 
 /* ─────────────────────────────── events ──────────────────────────────── */
 
