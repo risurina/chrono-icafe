@@ -281,8 +281,13 @@ export async function confirmFileForTenant(
 /** Re-exported for compatibility with existing importers of this module. */
 export { buildPaginationMeta };
 
-/** Build a tenant-host URL for Stripe redirect/return links. */
-function tenantHostUrl(slug: string, path: string): string {
+/**
+ * Build a tenant-host URL for Stripe redirect/return links. Exported so
+ * `app.ts` can inject it into `paymentPortalRoutes({ tenantHostUrl })`
+ * (member-credit-purchase plan, Phase C4) without duplicating the
+ * scheme/`APP_DOMAIN` logic.
+ */
+export function tenantHostUrl(slug: string, path: string): string {
   const appDomain = process.env.APP_DOMAIN ?? "localtest.me:3000";
   const scheme = process.env.NODE_ENV === "production" ? "https" : "http";
   return `${scheme}://${slug}.${appDomain}${path}`;

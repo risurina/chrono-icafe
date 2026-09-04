@@ -26,12 +26,16 @@ import {
   getStorage,
   localAssetPath,
   hashApiKey,
+  resolveCustomerPaymentWebhookSecret,
+  findTenantByCustomerPaymentWebhookToken,
 } from "agora/server";
+import { getCustomerPaymentWebhookVerifier } from "agora/customer-payments";
 import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
 import { createCustomerAuthRoutes, createCustomerApplyRoutes } from "agora/customer-auth";
 import { checkReadiness } from "agora/health";
 import { withAdmin, withTenant, eq, count, inArray } from "agora/db";
+import { chronoPaymentEvent } from "./modules/payment/schema";
 import {
   createId,
   acceptInviteSchema,
@@ -52,6 +56,7 @@ import {
   signFileForTenant,
   confirmFileForTenant,
   mountRealtimeRoute,
+  tenantHostUrl,
 } from "./routes/rpc";
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
@@ -88,6 +93,8 @@ import { sessionPortalRoutes } from "./modules/session/portal-routes";
 import { reservationPortalRoutes } from "./modules/reservation/portal-routes";
 import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
+import { paymentPortalRoutes } from "./modules/payment/portal-routes";
+import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -173,6 +180,17 @@ const deviceAuthTokenLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-auth
 // (matches the general shape of a page-load, not a login attempt), still
 // bounded per apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention.
 const landingPageIpLimiter = createRateLimiter(60, 60 * 1000, "landing-page-ip"); // 60 / min
+
+// Customer-payment webhook (member-credit-purchase plan, Phase C4) — PSP
+// retries a delivery on any non-2xx/timeout, so this is sized like a
+// legitimate-retry-storm ceiling, per-IP (the PSP's own egress IPs), same
+// shape as the existing /billing/webhook (which has no separate limiter
+// because it long predates this convention — not a precedent to copy).
+const customerPaymentWebhookLimiter = createRateLimiter(
+  120,
+  60 * 1000,
+  "customer-payment-webhook",
+); // 120 / min
 
 // Platform Maintenance / global read-only enforcement (System Settings, spec
 // #14), shared by both tenant surfaces: the internal `/rpc/*` client and the
@@ -551,6 +569,10 @@ export const app = baseApp
   // Chrono: customer-facing active-promotions read surface — gated by
   // memberMiddleware() inside promoPortalRoutes() itself.
   .route("/portal/promos", promoPortalRoutes())
+  // Chrono: member-initiated online checkout (credit-purchase / wallet
+  // top-up) — gated by memberMiddleware() inside paymentPortalRoutes()
+  // itself. member-credit-purchase plan, Phase C4.
+  .route("/portal/payments", paymentPortalRoutes({ tenantHostUrl }))
   // Public: resolve the current host's tenant for the landing page (no auth).
   .get("/public/tenant", async (c) => {
     const org = await resolveOrgFromRequest(c);
@@ -894,6 +916,123 @@ export const app = baseApp
         metadata: { eventType, status: result.status, plan: parsed.plan },
       });
     }
+    return c.json({ received: true });
+  })
+  // Customer-payment webhook (member-credit-purchase plan, Phase C4) —
+  // fulfils a member-initiated online payment. Mounted OUTSIDE /rpc, per
+  // AGENTS.md's "Unauthenticated routes": no session exists, so /rpc's
+  // tenantMiddleware()/maintenance gates would refuse or misbehave on it.
+  // Raw body read via c.req.text() before any body-consuming middleware, so
+  // the HMAC is computed over the exact bytes PayMongo signed. Order of
+  // operations matters (see the plan's Pass 2, "Webhook"): token → tenant,
+  // THEN signature, THEN payload parse, THEN idempotency insert BEFORE any
+  // fulfilment — the idempotency gate is what makes a PSP retry a no-op.
+  .post("/payments/customer/webhook/:token", async (c) => {
+    const ip = clientIp(c);
+    const retryAfter = await customerPaymentWebhookLimiter.blockedFor(ip);
+    if (retryAfter !== null) {
+      return c.json({ error: "Too many requests." }, 429, { "Retry-After": String(retryAfter) });
+    }
+    await customerPaymentWebhookLimiter.record(ip);
+
+    const token = c.req.param("token");
+    const resolved = await findTenantByCustomerPaymentWebhookToken(token);
+    if (!resolved) throw new HttpError(404, "Unknown webhook.");
+    const { tenantId } = resolved;
+
+    const secret = await resolveCustomerPaymentWebhookSecret(tenantId);
+    if (!secret) throw new HttpError(400, "Customer payments are not configured for this tenant.");
+
+    const payload = await c.req.text();
+    // Only "paymongo" exists in CUSTOMER_PAYMENT_PROVIDERS today — a second
+    // vendor would need the tenant's own configured provider id here
+    // (mirrors the /billing/webhook driver switch above), not a hardcoded
+    // pick. Documented deviation from the plan, which didn't need to name a
+    // provider since only one exists (agora/customer-payments' own registry
+    // is the seam for a second one — see .ai/rules/providers.md).
+    const verifier = getCustomerPaymentWebhookVerifier("paymongo");
+    const header = c.req.header("paymongo-signature");
+    if (!verifier.verify({ payload, header, secret })) {
+      throw new HttpError(400, "Invalid webhook signature.");
+    }
+
+    const parsed = verifier.parse(payload);
+    if (!parsed) {
+      // Unparseable, or an event type this handler doesn't care about —
+      // 200 so the PSP doesn't retry forever over something we intentionally
+      // ignore.
+      return c.json({ received: true, ignored: true });
+    }
+    if (parsed.tenantId && parsed.tenantId !== tenantId) {
+      throw new HttpError(400, "Tenant mismatch.");
+    }
+    if (parsed.status !== "paid") {
+      return c.json({ received: true, ignored: true });
+    }
+    if (!parsed.referenceId) {
+      // No payment row to fulfil against — `chronoPaymentEvent.paymentId`
+      // has a NOT NULL FK to ChronoPayments, so this must never reach the
+      // insert below. 200 so the PSP doesn't retry over an event this
+      // integration never created a checkout for.
+      return c.json({ received: true, ignored: true });
+    }
+
+    let inserted: { id: string }[];
+    try {
+      inserted = await withTenant(tenantId, (tx) =>
+        tx
+          .insert(chronoPaymentEvent)
+          .values({
+            id: createId(),
+            tenantId,
+            paymentId: parsed.referenceId!,
+            eventType: "received",
+            idempotencyKey: parsed.eventId,
+            payloadJson: JSON.parse(payload),
+          })
+          .onConflictDoNothing({ target: [chronoPaymentEvent.tenantId, chronoPaymentEvent.idempotencyKey] })
+          .returning({ id: chronoPaymentEvent.id }),
+      );
+    } catch {
+      // referenceId doesn't reference a real ChronoPayments row (the FK
+      // rejects it) — nothing this tenant created a checkout for. 200 so
+      // the PSP doesn't retry over an event we can never fulfil.
+      return c.json({ received: true, ignored: true });
+    }
+    if (inserted.length === 0) {
+      // Idempotency gate: this event id was already recorded — a PSP
+      // replay, not a new payment. No-op, before any fulfilment runs.
+      return c.json({ received: true, deduped: true });
+    }
+
+    const result = await withTenant(tenantId, (tx) => fulfilCustomerPayment(tx, { tenantId, parsed }));
+
+    if (result.outcome === "amount_mismatch") {
+      await recordAudit({
+        tenantId,
+        actorType: "system",
+        action: "chronoPayment.amount_mismatch_voided",
+        targetType: "chronoPayment",
+        targetId: result.paymentId,
+        metadata: {
+          expectedAmount: result.expectedAmount,
+          expectedCurrency: result.expectedCurrency,
+          gotAmountMinorUnits: result.gotAmountMinorUnits,
+          gotCurrency: result.gotCurrency,
+        },
+      });
+    } else if (result.outcome === "fulfilled") {
+      await recordAudit({
+        tenantId,
+        actorType: "member",
+        actorId: result.memberId,
+        action: result.degraded ? "chronoPayment.fulfilled_degraded" : "chronoPayment.fulfilled",
+        targetType: "chronoPayment",
+        targetId: result.paymentId,
+        metadata: { purpose: result.purpose, fulfilmentNote: result.fulfilmentNote },
+      });
+    }
+
     return c.json({ received: true });
   })
   // Throttle the unauthenticated device pairing/auth endpoints
