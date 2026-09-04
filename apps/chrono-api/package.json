@@ -22,6 +22,7 @@
     "test:wallet-concurrency": "tsx src/modules/wallet/concurrency.test.ts",
     "test:pos-concurrency": "tsx src/modules/pos/concurrency.test.ts",
     "test:credit-concurrency": "tsx src/modules/credit/concurrency.test.ts",
+    "test:payment-fulfilment": "DB_DRIVER=pglite tsx src/modules/payment/fulfilment.test.ts",
     "test:session-concurrency": "tsx src/modules/session/concurrency.test.ts",
     "test:session-realtime": "tsx src/modules/session/realtime.test.ts",
     "test:member-concurrency": "tsx src/modules/member/concurrency.test.ts",
