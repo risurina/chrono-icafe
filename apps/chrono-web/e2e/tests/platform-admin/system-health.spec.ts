@@ -31,7 +31,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -71,7 +71,7 @@ test.describe("Platform System Health", () => {
     await page.getByLabel("Email").fill("owner@acme.test");
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
       timeout: 15_000,
     });
     const asOrdinary = await page.request.get(

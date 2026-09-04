@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 /**
  * Browser coverage for global drag-and-drop + paste upload
  * (`global-upload-drag-drop-paste` plan, Phase 4): dropping a file anywhere
- * in the dashboard (not just on `/dashboard/files`) uploads it tagged the
+ * in the dashboard (not just on `/admin/files`) uploads it tagged the
  * default `general` feature; a signed-in user with no membership in the
  * tenant they're viewing gets the same permission-denied feedback via
  * drag-drop as the existing button flow; and a platform admin's org-detail
@@ -37,7 +37,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -48,7 +48,7 @@ async function signInStaff(page: Page, host: string, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), { timeout: 15_000 });
 }
 
 // react-dropzone's drag handlers live on the `data-testid="global-upload-root"`
@@ -119,13 +119,13 @@ test.describe("Global drag-and-drop + paste upload", () => {
 
     // Drop on the plain dashboard overview — no page-level override, so it
     // should land under the layout's default "general" target.
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin`);
     await page.waitForLoadState("networkidle");
     await dragDropFile(page, "dnd-general.png");
     await expect(page.getByText("Uploaded dnd-general.png")).toBeVisible({ timeout: 15_000 });
 
     // Paste on the Files page itself — this page registers `feature: "files"`.
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard/files`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin/files`);
     await page.waitForLoadState("networkidle");
     await pasteFile(page, "dnd-files-feature.png");
     await expect(page.getByText("Uploaded dnd-files-feature.png")).toBeVisible({
@@ -159,7 +159,7 @@ test.describe("Global drag-and-drop + paste upload", () => {
 
     // B's own signed-in session, browsing A's host directly — no membership
     // in A, so every /rpc call 403s, exactly like the original bug report.
-    await otherPage.goto(`http://${slugA}.localtest.me:3000/dashboard`);
+    await otherPage.goto(`http://${slugA}.localtest.me:3000/admin`);
     await otherPage.waitForLoadState("networkidle");
     await dragDropFile(otherPage, "should-be-denied.png");
     await expect(
@@ -195,12 +195,12 @@ test.describe("Global drag-and-drop + paste upload", () => {
     });
 
     // Org A's own owner sees it on their Files page.
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/files`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/files`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("admin-uploaded.png")).toBeVisible({ timeout: 15_000 });
 
     // Org B never does — cross-tenant isolation for the new admin path.
-    await pageB.goto(`http://${slugB}.localtest.me:3000/dashboard/files`);
+    await pageB.goto(`http://${slugB}.localtest.me:3000/admin/files`);
     await pageB.waitForLoadState("networkidle");
     await pageB.getByPlaceholder("Search files…").fill("admin-uploaded");
     await expect(pageB.getByText("No files yet.")).toBeVisible();

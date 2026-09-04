@@ -25,7 +25,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -128,7 +128,7 @@ test.describe("Platform Admin — Notification Templates", () => {
     await page.getByLabel("Email").fill("owner@acme.test");
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
       timeout: 15_000,
     });
 
@@ -196,7 +196,7 @@ test.describe("Platform Admin — Notification Templates", () => {
     await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 60_000,
     });
 

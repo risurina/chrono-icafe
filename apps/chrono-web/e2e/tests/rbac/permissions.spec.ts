@@ -54,7 +54,7 @@ async function createWorkspace(page: import("@playwright/test").Page, tag: strin
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 
@@ -65,7 +65,7 @@ test.describe("RBAC permission gating", () => {
   test("owner's permission set drives the rendered controls", async ({ page }) => {
     const { slug, base } = await createWorkspace(page, "own");
 
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     // /me carries the computed set the UI gates on. Asserted unconditionally —
@@ -99,7 +99,7 @@ test.describe("RBAC permission gating", () => {
     const b = await createWorkspace(page, "b");
     expect(b.slug).not.toBe(a.slug);
 
-    await page.goto(`${a.base}/dashboard/settings/crew`);
+    await page.goto(`${a.base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     // The gated control must not render for a non-member of tenant A, and the

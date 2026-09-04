@@ -6,7 +6,7 @@ import { faker } from "../../utils/faker";
  * (`.ai/plans/chrono/active/reservations-queue-and-self-service/README.md`,
  * Phase 7). Distinct from the existing staff-facing
  * `reservations/reservations.spec.ts` — this covers `/portal/reservations`
- * (member-auth-gated), not the staff `/dashboard/reservations` board.
+ * (member-auth-gated), not the staff `/admin/reservations` board.
  *
  * - Happy path: a member reserves an available station within the advance
  *   window and sees it reflected on their own portal page.
@@ -29,7 +29,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }

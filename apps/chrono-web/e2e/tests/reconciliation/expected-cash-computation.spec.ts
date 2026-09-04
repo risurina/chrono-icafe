@@ -10,7 +10,7 @@ import { faker } from "../../utils/faker";
  * variance; a mismatched count surfaces a nonzero one, which is what makes a
  * closed shift appear in the reconciliation dashboard's variance table (the
  * page filters out zero-variance rows by design — see
- * apps/chrono-web/src/app/dashboard/reconciliation/page.tsx).
+ * apps/chrono-web/src/app/admin/reconciliation/page.tsx).
  */
 const SEEDED_PASSWORD = "Password123!";
 
@@ -26,7 +26,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -152,8 +152,8 @@ test.describe("Reconciliation — expected-cash computation", () => {
     });
 
     // A zero-variance closed shift is deliberately hidden from the dashboard's
-    // variance table (apps/chrono-web/src/app/dashboard/reconciliation/page.tsx).
-    await page.goto(`${base}/dashboard/reconciliation`);
+    // variance table (apps/chrono-web/src/app/admin/reconciliation/page.tsx).
+    await page.goto(`${base}/admin/reconciliation`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("No variance on this page.")).toBeVisible();
 
@@ -182,7 +182,7 @@ test.describe("Reconciliation — expected-cash computation", () => {
 
     // This shift now shows up in the dashboard's variance table with the
     // correct breakdown behind "View breakdown".
-    await page.goto(`${base}/dashboard/reconciliation`);
+    await page.goto(`${base}/admin/reconciliation`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("-10.00").first()).toBeVisible();
     await page.getByRole("button", { name: "View breakdown" }).first().click();

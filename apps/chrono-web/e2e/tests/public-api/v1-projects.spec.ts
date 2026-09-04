@@ -25,7 +25,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }

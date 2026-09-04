@@ -22,13 +22,13 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
 
 async function createBranch(page: import("@playwright/test").Page, name: string) {
-  await page.goto(page.url().replace(/\/dashboard.*/, "/dashboard/branches"));
+  await page.goto(page.url().replace(/\/admin.*/, "/admin/branches"));
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -43,7 +43,7 @@ async function openShift(
   base: string,
   branchName: string,
 ) {
-  await page.goto(`${base}/dashboard/shifts`);
+  await page.goto(`${base}/admin/shifts`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Open Shift" }).click();
   await page.getByLabel("Branch").click();
@@ -70,18 +70,18 @@ test.describe("Reports — tenant isolation", () => {
     await createBranch(page, branchNameA);
     await openShift(page, baseA, branchNameA);
 
-    await page.goto(`${baseA}/dashboard/branches`);
+    await page.goto(`${baseA}/admin/branches`);
     await page.waitForLoadState("networkidle");
     const branchRow = page.getByRole("row", { name: new RegExp(branchNameA) });
     const branchIdMatch = await branchRow.getAttribute("data-branch-id").catch(() => null);
 
-    await page.goto(`${baseA}/dashboard/reports`);
+    await page.goto(`${baseA}/admin/reports`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("500.00").or(page.getByText("Open shifts"))).toBeVisible();
 
     // Tenant B: fresh business, no data — overview must show zero, never tenant A's numbers.
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
-    await page.goto(`${baseB}/dashboard/reports`);
+    await page.goto(`${baseB}/admin/reports`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(branchNameA)).toHaveCount(0);
     await expect(page.getByText("500.00")).toHaveCount(0);

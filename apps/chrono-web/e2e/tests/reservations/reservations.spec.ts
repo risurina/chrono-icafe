@@ -33,7 +33,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -44,7 +44,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -104,7 +104,7 @@ test.describe("Reservations", () => {
     const branchId = await findBranchId(page, branchName);
     await createStation(page, branchId, stationName);
 
-    await page.goto(`${base}/dashboard/reservations`);
+    await page.goto(`${base}/admin/reservations`);
     await page.waitForLoadState("networkidle");
 
     // The board defaults to today; give it a moment to load branches/stations.
@@ -216,7 +216,7 @@ test.describe("Reservations", () => {
     const branchIdB = await findBranchId(pageB, branchNameB);
     await createStation(pageB, branchIdB, "B's Own Station");
 
-    await pageB.goto(`${baseB}/dashboard/reservations`);
+    await pageB.goto(`${baseB}/admin/reservations`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(customerName)).toHaveCount(0);
     await expect(pageB.getByText(stationNameA)).toHaveCount(0);

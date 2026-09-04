@@ -34,7 +34,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -49,7 +49,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), { timeout: 15_000 });
 }
 
 /** Reset a key to registry defaults (active, off, no rollout, all plans). */
@@ -125,7 +125,7 @@ test.describe("Platform Admin — Global Feature Management", () => {
     });
 
     // With the kill switch OFF (active), the tenant resolves ON (override).
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard/settings/features`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin/settings/features`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("switch", { name: `Toggle ${KEY_LABEL}` })).toBeChecked();
 

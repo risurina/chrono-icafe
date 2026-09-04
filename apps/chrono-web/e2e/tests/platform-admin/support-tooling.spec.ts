@@ -29,7 +29,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -44,7 +44,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -187,7 +187,7 @@ test.describe("Platform Admin Support Tooling", () => {
     await page.getByLabel("Email").fill("owner@contoso.test");
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
       timeout: 15_000,
     });
     await page.goto(`http://localtest.me:3000/admin/organizations/${orgId}`);

@@ -28,11 +28,11 @@ test.describe("Members invite", () => {
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     const inviteInput = page.getByPlaceholder("teammate@example.com");
@@ -61,11 +61,11 @@ test.describe("Members invite", () => {
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     const inviteInput = page.getByPlaceholder("teammate@example.com");
@@ -109,12 +109,12 @@ test.describe("Members invite", () => {
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
     // Owner invites the teammate.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(inviteeEmail);
@@ -128,7 +128,7 @@ test.describe("Members invite", () => {
 
     // Sign the invitee out and create their own account (their own business),
     // matching how a real invitee would arrive with an existing session.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.getByRole("button", { name: "Sign out" }).click();
     await page.waitForLoadState("networkidle");
 
@@ -141,7 +141,7 @@ test.describe("Members invite", () => {
     await page.getByLabel("Business name").fill(inviteeSlug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${inviteeSlug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${inviteeSlug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
@@ -149,12 +149,12 @@ test.describe("Members invite", () => {
     // signed in on the invited tenant's host.
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Owner sees the invitee as a member with the invited role.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("main").getByText(inviteeEmail)).toBeVisible();
     await expect(page.getByText("No pending invitations.")).toBeVisible();

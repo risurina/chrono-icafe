@@ -25,7 +25,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -47,7 +47,7 @@ async function createWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
   return slug;
@@ -89,7 +89,7 @@ test.describe("Announcements — tenant-facing visibility", () => {
     expect(createRes.ok()).toBeTruthy();
     const created = (await createRes.json()) as { id: string };
 
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(marker)).toBeVisible({ timeout: 25_000 });
 
@@ -115,8 +115,8 @@ test.describe("Announcements — tenant-facing visibility", () => {
     // Unauthenticated: visiting the tenant dashboard redirects to /login.
     const unauthContext = await browser.newContext();
     const unauthPage = await unauthContext.newPage();
-    await unauthPage.goto(`http://${slugA}.localtest.me:3000/dashboard`);
-    await unauthPage.waitForURL((url) => url.pathname.startsWith("/login"), {
+    await unauthPage.goto(`http://${slugA}.localtest.me:3000/admin`);
+    await unauthPage.waitForURL((url) => url.pathname.endsWith("/login"), {
       timeout: 15_000,
     });
 

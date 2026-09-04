@@ -59,7 +59,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -120,7 +120,7 @@ test.describe("Onboarding checklist", () => {
 
     // Complete the "create a branch" item via the real branches flow.
     const branchName = `${faker.company.name()} Branch`;
-    await page.goto(`${base}/dashboard/branches`);
+    await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Add Branch" }).click();
     await page.getByLabel("Name").fill(branchName);
@@ -128,7 +128,7 @@ test.describe("Onboarding checklist", () => {
     await expect(page.getByText(branchName)).toBeVisible();
 
     // Reload the dashboard and confirm the count incremented.
-    await page.goto(`${base}/dashboard`);
+    await page.goto(`${base}/admin`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("1 of 7 steps complete")).toBeVisible();
 
@@ -156,7 +156,7 @@ test.describe("Onboarding checklist", () => {
     expect(ownerState.items.every((i) => i.actionable)).toBe(true);
 
     // Invite staff.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -171,7 +171,7 @@ test.describe("Onboarding checklist", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
@@ -194,7 +194,7 @@ test.describe("Onboarding checklist", () => {
 
     // The card renders those four as "Ask an admin" (no "Start" link) and
     // the rest as actionable "Start" links.
-    await page.goto(`${base}/dashboard`);
+    await page.goto(`${base}/admin`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Ask an admin")).toHaveCount(STAFF_NOT_ACTIONABLE.size);
 
@@ -231,7 +231,7 @@ test.describe("Onboarding checklist", () => {
 
     // Complete "create a branch" in tenant A only.
     const branchName = `${faker.company.name()} Branch`;
-    await page.goto(`${baseA}/dashboard/branches`);
+    await page.goto(`${baseA}/admin/branches`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Add Branch" }).click();
     await page.getByLabel("Name").fill(branchName);

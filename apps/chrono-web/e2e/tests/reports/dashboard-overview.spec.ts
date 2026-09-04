@@ -22,13 +22,13 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
 
 async function createBranch(page: import("@playwright/test").Page, name: string) {
-  await page.goto(page.url().replace(/\/dashboard.*/, "/dashboard/branches"));
+  await page.goto(page.url().replace(/\/admin.*/, "/admin/branches"));
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -41,7 +41,7 @@ async function openShift(
   base: string,
   branchName: string,
 ) {
-  await page.goto(`${base}/dashboard/shifts`);
+  await page.goto(`${base}/admin/shifts`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Open Shift" }).click();
   await page.getByLabel("Branch").click();
@@ -55,7 +55,7 @@ async function createProduct(
   base: string,
   { name, price }: { name: string; price: string },
 ) {
-  await page.goto(`${base}/dashboard/pos/products`);
+  await page.goto(`${base}/admin/pos/products`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add product" }).click();
   await page.getByLabel("Name").fill(name);
@@ -71,7 +71,7 @@ async function ringUpCashSale(
   productName: string,
   price: string,
 ) {
-  await page.goto(`${base}/dashboard/pos`);
+  await page.goto(`${base}/admin/pos`);
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Branch").click();
   await page.getByRole("option", { name: new RegExp(branchName) }).click();
@@ -100,7 +100,7 @@ test.describe("Reports — dashboard overview", () => {
     await createProduct(page, base, { name: productName, price: "25.00" });
     await ringUpCashSale(page, base, branchName, productName, "25.00");
 
-    await page.goto(`${base}/dashboard/reports`);
+    await page.goto(`${base}/admin/reports`);
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByText("Today's revenue")).toBeVisible();

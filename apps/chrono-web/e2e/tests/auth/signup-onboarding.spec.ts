@@ -20,15 +20,15 @@ test.describe("Sign-up onboarding", () => {
 
     await page.getByRole("button", { name: /create business/i }).click();
 
-    // Redirects to {slug}.localtest.me:3000/dashboard on success.
+    // Redirects to {slug}.localtest.me:3000/admin on success.
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
     // Dashboard shell rendered (not bounced to /login) → session works
     // cross-subdomain.
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/admin$/);
     // Dashboard shell rendered: the sidebar nav is present.
     await expect(page.getByRole("link", { name: "Projects" })).toBeVisible();
     await expect(

@@ -27,7 +27,7 @@ async function signInStaff(page: Page, host: string, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Tenant-scoped browser coverage for the self-serve Features page
- * (`{slug}.localtest.me:3000/dashboard/settings/features`) after global feature
+ * (`{slug}.localtest.me:3000/admin/settings/features`) after global feature
  * management landed: the page shows the RESOLVED value (what is actually on for
  * the tenant), and when a platform rule (kill switch / plan gate) overrides the
  * owner's own toggle it surfaces a reason instead of silently snapping back —
@@ -31,7 +31,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -46,7 +46,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), { timeout: 15_000 });
 }
 
 async function setGlobal(
@@ -93,7 +93,7 @@ test.describe("Tenant Features — resolved value + override reason", () => {
     await setGlobal(adminPage, { globalDefault: true });
 
     // The owner, with no override of their own, sees the resolved ON value.
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard/settings/features`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin/settings/features`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("switch", { name: `Toggle ${KEY_LABEL}` })).toBeChecked();
 
@@ -117,7 +117,7 @@ test.describe("Tenant Features — resolved value + override reason", () => {
     await signInStaff(adminPage, "localtest.me:3000", PLATFORM_ADMIN_EMAIL);
     await setGlobal(adminPage, { status: "disabled" });
 
-    await page.goto(`http://${slug}.localtest.me:3000/dashboard/settings/features`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin/settings/features`);
     await page.waitForLoadState("networkidle");
 
     const toggle = page.getByRole("switch", { name: `Toggle ${KEY_LABEL}` });

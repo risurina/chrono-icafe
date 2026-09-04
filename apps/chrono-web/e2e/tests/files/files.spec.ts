@@ -44,7 +44,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -78,7 +78,7 @@ test.describe("Files (pre-signed upload, STORAGE_PROVIDER=local)", () => {
     const base = `http://${slug}.localtest.me:3000`;
 
     await signUp(page, { name: "PW Files", email, slug });
-    await page.goto(`${base}/dashboard/files`);
+    await page.goto(`${base}/admin/files`);
     await page.waitForLoadState("networkidle");
 
     await uploadFile(page, { name: "public-logo.png", isPublic: true });
@@ -107,12 +107,12 @@ test.describe("Files (pre-signed upload, STORAGE_PROVIDER=local)", () => {
     const base = `http://${slug}.localtest.me:3000`;
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
-    await page.goto(`${base}/dashboard/files`);
+    await page.goto(`${base}/admin/files`);
     await page.waitForLoadState("networkidle");
     await uploadFile(page, { name: "gate-file.png", isPublic: true });
 
     // Invite a teammate (default role: staff — file:create/read, no file:delete).
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -126,12 +126,12 @@ test.describe("Files (pre-signed upload, STORAGE_PROVIDER=local)", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff can upload (file:create) but delete is refused server-side.
-    await page.goto(`${base}/dashboard/files`);
+    await page.goto(`${base}/admin/files`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("gate-file.png")).toBeVisible();
     await uploadFile(page, { name: "staff-uploaded.png", isPublic: true });
@@ -152,7 +152,7 @@ test.describe("Files (pre-signed upload, STORAGE_PROVIDER=local)", () => {
     const emailB = `pwfilesb${uniq}@example.com`;
 
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/files`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/files`);
     await page.waitForLoadState("networkidle");
     await uploadFile(page, { name: "acme-only-file.png", isPublic: true });
 
@@ -160,7 +160,7 @@ test.describe("Files (pre-signed upload, STORAGE_PROVIDER=local)", () => {
     await page.waitForLoadState("networkidle");
 
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
-    await page.goto(`http://${slugB}.localtest.me:3000/dashboard/files`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/files`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("Search files…").fill("acme-only");
     await expect(page.getByText("No files yet.")).toBeVisible();

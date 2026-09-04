@@ -10,8 +10,8 @@ import { faker } from "../../utils/faker";
  * - `apps/chrono-api/src/modules/onboarding/contracts.ts` — the seven items,
  *   in stage order (Venue: createBranch, addStationGroup, addStation; Team:
  *   inviteStaff; Trading: addProducts, pairDevice, openShift).
- * - `apps/chrono-web/src/app/dashboard/setup/page.tsx` — there is NO
- *   automatic redirect to /dashboard on allDone; it renders a "You're all
+ * - `apps/chrono-web/src/app/admin/setup/page.tsx` — there is NO
+ *   automatic redirect to /admin on allDone; it renders a "You're all
  *   set" card with an explicit "Go to dashboard" button. The active step is
  *   derived fresh from server state every load (first not-done item, stage
  *   order) — no stored cursor.
@@ -56,7 +56,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -105,7 +105,7 @@ test.describe("Onboarding setup wizard", () => {
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/setup`);
+    await page.goto(`${base}/admin/setup`);
     await page.waitForLoadState("networkidle");
 
     // 1. createBranch
@@ -148,7 +148,7 @@ test.describe("Onboarding setup wizard", () => {
     await expect(page.getByText(/^[A-Z0-9]+$/).first()).toBeVisible();
 
     // 7. openShift
-    await page.goto(`${base}/dashboard/setup#openShift`);
+    await page.goto(`${base}/admin/setup#openShift`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Open your first shift" })).toBeVisible();
     await page.getByLabel("Opening cash amount").fill("2000.00");
@@ -161,7 +161,7 @@ test.describe("Onboarding setup wizard", () => {
     expect(finalState.completedCount).toBe(7);
 
     await page.getByRole("button", { name: "Go to dashboard" }).click();
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard$`));
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin$`));
     // The dashboard checklist card is gone once allDone.
     await expect(page.getByText("Get set up")).toHaveCount(0);
   });
@@ -179,7 +179,7 @@ test.describe("Onboarding setup wizard", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // Invite staff.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -194,7 +194,7 @@ test.describe("Onboarding setup wizard", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
@@ -207,7 +207,7 @@ test.describe("Onboarding setup wizard", () => {
       );
     }
 
-    await page.goto(`${base}/dashboard/setup`);
+    await page.goto(`${base}/admin/setup`);
     await page.waitForLoadState("networkidle");
 
     // The stepper renders all seven steps; the four staff lacks are locked
@@ -260,7 +260,7 @@ test.describe("Onboarding setup wizard", () => {
     expect(beforeB.completedCount).toBe(0);
 
     // Complete the first two steps in tenant A only.
-    await page.goto(`${baseA}/dashboard/setup`);
+    await page.goto(`${baseA}/admin/setup`);
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Branch name").fill("Main Branch");
     await page.getByLabel("Branch code").fill("MAIN");
@@ -292,7 +292,7 @@ test.describe("Onboarding setup wizard", () => {
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/setup`);
+    await page.goto(`${base}/admin/setup`);
     await page.waitForLoadState("networkidle");
 
     // Complete the three Venue-stage steps.

@@ -42,7 +42,7 @@ async function signIn(
   // Wait for the post-auth redirect to land before the caller navigates again —
   // otherwise a goto() right after click() can race the session cookie write
   // and land back on /login.
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -176,10 +176,10 @@ test.describe("Post-authentication routing", () => {
     page,
   }) => {
     // The platform admin deliberately holds no tenant membership, which makes
-    // it the exact case that used to be sent to /dashboard on a tenant-less
+    // it the exact case that used to be sent to /admin on a tenant-less
     // host and see nothing.
     await signIn(page, PLATFORM_ADMIN_EMAIL);
-    await page.waitForURL(/\/(new-business|admin|dashboard)/, { timeout: 20_000 });
+    await page.waitForURL(/\/(new-business|admin)/, { timeout: 20_000 });
     expect(page.url()).toContain("/new-business");
     await expect(
       page.getByRole("heading", { name: /welcome — create your business/i }),

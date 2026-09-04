@@ -7,13 +7,13 @@ import { faker } from "../../utils/faker";
  *
  * Per Phase 5 of .ai/plans/chrono/active/wallet/README.md:
  * - Happy path: sign up a tenant (staff) + a customer via /portal/sign-up; as staff,
- *   navigate to /dashboard/wallets, top up the customer's wallet, confirm balance
+ *   navigate to /admin/wallets, top up the customer's wallet, confirm balance
  *   updates and history shows credit; debit amount less than balance, confirm success;
  *   debit amount more than balance, confirm 422/toast and no change; as customer,
  *   reload /portal and confirm balance and history match.
  * - Role gate: owner invites staff; staff can Top Up/Debit but Adjust is unavailable
  *   (or 403s if forced); admin/owner can Adjust.
- * - Tenant isolation: tenant A tops up customer A's wallet; tenant B's /dashboard/wallets
+ * - Tenant isolation: tenant A tops up customer A's wallet; tenant B's /admin/wallets
  *   never shows that member or wallet, and direct cross-tenant memberId mutation 404s.
  */
 const DEV_LOG_PATH = process.env.DEV_LOG_PATH ?? "/tmp/agora-dev.log";
@@ -47,7 +47,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -88,13 +88,13 @@ test.describe("Wallet", () => {
     await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
 
     // Since the API requires the member ID for mutations, we fetch it via the portal API or we can just fetch the members list.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
 
     // The new wallet page is supposed to mirror customers page. But without UI, we might need a way to Top Up.
-    // The instruction says: "as staff, navigate to /dashboard/wallets, top up the customer's wallet, confirm the balance updates".
+    // The instruction says: "as staff, navigate to /admin/wallets, top up the customer's wallet, confirm the balance updates".
     // Let's go to wallets page.
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
 
     // First Top Up. Since the wallet doesn't exist yet, maybe the UI has a general "Top Up" button that lets you select a customer,
@@ -106,7 +106,7 @@ test.describe("Wallet", () => {
     // Phase 4 says: "dashboard/wallets/page.tsx ... Top Up / Debit dialogs ...".
     // If it's a list, the customer might not be in the list yet until they have a balance.
     // But wait, Phase 4: `useListQuery(), api.rpc.wallets.$get ...`. `GET /wallets` only returns rows where a wallet exists.
-    // How does a user top up an empty wallet from `/dashboard/wallets`?
+    // How does a user top up an empty wallet from `/admin/wallets`?
     // Maybe there's a "Top Up New Wallet" button, or "Top Up" opens a combobox for ALL customers.
     // Let's assume Top Up opens a dialog where we can type the customer's name and amount.
     await page.getByLabel(/Customer|Member/).fill(customerName);
@@ -184,7 +184,7 @@ test.describe("Wallet", () => {
     await ctxCust.close();
 
     // Owner tops up so the wallet exists
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Top Up" }).click();
     await page.getByLabel(/Customer|Member/).fill(customerName);
@@ -201,7 +201,7 @@ test.describe("Wallet", () => {
     await expect(page.getByText("5.00")).toBeVisible();
 
     // Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -216,12 +216,12 @@ test.describe("Wallet", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff checks wallets
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
 
     // Top up and Debit should be visible
@@ -261,7 +261,7 @@ test.describe("Wallet", () => {
     await ctxCust.close();
 
     // Tenant A tops up
-    await page.goto(`${baseA}/dashboard/wallets`);
+    await page.goto(`${baseA}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Top Up" }).click();
     await page.getByLabel(/Customer|Member/).fill(customerName);
@@ -289,7 +289,7 @@ test.describe("Wallet", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Verify Tenant B doesn't see Tenant A's customer in wallets
-    await pageB.goto(`${baseB}/dashboard/wallets`);
+    await pageB.goto(`${baseB}/admin/wallets`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(customerName)).toHaveCount(0);
 

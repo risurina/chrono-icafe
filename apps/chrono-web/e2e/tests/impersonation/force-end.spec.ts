@@ -32,7 +32,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -43,7 +43,7 @@ async function signInStaff(page: Page, host: string, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -206,7 +206,7 @@ test.describe("Impersonation force-end", () => {
 
       // Admin A's next dashboard poll 401s, and the banner's restore action
       // recovers their own session (Phase 5 restore path).
-      await adminAPage.goto(`http://${slug}.localtest.me:3000/dashboard`);
+      await adminAPage.goto(`http://${slug}.localtest.me:3000/admin`);
       const meRes = await adminAPage.request.get(`${API_URL}/rpc/me`, {
         headers: { "x-tenant-slug": slug },
       });

@@ -11,10 +11,10 @@ test("roles UI: create, list, edit, delete a custom role", async ({ page }) => {
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), { timeout: 60_000 });
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), { timeout: 60_000 });
 
   const base = `http://${slug}.localtest.me:3000`;
-  await page.goto(`${base}/dashboard/settings/roles`);
+  await page.goto(`${base}/admin/settings/roles`);
   await page.waitForLoadState("networkidle");
 
   // Built-ins listed and marked immutable

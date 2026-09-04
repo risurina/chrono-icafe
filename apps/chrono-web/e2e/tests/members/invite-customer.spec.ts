@@ -4,7 +4,7 @@ import { faker } from "../../utils/faker";
 
 /**
  * .ai/plans/chrono/active/customer-invite/README.md — Phase 4. Covers the
- * "Invite" action on /dashboard/members: happy path (staff invites → row
+ * "Invite" action on /admin/members: happy path (staff invites → row
  * appears approved → invitee accepts the emailed link → signs in on
  * /portal), the admin+-only role gate, and cross-tenant isolation of the
  * accept-invite token. Mirrors members/members.spec.ts's own
@@ -44,7 +44,7 @@ async function signUp(
   // filling it with the already-lowercased slug leaves the URL unchanged.
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -54,7 +54,7 @@ async function inviteCustomer(
   base: string,
   { name, email }: { name: string; email: string },
 ) {
-  await page.goto(`${base}/dashboard/members`);
+  await page.goto(`${base}/admin/members`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Invite player" }).click();
   await page.getByLabel("Name").fill(name);
@@ -100,7 +100,7 @@ test.describe("Invite a customer", () => {
     });
 
     // A fresh sign-in with the chosen password also works.
-    await inviteePage.goto(`${base}/portal/login`);
+    await inviteePage.goto(`${base}/login`);
     await inviteePage.getByLabel("Email").fill(inviteeEmail);
     await inviteePage.getByLabel("Password").fill("Password123!");
     await inviteePage.getByRole("button", { name: "Sign in" }).click();
@@ -122,7 +122,7 @@ test.describe("Invite a customer", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // Owner invites a staff teammate (Better Auth staff invite, unrelated flow).
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -136,12 +136,12 @@ test.describe("Invite a customer", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(staffInviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff (memberProfile:invite not granted) sees no Invite control.
-    await page.goto(`${base}/dashboard/members`);
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("button", { name: "Invite player" })).toHaveCount(0);
   });

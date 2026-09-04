@@ -30,7 +30,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -84,8 +84,8 @@ test.describe("Members", () => {
     await customer2Page.getByRole("button", { name: "Apply for membership" }).click();
     await expect(customer2Page.getByText("pending", { exact: true })).toBeVisible();
 
-    // 4. As staff, navigate to /dashboard/members
-    await page.goto(`${base}/dashboard/members`);
+    // 4. As staff, navigate to /admin/members
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     
     // Approve Customer 1
@@ -127,7 +127,7 @@ test.describe("Members", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // 2. Owner invites a staff teammate
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -162,12 +162,12 @@ test.describe("Members", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // 5. Staff attempts to approve and is denied
-    await page.goto(`${base}/dashboard/members`);
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     const row = page.getByRole("row", { name: new RegExp(customerEmail) });
     await expect(row.getByText("pending", { exact: true })).toBeVisible();
@@ -222,7 +222,7 @@ test.describe("Members", () => {
     await customerCtx.close();
 
     // Verify Customer A appears on Tenant A's list
-    await page.goto(`${baseA}/dashboard/members`);
+    await page.goto(`${baseA}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible();
     
@@ -233,7 +233,7 @@ test.describe("Members", () => {
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
 
     // 4. Verify Tenant B's list does not show Customer A
-    await page.goto(`${baseB}/dashboard/members`);
+    await page.goto(`${baseB}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("No members yet.")).toBeVisible();
     await expect(page.getByText(customerEmail)).toHaveCount(0);

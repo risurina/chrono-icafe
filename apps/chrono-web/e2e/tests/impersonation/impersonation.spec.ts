@@ -35,18 +35,20 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
 
 async function signInStaff(page: Page, host: string, email: string) {
-  await page.goto(`http://${host}/login`);
+  // Apex staff sign-in is /login; on a tenant host it is /admin/login.
+  const loginPath = host === "localtest.me:3000" ? "/login" : "/admin/login";
+  await page.goto(`http://${host}${loginPath}`);
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -134,13 +136,13 @@ test.describe("Impersonation lifecycle", () => {
     const row = adminPage.getByRole("row").filter({ hasText: ownerEmail });
     await row.getByRole("button", { name: "Impersonate" }).click();
     await adminPage.getByRole("dialog").getByRole("button", { name: "Impersonate" }).click();
-    await adminPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await adminPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // The banner is visible and non-dismissable; an allowed action works.
     await expect(adminPage.getByText(/you are impersonating/i)).toBeVisible();
-    await adminPage.goto(`${base}/dashboard/settings/crew`);
+    await adminPage.goto(`${base}/admin/settings/crew`);
     await adminPage.waitForLoadState("networkidle");
     await expect(adminPage.getByText(/you are impersonating/i)).toBeVisible();
 
@@ -243,7 +245,7 @@ test.describe("Impersonation lifecycle", () => {
     page,
   }) => {
     await signInStaff(page, "acme.localtest.me:3000", "owner@acme.test");
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await page.waitForURL(/\/admin/, { timeout: 30_000 });
 
     const res = await page.request.post(
       `${API_URL}/rpc-admin/impersonation/start`,

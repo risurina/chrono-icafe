@@ -24,29 +24,29 @@ test.describe("Settings submodules navigation", () => {
     await page.getByRole("button", { name: /create business/i }).click();
 
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
     // Sidebar → Settings lands on the settings overview.
     await page.getByRole("link", { name: "Settings" }).click();
-    await page.waitForURL(`${base}/dashboard/settings`);
+    await page.waitForURL(`${base}/admin/settings`);
     await expect(
       page.getByRole("heading", { name: "Settings" }),
     ).toBeVisible();
 
     // Settings sub-nav is present and drives navigation between submodules.
     await page.getByRole("link", { name: "Branding" }).first().click();
-    await page.waitForURL(`${base}/dashboard/settings/branding`);
+    await page.waitForURL(`${base}/admin/settings/branding`);
 
     await page.getByRole("link", { name: "Members" }).first().click();
-    await page.waitForURL(`${base}/dashboard/settings/crew`);
+    await page.waitForURL(`${base}/admin/settings/crew`);
     await expect(
       page.getByRole("heading", { name: "Members" }),
     ).toBeVisible();
 
     // An old top-level path redirects to its new nested location.
-    await page.goto(`${base}/dashboard/security`);
-    await page.waitForURL(`${base}/dashboard/settings/security`);
+    await page.goto(`${base}/admin/security`);
+    await page.waitForURL(`${base}/admin/settings/security`);
   });
 });

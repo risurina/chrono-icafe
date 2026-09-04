@@ -27,7 +27,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -71,12 +71,12 @@ test.describe("Inquiries", () => {
     await visitorPage.close();
 
     // Staff sees it in the inbox.
-    await page.goto(`${base}/dashboard/inquiries`);
+    await page.goto(`${base}/admin/inquiries`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(subject)).toBeVisible();
 
     await page.getByRole("link", { name: "Open" }).first().click();
-    await page.waitForURL(/\/dashboard\/inquiries\/.+/);
+    await page.waitForURL(/\/admin\/inquiries\/.+/);
     await expect(page.getByText(visitorEmail)).toBeVisible();
 
     // Assign to self.
@@ -133,11 +133,11 @@ test.describe("Inquiries", () => {
     // exercises the *permission check itself* via a role with genuinely no
     // inquiry grant, confirming the UI's <Can> gate actually hides the
     // controls rather than merely not being exercised.
-    await page.goto(`${base}/dashboard/inquiries`);
+    await page.goto(`${base}/admin/inquiries`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Role-gate test inquiry")).toBeVisible();
     await page.getByRole("link", { name: "Open" }).first().click();
-    await page.waitForURL(/\/dashboard\/inquiries\/.+/);
+    await page.waitForURL(/\/admin\/inquiries\/.+/);
     // The owner holds inquiry:manage, so assign/reply controls are visible here —
     // this asserts the controls exist for a holder, establishing the baseline
     // the <Can> gate is built on (component-level gating, not a separate route).
@@ -185,7 +185,7 @@ test.describe("Inquiries", () => {
     await expect(pageMemberA.getByText("Inquiry submitted.")).toBeVisible();
 
     // Tenant B's staff inbox never shows tenant A's inquiry.
-    await pageB.goto(`${baseB}/dashboard/inquiries`);
+    await pageB.goto(`${baseB}/admin/inquiries`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText("Member A's private inquiry")).not.toBeVisible();
 

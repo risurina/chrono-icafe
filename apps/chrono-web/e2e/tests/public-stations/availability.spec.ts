@@ -16,7 +16,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -27,7 +27,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);

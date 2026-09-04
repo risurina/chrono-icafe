@@ -27,7 +27,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -42,7 +42,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -80,7 +80,7 @@ test.describe("Module registry — nav gating", () => {
     await signUpWorkspace(ownerBPage, { name: "Mod Owner B", email: ownerBEmail, slug: slugB });
 
     // Registry default is enabled — both tenants see the nav entry before any toggle.
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("link", { name: "Projects" })).toBeVisible();
 
@@ -98,12 +98,12 @@ test.describe("Module registry — nav gating", () => {
     await expect(toggle).not.toBeChecked();
 
     // Tenant A's nav entry disappears.
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("link", { name: "Projects" })).toHaveCount(0);
 
     // Tenant B is unaffected.
-    await ownerBPage.goto(`http://${slugB}.localtest.me:3000/dashboard`);
+    await ownerBPage.goto(`http://${slugB}.localtest.me:3000/admin`);
     await ownerBPage.waitForLoadState("networkidle");
     await expect(ownerBPage.getByRole("link", { name: "Projects" })).toBeVisible();
 

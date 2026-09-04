@@ -48,7 +48,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
     waitUntil: "commit",
   });
@@ -87,14 +87,14 @@ async function createBranchStationAndGroup(
     stationName: string;
   },
 ): Promise<string> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(branchName);
   await page.getByRole("button", { name: "Create branch" }).click();
   await expect(page.getByText(branchName)).toBeVisible();
 
-  await page.goto(`${base}/dashboard/stations`);
+  await page.goto(`${base}/admin/stations`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("tab", { name: "Groups & Rates" }).click();
   await page.getByRole("button", { name: "Add Group" }).click();
@@ -176,7 +176,7 @@ test.describe("Sessions", () => {
     const memberId = await findMemberId(page, customerEmail);
     await topUpWallet(page, memberId, "50.00");
 
-    await page.goto(`${base}/dashboard/sessions`);
+    await page.goto(`${base}/admin/sessions`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Start Session" }).click();
     await page.getByRole("combobox").filter({ hasText: "Select a station" }).click();
@@ -285,7 +285,7 @@ test.describe("Sessions", () => {
     await ctxCust.close();
 
     // Invite a staff member and confirm they can drive the full session lifecycle.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -299,11 +299,11 @@ test.describe("Sessions", () => {
     await signUp(page, { name: "Sessions Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
-    await page.goto(`${base}/dashboard/sessions`);
+    await page.goto(`${base}/admin/sessions`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Start Session" }).click();
     await page.getByRole("combobox").filter({ hasText: "Select a station" }).click();
@@ -359,7 +359,7 @@ test.describe("Sessions", () => {
     const memberId = await findMemberId(page, customerEmail);
     await topUpWallet(page, memberId, "50.00");
 
-    await page.goto(`${baseA}/dashboard/sessions`);
+    await page.goto(`${baseA}/admin/sessions`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Start Session" }).click();
     await page.getByRole("combobox").filter({ hasText: "Select a station" }).click();
@@ -379,7 +379,7 @@ test.describe("Sessions", () => {
     const pageB = await ctxB.newPage();
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
-    await pageB.goto(`${baseB}/dashboard/sessions`);
+    await pageB.goto(`${baseB}/admin/sessions`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(customerName)).toHaveCount(0);
     await expect(pageB.getByText(`Station ${uniq}`)).toHaveCount(0);
@@ -438,7 +438,7 @@ test.describe("Sessions", () => {
 
     // Starting a session with $0 wallet balance used to 422 unconditionally —
     // it now succeeds because the member holds an eligible credit grant.
-    await page.goto(`${base}/dashboard/sessions`);
+    await page.goto(`${base}/admin/sessions`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Start Session" }).click();
     await page.getByRole("combobox").filter({ hasText: "Select a station" }).click();

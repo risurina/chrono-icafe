@@ -21,7 +21,7 @@ test.describe("New business for an authenticated user", () => {
     await page.getByRole("button", { name: /create business/i }).click();
 
     await page.waitForURL(
-      new RegExp(`//${firstSlug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${firstSlug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
@@ -41,17 +41,17 @@ test.describe("New business for an authenticated user", () => {
 
     // Redirects to the new tenant's dashboard.
     await page.waitForURL(
-      new RegExp(`//${secondSlug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${secondSlug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("link", { name: "Projects" })).toBeVisible();
 
     // Original business is unaffected — switching back still works.
     await page.goto(
-      `http://${firstSlug}.localtest.me:3000/dashboard`,
+      `http://${firstSlug}.localtest.me:3000/admin`,
     );
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("link", { name: "Projects" })).toBeVisible();
   });
 });

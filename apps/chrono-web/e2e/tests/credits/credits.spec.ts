@@ -49,7 +49,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -75,7 +75,7 @@ async function openMemberCredits(
   base: string,
   customerName: string,
 ) {
-  await page.goto(`${base}/dashboard/credits`);
+  await page.goto(`${base}/admin/credits`);
   await page.waitForLoadState("networkidle");
   await page.getByPlaceholder("Search members…").fill(customerName);
   await page.getByRole("button", { name: "View Credits" }).click();
@@ -91,7 +91,7 @@ async function createCreditProduct(
     priceAmount,
   }: { name: string; code: string; quantityMinutes: string; priceAmount: string },
 ) {
-  await page.goto(`${base}/dashboard/credits`);
+  await page.goto(`${base}/admin/credits`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("tab", { name: "Products" }).click();
   await page.getByRole("button", { name: "Create Product" }).click();
@@ -220,7 +220,7 @@ test.describe("Credits", () => {
     await expect(page.getByText("60 min")).toBeVisible();
 
     // Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -235,7 +235,7 @@ test.describe("Credits", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
@@ -320,7 +320,7 @@ test.describe("Credits", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Verify Tenant B doesn't see Tenant A's customer in the Credits members list
-    await pageB.goto(`${baseB}/dashboard/credits`);
+    await pageB.goto(`${baseB}/admin/credits`);
     await pageB.waitForLoadState("networkidle");
     await pageB.getByPlaceholder("Search members…").fill(customerName);
     await expect(pageB.getByText(customerName)).toHaveCount(0);

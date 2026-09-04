@@ -41,13 +41,13 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
 
 async function createBranch(page: Page, base: string, name: string): Promise<string> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -171,7 +171,7 @@ test.describe("Realtime station updates", () => {
     await signUp(page, { name: faker.person.fullName(), email, slug });
     const branchId = await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/stations`);
+    await page.goto(`${base}/admin/stations`);
     await page.waitForLoadState("networkidle");
     await openRealtimeSocket(page, { scope: `branch:${branchId}` });
     expect(await waitForOpen(page)).toBe(true);
@@ -249,7 +249,7 @@ test.describe("Realtime station updates", () => {
 
     expect(branchIdA).not.toBe(branchIdB);
 
-    await page.goto(`${baseA}/dashboard/stations`);
+    await page.goto(`${baseA}/admin/stations`);
     await page.waitForLoadState("networkidle");
     await openRealtimeSocket(page, { scope: `branch:${branchIdA}` });
     expect(await waitForOpen(page)).toBe(true);

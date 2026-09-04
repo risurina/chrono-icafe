@@ -33,7 +33,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -59,11 +59,11 @@ test.describe("Platform Admin: subscriptions management", () => {
     page,
   }) => {
     await signInStaff(page, "acme.localtest.me:3000", "owner@acme.test");
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await page.waitForURL(/\/admin/, { timeout: 30_000 });
 
     // The admin shell guard sends a non-platform user back to their dashboard.
     await page.goto("http://localtest.me:3000/admin/subscriptions");
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
 
     // Every write action is gated on `organization:override_subscription`,
     // which no non-platform account holds — a direct call 403s.

@@ -41,7 +41,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -62,7 +62,7 @@ test.describe("Tenant landing — editor role gate", () => {
     await signUp(page, { name: "Landing Owner", email: ownerEmail, slug });
 
     // Invite staff.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -77,12 +77,12 @@ test.describe("Tenant landing — editor role gate", () => {
     await signUp(page, { name: "Landing Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff visits the editor: no Save control, form is hidden entirely.
-    await page.goto(`${base}/dashboard/settings/landing-page`);
+    await page.goto(`${base}/admin/settings/landing-page`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
     await expect(page.getByLabel("Hero tagline")).toHaveCount(0);
@@ -103,17 +103,17 @@ test.describe("Tenant landing — editor role gate", () => {
     await page.waitForLoadState("networkidle");
 
     // Owner (admin+) can save, and the change is reflected on /about.
-    await page.goto(`${base}/login`);
+    await page.goto(`${base}/admin/login`);
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Email").fill(ownerEmail);
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     const heroTagline = `${faker.company.catchPhrase()} — owner saved`;
-    await page.goto(`${base}/dashboard/settings/landing-page`);
+    await page.goto(`${base}/admin/settings/landing-page`);
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Hero tagline").fill(heroTagline);
     await page.getByRole("button", { name: "Save" }).click();

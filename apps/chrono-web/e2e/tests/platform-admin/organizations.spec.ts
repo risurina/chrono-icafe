@@ -48,7 +48,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -59,7 +59,7 @@ async function signInStaff(page: Page, host: string, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), { timeout: 15_000 });
 }
 
 /** Open the admin organizations list and search for a slug, returning its row. */
@@ -94,7 +94,7 @@ test.describe("Platform Admin Organizations", () => {
 
     // Owner invites a non-owner staff teammate (owners are exempt from the
     // suspended-tenant lockout, so the lockout assertion needs a non-owner).
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -122,15 +122,15 @@ test.describe("Platform Admin Organizations", () => {
     await expect(adminPage.getByText(/suspended\./i)).toBeVisible();
 
     // Non-owner staff is blocked; owner retains access (accepted MVP limitation).
-    await staffPage.goto(`${base}/dashboard`);
+    await staffPage.goto(`${base}/admin`);
     await expect(staffPage).toHaveURL(/\/suspended/, { timeout: 15_000 });
-    await page.goto(`${base}/dashboard`);
+    await page.goto(`${base}/admin`);
     await expect(page).not.toHaveURL(/\/suspended/);
 
     // Reactivate (a single confirm-free menu action) restores access.
     await rowAction(adminPage, slug, "Reactivate");
     await expect(adminPage.getByText(/reactivated\./i)).toBeVisible();
-    await staffPage.goto(`${base}/dashboard`);
+    await staffPage.goto(`${base}/admin`);
     await expect(staffPage).not.toHaveURL(/\/suspended/, { timeout: 15_000 });
 
     await staffContext.close();
@@ -149,7 +149,7 @@ test.describe("Platform Admin Organizations", () => {
 
     await signUpWorkspace(page, { name: "Arch Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -176,13 +176,13 @@ test.describe("Platform Admin Organizations", () => {
     await expect(adminPage.getByText(/archived\./i)).toBeVisible();
 
     // Archived blocks the non-owner staff member's dashboard.
-    await staffPage.goto(`${base}/dashboard`);
+    await staffPage.goto(`${base}/admin`);
     await expect(staffPage).toHaveURL(/\/suspended/, { timeout: 15_000 });
 
     // Reactivate restores it.
     await rowAction(adminPage, slug, "Reactivate");
     await expect(adminPage.getByText(/reactivated\./i)).toBeVisible();
-    await staffPage.goto(`${base}/dashboard`);
+    await staffPage.goto(`${base}/admin`);
     await expect(staffPage).not.toHaveURL(/\/suspended/, { timeout: 15_000 });
 
     await staffContext.close();
@@ -228,10 +228,10 @@ test.describe("Platform Admin Organizations", () => {
     page,
   }) => {
     await signInStaff(page, "acme.localtest.me:3000", "owner@acme.test");
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await page.waitForURL(/\/admin/, { timeout: 30_000 });
 
     await page.goto("http://localtest.me:3000/admin");
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
 
     // The new mutating routes are gated too — a non-platform actor gets 403.
     const suspend = await page.request.post(

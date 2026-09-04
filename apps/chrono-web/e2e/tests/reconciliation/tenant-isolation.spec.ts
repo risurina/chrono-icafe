@@ -26,7 +26,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -89,7 +89,7 @@ test.describe("Reconciliation — tenant isolation", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Tenant B's own dashboard never shows tenant A's shift.
-    await pageB.goto(`${baseB}/dashboard/reconciliation`);
+    await pageB.goto(`${baseB}/admin/reconciliation`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText("-5.00")).toHaveCount(0);
 

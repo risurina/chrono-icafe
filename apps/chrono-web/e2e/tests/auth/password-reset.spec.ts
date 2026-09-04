@@ -27,12 +27,12 @@ test.describe("Password reset request", () => {
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 
     // From the tenant login, follow "Forgot password?" to the request form.
-    await page.goto(`http://${slug}.localtest.me:3000/login`);
+    await page.goto(`http://${slug}.localtest.me:3000/admin/login`);
     await page.getByRole("link", { name: /forgot password/i }).click();
     await page.waitForURL(/\/forgot-password$/);
 

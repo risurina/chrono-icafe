@@ -28,7 +28,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -76,7 +76,7 @@ test.describe("Customer onboarding", () => {
     ).toBeVisible();
 
     // 3. Staff sees the pending badge and approves from the dashboard.
-    await page.goto(`${base}/dashboard/members`);
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("1 pending", { exact: true })).toBeVisible();
     const row = page.getByRole("row", { name: new RegExp(customerEmail) });
@@ -110,7 +110,7 @@ test.describe("Customer onboarding", () => {
 
     // 1. Owner signs up and invites a staff teammate.
     await signUp(page, { name: "Onboarding Owner", email: ownerEmail, slug });
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -149,13 +149,13 @@ test.describe("Customer onboarding", () => {
     await signUp(page, { name: "Onboarding Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // 4. Staff can see the applicant but cannot approve (memberProfile:approve
     // is admin+ only, staff holds memberProfile:read only).
-    await page.goto(`${base}/dashboard/members`);
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     const row = page.getByRole("row", { name: new RegExp(customerEmail) });
     await expect(row.getByText("pending", { exact: true })).toBeVisible();
@@ -167,10 +167,10 @@ test.describe("Customer onboarding", () => {
 
     // 5. The staff's own (Better Auth) session holds no tenantMember/portal
     // session, so the member portal refuses it — memberMiddleware resolves no
-    // member and the portal layout redirects to /portal/login rather than
+    // member and the portal layout redirects to /login rather than
     // showing any customer's onboarding state.
     await page.goto(`${base}/portal`);
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal/login$`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/login$`), {
       timeout: 15_000,
     });
   });
@@ -196,7 +196,7 @@ test.describe("Customer onboarding", () => {
     await customerPage.getByRole("button", { name: "Apply for membership" }).click();
     await expect(customerPage.getByText("pending", { exact: true })).toBeVisible();
 
-    await page.goto(`${baseA}/dashboard/members`);
+    await page.goto(`${baseA}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("1 pending", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -204,7 +204,7 @@ test.describe("Customer onboarding", () => {
 
     // 2. Tenant B — a fresh tenant with no applicants of its own.
     await signUp(page, { name: "Tenant B Owner", email: emailB, slug: slugB });
-    await page.goto(`${baseB}/dashboard/members`);
+    await page.goto(`${baseB}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("No members yet.")).toBeVisible();
     await expect(page.getByText(customerEmail)).toHaveCount(0);
@@ -216,7 +216,7 @@ test.describe("Customer onboarding", () => {
     // getMemberContext, so a cross-tenant cookie resolves to no member and
     // the portal layout redirects to login rather than showing any state.
     await customerPage.goto(`${baseB}/portal`);
-    await customerPage.waitForURL(new RegExp(`//${slugB}\\.localtest\\.me:3000/portal/login$`), {
+    await customerPage.waitForURL(new RegExp(`//${slugB}\\.localtest\\.me:3000/login$`), {
       timeout: 15_000,
     });
 
@@ -234,7 +234,7 @@ test.describe("Customer onboarding", () => {
 
     // 1. Owner turns the flag on.
     await signUp(page, { name: "Flag Owner", email: ownerEmail, slug });
-    await page.goto(`${base}/dashboard/settings/features`);
+    await page.goto(`${base}/admin/settings/features`);
     await page.waitForLoadState("networkidle");
     const toggle = page.getByRole("switch", { name: "Toggle Auto-approve members" });
     await expect(toggle).not.toBeChecked();
@@ -252,7 +252,7 @@ test.describe("Customer onboarding", () => {
     await expect(customerPage.getByText("pending", { exact: true })).toHaveCount(0);
 
     // No pending badge should appear on staff's side for this applicant.
-    await page.goto(`${base}/dashboard/members`);
+    await page.goto(`${base}/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(/\d+ pending/)).toHaveCount(0);
     const row = page.getByRole("row", { name: new RegExp(customerEmail) });

@@ -25,7 +25,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -35,7 +35,7 @@ async function saveLandingPage(
   base: string,
   content: { heroTagline: string; aboutBody: string; amenitiesBody: string },
 ) {
-  await page.goto(`${base}/dashboard/settings/landing-page`);
+  await page.goto(`${base}/admin/settings/landing-page`);
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Hero tagline").fill(content.heroTagline);
   await page.getByLabel("About").fill(content.aboutBody);

@@ -15,7 +15,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -35,7 +35,7 @@ test.describe("Vouchers", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // 2. Navigate to Vouchers page
-    await page.goto(`${base}/dashboard/vouchers`);
+    await page.goto(`${base}/admin/vouchers`);
     await page.waitForLoadState("networkidle");
 
     // 3. Issue first voucher
@@ -110,7 +110,7 @@ test.describe("Vouchers", () => {
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
 
     // Tenant A issues a voucher
-    await page.goto(`${baseA}/dashboard/vouchers`);
+    await page.goto(`${baseA}/admin/vouchers`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Issue Voucher" }).click();
     await page.getByLabel("Discount Type").click();
@@ -138,7 +138,7 @@ test.describe("Vouchers", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Verify Tenant B doesn't see Tenant A's voucher in list
-    await pageB.goto(`${baseB}/dashboard/vouchers`);
+    await pageB.goto(`${baseB}/admin/vouchers`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(isolatedCode)).toHaveCount(0);
 

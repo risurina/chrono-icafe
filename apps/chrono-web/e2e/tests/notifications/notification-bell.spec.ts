@@ -31,7 +31,7 @@ test.describe("Notification bell", () => {
     await page.getByLabel("Business name").fill(slug);
     await page.getByRole("button", { name: /create business/i }).click();
     await page.waitForURL(
-      new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`),
+      new RegExp(`//${slug}\\.localtest\\.me:3000/admin`),
       { timeout: 60_000 },
     );
 

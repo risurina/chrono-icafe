@@ -16,7 +16,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -27,7 +27,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -46,7 +46,7 @@ test.describe("Shifts", () => {
     await signUp(page, { name: "PW Owner", email, slug });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/shifts`);
+    await page.goto(`${base}/admin/shifts`);
     await page.waitForLoadState("networkidle");
 
     // Open shift
@@ -88,7 +88,7 @@ test.describe("Shifts", () => {
     await signUp(page, { name: "PW Owner", email, slug });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/shifts`);
+    await page.goto(`${base}/admin/shifts`);
     await page.waitForLoadState("networkidle");
 
     // Open first shift
@@ -168,7 +168,7 @@ test.describe("Shifts", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
     await createBranch(pageB, baseB, branchNameB);
 
-    await pageB.goto(`${baseB}/dashboard/shifts`);
+    await pageB.goto(`${baseB}/admin/shifts`);
     await pageB.waitForLoadState("networkidle");
     
     // Check that Tenant A's shift isn't visible in Tenant B's UI

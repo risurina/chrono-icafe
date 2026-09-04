@@ -33,7 +33,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -86,7 +86,7 @@ test.describe("Loyalty", () => {
     });
 
     // 3. Go to loyalty page
-    await page.goto(`${base}/dashboard/loyalty`);
+    await page.goto(`${base}/admin/loyalty`);
     await page.waitForLoadState("networkidle");
 
     // Now they should be in the list
@@ -151,12 +151,12 @@ test.describe("Loyalty", () => {
     });
 
     // 3. Owner checks loyalty page
-    await page.goto(`${base}/dashboard/loyalty`);
+    await page.goto(`${base}/admin/loyalty`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("button", { name: "Adjust" })).toBeVisible();
 
     // 4. Owner invites staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -171,12 +171,12 @@ test.describe("Loyalty", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // 6. Staff checks loyalty page
-    await page.goto(`${base}/dashboard/loyalty`);
+    await page.goto(`${base}/admin/loyalty`);
     await page.waitForLoadState("networkidle");
 
     // Earn and Redeem should be visible
@@ -234,7 +234,7 @@ test.describe("Loyalty", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Verify Tenant B doesn't see Tenant A's customer in loyalty
-    await pageB.goto(`${baseB}/dashboard/loyalty`);
+    await pageB.goto(`${baseB}/admin/loyalty`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(customerName)).toHaveCount(0);
 

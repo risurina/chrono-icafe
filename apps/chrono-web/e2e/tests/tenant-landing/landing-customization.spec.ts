@@ -36,7 +36,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -88,7 +88,7 @@ test.describe("Tenant landing — customization and publish gate", () => {
     const base = `http://${slug}.localtest.me:3000`;
 
     // Drive the settings page rather than the API, so the editor is covered too.
-    await page.goto(`${base}/dashboard/settings/landing-page`);
+    await page.goto(`${base}/admin/settings/landing-page`);
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Hero tagline").fill(heroTitle);
     await page.getByLabel("About heading").fill("Who we are");
@@ -103,7 +103,7 @@ test.describe("Tenant landing — customization and publish gate", () => {
     await expect(page.getByText(heroTitle)).toHaveCount(0);
 
     // Publish.
-    await page.goto(`${base}/dashboard/settings/landing-page`);
+    await page.goto(`${base}/admin/settings/landing-page`);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("landing-publish").click();
     await expect(page.getByText("Landing page published.")).toBeVisible();
@@ -182,7 +182,7 @@ test.describe("Tenant landing — customization and publish gate", () => {
     // before the gate, and a staff session 403s at it — neither may write.
     const ctx = await browser.newContext();
     const anon = await ctx.newPage();
-    await anon.goto(`http://${slug}.localtest.me:3000/login`);
+    await anon.goto(`http://${slug}.localtest.me:3000/admin/login`);
     await anon.waitForLoadState("networkidle");
 
     const denied = await rpc(anon, slug, "/landing-page", {

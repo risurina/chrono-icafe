@@ -8,7 +8,7 @@ import { faker } from "../../utils/faker";
  * .ai/plans/chrono/active/qr/README.md:
  * - Happy path: staff creates a branch + priced station, regenerates its QR
  *   from the station detail view, scans the resulting /q/[token] URL as a
- *   logged-out customer (redirected to /portal/login?next=...) and, once
+ *   logged-out customer (redirected to /login?next=...) and, once
  *   funded, as a logged-in one — Start actually opens a real session on the
  *   station.
  * - Business-rule gate: a tampered token renders a clear failure state, not a
@@ -31,7 +31,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -57,7 +57,7 @@ async function createBranchAndStation(
   stationName: string,
   groupName?: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: /add branch/i }).click();
   await page.getByLabel(/^Name/).first().fill(branchName);
@@ -65,7 +65,7 @@ async function createBranchAndStation(
   await page.getByRole("button", { name: /create branch/i }).click();
   await expect(page.getByText(branchName).first()).toBeVisible();
 
-  await page.goto(`${base}/dashboard/stations`);
+  await page.goto(`${base}/admin/stations`);
   await page.waitForLoadState("networkidle");
 
   // A station needs a pricing group before a session can be started on it
@@ -133,11 +133,11 @@ test.describe("QR", () => {
     expect(qrRes.ok()).toBeTruthy();
     const qrBody = (await qrRes.json()) as { token: string; qrUrl: string };
 
-    // Scan as a logged-out visitor — expect redirect to /portal/login?next=...
+    // Scan as a logged-out visitor — expect redirect to /login?next=...
     const ctxAnon = await browser.newContext();
     const pageAnon = await ctxAnon.newPage();
     await pageAnon.goto(`${base}${qrBody.qrUrl}`);
-    await pageAnon.waitForURL(/\/portal\/login\?next=/, { timeout: 10_000 });
+    await pageAnon.waitForURL(/\/login\?next=/, { timeout: 10_000 });
     await ctxAnon.close();
 
     // Customer signs up, then staff funds their wallet — starting a session
@@ -146,7 +146,7 @@ test.describe("QR", () => {
     const pageCust = await ctxCust.newPage();
     await portalSignUp(pageCust, base, { name: customerName, email: customerEmail });
 
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Top Up" }).click();
     await page.getByLabel(/Customer|Member/).fill(customerName);

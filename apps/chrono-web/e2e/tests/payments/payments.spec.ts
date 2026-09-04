@@ -36,7 +36,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -56,7 +56,7 @@ test.describe("Payments Module", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // 2. Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -71,7 +71,7 @@ test.describe("Payments Module", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
@@ -81,8 +81,8 @@ test.describe("Payments Module", () => {
     });
     expect(createRes.ok()).toBeTruthy();
     
-    // 5. Navigate to /dashboard/payments
-    await page.goto(`${base}/dashboard/payments`);
+    // 5. Navigate to /admin/payments
+    await page.goto(`${base}/admin/payments`);
     await page.waitForLoadState("networkidle");
 
     // 6. Settle it by clicking 'Settle', then confirming the dialog
@@ -119,7 +119,7 @@ test.describe("Payments Module", () => {
     expect(payRes.ok()).toBeTruthy();
 
     // 3. Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -134,12 +134,12 @@ test.describe("Payments Module", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // 5. Staff checks payments
-    await page.goto(`${base}/dashboard/payments`);
+    await page.goto(`${base}/admin/payments`);
     await page.waitForLoadState("networkidle");
 
     // Assert Void and Refund are NOT rendered
@@ -156,12 +156,12 @@ test.describe("Payments Module", () => {
     await page.getByLabel("Email").fill(ownerEmail);
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: "Sign In" }).click();
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Admin checks payments
-    await page.goto(`${base}/dashboard/payments`);
+    await page.goto(`${base}/admin/payments`);
     await page.waitForLoadState("networkidle");
 
     // 7. Assert Void and Refund ARE rendered on a paid payment row
@@ -205,7 +205,7 @@ test.describe("Payments Module", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // 4. Verify Tenant B doesn't see Tenant A's payment
-    await pageB.goto(`${baseB}/dashboard/payments`);
+    await pageB.goto(`${baseB}/admin/payments`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(amount)).toHaveCount(0);
     await expect(pageB.getByText(paymentId)).toHaveCount(0);

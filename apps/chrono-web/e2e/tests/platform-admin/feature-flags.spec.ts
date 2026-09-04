@@ -31,7 +31,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -46,7 +46,7 @@ async function signInStaff(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -138,7 +138,7 @@ test.describe("Platform Admin — Feature Flags", () => {
     ).toBeChecked();
 
     // The tenant's own Features page shows the identical effective state.
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/settings/features`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/settings/features`);
     await page.waitForLoadState("networkidle");
     await expect(
       page.getByRole("switch", { name: `Toggle ${FLAG_LABEL}` }),
@@ -157,7 +157,7 @@ test.describe("Platform Admin — Feature Flags", () => {
     expect(orgBDetail.featureFlags.find((f) => f.key === FLAG_KEY)?.enabled).toBe(false);
 
     await ownerBPage.goto(
-      `http://${slugB}.localtest.me:3000/dashboard/settings/features`,
+      `http://${slugB}.localtest.me:3000/admin/settings/features`,
     );
     await ownerBPage.waitForLoadState("networkidle");
     await expect(
@@ -243,7 +243,7 @@ test.describe("Platform Admin — Feature Flags", () => {
     await page.getByLabel("Email").fill("owner@acme.test");
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
       timeout: 15_000,
     });
     await page.goto(`http://localtest.me:3000/admin/organizations/${orgId}`);

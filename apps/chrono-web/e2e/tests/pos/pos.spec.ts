@@ -30,7 +30,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -112,7 +112,7 @@ test.describe("POS", () => {
     await portalSignUp(pageCust, base, { name: memberName, email: memberEmail });
     await ctxCust.close();
 
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Top Up" }).click();
     await page.getByLabel(/Customer|Member/).fill(memberName);
@@ -129,7 +129,7 @@ test.describe("POS", () => {
     expect(productRes.ok()).toBeTruthy();
 
     // 1. Cash walk-in sale.
-    await page.goto(`${base}/dashboard/pos`);
+    await page.goto(`${base}/admin/pos`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("Search products…").fill(productName);
     await page.getByRole("button", { name: new RegExp(productName) }).click();
@@ -152,13 +152,13 @@ test.describe("POS", () => {
     await expect(page.getByText("Sale completed.")).toBeVisible();
 
     // Wallet balance dropped by the wallet-tendered sale amount (50 - 25 = 25).
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("25.00")).toBeVisible();
 
     // 3. Close the shift; confirm expected/difference cash via the close route's
     // own response (the shifts dashboard table doesn't render these fields).
-    await page.goto(`${base}/dashboard/shifts`);
+    await page.goto(`${base}/admin/shifts`);
     await page.waitForLoadState("networkidle");
     const shiftsRes = await page.request.get(`${base}/api/rpc/shifts`, {
       params: { page: "1", pageSize: "10", status: "open" },
@@ -200,7 +200,7 @@ test.describe("POS", () => {
     await portalSignUp(pageCust, base, { name: memberName, email: memberEmail });
     await ctxCust.close();
 
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Top Up" }).click();
     await page.getByLabel(/Customer|Member/).fill(memberName);
@@ -215,7 +215,7 @@ test.describe("POS", () => {
     expect(productRes.ok()).toBeTruthy();
 
     // No open shift yet — a cash sale must 409 and surface a toast.
-    await page.goto(`${base}/dashboard/pos`);
+    await page.goto(`${base}/admin/pos`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("Search products…").fill(productName);
     await page.getByRole("button", { name: new RegExp(productName) }).click();
@@ -240,7 +240,7 @@ test.describe("POS", () => {
     await expect(page.getByText("Sale completed.")).toBeVisible();
 
     // Invite staff.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -254,12 +254,12 @@ test.describe("POS", () => {
     await signUp(page, { name: "POS Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff sees sale history but no Refund action.
-    await page.goto(`${base}/dashboard/pos/history`);
+    await page.goto(`${base}/admin/pos/history`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(productName).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Refund" })).toHaveCount(0);
@@ -268,14 +268,14 @@ test.describe("POS", () => {
     await page.waitForLoadState("networkidle");
 
     // Sign back in as owner and refund; the wallet-tendered portion is credited back.
-    await page.goto(`${base}/dashboard/pos/history`);
+    await page.goto(`${base}/admin/pos/history`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Refund" }).first().click();
     await page.getByLabel("Reason").fill("Customer changed mind");
     await page.getByRole("button", { name: "Confirm refund" }).click();
     await expect(page.getByText("Sale refunded.")).toBeVisible();
 
-    await page.goto(`${base}/dashboard/wallets`);
+    await page.goto(`${base}/admin/wallets`);
     await page.waitForLoadState("networkidle");
     // Balance: 50.00 topped up - 15.00 wallet sale + 15.00 refunded back = 50.00.
     await expect(page.getByText("50.00")).toBeVisible();
@@ -321,11 +321,11 @@ test.describe("POS", () => {
     const pageB = await ctxB.newPage();
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
-    await pageB.goto(`${baseB}/dashboard/pos/products`);
+    await pageB.goto(`${baseB}/admin/pos/products`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(productName)).toHaveCount(0);
 
-    await pageB.goto(`${baseB}/dashboard/pos/history`);
+    await pageB.goto(`${baseB}/admin/pos/history`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(productName)).toHaveCount(0);
 

@@ -31,7 +31,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -41,7 +41,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -65,7 +65,7 @@ test.describe("Devices", () => {
     await signUp(page, { name: faker.person.fullName(), email, slug });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/devices`);
+    await page.goto(`${base}/admin/devices`);
     await page.waitForLoadState("networkidle");
 
     // 1. Generate Pairing Code via UI
@@ -151,7 +151,7 @@ test.describe("Devices", () => {
     await createBranch(page, base, branchName);
 
     // Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -161,7 +161,7 @@ test.describe("Devices", () => {
     const inviteLink = await findInviteLink(staffEmail);
 
     // Owner creates pairing code
-    await page.goto(`${base}/dashboard/devices`);
+    await page.goto(`${base}/admin/devices`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /Generate Pairing Code/i }).click();
     await page.getByRole("combobox", { name: /Branch/i }).click();
@@ -186,10 +186,10 @@ test.describe("Devices", () => {
     await signUp(page, { name: faker.person.fullName(), email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), { timeout: 15_000 });
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), { timeout: 15_000 });
 
     // Staff visits devices page
-    await page.goto(`${base}/dashboard/devices`);
+    await page.goto(`${base}/admin/devices`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(hostname)).toBeVisible();
 
@@ -232,7 +232,7 @@ test.describe("Devices", () => {
     await createBranch(page, baseA, branchNameA);
 
     // Tenant A creates device
-    await page.goto(`${baseA}/dashboard/devices`);
+    await page.goto(`${baseA}/admin/devices`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /Generate Pairing Code/i }).click();
     await page.getByRole("combobox", { name: /Branch/i }).click();
@@ -256,7 +256,7 @@ test.describe("Devices", () => {
     await createBranch(pageB, baseB, branchNameB);
 
     // Verify B cannot see A's device
-    await pageB.goto(`${baseB}/dashboard/devices`);
+    await pageB.goto(`${baseB}/admin/devices`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(hostname)).toHaveCount(0);
 

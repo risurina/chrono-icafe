@@ -44,7 +44,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -54,7 +54,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: /add branch|create branch/i }).click();
   await page.getByLabel("Name").fill(name);
@@ -73,7 +73,7 @@ test.describe("Security Alerts", () => {
     await signUp(page, { name: "Sec Owner", email: ownerEmail, slug });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/security-alerts`);
+    await page.goto(`${base}/admin/security-alerts`);
     await page.waitForLoadState("networkidle");
 
     await page.getByRole("button", { name: "Report Incident" }).click();
@@ -112,7 +112,7 @@ test.describe("Security Alerts", () => {
     await createBranch(page, base, branchName);
 
     // Owner reports an alert so there is a row to try acting on as staff.
-    await page.goto(`${base}/dashboard/security-alerts`);
+    await page.goto(`${base}/admin/security-alerts`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Report Incident" }).click();
     await page.getByLabel("Message").fill("Camera flagged unusual motion.");
@@ -121,7 +121,7 @@ test.describe("Security Alerts", () => {
 
     // Invite staff. Chrono's staff grants do not include securityAlert:manage
     // (only :read) — see apps/chrono-api/src/auth/permissions.ts.
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -135,11 +135,11 @@ test.describe("Security Alerts", () => {
     await signUp(page, { name: "Sec Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
-    await page.goto(`${base}/dashboard/security-alerts`);
+    await page.goto(`${base}/admin/security-alerts`);
     await page.waitForLoadState("networkidle");
 
     // Feed is still visible (securityAlert:read), but every manage action is hidden.
@@ -180,7 +180,7 @@ test.describe("Security Alerts", () => {
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
     await createBranch(page, baseA, branchNameA);
 
-    await page.goto(`${baseA}/dashboard/security-alerts`);
+    await page.goto(`${baseA}/admin/security-alerts`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Report Incident" }).click();
     await page.getByLabel("Message").fill(message);
@@ -198,7 +198,7 @@ test.describe("Security Alerts", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
     await createBranch(pageB, baseB, branchNameB);
 
-    await pageB.goto(`${baseB}/dashboard/security-alerts`);
+    await pageB.goto(`${baseB}/admin/security-alerts`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(message)).toHaveCount(0);
 

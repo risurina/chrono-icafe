@@ -40,13 +40,13 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
 
 async function createBranch(page: Page, base: string, name: string): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -89,7 +89,7 @@ async function pairAndApproveDevice(
   const stationName = `${faker.word.noun()} Station`;
   const stationNumber = faker.string.numeric(3);
 
-  await page.goto(`${base}/dashboard/devices`);
+  await page.goto(`${base}/admin/devices`);
   await page.waitForLoadState("networkidle");
 
   await page.getByRole("button", { name: /Generate Pairing Code/i }).click();
@@ -199,7 +199,7 @@ test.describe("Realtime device channel", () => {
     });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/devices`);
+    await page.goto(`${base}/admin/devices`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /Generate Pairing Code/i }).click();
     await page.getByRole("combobox", { name: /Branch/i }).click();
@@ -289,7 +289,7 @@ test.describe("Realtime device channel", () => {
     ).toBe(true);
 
     // Revoke device A while its socket is open and confirm it closes.
-    await page.goto(`${base}/dashboard/devices`);
+    await page.goto(`${base}/admin/devices`);
     await page.waitForLoadState("networkidle");
     const closedPromise = new Promise<void>((resolve) => {
       wsA!.once("close", () => resolve());

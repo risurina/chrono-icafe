@@ -42,7 +42,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -53,7 +53,7 @@ async function createBranch(
   base: string,
   name: string,
 ): Promise<void> {
-  await page.goto(`${base}/dashboard/branches`);
+  await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
@@ -94,7 +94,7 @@ test.describe("Stations", () => {
     await signUp(page, { name: "PW Owner", email, slug });
     await createBranch(page, base, branchName);
 
-    await page.goto(`${base}/dashboard/stations`);
+    await page.goto(`${base}/admin/stations`);
     await page.waitForLoadState("networkidle");
 
     // 1. Create a station group
@@ -158,7 +158,7 @@ test.describe("Stations", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
     await createBranch(page, base, branchName);
     
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -174,12 +174,12 @@ test.describe("Stations", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff creates a station
-    await page.goto(`${base}/dashboard/stations`);
+    await page.goto(`${base}/admin/stations`);
     await page.waitForLoadState("networkidle");
 
     await page.getByRole("button", { name: "Add Station" }).click();
@@ -240,7 +240,7 @@ test.describe("Stations", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
     await createBranch(pageB, baseB, branchNameB);
     
-    await pageB.goto(`${baseB}/dashboard/stations`);
+    await pageB.goto(`${baseB}/admin/stations`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(stationNameA)).toHaveCount(0);
     

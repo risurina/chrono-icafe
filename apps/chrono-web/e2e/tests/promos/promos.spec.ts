@@ -33,7 +33,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -47,7 +47,7 @@ test.describe("Promos", () => {
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/promos`);
+    await page.goto(`${base}/admin/promos`);
     await page.waitForLoadState("networkidle");
 
     // Create a promo
@@ -105,7 +105,7 @@ test.describe("Promos", () => {
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
     // Owner creates a promo
-    await page.goto(`${base}/dashboard/promos`);
+    await page.goto(`${base}/admin/promos`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "New Promo" }).click();
     const promoName = faker.commerce.productName();
@@ -117,7 +117,7 @@ test.describe("Promos", () => {
     await expect(page.getByText(promoName)).toBeVisible();
 
     // Invite staff
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("teammate@example.com").fill(staffEmail);
     await page.keyboard.press("Escape");
@@ -132,12 +132,12 @@ test.describe("Promos", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff checks promos
-    await page.goto(`${base}/dashboard/promos`);
+    await page.goto(`${base}/admin/promos`);
     await page.waitForLoadState("networkidle");
 
     // Verify promo is visible but controls are hidden
@@ -172,7 +172,7 @@ test.describe("Promos", () => {
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
 
     // Tenant A creates promo
-    await page.goto(`${baseA}/dashboard/promos`);
+    await page.goto(`${baseA}/admin/promos`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "New Promo" }).click();
     await page.getByLabel("Name").fill(promoName);
@@ -192,7 +192,7 @@ test.describe("Promos", () => {
     await signUp(pageB, { name: "Tenant B", email: emailB, slug: slugB });
 
     // Verify Tenant B doesn't see Tenant A's promo
-    await pageB.goto(`${baseB}/dashboard/promos`);
+    await pageB.goto(`${baseB}/admin/promos`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(promoName)).toHaveCount(0);
 

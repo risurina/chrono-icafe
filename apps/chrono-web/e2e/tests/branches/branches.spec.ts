@@ -36,7 +36,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -51,7 +51,7 @@ test.describe("Branches", () => {
 
     await signUp(page, { name: "PW Owner", email, slug });
 
-    await page.goto(`${base}/dashboard/branches`);
+    await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
 
     // Create with name only — confirms the server auto-generates `code`.
@@ -82,7 +82,7 @@ test.describe("Branches", () => {
 
     await signUp(page, { name: "PW Listing", email, slug });
 
-    await page.goto(`${base}/dashboard/branches`);
+    await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
 
     for (const name of ["Zeta Branch", "Alpha Branch"]) {
@@ -120,7 +120,7 @@ test.describe("Branches", () => {
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/branches`);
+    await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Add Branch" }).click();
     await page.getByLabel("Name").fill(branchName);
@@ -128,7 +128,7 @@ test.describe("Branches", () => {
     await expect(page.getByText(branchName)).toBeVisible();
 
     // Invite a teammate (default role: staff — no branch:create/:update).
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -142,12 +142,12 @@ test.describe("Branches", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff can list (GET is ungated) but create is refused server-side.
-    await page.goto(`${base}/dashboard/branches`);
+    await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(branchName)).toBeVisible();
     await page.getByRole("button", { name: "Add Branch" }).click();
@@ -168,7 +168,7 @@ test.describe("Branches", () => {
     const branchName = `${faker.company.name()} Acme Only Branch`;
 
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/branches`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/branches`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Add Branch" }).click();
     await page.getByLabel("Name").fill(branchName);
@@ -179,7 +179,7 @@ test.describe("Branches", () => {
     await page.waitForLoadState("networkidle");
 
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
-    await page.goto(`http://${slugB}.localtest.me:3000/dashboard/branches`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/branches`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("Search branches…").fill(branchName);
     await expect(page.getByText("No branches yet.")).toBeVisible();

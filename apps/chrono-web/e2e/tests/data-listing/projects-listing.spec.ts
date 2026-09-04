@@ -36,7 +36,7 @@ async function signUp(
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByLabel("Business name").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -50,7 +50,7 @@ test.describe("Projects listing (global DataTable)", () => {
 
     await signUp(page, { name: "PW Listing", email, slug });
 
-    await page.goto(`${base}/dashboard/projects`);
+    await page.goto(`${base}/admin/projects`);
     await page.waitForLoadState("networkidle");
 
     // Create two projects to search/sort over.
@@ -98,14 +98,14 @@ test.describe("Projects listing (global DataTable)", () => {
 
     await signUp(page, { name: "PW Owner", email: ownerEmail, slug });
 
-    await page.goto(`${base}/dashboard/projects`);
+    await page.goto(`${base}/admin/projects`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("New project name").fill("Gate Project");
     await page.getByRole("button", { name: "Add" }).click();
     await expect(page.getByText("Gate Project")).toBeVisible();
 
     // Invite a teammate (default role: staff — project:create only, no delete).
-    await page.goto(`${base}/dashboard/settings/crew`);
+    await page.goto(`${base}/admin/settings/crew`);
     await page.waitForLoadState("networkidle");
     const inviteInput = page.getByPlaceholder("teammate@example.com");
     await inviteInput.fill(staffEmail);
@@ -119,12 +119,12 @@ test.describe("Projects listing (global DataTable)", () => {
     await signUp(page, { name: "PW Staff", email: staffEmail, slug: staffSlug });
     await page.goto(inviteLink);
     await expect(page.getByText(/you're in/i)).toBeVisible({ timeout: 15_000 });
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
       timeout: 15_000,
     });
 
     // Staff can list/search/sort (GET is ungated) but delete is refused server-side.
-    await page.goto(`${base}/dashboard/projects`);
+    await page.goto(`${base}/admin/projects`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Gate Project")).toBeVisible();
     await page.getByRole("button", { name: "Delete Gate Project" }).click();
@@ -143,7 +143,7 @@ test.describe("Projects listing (global DataTable)", () => {
     const emailB = `pwlistb${uniq}@example.com`;
 
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/projects`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/projects`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("New project name").fill("Acme Only Project");
     await page.getByRole("button", { name: "Add" }).click();
@@ -153,7 +153,7 @@ test.describe("Projects listing (global DataTable)", () => {
     await page.waitForLoadState("networkidle");
 
     await signUp(page, { name: "Tenant B", email: emailB, slug: slugB });
-    await page.goto(`http://${slugB}.localtest.me:3000/dashboard/projects`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/projects`);
     await page.waitForLoadState("networkidle");
     await page.getByPlaceholder("Search projects…").fill("Acme Only");
     await expect(page.getByText("No projects yet.")).toBeVisible();

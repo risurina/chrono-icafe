@@ -23,7 +23,7 @@ async function signUpNewWorkspace(page: Page): Promise<{ slug: string }> {
   await page.getByLabel("Business name").fill(slug);
 
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 
@@ -62,7 +62,7 @@ test.describe("Global customer — apply to a tenant", () => {
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
     // the applied customer shows up in tenant A's customer list. ──
-    await page.goto(`http://${slugA}.localtest.me:3000/dashboard/settings/customers`);
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/settings/customers`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
 
@@ -71,7 +71,7 @@ test.describe("Global customer — apply to a tenant", () => {
 
     // Before applying to B, tenant B's own customer list must NOT show this
     // global customer — the two tenant memberships are fully independent.
-    await page.goto(`http://${slugB}.localtest.me:3000/dashboard/settings/customers`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/settings/customers`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).not.toBeVisible();
 
@@ -86,7 +86,7 @@ test.describe("Global customer — apply to a tenant", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // Now tenant B's own list shows it too — a distinct row from tenant A's.
-    await page.goto(`http://${slugB}.localtest.me:3000/dashboard/settings/customers`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/settings/customers`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
 

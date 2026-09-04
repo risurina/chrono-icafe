@@ -40,7 +40,7 @@ async function signUpWorkspace(
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByLabel("Business name").fill(opts.slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/dashboard`), {
+  await page.waitForURL(new RegExp(`//${opts.slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -51,7 +51,7 @@ async function signInStaff(page: Page, host: string, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"), {
     timeout: 15_000,
   });
 }
@@ -138,7 +138,7 @@ test.describe("Impersonation scope", () => {
     const { orgId, ownerUserId } = await findOrgAndOwner(adminPage, slug);
 
     await startImpersonation(adminPage, ownerUserId);
-    await adminPage.goto(`${base}/dashboard/settings/danger`);
+    await adminPage.goto(`${base}/admin/settings/danger`);
     await adminPage.waitForLoadState("networkidle");
 
     // The IMPERSONATION_DENY_LIST strips the whole `tenant` resource, so the
@@ -193,7 +193,7 @@ test.describe("Impersonation scope", () => {
     const { ownerUserId } = await findOrgAndOwner(adminPage, slug);
 
     await startImpersonation(adminPage, ownerUserId);
-    await adminPage.goto(`${base}/dashboard`);
+    await adminPage.goto(`${base}/admin`);
 
     const impersonatedKey = await tenantRequest(adminPage, slug, "POST", "/rpc/api-keys", {
       name: "impersonated-attempt",
@@ -210,7 +210,7 @@ test.describe("Impersonation scope", () => {
     await stopImpersonation(adminPage);
 
     // Contrast: the real owner, no impersonation active, succeeds at both.
-    await page.goto(`${base}/dashboard`);
+    await page.goto(`${base}/admin`);
     const realKey = await tenantRequest(page, slug, "POST", "/rpc/api-keys", {
       name: "real-owner-key",
       role: "admin",
@@ -248,7 +248,7 @@ test.describe("Impersonation scope", () => {
     const { ownerUserId: ownerAId } = await findOrgAndOwner(adminPage, slugA);
 
     await startImpersonation(adminPage, ownerAId);
-    await adminPage.goto(`http://${slugA}.localtest.me:3000/dashboard`);
+    await adminPage.goto(`http://${slugA}.localtest.me:3000/admin`);
 
     // While impersonating a member of tenant A, a request scoped to tenant
     // B's host must never succeed and must never leak tenant B's rows.
