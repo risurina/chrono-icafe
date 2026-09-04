@@ -1,11 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Bruno_Ace_SC } from "next/font/google";
 import "agora/ui/globals.css"; // design tokens (CSS vars)
 import "./globals.css"; // Tailwind v4 entry + token→utility mapping
 import { Providers } from "./providers";
 import { getPublicBranding, brandingCss } from "@/lib/branding";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+
+// The Chrono wordmark face. Loaded through next/font so it is hoisted,
+// self-hosted and preloaded — the prior-art implementation pulled it from a
+// render-blocking CSS `@import`. The variable name is deliberately distinct
+// from the `--font-chrono` theme token it feeds: mapping a token to itself in
+// `@theme inline` would be a self-reference.
+const brunoAceSC = Bruno_Ace_SC({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-chrono-display",
+});
 
 const DEFAULT_TITLE = "Chrono — Business management";
 const DEFAULT_DESCRIPTION =
@@ -46,7 +58,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body
+        className={`${inter.variable} ${brunoAceSC.variable} font-sans antialiased`}
+      >
         {/* Tenant color tokens + sanitized custom CSS, inlined into the initial
             HTML so branded colors paint on first render (no layout shift). */}
         {css ? (

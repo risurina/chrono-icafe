@@ -86,6 +86,11 @@
 /* Map the design tokens (from agora/ui/globals.css) to Tailwind color/radius
  * utilities. `inline` keeps them referencing the CSS vars so light/dark flips. */
 @theme inline {
+  /* The Chrono wordmark face, loaded via next/font in layout.tsx. Distinct
+   * variable names on purpose — mapping --font-chrono to itself would be a
+   * self-reference. Gives us a real `font-chrono` utility, so no !important
+   * override class is needed. */
+  --font-chrono: var(--font-chrono-display), sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -162,5 +167,107 @@
   }
   [data-density="comfortable"] {
     font-size: var(--font-size-body-lg);
+  }
+}
+
+/* Chrono's "premium" surface treatments, ported from the karta-oikos/chrono
+ * design. Every one is driven by `var(--primary)` via `color-mix()`, so a theme
+ * preset or a tenant's own brand colour re-skins all of them at once — that
+ * single lever is the reason to keep this family rather than hand-tuning
+ * gradients per section.
+ *
+ * Each rule keeps a solid fallback line before its `color-mix()` line for
+ * engines without `color-mix` support. Deliberately NOT ported from the
+ * reference: `.premium-glow-cyan` / `.premium-glow-violet` / `.glass-panel`,
+ * which hardcode rgba() literals belonging to an alternate palette we do not
+ * ship. */
+@layer utilities {
+  .premium-gradient {
+    background: var(--primary);
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      color-mix(in srgb, var(--primary), black 40%) 50%,
+      var(--secondary) 100%
+    );
+  }
+
+  .premium-text-gradient {
+    color: var(--primary);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--primary), white 30%) 0%,
+      var(--primary) 50%,
+      color-mix(in srgb, var(--primary), black 20%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .premium-glow {
+    box-shadow: 0 0 30px var(--primary);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--primary), transparent 80%);
+  }
+
+  .premium-card-shadow {
+    box-shadow:
+      0 10px 40px -10px rgb(0 0 0 / 0.8),
+      0 0 1px 1px var(--primary);
+    box-shadow:
+      0 10px 40px -10px rgb(0 0 0 / 0.8),
+      0 0 1px 1px color-mix(in srgb, var(--primary), transparent 90%);
+  }
+
+  .premium-grid {
+    background-image:
+      linear-gradient(var(--primary) 1px, transparent 1px),
+      linear-gradient(90deg, var(--primary) 1px, transparent 1px);
+    background-image:
+      linear-gradient(
+        color-mix(in srgb, var(--primary), transparent 98%) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary), transparent 98%) 1px,
+        transparent 1px
+      );
+    background-size: 50px 50px;
+  }
+
+  .premium-dots {
+    background-image:
+      radial-gradient(var(--primary) 1px, transparent 1px),
+      radial-gradient(var(--primary) 1.5px, transparent 1.5px),
+      radial-gradient(var(--primary) 2px, transparent 2px);
+    background-image:
+      radial-gradient(
+        color-mix(in srgb, var(--primary), transparent 85%) 1px,
+        transparent 1px
+      ),
+      radial-gradient(
+        color-mix(in srgb, var(--primary), transparent 92%) 1.5px,
+        transparent 1.5px
+      ),
+      radial-gradient(
+        color-mix(in srgb, var(--primary), transparent 96%) 2px,
+        transparent 2px
+      );
+    background-size:
+      24px 24px,
+      48px 48px,
+      72px 72px;
+    background-position:
+      0 0,
+      12px 12px,
+      24px 36px;
+  }
+
+  .glass-card {
+    border: 1px solid color-mix(in srgb, white, transparent 90%);
+    background-color: color-mix(in srgb, var(--background), transparent 60%);
+    backdrop-filter: blur(24px);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   }
 }
