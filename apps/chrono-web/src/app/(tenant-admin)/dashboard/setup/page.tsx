@@ -85,7 +85,7 @@ export default function OnboardingSetupPage() {
             <CardDescription>Every setup step is complete — time to trade.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => router.push("/dashboard")}>Go to dashboard</Button>
+            <Button onClick={() => router.push("/admin")}>Go to dashboard</Button>
           </CardContent>
         </Card>
       </Stack>

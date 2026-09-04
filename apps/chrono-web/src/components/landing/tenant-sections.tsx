@@ -818,7 +818,7 @@ export function TenantStations({
             {/* A live board with no next step is a dead end, so the state
                 itself picks the action. */}
             <Link
-              href={anyFree ? "#location" : "/portal/login"}
+              href={anyFree ? "#location" : "/login"}
               className={cn(buttonVariants(), PILL_CTA, "w-full")}
             >
               {anyFree ? "Get directions" : "Reserve a seat"}
@@ -1157,7 +1157,7 @@ export function TenantCta({ tenantName, cta }: TenantCtaProps) {
             {cta?.label ?? "See live availability"}
           </Link>
           <Link
-            href="/portal/login"
+            href="/login"
             className={cn(
               buttonVariants({ variant: "outline" }),
               PILL_CTA,

@@ -43,7 +43,7 @@ export function TenantResetForm() {
       return;
     }
     setDone(true);
-    setTimeout(() => (window.location.href = "/portal/login"), 900);
+    setTimeout(() => (window.location.href = "/login"), 900);
   }
 
   return (
@@ -79,7 +79,7 @@ export function TenantResetForm() {
             </form>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
-            <Link href="/portal/login" className="text-primary hover:underline">
+            <Link href="/login" className="text-primary hover:underline">
               Back to sign in
             </Link>
           </p>

@@ -262,10 +262,10 @@ export default function PosCheckoutPage() {
           <p className="text-sm text-muted-foreground">Ring up a sale.</p>
         </div>
         <Row gap={2}>
-          <Link href="/dashboard/pos/products">
+          <Link href="/admin/pos/products">
             <Button variant="outline">Products</Button>
           </Link>
-          <Link href="/dashboard/pos/history">
+          <Link href="/admin/pos/history">
             <Button variant="outline">Sale history</Button>
           </Link>
         </Row>

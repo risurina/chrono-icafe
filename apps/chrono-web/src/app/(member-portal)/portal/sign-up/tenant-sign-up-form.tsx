@@ -85,7 +85,7 @@ export function TenantSignUpForm() {
           </form>
           <p className="mt-4 text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/portal/login" className="text-primary hover:underline">
+            <Link href="/login" className="text-primary hover:underline">
               Sign in
             </Link>
           </p>

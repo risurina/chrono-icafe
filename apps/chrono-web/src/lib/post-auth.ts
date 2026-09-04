@@ -93,9 +93,9 @@ export async function resolveLandingUrl(nextHost?: string | null): Promise<strin
   if (isTenantHost(host)) {
     const res = await api.rpc.onboarding.checklist.$get();
     if (res.ok && checklistIsUntouched(await res.json())) {
-      return "/dashboard/setup";
+      return "/admin/setup";
     }
-    return "/dashboard";
+    return "/admin";
   }
 
   // A platform admin holds no tenant membership by convention (see
@@ -108,6 +108,6 @@ export async function resolveLandingUrl(nextHost?: string | null): Promise<strin
   const first = orgs.data?.[0];
   if (!first) return "/new-business?welcome=1";
   const checklist = await fetchChecklistForSlug(first.slug);
-  const landing = checklist && checklistIsUntouched(checklist) ? "/dashboard/setup" : "/dashboard";
+  const landing = checklist && checklistIsUntouched(checklist) ? "/admin/setup" : "/admin";
   return `${window.location.protocol}//${first.slug}.${APP_DOMAIN}${landing}`;
 }

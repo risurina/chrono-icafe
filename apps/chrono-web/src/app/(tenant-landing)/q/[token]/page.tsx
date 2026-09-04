@@ -77,7 +77,7 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
   useEffect(() => {
     if (state.kind !== "ready" || isPending) return;
     if (!member) {
-      window.location.href = `/portal/login?next=${encodeURIComponent(`/q/${token}`)}`;
+      window.location.href = `/login?next=${encodeURIComponent(`/q/${token}`)}`;
     }
   }, [state, isPending, member, token]);
 
@@ -141,7 +141,7 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
   }
 
   if (!member) {
-    // A redirect to /portal/login is in flight (see effect above).
+    // A redirect to /login (member sign-in) is in flight (see effect above).
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <p className="text-sm text-muted-foreground">Redirecting to sign in…</p>

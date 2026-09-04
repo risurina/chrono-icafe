@@ -166,7 +166,7 @@ export function TenantHeader({
               {item.label}
             </Link>
           ))}
-          <Link href="/login" className="px-2 py-2">
+          <Link href="/admin/login" className="px-2 py-2">
             Staff sign in
           </Link>
         </>
@@ -177,7 +177,7 @@ export function TenantHeader({
             <ThemeToggle />
           </Row>
           <Link
-            href="/login"
+            href="/admin/login"
             className={cn(
               buttonVariants({ variant: "ghost" }),
               "hidden text-xs font-bold uppercase tracking-widest md:inline-flex",
@@ -186,7 +186,7 @@ export function TenantHeader({
             Staff
           </Link>
           <Link
-            href="/portal/login"
+            href="/login"
             className={cn(buttonVariants(), CTA_PILL)}
             data-testid="tenant-cta"
           >
@@ -334,7 +334,7 @@ export function TenantFooter({
           links: [
             { label: "Stations", href: "/stations" },
             { label: "About", href: "/about" },
-            { label: "Sign in", href: "/portal/login" },
+            { label: "Sign in", href: "/login" },
           ],
         },
         {

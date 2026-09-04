@@ -2,5 +2,5 @@ import { redirect } from "next/navigation";
 
 // Moved under Settings. Redirect old bookmarks/links to the nested route.
 export default function SecurityRedirectPage() {
-  redirect("/dashboard/settings/security");
+  redirect("/admin/settings/security");
 }

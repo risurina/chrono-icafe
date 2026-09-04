@@ -20,8 +20,12 @@ import { safeNextPath } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
 
-/** Customer ("member") login → member area (or `?next=` when set, e.g. a QR scan). */
-export function TenantLoginForm() {
+/**
+ * Customer ("member") sign-in for this business — the tenant-scoped
+ * `tenantMember` pool via `memberAuth`. Rendered at a tenant host's `/login`;
+ * lands in the member area (or `?next=` when set, e.g. a QR scan).
+ */
+export function MemberLoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,6 +88,12 @@ export function TenantLoginForm() {
             No account?{" "}
             <Link href="/portal/sign-up" className="text-primary hover:underline">
               Create one
+            </Link>
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Staff member?{" "}
+            <Link href="/admin/login" className="text-primary hover:underline">
+              Staff sign in
             </Link>
           </p>
         </CardContent>

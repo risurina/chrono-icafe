@@ -62,7 +62,7 @@ export default function AcceptInvitePage() {
       const res = await api.api["accept-invite"].$post({ json: { token } });
       if (res.ok) {
         setState({ kind: "success" });
-        setTimeout(() => (window.location.href = "/dashboard"), 900);
+        setTimeout(() => (window.location.href = "/admin"), 900);
       } else {
         const body = (await res.json().catch(() => null)) as {
           error?: unknown;
@@ -107,7 +107,7 @@ export default function AcceptInvitePage() {
             <Stack gap={3}>
               <Button
                 variant="outline"
-                onClick={() => (window.location.href = "/dashboard")}
+                onClick={() => (window.location.href = "/admin")}
               >
                 Go to dashboard
               </Button>

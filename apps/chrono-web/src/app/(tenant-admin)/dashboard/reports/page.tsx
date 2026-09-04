@@ -71,11 +71,11 @@ export default function ReportsOverviewPage() {
       </div>
 
       <div className="flex gap-2">
-        <Link href="/dashboard/reports/sales">
+        <Link href="/admin/reports/sales">
           <Button variant="outline">Sales report</Button>
         </Link>
         <Can permissions={me?.permissions} resource="report" action="readFinancial">
-          <Link href="/dashboard/reports/wallet">
+          <Link href="/admin/reports/wallet">
             <Button variant="outline">Wallet activity</Button>
           </Link>
         </Can>

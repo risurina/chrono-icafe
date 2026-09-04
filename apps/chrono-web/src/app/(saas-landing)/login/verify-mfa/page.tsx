@@ -16,6 +16,7 @@ import {
 } from "agora/ui";
 import { authClient } from "@/lib/auth-client";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
+import { resolveLandingUrl } from "@/lib/post-auth";
 
 /**
  * Second step of staff sign-in when the account has TOTP enabled. The password
@@ -37,7 +38,7 @@ export default function VerifyMfaPage() {
       toast.error("That code was not valid.");
       return;
     }
-    location.href = "/dashboard";
+    location.href = await resolveLandingUrl();
   }
 
   return (

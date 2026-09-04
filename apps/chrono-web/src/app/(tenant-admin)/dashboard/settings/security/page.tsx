@@ -168,7 +168,7 @@ export default function SecurityPage() {
             {mfaEnrolled ? "Enrolled" : "Not enrolled"}
           </Badge>
           <Link
-            href="/dashboard/settings/security/mfa"
+            href="/admin/settings/security/mfa"
             className={buttonVariants({ variant: "outline" })}
           >
             {mfaEnrolled ? "Manage" : "Enroll"}

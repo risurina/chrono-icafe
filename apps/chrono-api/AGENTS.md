@@ -96,11 +96,31 @@ aren't being ported yet.
 
 ## Surfaces
 
-Inherited from the scaffold today (apex marketing/auth, `{slug}.APP_DOMAIN/dashboard/*`
-tenant admin, `APP_DOMAIN/admin/*` platform admin). Whether Chrono needs its own
-additional surface (e.g. a customer-facing `/portal/*`, distinct from tenant staff) is
-part of the first feature's planning — don't assume one exists until it's built and
-listed here.
+Chrono's tenant-facing URLs match the reference site (`gaming.chrono.izur.com.ph`):
+
+- **`{slug}.APP_DOMAIN/login`** — customer (member) sign-in (`agora/member-auth`,
+  `tenantMember`) → `/portal/*`, the member area.
+- **`{slug}.APP_DOMAIN/admin/login`** — staff sign-in (Better Auth) → `/admin/*`.
+- **`{slug}.APP_DOMAIN/admin/*`** — the tenant back office. This is a `next.config.ts`
+  host-based rewrite (fires on any non-apex host — subdomain or verified custom
+  domain) onto the physical `apps/chrono-web/src/app/(tenant-admin)/dashboard/*`
+  tree. The folder keeps its scaffold name because the apex-only platform admin
+  already owns `/admin/*` at the file-tree level (`(saas-admin)/admin/*`) and App
+  Router path resolution is host-agnostic — two `page.tsx` files can't share a path.
+  `/admin/login` is rewritten separately onto `(tenant-admin)/staff-login` so the
+  login page sits outside the dashboard layout's session gate. Write new links as
+  `/admin/...` (the public URL), never `/dashboard/...`. This is config-level URL
+  aliasing only — no middleware; tenant/auth enforcement is unchanged (layout
+  session checks + API-side RLS).
+- **`APP_DOMAIN/login`** — apex staff sign-in with no tenant context yet (org
+  selection / creation). **`APP_DOMAIN/portal/login`** — the platform-wide global
+  customer identity (below). **`APP_DOMAIN/admin/*`** — platform admin, inherited
+  from the scaffold unchanged.
+
+`/login` is one host-branching page (`(saas-landing)/login/page.tsx`): the member
+form on a tenant host, the staff form on the apex — the same "renders everywhere,
+branches internally" pattern the app uses everywhere instead of middleware. The two
+forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
 
 - **`APP_DOMAIN/customer/*`** — apex-level sign-up/sign-in for the foundation's
   platform-wide global customer identity (`agora/customer-auth`, `customer` table,

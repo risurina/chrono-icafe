@@ -61,7 +61,7 @@ export default function AcceptInvitePage() {
             <p className="text-sm text-muted-foreground">
               This invite link is invalid or has expired. Contact the business for a new
               one, or{" "}
-              <Link href="/portal/login" className="text-primary hover:underline">
+              <Link href="/login" className="text-primary hover:underline">
                 sign in
               </Link>{" "}
               if you already have an account.
@@ -86,7 +86,7 @@ export default function AcceptInvitePage() {
             </form>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
-            <Link href="/portal/login" className="text-primary hover:underline">
+            <Link href="/login" className="text-primary hover:underline">
               Back to sign in
             </Link>
           </p>

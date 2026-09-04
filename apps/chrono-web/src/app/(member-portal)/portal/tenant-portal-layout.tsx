@@ -26,7 +26,7 @@ const PUBLIC = [
 ];
 
 /**
- * Shown instead of redirecting to /portal/login when a signed-in GLOBAL
+ * Shown instead of redirecting to /login (this business's member sign-in) when a signed-in GLOBAL
  * customer (agora/customer-auth) has not yet applied to become a customer of
  * this tenant — distinct from "not authenticated at all". Applying creates
  * the linked `tenantMember` row and reloads so `useMemberSession()` resolves
@@ -77,7 +77,7 @@ export function TenantPortalLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!isPublic && bothResolved && !member && !globalCustomer) {
-      location.href = "/portal/login";
+      location.href = "/login";
     }
   }, [isPublic, bothResolved, member, globalCustomer]);
 
@@ -107,7 +107,7 @@ export function TenantPortalLayout({ children }: { children: React.ReactNode }) 
             size="sm"
             onClick={async () => {
               await memberAuth.signOut();
-              location.href = "/portal/login";
+              location.href = "/login";
             }}
           >
             Sign out

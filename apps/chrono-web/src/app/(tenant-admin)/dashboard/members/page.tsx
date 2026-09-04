@@ -324,7 +324,7 @@ export default function MembersPage() {
                   </Button>
 
                   <Link
-                    href="/dashboard/settings/customers"
+                    href="/admin/settings/customers"
                     className="text-primary hover:underline text-sm ml-2"
                   >
                     Account

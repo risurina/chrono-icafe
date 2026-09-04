@@ -97,7 +97,7 @@ export default function MfaEnrollPage() {
         <p className="text-sm text-muted-foreground">
           Use an authenticator app (TOTP) as a second factor.{" "}
           <Link
-            href="/dashboard/settings/security"
+            href="/admin/settings/security"
             className="text-primary hover:underline"
           >
             Back to Security

@@ -118,46 +118,46 @@ const BOTTOM_NAV: NavItem[] = [
 // Segment → breadcrumb/title label. Keys are full dashboard paths so the
 // segment-derived breadcrumb can resolve each level of a nested settings path.
 const TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/dashboard/reports": "Reports",
-  "/dashboard/reports/sales": "Sales Report",
-  "/dashboard/reports/wallet": "Wallet Activity",
-  "/dashboard/branches": "Branches",
-  "/dashboard/stations": "Stations",
-  "/dashboard/devices": "Devices",
-  "/dashboard/shifts": "Shifts",
-  "/dashboard/sessions": "Sessions",
-  "/dashboard/members": "Members",
-  "/dashboard/reservations": "Reservations",
-  "/dashboard/inquiries": "Inquiries",
-  "/dashboard/wallets": "Wallets",
-  "/dashboard/payments": "Payments",
-  "/dashboard/credits": "Credits",
-  "/dashboard/pos": "POS",
-  "/dashboard/pos/products": "POS Products",
-  "/dashboard/pos/history": "Sale History",
-  "/dashboard/loyalty": "Loyalty",
-  "/dashboard/vouchers": "Vouchers",
-  "/dashboard/promos": "Promos",
-  "/dashboard/reconciliation": "Reconciliation",
-  "/dashboard/security-alerts": "Security Alerts",
-  "/dashboard/files": "Files",
-  "/dashboard/settings": "Settings",
-  "/dashboard/settings/branding": "Branding",
-  "/dashboard/settings/landing-page": "Landing page",
-  "/dashboard/settings/crew": "Crew",
-  "/dashboard/settings/roles": "Roles",
-  "/dashboard/settings/domains": "Domains",
-  "/dashboard/settings/api-keys": "API Keys",
-  "/dashboard/settings/webhooks": "Webhooks",
-  "/dashboard/settings/integrations": "Integrations",
-  "/dashboard/settings/features": "Features",
-  "/dashboard/settings/billing": "Billing",
-  "/dashboard/settings/security": "Security",
-  "/dashboard/settings/security/mfa": "Two-factor authentication",
-  "/dashboard/settings/customers": "Customers",
-  "/dashboard/settings/danger": "Danger zone",
-  "/dashboard/settings/audit": "Audit Log",
+  "/admin": "Dashboard",
+  "/admin/reports": "Reports",
+  "/admin/reports/sales": "Sales Report",
+  "/admin/reports/wallet": "Wallet Activity",
+  "/admin/branches": "Branches",
+  "/admin/stations": "Stations",
+  "/admin/devices": "Devices",
+  "/admin/shifts": "Shifts",
+  "/admin/sessions": "Sessions",
+  "/admin/members": "Members",
+  "/admin/reservations": "Reservations",
+  "/admin/inquiries": "Inquiries",
+  "/admin/wallets": "Wallets",
+  "/admin/payments": "Payments",
+  "/admin/credits": "Credits",
+  "/admin/pos": "POS",
+  "/admin/pos/products": "POS Products",
+  "/admin/pos/history": "Sale History",
+  "/admin/loyalty": "Loyalty",
+  "/admin/vouchers": "Vouchers",
+  "/admin/promos": "Promos",
+  "/admin/reconciliation": "Reconciliation",
+  "/admin/security-alerts": "Security Alerts",
+  "/admin/files": "Files",
+  "/admin/settings": "Settings",
+  "/admin/settings/branding": "Branding",
+  "/admin/settings/landing-page": "Landing page",
+  "/admin/settings/crew": "Crew",
+  "/admin/settings/roles": "Roles",
+  "/admin/settings/domains": "Domains",
+  "/admin/settings/api-keys": "API Keys",
+  "/admin/settings/webhooks": "Webhooks",
+  "/admin/settings/integrations": "Integrations",
+  "/admin/settings/features": "Features",
+  "/admin/settings/billing": "Billing",
+  "/admin/settings/security": "Security",
+  "/admin/settings/security/mfa": "Two-factor authentication",
+  "/admin/settings/customers": "Customers",
+  "/admin/settings/danger": "Danger zone",
+  "/admin/settings/audit": "Audit Log",
 };
 
 function titleFor(path: string): string {
@@ -211,7 +211,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : BASE_NAV.filter((item) => item.type !== "item" || item.href !== "/projects");
 
   useEffect(() => {
-    if (!isPending && !session) window.location.href = "/login";
+    if (!isPending && !session) window.location.href = "/admin/login";
   }, [isPending, session]);
 
   // If the API reports the business as suspended (non-owner staff are blocked),
@@ -272,11 +272,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SidebarLayout
         items={NAV}
         bottomItems={BOTTOM_NAV}
-        basePath="/dashboard"
+        basePath="/admin"
         defaultExpandAllGroups
-        sidebarTop={<TenantSwitcher organizations={orgs} />}
+        sidebarTop={<TenantSwitcher organizations={orgs} dashboardPath="/admin" />}
         sidebarBottom={
-          <UserMenu name={session.user.name} email={session.user.email} />
+          <UserMenu
+            name={session.user.name}
+            email={session.user.email}
+            signOutHref="/admin/login"
+          />
         }
         breadcrumb={breadcrumb}
         headerEnd={<NotificationBell />}

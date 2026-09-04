@@ -161,7 +161,7 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
     <Stack>
       <Row items="center" className="justify-between">
         <div>
-          <Link href="/dashboard/inquiries" className="text-sm text-muted-foreground underline underline-offset-4">
+          <Link href="/admin/inquiries" className="text-sm text-muted-foreground underline underline-offset-4">
             ← Back to inquiries
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{inquiry.subject}</h1>

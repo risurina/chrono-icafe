@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 import { version } from "./package.json";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// The apex hostname, escaped for use in a rewrite `host` regex. Next strips the
+// port before matching `has`/`missing` host conditions, so the pattern must be
+// port-less ("localtest.me", not "localtest.me:3000") or it never matches and
+// the rewrite would fire on the apex too. Everything that ISN'T this host — a
+// tenant subdomain or a verified custom domain alike — gets the tenant-admin
+// rewrite below.
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
+const APP_HOSTNAME = APP_DOMAIN.split(":")[0] ?? APP_DOMAIN;
+const APP_HOSTNAME_PATTERN = APP_HOSTNAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Expose the app version to the client bundle so the sidebar can display it.
@@ -13,6 +23,35 @@ const nextConfig: NextConfig = {
   // not localhost. Next dev otherwise 403s /_next/* for those origins, breaking
   // hydration. Allow the app domain + any tenant subdomain in dev.
   allowedDevOrigins: ["localtest.me", "*.localtest.me"],
+  // Tenant-admin URLs are `/admin/*` on a business's own host (subdomain or
+  // verified custom domain), aliasing the physical `(tenant-admin)/dashboard`
+  // route tree — kept under a different folder name so it doesn't collide
+  // with the apex-only platform admin surface, which already owns `/admin`
+  // at the file-tree level (`(saas-admin)/admin`). Config-level URL aliasing
+  // only — no middleware.ts, no request interception; tenant/auth
+  // enforcement is unchanged (session checks in layouts + API-side RLS).
+  // `/admin/login` is excluded here (matched by its own rule first) since it
+  // is physically outside the session-gated dashboard layout.
+  async rewrites() {
+    const notApex = [
+      { type: "host" as const, value: APP_HOSTNAME_PATTERN },
+      { type: "host" as const, value: `www\\.${APP_HOSTNAME_PATTERN}` },
+    ];
+    return {
+      beforeFiles: [
+        {
+          source: "/admin/login",
+          missing: notApex,
+          destination: "/staff-login",
+        },
+        {
+          source: "/admin/:path*",
+          missing: notApex,
+          destination: "/dashboard/:path*",
+        },
+      ],
+    };
+  },
 };
 
 export default withSentryConfig(nextConfig, {
