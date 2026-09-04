@@ -24,8 +24,12 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   shift: ["open", "close", "closeAny"],
   // Booking/check-in/cancel/no-show is routine front-desk work, not a
   // financial or configuration action — no staff/admin split (Open Question
-  // 7). See .ai/plans/chrono/active/reservations/README.md.
-  reservation: ["read", "manage"],
+  // 7). See .ai/plans/chrono/active/reservations/README.md. "managePolicy"
+  // (reservations-queue-and-self-service plan) is a separate, admin+-only
+  // action for the per-tenant/branch reservation policy config and ban
+  // lift — a config/override decision, not routine front-desk work, same
+  // tier as wallet:adjust / pos:manageProducts.
+  reservation: ["read", "manage", "managePolicy"],
   // Device pairing/approval/revocation is a hardware-trust decision (closer
   // in risk profile to `domain`/`branding`/`integration` than to `station`'s
   // day-to-day floor reconfiguration) — admin+ only, no staff grant. GET
@@ -156,7 +160,7 @@ export const CHRONO_ADMIN_GRANTS = {
   branch: ["create", "update"],
   station: ["create", "update", "delete"],
   shift: ["open", "close", "closeAny"],
-  reservation: ["read", "manage"],
+  reservation: ["read", "manage", "managePolicy"],
   device: ["approve", "revoke", "manage"],
   wallet: ["read", "credit", "debit", "adjust"],
   pos: ["read", "sell", "void", "manageProducts"],

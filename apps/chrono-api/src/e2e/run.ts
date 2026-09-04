@@ -9,7 +9,7 @@
  */
 import "dotenv/config"; // load apps/api/.env → picks up TEST_DATABASE_URL
 import { createHmac } from "node:crypto";
-import { is } from "drizzle-orm";
+import { is, Column } from "drizzle-orm";
 import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 
 /** Decode an RFC 4648 base32 string (no padding) to bytes. */
@@ -95,8 +95,29 @@ function uniqueIndexDdls(table: PgTable): string[] {
       const cols = (i.config.columns as { name: string }[])
         .map((c) => `"${c.name}"`)
         .join(", ");
-      return `create unique index if not exists "${i.config.name}" on "${cfg.name}" (${cols});`;
+      // Include the index's `.where()` predicate — a partial unique index applies
+      // as a FULL unique constraint if this is dropped, causing false collisions
+      // unrelated to the invariant it enforces (reservations-queue-and-self-
+      // service plan, round-2 audit CONDITION 5 — fixed identically in all four
+      // harnesses that duplicate this helper).
+      const where = i.config.where;
+      const whereSql = where ? ` where ${sqlToText(where)}` : "";
+      return `create unique index if not exists "${i.config.name}" on "${cfg.name}" (${cols})${whereSql};`;
     });
+}
+
+function sqlToText(fragment: unknown): string {
+  const chunks = (fragment as { queryChunks?: unknown[] }).queryChunks ?? [];
+  return chunks
+    .map((chunk) => {
+      if (is(chunk, Column)) return `"${chunk.name}"`;
+      if (chunk && typeof chunk === "object" && "value" in (chunk as Record<string, unknown>)) {
+        const v = (chunk as { value: unknown }).value;
+        return Array.isArray(v) ? v.join("") : String(v);
+      }
+      return String(chunk);
+    })
+    .join("");
 }
 
 // ── tiny assertion harness ──

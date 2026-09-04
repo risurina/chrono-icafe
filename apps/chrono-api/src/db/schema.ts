@@ -6,6 +6,8 @@ import { chronoMemberProfile } from "../modules/member/schema";
 import { chronoStationGroup, chronoStation } from "../modules/station/schema";
 import { chronoShift } from "../modules/shift/schema";
 import { chronoReservation } from "../modules/reservation/schema";
+import { chronoMemberReservationRestriction } from "../modules/reservation/restriction-schema";
+import { chronoReservationPolicy } from "../modules/reservation/policy-schema";
 import {
   chronoProduct,
   chronoSale,
@@ -37,6 +39,8 @@ export {
   chronoStation,
   chronoShift,
   chronoReservation,
+  chronoMemberReservationRestriction,
+  chronoReservationPolicy,
   chronoProduct,
   chronoSale,
   chronoSaleItem,
@@ -232,6 +236,8 @@ export const APP_TENANT_TABLES = [
   "ChronoStations",
   "ChronoShifts",
   "ChronoReservations",
+  "ChronoMemberReservationRestrictions",
+  "ChronoReservationPolicies",
   "ChronoProducts",
   "ChronoSales",
   "ChronoSaleItems",

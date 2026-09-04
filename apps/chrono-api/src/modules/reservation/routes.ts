@@ -9,6 +9,9 @@ import {
   gte,
   lte,
   inArray,
+  isNotNull,
+  not,
+  sql,
   type TenantTx,
 } from "agora/db";
 import * as base from "agora/db/schema";
@@ -19,15 +22,26 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
 import { chronoReservation } from "./schema";
+import { chronoReservationPolicy } from "./policy-schema";
+import { chronoMemberReservationRestriction } from "./restriction-schema";
 import {
   createReservationSchema,
   updateReservationSchema,
   cancelReservationSchema,
   reservationListQuerySchema,
+  updateReservationPolicySchema,
 } from "./contracts";
+import { resolveReservationPolicy } from "./service";
+import { listQuerySchema } from "agora";
+import { z } from "zod";
 
-/** Statuses that occupy a station and therefore participate in the overlap check. */
-const ACTIVE_STATUSES = ["confirmed", "checked_in"] as const;
+/**
+ * Statuses that occupy a station and therefore participate in the overlap check.
+ * "hold" was added by the reservations-queue-and-self-service plan — a live claim
+ * window (post-activation direct reservation, or a promoted queue member) locks the
+ * station exactly like "confirmed"/"checked_in" and must not be double-bookable.
+ */
+const ACTIVE_STATUSES = ["confirmed", "checked_in", "hold"] as const;
 
 const OVERLAP_MESSAGE = "This station is already booked for the requested time.";
 
@@ -147,6 +161,11 @@ async function assertNoOverlap(
     eq(chronoReservation.tenantId, tenantId),
     eq(chronoReservation.stationId, stationId),
     inArray(chronoReservation.status, [...ACTIVE_STATUSES]),
+    // A "pending" queue row is never in ACTIVE_STATUSES, but startAt/endAt are
+    // now nullable at the column level (queue rows) — keep this guard explicit
+    // rather than relying on that alone, and it's what lets the loop below
+    // narrow away the `Date | null` type safely.
+    isNotNull(chronoReservation.startAt),
   ];
   const locked = await tx
     .select({
@@ -160,6 +179,7 @@ async function assertNoOverlap(
 
   for (const row of locked) {
     if (excludeReservationId && row.id === excludeReservationId) continue;
+    if (!row.startAt || !row.endAt) continue; // narrows Date | null for tsc
     // [startAt, endAt) overlap test.
     if (startAt < row.endAt && endAt > row.startAt) {
       throw new HttpError(409, OVERLAP_MESSAGE);
@@ -194,7 +214,15 @@ export function reservationRoutes() {
         const conds = [];
         if (branchId) conds.push(eq(chronoReservation.branchId, branchId));
         if (stationId) conds.push(eq(chronoReservation.stationId, stationId));
-        if (status) conds.push(eq(chronoReservation.status, status));
+        if (status) {
+          conds.push(eq(chronoReservation.status, status));
+        } else {
+          // Default-exclude queue entries — a "pending" row has no scheduled window
+          // for the staff board to display. Phase 2 (contracts) adds "pending" to
+          // reservationStatusSchema so a caller can explicitly opt in via ?status=pending;
+          // until then this hardcoded exclusion is the only way to see queue rows here.
+          conds.push(not(eq(chronoReservation.status, "pending")));
+        }
         if (memberId) conds.push(eq(chronoReservation.memberId, memberId));
         // Board view: reservations overlapping [from, to).
         if (from) conds.push(gte(chronoReservation.endAt, new Date(from)));
@@ -330,6 +358,13 @@ export function reservationRoutes() {
                 409,
                 "This reservation can no longer be edited (it is not in a confirmed state).",
               );
+            }
+            // A "confirmed" status guarantees a concrete window in practice (only a
+            // "pending" queue row has a NULL window), but narrow explicitly for tsc —
+            // startAt/endAt are Date | null at the column level since the
+            // reservations-queue-and-self-service plan.
+            if (!existing.startAt || !existing.endAt) {
+              throw new HttpError(409, "This reservation has no scheduled time to edit.");
             }
 
             const nextStationId = input.stationId ?? existing.stationId;
@@ -494,5 +529,151 @@ export function reservationRoutes() {
         metadata: { stationId: updated?.stationId },
       });
       return c.json({ reservation: updated });
+    })
+
+    // --- reservations-queue-and-self-service plan: staff surface below ---
+
+    // Resolved policy for a branch (or the tenant default when omitted) —
+    // read tier matches booking (staff/admin/owner all read).
+    .get("/reservations/policy", async (c) => {
+      requirePermission(c.var.tenant.permissions, { reservation: ["read"] });
+      const { tenantId } = c.var.tenant;
+      const branchId = c.req.query("branchId");
+      const policy = await withTenant(tenantId, (tx) =>
+        resolveReservationPolicy(tx, tenantId, branchId ?? ""),
+      );
+      return c.json({ policy });
+    })
+
+    // Upserts the branch row (or the tenant-default row when branchId is
+    // omitted) — config/override decision, admin+-only.
+    .patch(
+      "/reservations/policy",
+      zValidator("json", updateReservationPolicySchema),
+      async (c) => {
+        requirePermission(c.var.tenant.permissions, { reservation: ["managePolicy"] });
+        const { tenantId } = c.var.tenant;
+        const branchId = c.req.query("branchId") ?? null;
+        const parsed = c.req.valid("json");
+        // Drizzle's numeric column type expects a string, matching every other
+        // money column in this codebase (e.g. ChronoSessions.rateSnapshot).
+        const input = { ...parsed, cancellationFeeAmount: String(parsed.cancellationFeeAmount) };
+
+        const policy = await withTenant(tenantId, async (tx) => {
+          if (branchId) {
+            await requireOwnBranch(tx, tenantId, branchId);
+          }
+          const existing = await tx
+            .select({ id: chronoReservationPolicy.id })
+            .from(chronoReservationPolicy)
+            .where(
+              and(
+                eq(chronoReservationPolicy.tenantId, tenantId),
+                branchId
+                  ? eq(chronoReservationPolicy.branchId, branchId)
+                  : sql`${chronoReservationPolicy.branchId} is null`,
+              ),
+            )
+            .limit(1);
+
+          if (existing[0]) {
+            const [row] = await tx
+              .update(chronoReservationPolicy)
+              .set({ ...input, updatedAt: new Date() })
+              .where(eq(chronoReservationPolicy.id, existing[0].id))
+              .returning();
+            return row!;
+          }
+          const [row] = await tx
+            .insert(chronoReservationPolicy)
+            .values({ id: createId(), tenantId, branchId, ...input })
+            .returning();
+          return row!;
+        });
+
+        await recordStaffAudit(c, {
+          action: "chronoReservationPolicy.updated",
+          targetType: "reservationPolicy",
+          targetId: policy.id,
+          metadata: { branchId },
+        });
+        return c.json({ policy });
+      },
+    )
+
+    // A member's restriction history — staff sees full detail (unlike the
+    // member's own allowlisted portal view).
+    .get(
+      "/reservations/restrictions",
+      zValidator("query", listQuerySchema(["createdAt"]).extend({ memberId: z.string().optional() })),
+      async (c) => {
+        requirePermission(c.var.tenant.permissions, { reservation: ["read"] });
+        const { tenantId } = c.var.tenant;
+        const { page, pageSize, sort, order, memberId } = c.req.valid("query");
+        const conds = [eq(chronoMemberReservationRestriction.tenantId, tenantId)];
+        if (memberId) conds.push(eq(chronoMemberReservationRestriction.memberId, memberId));
+        const where = and(...conds);
+        const sortFn = order === "asc" ? asc : desc;
+
+        const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
+          const [total] = await tx
+            .select({ value: count() })
+            .from(chronoMemberReservationRestriction)
+            .where(where);
+          const rows = await tx
+            .select()
+            .from(chronoMemberReservationRestriction)
+            .where(where)
+            .orderBy(sortFn(chronoMemberReservationRestriction.createdAt))
+            .limit(pageSize)
+            .offset((page - 1) * pageSize);
+          return { rows, totalItems: total?.value ?? 0 };
+        });
+
+        return c.json({
+          items: rows,
+          meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
+        });
+      },
+    )
+
+    // Lifts a wrongly-issued or no-longer-warranted ban — an append
+    // (liftedAt/liftedByUserId), never a delete; history stays immutable.
+    .post("/reservations/restrictions/:id/lift", async (c) => {
+      requirePermission(c.var.tenant.permissions, { reservation: ["managePolicy"] });
+      const { tenantId, userId } = c.var.tenant;
+      const id = c.req.param("id");
+
+      const updated = await withTenant(tenantId, async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(chronoMemberReservationRestriction)
+          .where(
+            and(
+              eq(chronoMemberReservationRestriction.id, id),
+              eq(chronoMemberReservationRestriction.tenantId, tenantId),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new HttpError(404, "Restriction not found.");
+        if (existing.liftedAt) throw new HttpError(409, "This restriction has already been lifted.");
+        if (existing.expiresAt && existing.expiresAt <= new Date()) {
+          throw new HttpError(409, "This restriction has already expired.");
+        }
+        const [row] = await tx
+          .update(chronoMemberReservationRestriction)
+          .set({ liftedAt: new Date(), liftedByUserId: userId, updatedAt: new Date() })
+          .where(eq(chronoMemberReservationRestriction.id, id))
+          .returning();
+        return row!;
+      });
+
+      await recordStaffAudit(c, {
+        action: "chronoReservationRestriction.lifted",
+        targetType: "reservationRestriction",
+        targetId: updated.id,
+        metadata: { memberId: updated.memberId, type: updated.type },
+      });
+      return c.json({ restriction: updated });
     });
 }

@@ -7,11 +7,19 @@ export const reservationStatusSchema = z.enum([
   "completed",
   "cancelled",
   "no_show",
+  // Added by the reservations-queue-and-self-service plan:
+  "pending", // a queue entry (fromQueue: true), no scheduled window yet
+  "hold", // an activated direct reservation or a promoted queue entry — station-locking
+  "cancelled_late", // cancelled inside the late-cancellation window (fee + ban)
+  "queue_expired", // a queue hold lapsed unclaimed (failure record + possible ban)
 ]);
 
 // Default cap resolved for Open Question 2: a reservation window may not
-// exceed 12 hours (guards against a fat-fingered multi-day booking).
+// exceed 12 hours (guards against a fat-fingered multi-day booking). Reused
+// by the member-facing schemas below as the ceiling for both a direct
+// reservation's duration and a queue join's requested duration.
 const MAX_WINDOW_HOURS = 12;
+export const durationMinutesSchema = z.number().int().min(15).max(MAX_WINDOW_HOURS * 60);
 
 export const createReservationSchema = z
   .object({
@@ -68,7 +76,68 @@ export const reservationListQuerySchema = listQuerySchema([
   to: z.string().datetime().optional(),
 });
 
+// --- Member-portal contracts (reservations-queue-and-self-service plan) ---
+
+/** Flow 1 — direct reservation on an available station. Member-facing subset:
+ * no memberId param (taken from the member session), no customerName/Phone
+ * (the member's own profile is used). */
+export const createDirectReservationSchema = z.object({
+  stationId: z.string().min(1),
+  startAt: z.string().datetime(),
+  durationMinutes: durationMinutesSchema,
+});
+
+/** Flow 2 — join the queue for a busy/reserved station. `durationMinutes` is
+ * captured now (not derivable later — a queue entry has no startAt until
+ * promoted) so promotion has a window to compute endAt from. */
+export const joinQueueSchema = z.object({
+  stationId: z.string().min(1),
+  durationMinutes: durationMinutesSchema,
+});
+
+export const reservationPolicySchema = z.object({
+  enabled: z.boolean(),
+  reservationAdvanceWindowMinutes: z.number().int().min(1),
+  maxActiveReservationsPerMember: z.number().int().min(1),
+  lateCancellationWindowMinutes: z.number().int().min(0),
+  cancellationFeeEnabled: z.boolean(),
+  cancellationFeeAmount: z.number().min(0),
+  reservationBanDurationHours: z.number().int().min(0),
+  noShowBanDurationHours: z.number().int().min(0),
+  holdPeriodMinutes: z.number().int().min(1),
+  queueFailureLimit: z.number().int().min(1),
+  queueBanDurationHours: z.number().int().min(0),
+  allowQueueForReservedPc: z.boolean(),
+  allowQueueForInUsePc: z.boolean(),
+});
+
+export const updateReservationPolicySchema = reservationPolicySchema.strict();
+
+export const restrictionTypeSchema = z.enum(["reservation_ban", "queue_ban", "queue_failure"]);
+export const restrictionReasonSchema = z.enum([
+  "queue_hold_expired",
+  "late_cancellation",
+  "no_show",
+  "scheduled_time_cancellation",
+  "admin_manual",
+  "queue_failure_limit",
+]);
+
+/** Member-facing restriction DTO — allowlisted, never metadataJson/liftedAt/
+ * liftedByUserId (staff-only detail, per "do not expose unnecessary internal
+ * penalty information"). */
+export const memberRestrictionDtoSchema = z.object({
+  type: restrictionTypeSchema,
+  reason: restrictionReasonSchema,
+  expiresAt: z.string().datetime().nullable(),
+});
+
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type UpdateReservationInput = z.infer<typeof updateReservationSchema>;
 export type CancelReservationInput = z.infer<typeof cancelReservationSchema>;
 export type ReservationStatus = z.infer<typeof reservationStatusSchema>;
+export type CreateDirectReservationInput = z.infer<typeof createDirectReservationSchema>;
+export type JoinQueueInput = z.infer<typeof joinQueueSchema>;
+export type ReservationPolicyInput = z.infer<typeof reservationPolicySchema>;
+export type RestrictionType = z.infer<typeof restrictionTypeSchema>;
+export type RestrictionReason = z.infer<typeof restrictionReasonSchema>;

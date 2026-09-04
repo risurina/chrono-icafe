@@ -14,6 +14,7 @@ import { registerWebhookQueueJob } from "agora/webhooks";
 import { startQueueWorker } from "agora/queue";
 import { startSessionExpiryWorker } from "./modules/session/expiry";
 import { startCreditExpiryWorker } from "./modules/credit/expiry";
+import { startReservationSweepWorker } from "./modules/reservation/sweep";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -55,6 +56,12 @@ const stopSessionExpiryWorker = startSessionExpiryWorker();
 // .ai/plans/chrono/active/credits/README.md, Phase 4.
 const stopCreditExpiryWorker = startCreditExpiryWorker();
 
+// Chrono: activates due direct reservations, expires unclaimed holds
+// (no-show / queue failure), and promotes the next queued member — see
+// .ai/plans/chrono/active/reservations-queue-and-self-service/README.md,
+// Phase 5.
+const stopReservationSweepWorker = startReservationSweepWorker();
+
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     stopEmailWorker();
@@ -63,6 +70,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopRetentionWorker();
     stopSessionExpiryWorker();
     stopCreditExpiryWorker();
+    stopReservationSweepWorker();
     // Graceful realtime shutdown, in order: terminate every open socket in
     // this process (closeAllConnections — actually closes each ws, not just
     // registry bookkeeping), THEN drop every provider channel/listener, THEN

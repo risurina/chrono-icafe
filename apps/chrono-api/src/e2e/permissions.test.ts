@@ -1296,6 +1296,23 @@ check(
     hasChronoPermission("owner", { reservation: ["manage"] }),
 );
 
+// reservations-queue-and-self-service plan: reservation:managePolicy is a
+// separate, admin+-only action (policy config + ban lift) — staff must NOT
+// hold it, matching wallet:adjust's precedent. This is the gate test that
+// fails if managePolicy is removed from CHRONO_ADMIN_GRANTS.
+check(
+  "staff does NOT hold reservation:managePolicy",
+  !hasChronoPermission("staff", { reservation: ["managePolicy"] }),
+);
+check(
+  "admin holds reservation:managePolicy",
+  hasChronoPermission("admin", { reservation: ["managePolicy"] }),
+);
+check(
+  "owner holds reservation:managePolicy",
+  hasChronoPermission("owner", { reservation: ["managePolicy"] }),
+);
+
 console.log("\n── chrono device permissions (devices Phase 4) ──");
 // Open Question 2 resolved to the STRICTER default: device pairing/approval
 // is a hardware-trust decision (closer to domain/branding/integration than

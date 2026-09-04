@@ -127,6 +127,13 @@
       "when": 1788419275030,
       "tag": "0017_add_session_credit_consumption",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788504400521,
+      "tag": "0018_reservation_queue_restrictions_policy",
+      "breakpoints": true
     }
   ]
 }

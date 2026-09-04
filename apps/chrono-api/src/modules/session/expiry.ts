@@ -14,6 +14,7 @@ import { withAdmin, withTenant, and, inArray, isNotNull, lt } from "agora/db";
 import { logger } from "agora/server";
 import { chronoSession } from "./schema";
 import { closeSession, publishSessionTransition } from "./service";
+import { promoteNextInQueue } from "../reservation/service";
 
 export async function runSessionExpirySweepOnce(): Promise<{ closed: number }> {
   const due = await withAdmin((tx) =>
@@ -42,6 +43,9 @@ export async function runSessionExpirySweepOnce(): Promise<{ closed: number }> {
     );
     if (!result.alreadyClosed) {
       await publishSessionTransition(row.tenantId, result.session);
+      // A session ending is a "station just freed" event — promote the next
+      // queued member, if any (reservations-queue-and-self-service plan).
+      await promoteNextInQueue(row.tenantId, result.session.stationId);
     }
     closed++;
   }

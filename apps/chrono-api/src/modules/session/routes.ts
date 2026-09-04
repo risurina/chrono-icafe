@@ -7,6 +7,7 @@ import { chronoStation } from "../station/schema";
 import { chronoSession } from "./schema";
 import { closeSession, startSession, publishSessionTransition } from "./service";
 import { startSessionSchema, extendSessionSchema, sessionListQuerySchema } from "./contracts";
+import { promoteNextInQueue } from "../reservation/service";
 
 function buildPaginationMeta(
   page: number,
@@ -261,6 +262,12 @@ export function sessionRoutes() {
             amountCharged: result.session.amountCharged,
           },
         });
+
+        // A session ending is a "station just freed" event, same as a hold
+        // lapsing or an explicit cancel — promote the next queued member, if
+        // any (reservations-queue-and-self-service plan). No-op when no
+        // "pending" row exists for this station.
+        await promoteNextInQueue(tenantId, result.session.stationId);
       }
       return c.json(result);
     });

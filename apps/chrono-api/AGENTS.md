@@ -68,7 +68,13 @@ phase status):
 - `session` — contracts + money helpers in progress; no schema/routes yet.
 - `pos` and `reservation` landed ahead of their originally planned wave (`pos`: schema +
   contracts; `reservation`: schema, contracts, routes, web UI, e2e — plan archived at
-  `.ai/plans/chrono/archive/reservations/README.md`).
+  `.ai/plans/chrono/archive/reservations/README.md`). `reservation` has since gained a
+  member self-service follow-up — direct booking, a queue/hold system, ban/restriction
+  tracking, a per-tenant/branch policy, and a background sweep — API-side phases
+  (schema, contracts, permissions, member portal routes, session-claim wiring, sweep)
+  landed; member UI and e2e spec not yet built. See
+  `.ai/plans/chrono/active/reservations-queue-and-self-service/README.md` and
+  `apps/chrono-docs/product/member-reservations.md`.
 
 **Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`,
 `reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
