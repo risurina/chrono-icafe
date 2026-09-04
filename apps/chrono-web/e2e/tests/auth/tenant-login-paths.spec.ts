@@ -56,16 +56,36 @@ async function fillAndSubmitSignIn(page: Page, email: string) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
+const isBranchList = (r: import("@playwright/test").Response) =>
+  r.url().includes("/rpc/branches") && r.request().method() === "GET";
+
 async function createBranch(page: Page, base: string, name: string) {
   await page.goto(`${base}/admin/branches`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Add Branch" }).click();
   await page.getByLabel("Name").fill(name);
+  const created = page.waitForResponse(
+    (r) => r.url().includes("/rpc/branches") && r.request().method() === "POST",
+    { timeout: 30_000 },
+  );
   await page.getByRole("button", { name: "Create branch" }).click();
-  await expect(page.getByText(name)).toBeVisible();
+  expect((await created).status()).toBe(201);
+  await expect(page.getByText(name)).toBeVisible({ timeout: 30_000 });
+}
+
+/** Load a host's branch list and hand back the API response it rendered from. */
+async function openBranchList(page: Page, base: string) {
+  const list = page.waitForResponse(isBranchList, { timeout: 30_000 });
+  await page.goto(`${base}/admin/branches`);
+  return list;
 }
 
 test.describe("Tenant login paths", () => {
+  // Every test here does two sign-in cycles (business sign-up, then a fresh
+  // sign-in) and each RPC costs several DB round-trips to a remote Postgres, so
+  // the config's 90s budget is not enough for this spec.
+  test.describe.configure({ timeout: 270_000 });
+
   test("staff: /admin/login signs in to /admin, nav stays under /admin, signed-out /admin/* bounces to /admin/login", async ({
     page,
   }) => {
@@ -92,10 +112,14 @@ test.describe("Tenant login paths", () => {
       timeout: 30_000,
     });
 
-    // Sidebar links render the public /admin/* URL, never the physical /dashboard tree.
+    // Sidebar links render the public /admin/* URL, never the physical /dashboard
+    // tree. This is an in-app Next.js <Link> (client-side transition, no full page
+    // load), so assert with toHaveURL — it polls the URL directly rather than
+    // waiting on a "load" event that a client-side route change never fires.
     await page.getByRole("link", { name: "Branches" }).click();
-    await page.waitForURL(`${base}/admin/branches`);
-    await expect(page).toHaveURL(`${base}/admin/branches`);
+    await expect(page).toHaveURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin/branches(\\?|$)`), {
+      timeout: 15_000,
+    });
   });
 
   test("customer: /login is the member sign-in → /portal; /portal/login redirects to /login; apex /login stays staff", async ({
@@ -120,7 +144,12 @@ test.describe("Tenant login paths", () => {
       timeout: 15_000,
     });
     await expect(customerPage.getByText("Customer sign in")).toBeVisible();
-    await expect(customerPage.getByText("Staff sign in")).toHaveCount(0);
+    // The member form links to the staff login but must not BE the staff form.
+    await expect(customerPage.getByText("Back-office access for this business.")).toHaveCount(0);
+    await expect(customerPage.getByRole("link", { name: "Staff sign in" })).toHaveAttribute(
+      "href",
+      "/admin/login",
+    );
 
     await fillAndSubmitSignIn(customerPage, customerEmail);
     await customerPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
@@ -156,18 +185,21 @@ test.describe("Tenant login paths", () => {
     await createBranch(page, baseA, branchNameA);
 
     // Tenant B in its own browser context — its /admin shows none of A's data.
+    // Wait for B's list to actually load (an empty list must not pass vacuously).
     const ctxB = await browser.newContext();
     const pageB = await ctxB.newPage();
     await signUpBusiness(pageB, { name: "Tenant B Owner", email: emailB, slug: slugB });
-    await pageB.goto(`${baseB}/admin/branches`);
-    await pageB.waitForLoadState("networkidle");
+    const listB = await openBranchList(pageB, baseB);
+    expect(listB.status()).toBe(200);
+    await expect(pageB.getByText("No branches yet.")).toBeVisible({ timeout: 30_000 });
     await expect(pageB.getByText(branchNameA)).toHaveCount(0);
     await ctxB.close();
 
     // A's staff session on B's host holds no membership in B — the /admin/* alias
-    // must not let it read A's rows through B's host either.
-    await page.goto(`${baseB}/admin/branches`);
-    await page.waitForLoadState("networkidle");
+    // must not let it read A's rows through B's host either: the API refuses the
+    // list outright rather than returning anything.
+    const listCross = await openBranchList(page, baseB);
+    expect(listCross.status()).toBe(403); // tenantMiddleware: "Not a member of this tenant"
     await expect(page.getByText(branchNameA)).toHaveCount(0);
   });
 });
