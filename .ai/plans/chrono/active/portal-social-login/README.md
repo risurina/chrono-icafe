@@ -170,7 +170,9 @@ removing one copy.
      on `gaming.<APP_DOMAIN>/login` but are absent on `chrono2.izur.com.ph/login` —
      expected per D6, not a bug to flag during the manual walk.
    - Visiting `/login?error=account_not_linked` (and the other error codes, including
-     `cancelled`) renders the corresponding toast copy.
+     `cancelled` and `provider_unavailable` — the foundation plan's 4th-pass fix
+     gives `provider_unavailable` an actual producer on `/start`) renders the
+     corresponding toast copy.
    - Clicking "Continue with Google" triggers a full-page navigation to
      `/portal/auth/google/start?tenant=...` (assert on the navigation target, not on
      completing the flow — matching the existing `social-providers.spec.ts`
