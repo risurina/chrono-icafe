@@ -128,36 +128,49 @@ interception (mirroring `apps/chrono-api/src/e2e/sigv4.test.ts`'s existing patte
 this phase's `run.ts` additions reuse that same interception approach with
 Chrono-specific tenant fixtures, not a module-boundary mock.
 
-**Deliberately re-runs the foundation's case list, not a duplicate to dedupe (2nd-audit
-C2)**: the foundation plan's `oauth.test.ts` (its Phase 4 step 5) proves the seven
-cases against `@agora/api`'s own database; this phase proves the *identical* seven
-against `@agora/chrono-api`'s — a separate Postgres database with its own
-Drizzle migration history (D2). Passing in one app's database is not evidence it
-passes in the other's: `TenantMemberOAuthAccounts`' unique indexes, the RLS policy
+**Deliberately re-runs the foundation's case list, not a duplicate to dedupe**: the
+foundation plan's `apps/agora-api/src/e2e/member-oauth.test.ts` (its Phase 4 step 5)
+proves the eight cases against `@agora/api`'s own database; this phase proves the
+*identical* eight against `@agora/chrono-api`'s — a separate Postgres database with
+its own Drizzle migration history (D2). Passing in one app's database is not evidence
+it passes in the other's: `TenantMemberOAuthAccounts`' unique indexes, the RLS policy
 generated for it, and Chrono's own tenant-seeding fixtures are all independently
 capable of drifting from the foundation package's shape. This is the same reasoning
 `.ai/rules/database.md`'s `rls:proof` requires per-app rather than once — a shared
 package's guarantee is only real once each consuming app proves it locally. So: same
-seven cases, same assertions, run twice, on purpose. Do not "simplify" this later by
+eight cases, same assertions, run twice, on purpose. Do not "simplify" this later by
 removing one copy.
 
 **Step-by-step**:
 1. `run.ts`: add Chrono tenant fixtures exercising the foundation's OAuth routes
    directly (in-process, `globalThis.fetch` stubbed for the Google/Facebook token+
-   graph hosts) for the same seven cases the foundation plan's `oauth.test.ts` covers
-   (create/reuse/cross-tenant/refuse-link/suspended/unavailable/missing-email) —
-   reuse Chrono's existing tenant-seeding helpers in this file rather than writing new
-   ones. `/start` and `/callback` are redirect responses (302), unlike every existing
-   `/portal/auth/*` assertion in this file (all JSON POSTs) — the request helper used
-   for these cases must not auto-follow redirects and must capture the `Set-Cookie`
-   header off the 302 directly, and must also capture the state cookie set by `/start`
-   to hand back on the simulated `/callback` request.
+   graph hosts) for the same eight cases the foundation plan's `member-oauth.test.ts`
+   covers (create/reuse/cross-tenant/refuse-link/suspended/unavailable/missing-email/
+   cancelled) — reuse Chrono's existing tenant-seeding helpers in this file rather
+   than writing new ones. **(3rd-pass fix, Condition C)** `/start` and `/callback` are
+   redirect responses (302), unlike every existing `/portal/auth/*` assertion in this
+   file (all JSON POSTs, via the existing `req()` helper, which uses `fetch`'s default
+   `redirect: "follow"` and returns `{ status, body, setCookie }`). Add a dedicated
+   `reqNoFollow()` variant that passes `redirect: "manual"` and additionally returns
+   `location: res.headers.get("location")` — every OAuth assertion in this phase reads
+   that header (`/start`'s 302 `Location` is the authorize URL to inspect; `/callback`'s
+   302 `Location` is the final `portalPathUrl`/`apexPathUrl` destination). It must
+   capture `Set-Cookie` off `/start`'s response to hand back as the request cookie on
+   the simulated `/callback` call, and the `globalThis.fetch` stub for the IdP hosts
+   must pass through unstubbed to the real `fetch` for the local `base` origin (the
+   harness's own `reqNoFollow`/`req` calls are themselves `fetch` calls against the
+   same global).
 2. `social-login-ui.spec.ts` (Playwright, browser-level only — no real IdP hop):
    - Buttons render for available providers per `/portal/auth/providers`, and are
-     absent (not disabled) for unavailable ones, and absent on a custom-domain tenant
-     fixture if one exists in the e2e tenant set (D6).
-   - Visiting `/login?error=account_not_linked` (and the other error codes) renders
-     the corresponding toast copy.
+     absent (not disabled) for unavailable ones, and absent specifically on the
+     `gaming` tenant's verified custom domain `chrono2.izur.com.ph` **(3rd-pass fix,
+     Condition D — this fixture already exists, not a hypothetical)**, per
+     `apps/chrono-api/src/seed.ts`'s existing `gaming` tenant seed. Note: because
+     `gaming` has both a subdomain and this custom domain, the social buttons appear
+     on `gaming.<APP_DOMAIN>/login` but are absent on `chrono2.izur.com.ph/login` —
+     expected per D6, not a bug to flag during the manual walk.
+   - Visiting `/login?error=account_not_linked` (and the other error codes, including
+     `cancelled`) renders the corresponding toast copy.
    - Clicking "Continue with Google" triggers a full-page navigation to
      `/portal/auth/google/start?tenant=...` (assert on the navigation target, not on
      completing the flow — matching the existing `social-providers.spec.ts`
@@ -174,9 +187,11 @@ provider or an error code goes unmapped.
 migration is live in this app's database); the new Playwright spec, run per
 `.ai/rules/e2e-testing.md`'s manual-suite instructions (`pnpm dev` first).
 
-**Out of scope**: load/rate-limit testing of the OAuth endpoints; testing against a
-real Google/Facebook sandbox app in CI (that stays a manual pre-release check, same as
-the existing staff-pool social login).
+**Out of scope**: load/rate-limit testing of the OAuth endpoints; completing a real
+Google/Facebook consent round trip anywhere in this suite or in the `pnpm dev` loop —
+that is a staging/production-only manual check per the foundation plan's Risk-12 note
+(matches Phase 5's verification commands above), same scope as the existing
+staff-pool social login's own manual verification.
 
 **Execution start point**: read `apps/chrono-api/src/e2e/run.ts` in full to find the
 existing tenant-member fixture/seeding pattern and `sigv4.test.ts`'s `globalThis.fetch`
