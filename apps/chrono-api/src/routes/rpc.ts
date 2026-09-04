@@ -36,12 +36,12 @@ import {
 } from "agora/server";
 import { usageMeteringMiddleware } from "agora/server";
 import {
+  buildPaginationMeta,
   createId,
   createProjectSchema,
   listAuditQuerySchema,
   listQuerySchema,
   listNotificationFeedQuerySchema,
-  type PaginationMeta,
   updateMemberRoleSchema,
   createCustomerSchema,
   updateCustomerSchema,
@@ -270,28 +270,8 @@ export async function confirmFileForTenant(
   return { row, publicUrl };
 }
 
-/** Shared `{page, pageSize, ...}` → `PaginationMeta` builder for listQuerySchema routes. */
-export function buildPaginationMeta(
-  page: number,
-  pageSize: number,
-  totalItems: number,
-  sort?: string,
-  order?: "asc" | "desc",
-): PaginationMeta {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
-    startItem: totalItems === 0 ? 0 : (page - 1) * pageSize + 1,
-    endItem: Math.min(page * pageSize, totalItems),
-    sort,
-    order,
-  };
-}
+/** Re-exported for compatibility with existing importers of this module. */
+export { buildPaginationMeta };
 
 /** Build a tenant-host URL for Stripe redirect/return links. */
 function tenantHostUrl(slug: string, path: string): string {

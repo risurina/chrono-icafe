@@ -2,32 +2,10 @@ import { Hono } from "hono";
 import { withTenant, eq, and, asc, desc, count } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator, HttpError } from "agora/server";
-import { createId } from "agora";
+import { createId, buildPaginationMeta } from "agora";
 import { chronoInquiry, chronoInquiryMessage } from "./schema";
 import { submitPortalInquirySchema, replyToInquirySchema, inquiryListQuerySchema } from "./contracts";
 import { notifyInquiryManagers } from "./notify";
-
-function buildPaginationMeta(
-  page: number,
-  pageSize: number,
-  totalItems: number,
-  sort?: string,
-  order?: "asc" | "desc",
-) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
-    startItem: totalItems === 0 ? 0 : (page - 1) * pageSize + 1,
-    endItem: Math.min(page * pageSize, totalItems),
-    sort,
-    order,
-  };
-}
 
 /**
  * Customer-facing inquiry self-service surface — gated by the foundation's

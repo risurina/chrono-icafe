@@ -1,32 +1,11 @@
 import { Hono } from "hono";
 import { withTenant, eq, and, isNull, or, asc, desc, count } from "agora/db";
+import { buildPaginationMeta } from "agora";
 import { gt } from "drizzle-orm";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
 import { chronoCreditGrant, chronoCreditGrantLedgerEntry } from "./schema";
 import { creditLedgerListQuerySchema } from "./contracts";
-
-function buildPaginationMeta(
-  page: number,
-  pageSize: number,
-  totalItems: number,
-  sort?: string,
-  order?: "asc" | "desc",
-) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
-    startItem: totalItems === 0 ? 0 : (page - 1) * pageSize + 1,
-    endItem: Math.min(page * pageSize, totalItems),
-    sort,
-    order,
-  };
-}
 
 /**
  * Customer-facing credit-lot self-service surface — gated by the

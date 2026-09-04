@@ -2,30 +2,8 @@ import { Hono } from "hono";
 import { withTenant, eq, asc, desc, count } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
-import { listQuerySchema } from "agora";
+import { listQuerySchema, buildPaginationMeta } from "agora";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
-
-function buildPaginationMeta(
-  page: number,
-  pageSize: number,
-  totalItems: number,
-  sort?: string,
-  order?: "asc" | "desc",
-) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
-    startItem: totalItems === 0 ? 0 : (page - 1) * pageSize + 1,
-    endItem: Math.min(page * pageSize, totalItems),
-    sort,
-    order,
-  };
-}
 
 /**
  * Customer-facing wallet self-service surface — gated by the foundation's
