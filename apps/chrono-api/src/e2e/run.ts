@@ -528,6 +528,212 @@ async function main() {
   const custToRpc = await req("GET", "/rpc/me", { slug: "acme", cookie: custCk });
   check("customer blocked from /rpc (401)", custToRpc.status === 401, `status ${custToRpc.status}`);
 
+  // ── Chrono member portal (loyalty, session, credit catalog+purchase, promos, wallet history filter) ──
+  {
+    const { chronoCreditProduct } = await import("../modules/credit/schema");
+    const { creditWallet } = await import("../modules/wallet/service");
+    const { chronoBranch } = await import("../modules/branch/schema");
+    const { chronoStation } = await import("../modules/station/schema");
+    const { chronoSession } = await import("../modules/session/schema");
+    const { chronoPromo } = await import("../modules/promo/schema");
+
+    // A member/customer on acme, distinct from the earlier `custCk`.
+    const mSignup = await req("POST", "/portal/auth/sign-up", {
+      slug: "acme",
+      json: { email: "portalmember@acme.test", name: "Portal Member", password: PW },
+    });
+    check("portal member sign-up (201)", mSignup.status === 201, `status ${mSignup.status}`);
+    const memberCk = jar(mSignup.setCookie);
+    const meRes = await req("GET", "/portal/auth/me", { slug: "acme", cookie: memberCk });
+    const memberId: string = meRes.body?.member?.memberId;
+
+    // Loyalty — no earn history yet → account null, bronze/0%.
+    const loyaltyMe = await req("GET", "/portal/loyalty/me", { slug: "acme", cookie: memberCk });
+    check(
+      "loyalty/me: new member has no account, bronze level",
+      loyaltyMe.status === 200 && loyaltyMe.body?.account === null && loyaltyMe.body?.level?.tier === "bronze",
+      JSON.stringify(loyaltyMe.body),
+    );
+    const loyaltyStaffGate = await req("GET", "/portal/loyalty/me", { slug: "acme", cookie: ownerCk });
+    check("loyalty/me: staff cookie rejected (401)", loyaltyStaffGate.status === 401, `status ${loyaltyStaffGate.status}`);
+    const loyaltyCross = await req("GET", "/portal/loyalty/me", { slug: "contoso", cookie: memberCk });
+    check("loyalty/me: cross-tenant session rejected (401)", loyaltyCross.status === 401, `status ${loyaltyCross.status}`);
+
+    // Session — no sessions yet.
+    const sumEmpty = await req("GET", "/portal/sessions/summary", { slug: "acme", cookie: memberCk });
+    check(
+      "sessions/summary: no active session, zero usage today",
+      sumEmpty.status === 200 && sumEmpty.body?.active === null && sumEmpty.body?.today?.sessionCount === 0,
+      JSON.stringify(sumEmpty.body),
+    );
+    const listEmpty = await req("GET", "/portal/sessions", { slug: "acme", cookie: memberCk });
+    check("sessions list: empty for a new member", listEmpty.status === 200 && listEmpty.body?.items?.length === 0, JSON.stringify(listEmpty.body));
+
+    // Seed a branch + station + an ended session for this member directly (portal
+    // routes are read-only for sessions; staff-side session creation is a
+    // separate, already-covered module).
+    const [branch] = await withTenant(acmeId, (tx) =>
+      tx.insert(chronoBranch).values({ id: createId(), tenantId: acmeId, name: "Main", code: "MAIN" }).returning(),
+    );
+    const [station] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoStation)
+        .values({ id: createId(), tenantId: acmeId, branchId: branch!.id, name: "PC-01", stationNumber: "1" })
+        .returning(),
+    );
+    const startedAt = new Date();
+    const [endedSession] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoSession)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          branchId: branch!.id,
+          stationId: station!.id,
+          memberId,
+          status: "ended",
+          startedAt,
+          endedAt: new Date(startedAt.getTime() + 3600_000),
+          actualBillableSeconds: 3600,
+          amountCharged: "50.00",
+          currency: "PHP",
+          rateSnapshot: "50.00",
+          rateSource: "group_hourly",
+        })
+        .returning(),
+    );
+    const listAfter = await req("GET", "/portal/sessions", { slug: "acme", cookie: memberCk });
+    check(
+      "sessions list: newest-first, includes the ended session",
+      listAfter.status === 200 && listAfter.body?.items?.[0]?.id === endedSession!.id,
+      JSON.stringify(listAfter.body),
+    );
+    const detail = await req("GET", `/portal/sessions/${endedSession!.id}`, { slug: "acme", cookie: memberCk });
+    check("session detail: own session found", detail.status === 200 && detail.body?.session?.id === endedSession!.id, JSON.stringify(detail.body));
+    const detailForeign = await req("GET", `/portal/sessions/${endedSession!.id}`, { slug: "acme", cookie: custCk });
+    check("session detail: another member's session 404s (no leak)", detailForeign.status === 404, `status ${detailForeign.status}`);
+    const detailWrongTenant = await req("GET", `/portal/sessions/${endedSession!.id}`, { slug: "contoso", cookie: memberCk });
+    check("session detail: cross-tenant session id 401s", detailWrongTenant.status === 401, `status ${detailWrongTenant.status}`);
+    const sumAfter = await req("GET", "/portal/sessions/summary", { slug: "acme", cookie: memberCk });
+    check(
+      "sessions/summary: today's usage reflects the ended session",
+      sumAfter.status === 200 && sumAfter.body?.today?.sessionCount === 1 && sumAfter.body?.today?.billableSeconds === 3600,
+      JSON.stringify(sumAfter.body),
+    );
+
+    // Credit catalog + wallet-funded purchase.
+    const [draftProduct] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoCreditProduct)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          name: "Draft Pack",
+          code: "DRAFT-1",
+          status: "draft",
+          quantityMinutes: 60,
+          priceAmount: "100.00",
+        })
+        .returning(),
+    );
+    const [activeProduct] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoCreditProduct)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          name: "Starter Pack",
+          code: "START-1",
+          status: "active",
+          quantityMinutes: 60,
+          priceAmount: "100.00",
+        })
+        .returning(),
+    );
+    const catalog = await req("GET", "/portal/credits/products", { slug: "acme", cookie: memberCk });
+    const catalogIds: string[] = (catalog.body?.items ?? []).map((p: { id: string }) => p.id);
+    check(
+      "credits/products: only active products, draft hidden",
+      catalog.status === 200 && catalogIds.includes(activeProduct!.id) && !catalogIds.includes(draftProduct!.id),
+      JSON.stringify(catalog.body),
+    );
+
+    // Empty wallet → 422, no rows written.
+    const purchaseNoFunds = await req("POST", "/portal/credits/purchase", {
+      slug: "acme",
+      cookie: memberCk,
+      json: { productId: activeProduct!.id },
+    });
+    check("credits/purchase: insufficient balance (422)", purchaseNoFunds.status === 422, `status ${purchaseNoFunds.status} ${JSON.stringify(purchaseNoFunds.body)}`);
+
+    // Fund the wallet, then purchase succeeds.
+    await withTenant(acmeId, (tx) => creditWallet(tx, { tenantId: acmeId, memberId, amount: "200.00", reason: "e2e top-up" }));
+    const purchaseOk = await req("POST", "/portal/credits/purchase", {
+      slug: "acme",
+      cookie: memberCk,
+      json: { productId: activeProduct!.id },
+    });
+    check("credits/purchase: succeeds with sufficient balance (201)", purchaseOk.status === 201, `status ${purchaseOk.status} ${JSON.stringify(purchaseOk.body)}`);
+    const balanceAfterPurchase = await req("GET", "/portal/wallet/balance", { slug: "acme", cookie: memberCk });
+    check(
+      "wallet/balance: debited by the purchase price",
+      balanceAfterPurchase.body?.balance === "100.00",
+      JSON.stringify(balanceAfterPurchase.body),
+    );
+    const purchaseForeignProduct = await req("POST", "/portal/credits/purchase", {
+      slug: "contoso",
+      cookie: custCk,
+      json: { productId: activeProduct!.id },
+    });
+    check(
+      "credits/purchase: foreign tenant's product id rejected",
+      purchaseForeignProduct.status === 401 || purchaseForeignProduct.status === 404,
+      `status ${purchaseForeignProduct.status}`,
+    );
+
+    // Wallet history "last top-up" filter.
+    const lastTopUp = await req("GET", "/portal/wallet/history?type=credit&pageSize=1", { slug: "acme", cookie: memberCk });
+    check(
+      "wallet/history?type=credit: only credit rows, newest first",
+      lastTopUp.status === 200 && lastTopUp.body?.items?.length === 1 && lastTopUp.body?.items?.[0]?.type === "credit",
+      JSON.stringify(lastTopUp.body),
+    );
+
+    // Promos — none active yet.
+    const promosEmpty = await req("GET", "/portal/promos", { slug: "acme", cookie: memberCk });
+    check("promos: empty when none active", promosEmpty.status === 200 && promosEmpty.body?.items?.length === 0, JSON.stringify(promosEmpty.body));
+    const now = new Date();
+    await withTenant(acmeId, (tx) =>
+      tx.insert(chronoPromo).values({
+        id: createId(),
+        tenantId: acmeId,
+        name: "Happy Hour",
+        code: "HAPPY10",
+        status: "active",
+        discountType: "percentage",
+        discountValue: "10",
+        endsAt: new Date(now.getTime() + 86_400_000),
+      }),
+    );
+    const promosAfter = await req("GET", "/portal/promos", { slug: "acme", cookie: memberCk });
+    check(
+      "promos: shows an active in-window promo",
+      promosAfter.status === 200 && promosAfter.body?.items?.some((p: { code: string }) => p.code === "HAPPY10"),
+      JSON.stringify(promosAfter.body),
+    );
+    const contosoMemberSignup = await req("POST", "/portal/auth/sign-up", {
+      slug: "contoso",
+      json: { email: "portalmember@contoso.test", name: "Contoso Member", password: PW },
+    });
+    const contosoMemberCk = jar(contosoMemberSignup.setCookie);
+    const promosCross = await req("GET", "/portal/promos", { slug: "contoso", cookie: contosoMemberCk });
+    check(
+      "promos: contoso member never sees acme's promo",
+      promosCross.status === 200 && !promosCross.body?.items?.some((p: { code: string }) => p.code === "HAPPY10"),
+      JSON.stringify(promosCross.body),
+    );
+  }
+
   // I. DB-level RLS proof: acme context cannot read contoso's row.
   const leak = await withTenant(acmeId, (tx) =>
     tx.select().from(project).where(eq(project.id, contosoProject!.id)),
@@ -8265,6 +8471,7 @@ async function main() {
     recentAuditAfter !== undefined,
     JSON.stringify(recentAuditAfter),
   );
+
 
   // ── teardown ──
   await new Promise<void>((r) => server!.close(() => r()));
