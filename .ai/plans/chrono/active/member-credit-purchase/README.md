@@ -1,8 +1,14 @@
 # Member portal: buy credits online + see running promos
 
-**Status:** Draft — awaiting developer acceptance
+**Status:** Accepted, with one modification — backend phases C1–C4 and C7
+implemented and verified (2026-09-05). Phase C5 (web UI) is **superseded** by
+`.ai/plans/chrono/active/member-area/README.md`'s Phase 7 (a separate,
+already-running effort implementing `/portal/credits`/`/portal/wallet`), per
+this plan's own "Depends on" note above and its Web section. Phase C6 (e2e
+spec) is **deferred** until that UI lands — it needs real pages to drive.
+This plan stays in `active/`, not archived, until C5/C6 close it out.
 **App:** `chrono`
-**Depends on:** `.ai/plans/agora/active/tenant-customer-payments/README.md` (Phases A1–A2 must land first)
+**Depended on (now satisfied):** `.ai/plans/agora/archive/tenant-customer-payments/README.md` (Phases A1–A2, implemented and archived)
 
 ## Scope, as decided
 
@@ -227,14 +233,14 @@ argument), `modules/promo/contracts.ts`, `src/app.ts` (three mounts + two limite
 
 ## Phases
 
-### Phase C1 — Schema + migration
+### Phase C1 — Schema + migration — ✅ done (2026-09-05, commit `288dc3ec`)
 `modules/payment/schema.ts`. Add the four columns + the index; `pnpm db:generate --name
 chrono_payment_customer_purpose` then `pnpm db:migrate`. Review the generated SQL for
 destructive ops before applying.
 **Accept:** columns exist, all nullable, no existing row rewritten.
 **Verify:** `pnpm typecheck` · `pnpm --filter @agora/chrono-api rls:proof` → `RLS PROOF: PASS ✅`
 
-### Phase C2 — Contracts + `chargeAmount`
+### Phase C2 — Contracts + `chargeAmount` — ✅ done (2026-09-05, commit `03fa648b`)
 `modules/payment/contracts.ts`, `modules/promo/contracts.ts`,
 `modules/credit/service.ts`.
 **Accept:** `purchaseCreditProduct` takes an optional `chargeAmount`; every existing
@@ -243,7 +249,7 @@ untouched. A new unit case proves an explicit `chargeAmount` is what gets debite
 snapshotted.
 **Verify:** `pnpm typecheck` · `pnpm --filter @agora/chrono-api test`
 
-### Phase C3 — Fulfilment service (offline-testable)
+### Phase C3 — Fulfilment service (offline-testable) — ✅ done (2026-09-05, commit `0e008e45`)
 `modules/payment/fulfilment.ts` + `fulfilment.test.ts`. No routes yet, so this phase is
 pure logic and fully unit-testable.
 **Accept:** tests cover — happy pack purchase; happy top-up; replay is a no-op;
@@ -252,7 +258,20 @@ degrades to a wallet credit with a note and **commits**; an infrastructure error
 rethrows and rolls back; a missing payment row is a no-op.
 **Verify:** `pnpm typecheck` · `pnpm --filter @agora/chrono-api test`
 
-### Phase C4 — Portal routes + webhook
+> **Deviation (C2/C3/C4 verify commands):** this repo has no generic `test`
+> script — every module test is its own standalone tsx script
+> (`.ai/rules/testing.md`'s existing convention). C2's chargeAmount case was
+> added to `test:credit-concurrency`; C3 shipped as `test:payment-fulfilment`
+> (PGlite-backed, offline); C4's route-level coverage shipped as
+> `test:payment-portal-routes` (TEST_DATABASE_URL-backed, mirrors
+> `modules/qr/routes.test.ts`). The enforced `test:e2e` suite could not be
+> run for C4 in this session — it failed with a pre-existing, unrelated
+> Postgres role-ownership error (`must be owner of table Accounts`) against
+> the shared `TEST_DATABASE_URL`, traced to another concurrent effort's
+> migration on that same database, not to this plan's changes. `rls:proof`
+> and the dedicated route-level test above both passed.
+
+### Phase C4 — Portal routes + webhook — ✅ done (2026-09-05, commit `10ac891f`)
 `modules/payment/portal-routes.ts`, `modules/credit/portal-routes.ts`,
 `modules/promo/portal-routes.ts`, `src/app.ts`.
 **Accept:** catalog, checkout, poll, promos, and the webhook all work against a stub
@@ -261,14 +280,30 @@ at the mount site. No route returns a raw row. An anonymous caller 401s on every
 `/portal/*` route; the webhook needs no session but 404s on a bad token.
 **Verify:** `pnpm typecheck` · `rls:proof` · `pnpm --filter @agora/chrono-api test:e2e`
 
-### Phase C5 — Web UI
-The two pages, the promos card, the client helpers, and the home-page links.
-**Accept:** a member can buy a pack end to end on `{slug}.localtest.me:3000/portal/credits`;
-online-buy is disabled with honest copy when the tenant has no gateway; the return page
-never claims success before the webhook lands.
-**Verify:** `pnpm typecheck` · manual walkthrough
+### Phase C5 — Web UI — **superseded, not built here**
+**Superseded by** `.ai/plans/chrono/active/member-area/README.md`'s Phase 7, a
+separate, already-running effort implementing the `/portal/*` member-area
+pages (including `/portal/credits` and `/portal/wallet`). This backend-only
+pass (C1–C4, C7) deliberately does not touch any `apps/chrono-web/src/app`
+files under `/portal/credits` or `/member/*` — that surface belongs entirely
+to that other effort. The two pages, the promos card, the client helpers, and
+the home-page links described below are that effort's responsibility, not a
+future phase of this plan.
+~~The two pages, the promos card, the client helpers, and the home-page links.~~
+~~**Accept:** a member can buy a pack end to end on `{slug}.localtest.me:3000/portal/credits`;~~
+~~online-buy is disabled with honest copy when the tenant has no gateway; the return page~~
+~~never claims success before the webhook lands.~~
+~~**Verify:** `pnpm typecheck` · manual walkthrough~~
 
-### Phase C6 — E2E spec
+### Phase C6 — E2E spec — **deferred until Phase C5's UI lands**
+Deferred, not skipped: this spec drives real `/portal/credits` pages that
+Phase C5 (now `member-area` Phase 7) has not yet shipped. Add it as a
+follow-up pass once that UI lands — the backend surface it needs
+(`/portal/payments/*`, the webhook, `/portal/credits/products`,
+`/portal/promos`) is already in place and covered by this plan's own
+`fulfilment.test.ts` / `portal-routes.test.ts`.
+
+Original spec, to build once the UI exists —
 `apps/chrono-web/e2e/tests/portal-credits/purchase.spec.ts`, per
 `.ai/rules/e2e-testing.md` — happy path, gate, **and** isolation, all three required:
 1. A member buys a pack; credits appear only after the simulated webhook.
@@ -283,10 +318,11 @@ never claims success before the webhook lands.
 Data via `@faker-js/faker`, `test-` prefixed.
 **Verify:** the spec passes with `pnpm dev` running · `pnpm typecheck` · `rls:proof`
 
-### Phase C7 — Docs
-`apps/chrono-api/AGENTS.md` (the new `/portal/credits` + `/portal/wallet` surfaces, the
-webhook under "Unauthenticated routes"), `.env.example`, and a short runbook on
-registering the webhook URL in PayMongo and what an amount-mismatch row means.
+### Phase C7 — Docs — ✅ done (2026-09-05, commit `06da417c`)
+`apps/chrono-api/AGENTS.md` (the new `/portal/payments/*` surface + the webhook
+under "Unauthenticated routes"), `.env.example`, and
+`docs/runbooks/customer-payment-webhook.md` on registering the webhook URL in
+PayMongo and what an amount-mismatch/degraded-fulfilment row means.
 
 ## CRUD & feedback contract
 
