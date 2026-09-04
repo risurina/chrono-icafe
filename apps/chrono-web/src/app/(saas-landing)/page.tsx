@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Check,
-  Timer,
   MonitorPlay,
   Wallet,
   CalendarClock,
@@ -27,7 +26,6 @@ import {
   buttonVariants,
   BrandHeader,
   SiteHeader,
-  SiteFooter,
   ThemeToggle,
   PageShell,
   Main,
@@ -54,6 +52,11 @@ import {
 } from "agora/ui";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
+import {
+  MarketingHeader,
+  MarketingFooter,
+  TenantFooter,
+} from "@/components/landing/marketing-chrome";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -320,41 +323,7 @@ export default async function Home() {
 
     return (
       <PageShell data-density="comfortable">
-        <SiteHeader
-          maxWidth="full"
-          brand={
-            <>
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Timer className="h-3.5 w-3.5" aria-hidden />
-              </span>
-              <span>Chrono</span>
-            </>
-          }
-          nav={
-            <>
-              <a href="#features" className="hover:text-foreground">
-                Features
-              </a>
-              <a href="#pricing" className="hover:text-foreground">
-                Pricing
-              </a>
-            </>
-          }
-          actions={
-            <>
-              <ThemeToggle />
-              <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
-                Sign in
-              </Link>
-              <Link
-                href="/sign-up"
-                className={cn(buttonVariants(), "rounded-full px-5")}
-              >
-                Get started
-              </Link>
-            </>
-          }
-        />
+        <MarketingHeader />
 
         <Main>
           <Section maxWidth="full" border="bottom" className="relative overflow-hidden">
@@ -764,20 +733,7 @@ export default async function Home() {
           </Section>
         </Main>
 
-        <SiteFooter
-          maxWidth="full"
-          brand={<span>© {currentYear} Chrono. All rights reserved.</span>}
-          links={
-            <>
-              <Link href="/login" className="hover:text-foreground">
-                Sign in
-              </Link>
-              <Link href="/sign-up" className="hover:text-foreground">
-                Sign up
-              </Link>
-            </>
-          }
-        />
+        <MarketingFooter year={currentYear} />
       </PageShell>
     );
   }
@@ -958,7 +914,11 @@ export default async function Home() {
         </Section>
       </Main>
 
-      <SiteFooter maxWidth="full" brand={<span>© {currentYear} {heading}</span>} />
+      <TenantFooter
+        year={currentYear}
+        tenantName={heading}
+        tagline={branding?.tagline}
+      />
     </PageShell>
   );
 }
