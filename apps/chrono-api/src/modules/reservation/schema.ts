@@ -1,8 +1,10 @@
-import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, numeric, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
+import { chronoSession } from "../session/schema";
 
 export const chronoReservation = pgTable(
   "ChronoReservations",
@@ -34,30 +36,48 @@ export const chronoReservation = pgTable(
     // profile is used instead) — same convention as pos's customerName.
     customerName: text("customerName"),
     customerPhone: text("customerPhone"),
-    startAt: timestamp("startAt").notNull(),
-    endAt: timestamp("endAt").notNull(),
+    // Nullable (reservations-queue-and-self-service plan) — a queue entry
+    // (fromQueue: true, status: "pending") has no scheduled window until it is
+    // promoted, at which point promoteNextInQueue sets both concrete. Enforced by
+    // the hand-written CHECK constraint in the migration (Drizzle has no CHECK
+    // constraint API), not by the type system.
+    startAt: timestamp("startAt"),
+    endAt: timestamp("endAt"),
     status: text("status").notNull().default("confirmed"),
-    // "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show"
+    // "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show" |
+    // "pending" | "hold" | "cancelled_late" | "queue_expired"
     // Deliberate divergence from oikos's ReservationStatusEnum (pgEnum:
     // PENDING/CONFIRMED/CANCELLED/CHECKED_IN/EXPIRED): free-text, not a pg
     // enum (matches every other Chrono module's convention, sidesteps
-    // non-idempotent CREATE TYPE ceremony); no PENDING (that's oikos's queue
-    // state — path 2, deferred, see reservations plan's Critical scope
-    // finding); no EXPIRED (oikos's grace-lapse outcome — also path 2/the
-    // grace job, deferred); adds "completed" and "no_show" (oikos's path 1
-    // never modeled either). This plan's status set is the informed superset
-    // path 1 actually needs for the staff workflow, not a port of the enum.
+    // non-idempotent CREATE TYPE ceremony). "pending"/"hold"/"cancelled_late"/
+    // "queue_expired" were added by the reservations-queue-and-self-service plan
+    // — see that plan for the full state machine.
     notes: text("notes"),
-    // Who took the booking. restrict, not cascade/set null: a reservation's
-    // history must survive even if the staff account is later deleted —
-    // identical reasoning to ChronoShifts.staffUserId / ChronoSales.cashierUserId.
-    createdByUserId: text("createdByUserId")
-      .notNull()
-      .references(() => base.user.id, { onDelete: "restrict" }),
+    // Who took the booking (staff-created, path 1). Nullable (was NOT NULL) —
+    // a member-portal self-service row (this plan) has no staff user.id; the
+    // actor is a tenantMember instead. Invariant: every row has EITHER
+    // createdByUserId (staff-created) OR memberId (member self-service) — never
+    // neither. Mirrors the existing nullable ChronoSessions.startedByUserId
+    // precedent (the QR flow already passes null there).
+    createdByUserId: text("createdByUserId").references(() => base.user.id, {
+      onDelete: "restrict",
+    }),
     checkedInAt: timestamp("checkedInAt"),
     cancelledAt: timestamp("cancelledAt"),
     cancelReason: text("cancelReason"),
     noShowAt: timestamp("noShowAt"),
+    // --- reservations-queue-and-self-service additions below ---
+    fromQueue: boolean("fromQueue").notNull().default(false),
+    // Captured at queue-join time (a queue entry has no startAt yet to derive a
+    // duration from). NULL for a Flow-1 direct reservation. Required whenever
+    // fromQueue=true — enforced by the CHECK constraint in the migration.
+    requestedDurationMinutes: integer("requestedDurationMinutes"),
+    holdExpiresAt: timestamp("holdExpiresAt"),
+    claimedAt: timestamp("claimedAt"), // set when the QR-scan claim consumes the hold
+    sessionId: text("sessionId").references(() => chronoSession.id, { onDelete: "set null" }),
+    // Snapshot of the fee actually applied at cancel time (policy may change
+    // later; this row must keep what was charged).
+    cancelledLateFeeAmount: numeric("cancelledLateFeeAmount", { precision: 12, scale: 2 }),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
@@ -78,6 +98,22 @@ export const chronoReservation = pgTable(
     // EXCLUDE USING gist (...)` statements) — this comment exists so the
     // constraint is documented at the table definition, not just buried in a
     // migration file, even though Drizzle cannot express or track it here.
+    // reservations-queue-and-self-service plan rewrote this constraint's WHERE
+    // to also cover "hold" (a live, station-locking claim window) and to
+    // require startAt IS NOT NULL (Postgres treats tsrange(NULL,NULL) as an
+    // UNBOUNDED range, not "no range" — omitting that guard would let a
+    // NULL-windowed row block every other booking on the station).
+    //
+    // One active reservation/queue-entry per MEMBER-ORIGINATED row — scoped to
+    // createdByUserId IS NULL so a staff booking made on a member's behalf
+    // (path 1, memberId optional) never collides with this cap; a front-desk
+    // clerk taking a second phone booking for the same regular member at a
+    // different time must keep working exactly as it does today.
+    uniqueIndex("chrono_reservation_one_active_per_member_uq")
+      .on(t.tenantId, t.memberId)
+      .where(
+        sql`status in ('confirmed','hold','checked_in','pending') and "memberId" is not null and "createdByUserId" is null`,
+      ),
   ],
 );
 

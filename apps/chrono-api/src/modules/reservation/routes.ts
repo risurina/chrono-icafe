@@ -9,6 +9,8 @@ import {
   gte,
   lte,
   inArray,
+  isNotNull,
+  not,
   type TenantTx,
 } from "agora/db";
 import * as base from "agora/db/schema";
@@ -26,8 +28,13 @@ import {
   reservationListQuerySchema,
 } from "./contracts";
 
-/** Statuses that occupy a station and therefore participate in the overlap check. */
-const ACTIVE_STATUSES = ["confirmed", "checked_in"] as const;
+/**
+ * Statuses that occupy a station and therefore participate in the overlap check.
+ * "hold" was added by the reservations-queue-and-self-service plan — a live claim
+ * window (post-activation direct reservation, or a promoted queue member) locks the
+ * station exactly like "confirmed"/"checked_in" and must not be double-bookable.
+ */
+const ACTIVE_STATUSES = ["confirmed", "checked_in", "hold"] as const;
 
 const OVERLAP_MESSAGE = "This station is already booked for the requested time.";
 
@@ -147,6 +154,11 @@ async function assertNoOverlap(
     eq(chronoReservation.tenantId, tenantId),
     eq(chronoReservation.stationId, stationId),
     inArray(chronoReservation.status, [...ACTIVE_STATUSES]),
+    // A "pending" queue row is never in ACTIVE_STATUSES, but startAt/endAt are
+    // now nullable at the column level (queue rows) — keep this guard explicit
+    // rather than relying on that alone, and it's what lets the loop below
+    // narrow away the `Date | null` type safely.
+    isNotNull(chronoReservation.startAt),
   ];
   const locked = await tx
     .select({
@@ -160,6 +172,7 @@ async function assertNoOverlap(
 
   for (const row of locked) {
     if (excludeReservationId && row.id === excludeReservationId) continue;
+    if (!row.startAt || !row.endAt) continue; // narrows Date | null for tsc
     // [startAt, endAt) overlap test.
     if (startAt < row.endAt && endAt > row.startAt) {
       throw new HttpError(409, OVERLAP_MESSAGE);
@@ -194,7 +207,15 @@ export function reservationRoutes() {
         const conds = [];
         if (branchId) conds.push(eq(chronoReservation.branchId, branchId));
         if (stationId) conds.push(eq(chronoReservation.stationId, stationId));
-        if (status) conds.push(eq(chronoReservation.status, status));
+        if (status) {
+          conds.push(eq(chronoReservation.status, status));
+        } else {
+          // Default-exclude queue entries — a "pending" row has no scheduled window
+          // for the staff board to display. Phase 2 (contracts) adds "pending" to
+          // reservationStatusSchema so a caller can explicitly opt in via ?status=pending;
+          // until then this hardcoded exclusion is the only way to see queue rows here.
+          conds.push(not(eq(chronoReservation.status, "pending")));
+        }
         if (memberId) conds.push(eq(chronoReservation.memberId, memberId));
         // Board view: reservations overlapping [from, to).
         if (from) conds.push(gte(chronoReservation.endAt, new Date(from)));
@@ -330,6 +351,13 @@ export function reservationRoutes() {
                 409,
                 "This reservation can no longer be edited (it is not in a confirmed state).",
               );
+            }
+            // A "confirmed" status guarantees a concrete window in practice (only a
+            // "pending" queue row has a NULL window), but narrow explicitly for tsc —
+            // startAt/endAt are Date | null at the column level since the
+            // reservations-queue-and-self-service plan.
+            if (!existing.startAt || !existing.endAt) {
+              throw new HttpError(409, "This reservation has no scheduled time to edit.");
             }
 
             const nextStationId = input.stationId ?? existing.stationId;

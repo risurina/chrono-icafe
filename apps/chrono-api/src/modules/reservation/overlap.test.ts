@@ -26,7 +26,7 @@
  * configured it.
  */
 import "dotenv/config";
-import { is } from "drizzle-orm";
+import { is, Column } from "drizzle-orm";
 import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 
 const N = 10;
@@ -66,8 +66,36 @@ function uniqueIndexDdls(table: PgTable): string[] {
       const cols = (i.config.columns as { name: string }[])
         .map((c) => `"${c.name}"`)
         .join(", ");
-      return `create unique index if not exists "${i.config.name}" on "${cfg.name}" (${cols});`;
+      // Include the index's `.where()` predicate SQL when present — a partial
+      // unique index (e.g. chrono_reservation_one_active_per_member_uq) applies
+      // as a FULL unique constraint if this is dropped, causing false
+      // collisions unrelated to the invariant it's meant to enforce
+      // (reservations-queue-and-self-service plan, round-2 audit CONDITION 5).
+      const where = i.config.where;
+      const whereSql = where ? ` where ${sqlToText(where)}` : "";
+      return `create unique index if not exists "${i.config.name}" on "${cfg.name}" (${cols})${whereSql};`;
     });
+}
+
+/**
+ * Renders a Drizzle SQL fragment (from a partial index's `.where()`) to plain
+ * text — only handles what this codebase's own `.where(sql\`...\`)` calls
+ * actually produce: plain string chunks and interpolated Column references
+ * (e.g. `sql\`${t.status} in (...)\``, the existing pattern in
+ * session/schema.ts's own partial index). Not a general SQL-to-string printer.
+ */
+function sqlToText(fragment: unknown): string {
+  const chunks = (fragment as { queryChunks?: unknown[] }).queryChunks ?? [];
+  return chunks
+    .map((chunk) => {
+      if (is(chunk, Column)) return `"${chunk.name}"`;
+      if (chunk && typeof chunk === "object" && "value" in (chunk as Record<string, unknown>)) {
+        const v = (chunk as { value: unknown }).value;
+        return Array.isArray(v) ? v.join("") : String(v);
+      }
+      return String(chunk);
+    })
+    .join("");
 }
 
 let passed = 0;
@@ -189,12 +217,28 @@ async function main() {
   // test actually exercises the exclusion-constraint guarantee under
   // concurrency — not just the app-level `SELECT ... FOR UPDATE` pre-check.
   await adminPool.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
+  // reservations-queue-and-self-service plan rewrote this constraint's WHERE to
+  // also cover "hold" (a live, station-locking claim window created once a
+  // reservation activates or a queued member is promoted) and to require
+  // "startAt" IS NOT NULL — Postgres treats tsrange(NULL,NULL) as an UNBOUNDED
+  // range, not "no range", so a NULL-windowed "pending" row must be excluded by
+  // this predicate explicitly, not just by omission from the status list.
   await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
     EXCLUDE USING gist (
       "tenantId" WITH =,
       "stationId" WITH =,
       tsrange("startAt", "endAt", '[)') WITH &&
-    ) WHERE (status IN ('confirmed', 'checked_in'));`);
+    ) WHERE (status IN ('confirmed', 'checked_in', 'hold') AND "startAt" IS NOT NULL);`);
+  // CHECK constraint mirrored from the real migration (Phase 1) — a queue row
+  // (fromQueue=true, status='pending') has no window until promoted, and must
+  // capture requestedDurationMinutes at join time or promotion has nothing to
+  // compute endAt from.
+  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_pending_window_check"
+    CHECK (
+      (status = 'pending' AND "startAt" IS NULL AND "endAt" IS NULL
+        AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL))
+      OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)
+    );`);
   // Grant the app role (DATABASE_URL / chrono_app) DML on the tables just
   // created by the admin role — mirrors provisionAppRole's default privileges,
   // needed here because the tables are newly created by a different owner.
@@ -364,6 +408,37 @@ async function main() {
     "back-to-back booking starting 14:00 does NOT conflict (201, half-open interval)",
     second.status === 201,
     `got ${second.status}: ${JSON.stringify(second.body)}`,
+  );
+
+  // 9. `hold`-status regression (reservations-queue-and-self-service plan,
+  // round-2 audit's required regression case): a live "hold" — the state a
+  // direct reservation activates into at startAt, or a promoted queue member
+  // lands in — must be just as protected by the exclusion constraint as
+  // "confirmed"/"checked_in". Insert one directly (no route creates "hold" yet
+  // — that's the background sweep, a later phase) and confirm an overlapping
+  // booking attempt through the real API still 409s.
+  console.log("\nHold-status overlap check: booking over a live hold must 409…\n");
+  await withTenant(tenantId, (tx) =>
+    tx.insert(chronoReservation).values({
+      id: createId(),
+      tenantId,
+      branchId: branch!.id,
+      stationId: station!.id,
+      customerName: "Held Customer",
+      status: "hold",
+      startAt: new Date("2030-03-01T10:00:00.000Z"),
+      endAt: new Date("2030-03-01T11:00:00.000Z"),
+      holdExpiresAt: new Date("2030-03-01T10:30:00.000Z"),
+    }),
+  );
+  const holdOverlap = await createBoundaryReservation(
+    "2030-03-01T10:15:00.000Z",
+    "2030-03-01T10:45:00.000Z",
+  );
+  check(
+    "booking overlapping a live hold is refused (409)",
+    holdOverlap.status === 409,
+    `got ${holdOverlap.status}: ${JSON.stringify(holdOverlap.body)}`,
   );
 
   server!.close();
