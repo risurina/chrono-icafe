@@ -4,7 +4,7 @@ import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
 import { createId } from "agora";
 import { chronoMemberProfile } from "./schema";
-import { applyForMembershipSchema, toMemberProfile } from "./contracts";
+import { applyForMembershipSchema, updateMyMemberProfileSchema, toMemberProfile } from "./contracts";
 import { getChronoTenantFlag } from "../../contracts/extensions";
 import { chronoWallet } from "../wallet/schema";
 
@@ -113,5 +113,23 @@ export function memberPortalRoutes() {
       // Customer-initiated action — unaudited in this pass (recordStaffAudit
       // is staff-actor-shaped; see the module plan's Routes section).
       return c.json({ profile: created ? toMemberProfile(created) : null }, 201);
+    })
+    // Member-portal self-update (Phase F2) — 404 before the member has ever
+    // applied (no chronoMemberProfile row yet); apply first, then edit.
+    .patch("/me", zValidator("json", updateMyMemberProfileSchema), async (c) => {
+      const { tenantId, memberId } = c.var.member;
+      const { phone } = c.req.valid("json");
+
+      const [updated] = await withTenant(tenantId, (tx) =>
+        tx
+          .update(chronoMemberProfile)
+          .set({ phone: phone ?? null, updatedAt: new Date() })
+          .where(eq(chronoMemberProfile.memberId, memberId))
+          .returning(),
+      );
+      if (!updated) {
+        return c.json({ error: "Apply for membership before editing your profile" }, 404);
+      }
+      return c.json({ profile: toMemberProfile(updated) });
     });
 }

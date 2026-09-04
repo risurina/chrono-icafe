@@ -10,6 +10,13 @@ export const updateMemberProfileSchema = z.object({
   phone: z.string().min(1).max(50).optional(),
 });
 
+// Member-portal self-update (Phase F2) — same shape as the staff-facing
+// schema above, named separately so the portal route's own contract can
+// evolve independently (e.g. gaining member-only fields later).
+export const updateMyMemberProfileSchema = z.object({
+  phone: z.string().min(1).max(50).optional(),
+});
+
 export const inviteMemberSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(200),

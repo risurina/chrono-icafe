@@ -10,7 +10,12 @@ import {
   roleBypassesRls,
 } from "agora/db";
 import { createId } from "agora";
-import { project, tenantSubscriptionEvent, paymentTransaction } from "./db/schema";
+import {
+  project,
+  tenantSubscriptionEvent,
+  paymentTransaction,
+  tenantMemberOAuthAccount,
+} from "./db/schema";
 
 /**
  * Proves tenant isolation is real: with app.tenant_id = A, queries must NOT see
@@ -154,6 +159,47 @@ async function ensurePaymentTransactionProbeRow(tenantId: string): Promise<strin
   return row.id;
 }
 
+/**
+ * Same non-vacuity discipline as `ensurePaymentTransactionProbeRow`, for
+ * `TenantMemberOAuthAccounts`. The unique index is `(tenantId, provider,
+ * providerAccountId)`, so the sentinel `providerAccountId` is safe to reuse
+ * across both tenants — it never collides.
+ */
+async function ensureMemberOAuthProbeRow(tenantId: string): Promise<string> {
+  const probeAccountId = "rls_probe_google_account";
+  const existing = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ id: tenantMemberOAuthAccount.id })
+      .from(tenantMemberOAuthAccount)
+      .where(eq(tenantMemberOAuthAccount.providerAccountId, probeAccountId))
+      .limit(1),
+  );
+  if (existing[0]) return existing[0].id;
+
+  const [member] = await withTenant(tenantId, (tx) =>
+    tx.select({ id: schema.tenantMember.id }).from(schema.tenantMember).limit(1),
+  );
+  if (!member) {
+    throw new Error(`No seeded tenantMember for ${tenantId} — run the seed first.`);
+  }
+
+  const [row] = await withTenant(tenantId, (tx) =>
+    tx
+      .insert(tenantMemberOAuthAccount)
+      .values({
+        id: createId(),
+        tenantId,
+        memberId: member.id,
+        provider: "google",
+        providerAccountId: probeAccountId,
+        email: "rls-probe@example.com",
+      })
+      .returning({ id: tenantMemberOAuthAccount.id }),
+  );
+  if (!row) throw new Error(`Could not create a probe OAuth account for ${tenantId}.`);
+  return row.id;
+}
+
 async function main() {
   const roleOk = await assertAppRoleCannotBypassRls();
   const a = await orgId("acme");
@@ -166,6 +212,8 @@ async function main() {
   await ensureSubscriptionEventProbeRow(b);
   await ensurePaymentTransactionProbeRow(a);
   await ensurePaymentTransactionProbeRow(b);
+  await ensureMemberOAuthProbeRow(a);
+  await ensureMemberOAuthProbeRow(b);
 
   const aProjects = await withTenant(a, (tx) => tx.select().from(project));
   const bProjects = await withTenant(b, (tx) => tx.select().from(project));
@@ -187,6 +235,12 @@ async function main() {
   const bTxns = await withTenant(b, (tx) =>
     tx.select().from(paymentTransaction),
   );
+  const aOauth = await withTenant(a, (tx) =>
+    tx.select().from(tenantMemberOAuthAccount),
+  );
+  const bOauth = await withTenant(b, (tx) =>
+    tx.select().from(tenantMemberOAuthAccount),
+  );
 
   // Under tenant A, none of the returned rows may belong to B.
   const aSeesOnlyA = aProjects.every((p) => p.tenantId === a);
@@ -197,6 +251,8 @@ async function main() {
   const bSubEventsOnlyB = bSubEvents.every((e) => e.tenantId === b);
   const aTxnsOnlyA = aTxns.every((t) => t.tenantId === a);
   const bTxnsOnlyB = bTxns.every((t) => t.tenantId === b);
+  const aOauthOnlyA = aOauth.every((o) => o.tenantId === a);
+  const bOauthOnlyB = bOauth.every((o) => o.tenantId === b);
 
   // Cross-read: ask (as A) for rows we know belong to B → must be empty.
   const bRowId = bProjects[0]?.id;
@@ -232,6 +288,15 @@ async function main() {
           .where(eq(paymentTransaction.id, bTxnId)),
       )
     : [];
+  const bOauthId = bOauth[0]?.id;
+  const oauthLeak = bOauthId
+    ? await withTenant(a, (tx) =>
+        tx
+          .select()
+          .from(tenantMemberOAuthAccount)
+          .where(eq(tenantMemberOAuthAccount.id, bOauthId)),
+      )
+    : [];
 
   // Non-vacuity: a comparison against an empty set is not evidence.
   const nonVacuous =
@@ -244,7 +309,10 @@ async function main() {
     Boolean(bSubEventId) &&
     aTxns.length > 0 &&
     bTxns.length > 0 &&
-    Boolean(bTxnId);
+    Boolean(bTxnId) &&
+    aOauth.length > 0 &&
+    bOauth.length > 0 &&
+    Boolean(bOauthId);
 
   const pass =
     roleOk &&
@@ -257,10 +325,13 @@ async function main() {
     bSubEventsOnlyB &&
     aTxnsOnlyA &&
     bTxnsOnlyB &&
+    aOauthOnlyA &&
+    bOauthOnlyB &&
     leak.length === 0 &&
     memberLeak.length === 0 &&
     subEventLeak.length === 0 &&
-    txnLeak.length === 0;
+    txnLeak.length === 0 &&
+    oauthLeak.length === 0;
 
   // eslint-disable-next-line no-console
   console.log(
@@ -276,6 +347,9 @@ async function main() {
       `A sees ${aTxns.length} payment transactions (all A's? ${aTxnsOnlyA})`,
       `B sees ${bTxns.length} payment transactions (all B's? ${bTxnsOnlyB})`,
       `A reading B's payment transaction returns ${txnLeak.length} rows (want 0)`,
+      `A sees ${aOauth.length} member OAuth accounts (all A's? ${aOauthOnlyA})`,
+      `B sees ${bOauth.length} member OAuth accounts (all B's? ${bOauthOnlyB})`,
+      `A reading B's member OAuth account returns ${oauthLeak.length} rows (want 0)`,
       `non-vacuous (both tenants hold rows)? ${nonVacuous}`,
       pass ? "RLS PROOF: PASS ✅" : "RLS PROOF: FAIL ❌",
     ].join("\n"),
