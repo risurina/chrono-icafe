@@ -57,8 +57,18 @@ import {
   MarketingFooter,
   TenantFooter,
 } from "@/components/landing/marketing-chrome";
+import { HeroChips } from "@/components/landing/hero-chips";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+
+/** The hero capability strip — the reference's five, in its own wording. */
+const HERO_CHIPS = [
+  "Station Session Control",
+  "Wallet & Manual Payments",
+  "Staff Shift Logs",
+  "Branch Monitoring",
+  "Audit Trail Ready",
+] as const;
 
 async function fetchTenant(): Promise<{ name: string; slug: string } | null> {
   const t = await getRequestTenant();
@@ -85,13 +95,6 @@ export default async function Home() {
 
   // Apex → generic marketing page.
   if (!tenant) {
-    const stats = [
-      { label: "Branches per business", value: "Unlimited" },
-      { label: "Live availability", value: "Public page" },
-      { label: "Payment types", value: "Wallet & Cash" },
-      { label: "Isolation model", value: "Tenant RLS" },
-    ];
-
     const stations = [
       { name: "Station 01", state: "active" as const, note: "42m left" },
       { name: "Station 02", state: "ready" as const, note: "Available" },
@@ -348,7 +351,9 @@ export default async function Home() {
                   "radial-gradient(circle at top, color-mix(in oklch, var(--color-primary) 10%, transparent), transparent 60%)",
               }}
             />
-            <div className="py-20 lg:py-28">
+            {/* pt clears the 80px fixed header; the section background still
+                bleeds up behind it, which is the point of the transparent bar. */}
+            <div className="pb-20 pt-32 lg:pb-28 lg:pt-40">
               <Grid cols={2} gap={4} className="items-center">
                 <Stack gap={6}>
                   <Badge variant="secondary" className="w-fit uppercase tracking-widest">
@@ -379,11 +384,11 @@ export default async function Home() {
                       Talk to us
                     </Link>
                   </Row>
-                  <Row wrap gap={3} className="w-full max-w-2xl pt-4">
-                    {stats.map(({ label, value }) => (
-                      <StatTile key={label} label={label} value={value} />
-                    ))}
-                  </Row>
+                  <HeroChips items={HERO_CHIPS} className="max-w-2xl" />
+                  <p className="max-w-xl text-sm text-muted-foreground/70">
+                    Free to start — no credit card required. Multi-tenant by
+                    design, with row-level isolation per business.
+                  </p>
                 </Stack>
 
                 <Card className="overflow-hidden">
