@@ -1,9 +1,10 @@
 import { Hono } from "hono";
-import { withTenant, eq, asc, desc, count } from "agora/db";
+import { withTenant, eq, and, asc, desc, count } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
-import { listQuerySchema, buildPaginationMeta } from "agora";
+import { buildPaginationMeta } from "agora";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
+import { walletHistoryQuerySchema, toPortalWalletTransactionDto } from "./contracts";
 
 /**
  * Customer-facing wallet self-service surface — gated by the foundation's
@@ -33,24 +34,27 @@ export function walletPortalRoutes() {
     })
     .get(
       "/history",
-      zValidator("query", listQuerySchema(["createdAt"])),
+      zValidator("query", walletHistoryQuerySchema),
       async (c) => {
         const { tenantId, memberId } = c.var.member;
-        const { page, pageSize, sort, order } = c.req.valid("query");
+        const { page, pageSize, sort, order, type } = c.req.valid("query");
         // Must actually apply the requested order — `buildPaginationMeta` echoes it
         // back to the client, so a hardcoded sort here would report an order the
         // rows do not follow.
         const sortFn = order === "asc" ? asc : desc;
 
         const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
+          const whereClause = type
+            ? and(eq(chronoWalletTransaction.memberId, memberId), eq(chronoWalletTransaction.type, type))
+            : eq(chronoWalletTransaction.memberId, memberId);
           const [total] = await tx
             .select({ value: count() })
             .from(chronoWalletTransaction)
-            .where(eq(chronoWalletTransaction.memberId, memberId));
+            .where(whereClause);
           const rows = await tx
             .select()
             .from(chronoWalletTransaction)
-            .where(eq(chronoWalletTransaction.memberId, memberId))
+            .where(whereClause)
             .orderBy(sortFn(chronoWalletTransaction.createdAt))
             .limit(pageSize)
             .offset((page - 1) * pageSize);
@@ -58,7 +62,7 @@ export function walletPortalRoutes() {
         });
 
         return c.json({
-          items: rows,
+          items: rows.map(toPortalWalletTransactionDto),
           meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
         });
       },

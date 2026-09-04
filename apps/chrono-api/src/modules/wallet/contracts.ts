@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { listQuerySchema } from "agora";
 
 /**
  * `numeric(12, 2)` holds at most 10 integer digits (precision 12 − scale 2), so the
@@ -51,3 +52,50 @@ export type WalletTransactionType = z.infer<typeof walletTransactionTypeSchema>;
 export type CreditWalletInput = z.infer<typeof creditWalletSchema>;
 export type DebitWalletInput = z.infer<typeof debitWalletSchema>;
 export type AdjustWalletInput = z.infer<typeof adjustWalletSchema>;
+
+// --- Member portal DTOs (Phase E) ---------------------------------------
+
+/**
+ * Adds an optional `type` filter on top of the base list query — the
+ * dashboard's "last top-up" is `GET /portal/wallet/history?type=credit&
+ * pageSize=1`, no new endpoint needed.
+ */
+export const walletHistoryQuerySchema = listQuerySchema(["createdAt"]).extend({
+  type: walletTransactionTypeSchema.optional(),
+});
+export type WalletHistoryQuery = z.infer<typeof walletHistoryQuerySchema>;
+
+export const portalWalletTransactionSchema = z.object({
+  id: z.string(),
+  type: walletTransactionTypeSchema,
+  amount: z.string(),
+  balanceBefore: z.string(),
+  balanceAfter: z.string(),
+  reason: z.string(),
+  createdAt: z.string(),
+});
+export type PortalWalletTransaction = z.infer<typeof portalWalletTransactionSchema>;
+
+type WalletTransactionRow = {
+  id: string;
+  type: string;
+  amount: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  reason: string;
+  createdAt: Date;
+};
+
+// Narrows away walletId/memberId/tenantId/referenceType/referenceId/
+// performedByUserId/shiftId — never leaked to the member's own browser.
+export function toPortalWalletTransactionDto(row: WalletTransactionRow): PortalWalletTransaction {
+  return {
+    id: row.id,
+    type: row.type as WalletTransactionType,
+    amount: row.amount,
+    balanceBefore: row.balanceBefore,
+    balanceAfter: row.balanceAfter,
+    reason: row.reason,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
