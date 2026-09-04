@@ -141,6 +141,13 @@
       "when": 1788543821006,
       "tag": "0019_tenant_member_oauth_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788544954128,
+      "tag": "0020_chrono_payment_customer_purpose",
+      "breakpoints": true
     }
   ]
 }
