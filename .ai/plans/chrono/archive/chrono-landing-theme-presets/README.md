@@ -1,5 +1,19 @@
 # Chrono: tenant-selectable landing-page theme presets
 
+> **SUPERSEDED — do not execute this plan.**
+> Its work is absorbed by two successor plans:
+> - `.ai/plans/agora/active/tenant-landing-foundation/` — the theme-preset *mechanism*
+>   (`buildThemePresetRegistry`, `themePresetCss`, the storage, the route factory), now
+>   built in the foundation rather than chrono, per `.ai/rules/architecture.md`.
+> - `.ai/plans/chrono/active/chrono-landing-rebuild/` — chrono's own *palettes* and the
+>   editor/e2e work (its Phases 2, 6, 8, 9, 10).
+>
+> **This file is still the source of truth for two things** the successors reference
+> rather than restate: the **AA-corrected `neon-green` hex values** (Phase 2, task 4 —
+> note light `--ring`/`--chart-1` are `#0f7a3d`, not `#22c55e`, which fails the 3:1
+> non-text floor) and the **cascade/layering rationale** for injecting preset CSS before
+> the `tenant-branding` style tag. Read those sections; ignore the phase sequencing.
+
 ## Context
 
 Following the elegant-gold theme work (`.ai/plans/chrono/archive/chrono-theme-colors/`),
