@@ -208,6 +208,17 @@ export async function purchaseCreditProduct(
     memberId: string;
     productId: string;
     performedByUserId?: string;
+    /**
+     * Overrides the amount debited/snapshotted instead of the product's
+     * current `priceAmount` — used by the online-checkout fulfilment path
+     * (`modules/payment/fulfilment.ts`), which must charge exactly the
+     * amount the customer agreed to (and already paid) at checkout-creation
+     * time, not whatever the product costs NOW if the price drifted in
+     * between. Every existing caller omits this and gets the prior
+     * behaviour unchanged. See member-credit-purchase plan, "The two
+     * rollback traps" (#1, price drift).
+     */
+    chargeAmount?: string;
   },
 ) {
   const [product] = await tx
@@ -224,11 +235,13 @@ export async function purchaseCreditProduct(
     throw new HttpError(409, "This product is not available for sale.");
   }
 
+  const chargeAmount = args.chargeAmount ?? product.priceAmount;
+
   // Cash side first — reuses wallet's own guard rather than re-deriving it.
   const { transaction } = await debitWallet(tx, {
     tenantId: args.tenantId,
     memberId: args.memberId,
-    amount: product.priceAmount,
+    amount: chargeAmount,
     reason: `Credit purchase: ${product.name}`,
     referenceType: "credit_purchase",
     performedByUserId: args.performedByUserId,
@@ -274,7 +287,7 @@ export async function purchaseCreditProduct(
       productId: product.id,
       grantId: grant!.id,
       quantityMinutes: product.quantityMinutes,
-      priceAmount: product.priceAmount,
+      priceAmount: chargeAmount,
       currency: product.currency,
       walletTransactionId: transaction.id,
     })

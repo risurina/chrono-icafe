@@ -164,6 +164,7 @@ async function main() {
     chronoCreditGrantLedgerEntry,
   } = await import("./schema");
   const { chronoStationGroup } = await import("../station/schema");
+  const { chronoWallet } = await import("../wallet/schema");
   const { chronoBranch } = await import("../branch/schema");
   const { consumeCredits, purchaseCreditProduct } = await import("./service");
   const { createId } = await import("agora");
@@ -423,6 +424,67 @@ async function main() {
     purchasesAfterAttempt.length === purchasesBefore.length,
     `before ${purchasesBefore.length}, after ${purchasesAfterAttempt.length}`,
   );
+  // ── Scenario C: purchaseCreditProduct's optional chargeAmount ───────────
+  // member-credit-purchase plan, Phase C2 — proves an explicit chargeAmount
+  // is what actually gets debited from the wallet AND snapshotted onto the
+  // purchase row, not the product's own priceAmount.
+  console.log("\nScenario C: purchaseCreditProduct with an explicit chargeAmount…\n");
+
+  const chargeAmountProductId = createId();
+  await withTenant(tenantId, (tx) =>
+    tx.insert(chronoCreditProduct).values({
+      id: chargeAmountProductId,
+      tenantId,
+      name: "Charge Amount Test Pack",
+      code: "charge-amount-test",
+      status: "active",
+      quantityMinutes: 300,
+      priceAmount: "999.00", // deliberately far from the chargeAmount below
+    }),
+  );
+  // Fund the wallet with exactly the chargeAmount, not the product's price —
+  // if purchaseCreditProduct ignored chargeAmount and used priceAmount
+  // instead, this debit would throw for insufficient balance.
+  await withTenant(tenantId, (tx) =>
+    creditWallet(tx, {
+      tenantId,
+      memberId,
+      amount: "250.00",
+      reason: "fund for chargeAmount test",
+    }),
+  );
+
+  const walletBeforeChargeAmount = await withTenant(tenantId, (tx) =>
+    tx.select().from(chronoWallet).where(eq(chronoWallet.memberId, memberId)),
+  );
+
+  const { purchase: chargeAmountPurchase } = await withTenant(tenantId, (tx) =>
+    purchaseCreditProduct(tx, {
+      tenantId,
+      memberId,
+      productId: chargeAmountProductId,
+      chargeAmount: "250.00",
+    }),
+  );
+
+  const walletAfterChargeAmount = await withTenant(tenantId, (tx) =>
+    tx.select().from(chronoWallet).where(eq(chronoWallet.memberId, memberId)),
+  );
+
+  check(
+    "chargeAmount: the purchase row snapshots the explicit chargeAmount, not product.priceAmount",
+    chargeAmountPurchase.priceAmount === "250.00",
+    `got ${chargeAmountPurchase.priceAmount}`,
+  );
+  const walletDelta = (
+    Number(walletBeforeChargeAmount[0]!.balance) - Number(walletAfterChargeAmount[0]!.balance)
+  ).toFixed(2);
+  check(
+    "chargeAmount: the wallet was debited by the explicit chargeAmount, not product.priceAmount",
+    walletDelta === "250.00",
+    `debited ${walletDelta}`,
+  );
+
   await pool.end?.();
   await adminPool.end?.();
 
