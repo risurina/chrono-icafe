@@ -17,6 +17,7 @@
     "test:sigv4": "tsx src/e2e/sigv4.test.ts",
     "test:permissions": "tsx src/e2e/permissions.test.ts",
     "test:overlap": "tsx src/modules/reservation/overlap.test.ts",
+    "test:sweep": "tsx src/modules/reservation/sweep.test.ts",
     "test:wallet-concurrency": "tsx src/modules/wallet/concurrency.test.ts",
     "test:pos-concurrency": "tsx src/modules/pos/concurrency.test.ts",
     "test:credit-concurrency": "tsx src/modules/credit/concurrency.test.ts",

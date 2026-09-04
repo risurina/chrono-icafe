@@ -198,53 +198,74 @@ async function main() {
   const tables = Object.values(appSchema).filter((v) => is(v, PgTable)) as PgTable[];
 
   // 3. Reset → migrate (create schema) → RLS.
-  console.log("  dropping all tables…");
-  await adminPool.query(`DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_e2e') THEN
-      EXECUTE 'DROP OWNED BY app_e2e CASCADE';
-    END IF;
-  END $$;`);
-  for (const t of tables) {
-    await adminPool.query(`DROP TABLE IF EXISTS "${getTableConfig(t).name}" CASCADE;`);
+  //
+  // All migration DDL runs on ONE dedicated connection (`adminPool.connect()`),
+  // not `adminPool.query()` per statement. `pool.query()` grabs-and-releases a
+  // connection from the pool per call — under this environment's Neon proxy,
+  // that intermittently let a later statement (e.g. `applyRls`'s `ALTER TABLE`)
+  // land on a different physical backend than the one that just committed a
+  // `CREATE TABLE`, producing a flaky "relation does not exist" on a RANDOM
+  // table each run (reproduced independently of this test's own schema
+  // changes). Pinning the whole migration to a single connection removes that
+  // race — the standard fix for DDL-then-read-your-write consistency over a
+  // pooled/proxied Postgres connection.
+  // adminPool's exported type is the narrow QueryRunner interface (just
+  // `.query()`), but at runtime (non-pglite) it's a real `pg.Pool` with
+  // `.connect()` — cast to get a single dedicated client off the pool.
+  const migrationClient = await (
+    adminPool as unknown as { connect: () => Promise<{ query: (text: string) => Promise<unknown>; release: () => void }> }
+  ).connect();
+  try {
+    console.log("  dropping all tables…");
+    await migrationClient.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_e2e') THEN
+        EXECUTE 'DROP OWNED BY app_e2e CASCADE';
+      END IF;
+    END $$;`);
+    for (const t of tables) {
+      await migrationClient.query(`DROP TABLE IF EXISTS "${getTableConfig(t).name}" CASCADE;`);
+    }
+    console.log("  running migration (schema push)…");
+    for (const t of tables) await migrationClient.query(tableDdl(t));
+    for (const t of tables) for (const ddl of uniqueIndexDdls(t)) await migrationClient.query(ddl);
+    // Drizzle's table config has no notion of an EXCLUDE constraint (it isn't
+    // expressible in the schema — see schema.ts's comment), so `tableDdl` above
+    // never emits it. Apply the SAME constraint the real migration
+    // (drizzle/0011_add_reservation_overlap_exclusion.sql) hand-writes, so this
+    // test actually exercises the exclusion-constraint guarantee under
+    // concurrency — not just the app-level `SELECT ... FOR UPDATE` pre-check.
+    await migrationClient.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
+    // reservations-queue-and-self-service plan rewrote this constraint's WHERE to
+    // also cover "hold" (a live, station-locking claim window created once a
+    // reservation activates or a queued member is promoted) and to require
+    // "startAt" IS NOT NULL — Postgres treats tsrange(NULL,NULL) as an UNBOUNDED
+    // range, not "no range", so a NULL-windowed "pending" row must be excluded by
+    // this predicate explicitly, not just by omission from the status list.
+    await migrationClient.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
+      EXCLUDE USING gist (
+        "tenantId" WITH =,
+        "stationId" WITH =,
+        tsrange("startAt", "endAt", '[)') WITH &&
+      ) WHERE (status IN ('confirmed', 'checked_in', 'hold') AND "startAt" IS NOT NULL);`);
+    // CHECK constraint mirrored from the real migration (Phase 1) — a queue row
+    // (fromQueue=true, status='pending') has no window until promoted, and must
+    // capture requestedDurationMinutes at join time or promotion has nothing to
+    // compute endAt from.
+    await migrationClient.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_pending_window_check"
+      CHECK (
+        (status = 'pending' AND "startAt" IS NULL AND "endAt" IS NULL
+          AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL))
+        OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)
+      );`);
+    // Grant the app role (DATABASE_URL / chrono_app) DML on the tables just
+    // created by the admin role — mirrors provisionAppRole's default privileges,
+    // needed here because the tables are newly created by a different owner.
+    await migrationClient.query(`GRANT USAGE ON SCHEMA public TO chrono_app;`);
+    await migrationClient.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO chrono_app;`);
+    await applyRls(migrationClient, [...BASE_TENANT_TABLES, ...APP_TENANT_TABLES]);
+  } finally {
+    migrationClient.release();
   }
-  console.log("  running migration (schema push)…");
-  for (const t of tables) await adminPool.query(tableDdl(t));
-  for (const t of tables) for (const ddl of uniqueIndexDdls(t)) await adminPool.query(ddl);
-  // Drizzle's table config has no notion of an EXCLUDE constraint (it isn't
-  // expressible in the schema — see schema.ts's comment), so `tableDdl` above
-  // never emits it. Apply the SAME constraint the real migration
-  // (drizzle/0011_add_reservation_overlap_exclusion.sql) hand-writes, so this
-  // test actually exercises the exclusion-constraint guarantee under
-  // concurrency — not just the app-level `SELECT ... FOR UPDATE` pre-check.
-  await adminPool.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
-  // reservations-queue-and-self-service plan rewrote this constraint's WHERE to
-  // also cover "hold" (a live, station-locking claim window created once a
-  // reservation activates or a queued member is promoted) and to require
-  // "startAt" IS NOT NULL — Postgres treats tsrange(NULL,NULL) as an UNBOUNDED
-  // range, not "no range", so a NULL-windowed "pending" row must be excluded by
-  // this predicate explicitly, not just by omission from the status list.
-  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
-    EXCLUDE USING gist (
-      "tenantId" WITH =,
-      "stationId" WITH =,
-      tsrange("startAt", "endAt", '[)') WITH &&
-    ) WHERE (status IN ('confirmed', 'checked_in', 'hold') AND "startAt" IS NOT NULL);`);
-  // CHECK constraint mirrored from the real migration (Phase 1) — a queue row
-  // (fromQueue=true, status='pending') has no window until promoted, and must
-  // capture requestedDurationMinutes at join time or promotion has nothing to
-  // compute endAt from.
-  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_pending_window_check"
-    CHECK (
-      (status = 'pending' AND "startAt" IS NULL AND "endAt" IS NULL
-        AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL))
-      OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)
-    );`);
-  // Grant the app role (DATABASE_URL / chrono_app) DML on the tables just
-  // created by the admin role — mirrors provisionAppRole's default privileges,
-  // needed here because the tables are newly created by a different owner.
-  await adminPool.query(`GRANT USAGE ON SCHEMA public TO chrono_app;`);
-  await adminPool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO chrono_app;`);
-  await applyRls(adminPool, [...BASE_TENANT_TABLES, ...APP_TENANT_TABLES]);
 
   // 4. Seed one tenant + staff owner + branch + station.
   console.log("  seeding…");

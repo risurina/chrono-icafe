@@ -145,32 +145,44 @@ async function main() {
   const tables = Object.values(appSchema).filter((v) => is(v, PgTable)) as PgTable[];
 
   console.log(`\nsweep.test mode: REAL database "${dbName}"`);
-  console.log("  dropping all tables…");
-  await adminPool.query(`DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_e2e') THEN
-      EXECUTE 'DROP OWNED BY app_e2e CASCADE';
-    END IF;
-  END $$;`);
-  for (const t of tables) {
-    await adminPool.query(`DROP TABLE IF EXISTS "${getTableConfig(t).name}" CASCADE;`);
+  // All migration DDL runs on ONE dedicated connection, not `adminPool.query()`
+  // per statement — see overlap.test.ts's identical fix for why: pool.query()
+  // grabbing a fresh connection per call intermittently raced a later
+  // statement (e.g. applyRls) against an earlier CREATE TABLE's commit under
+  // this environment's Postgres proxy.
+  const migrationClient = await (
+    adminPool as unknown as { connect: () => Promise<{ query: (text: string) => Promise<unknown>; release: () => void }> }
+  ).connect();
+  try {
+    console.log("  dropping all tables…");
+    await migrationClient.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_e2e') THEN
+        EXECUTE 'DROP OWNED BY app_e2e CASCADE';
+      END IF;
+    END $$;`);
+    for (const t of tables) {
+      await migrationClient.query(`DROP TABLE IF EXISTS "${getTableConfig(t).name}" CASCADE;`);
+    }
+    console.log("  running migration (schema push)…");
+    for (const t of tables) await migrationClient.query(tableDdl(t));
+    for (const t of tables) for (const ddl of uniqueIndexDdls(t)) await migrationClient.query(ddl);
+    await migrationClient.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
+    await migrationClient.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
+      EXCLUDE USING gist (
+        "tenantId" WITH =, "stationId" WITH =, tsrange("startAt", "endAt", '[)') WITH &&
+      ) WHERE (status IN ('confirmed', 'checked_in', 'hold') AND "startAt" IS NOT NULL);`);
+    await migrationClient.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_pending_window_check"
+      CHECK (
+        (status = 'pending' AND "startAt" IS NULL AND "endAt" IS NULL
+          AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL))
+        OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)
+      );`);
+    await migrationClient.query(`GRANT USAGE ON SCHEMA public TO chrono_app;`);
+    await migrationClient.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO chrono_app;`);
+    await applyRls(migrationClient, [...BASE_TENANT_TABLES, ...APP_TENANT_TABLES]);
+  } finally {
+    migrationClient.release();
   }
-  console.log("  running migration (schema push)…");
-  for (const t of tables) await adminPool.query(tableDdl(t));
-  for (const t of tables) for (const ddl of uniqueIndexDdls(t)) await adminPool.query(ddl);
-  await adminPool.query(`CREATE EXTENSION IF NOT EXISTS btree_gist;`);
-  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_no_overlap"
-    EXCLUDE USING gist (
-      "tenantId" WITH =, "stationId" WITH =, tsrange("startAt", "endAt", '[)') WITH &&
-    ) WHERE (status IN ('confirmed', 'checked_in', 'hold') AND "startAt" IS NOT NULL);`);
-  await adminPool.query(`ALTER TABLE "ChronoReservations" ADD CONSTRAINT "chrono_reservation_pending_window_check"
-    CHECK (
-      (status = 'pending' AND "startAt" IS NULL AND "endAt" IS NULL
-        AND ("fromQueue" = false OR "requestedDurationMinutes" IS NOT NULL))
-      OR ("startAt" IS NOT NULL AND "endAt" IS NOT NULL)
-    );`);
-  await adminPool.query(`GRANT USAGE ON SCHEMA public TO chrono_app;`);
-  await adminPool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO chrono_app;`);
-  await applyRls(adminPool, [...BASE_TENANT_TABLES, ...APP_TENANT_TABLES]);
 
   console.log("  seeding…");
   const tenantId = createId();
@@ -196,6 +208,22 @@ async function main() {
     })
     .returning();
   const memberId = memberRow[0]!.id;
+  // A second, distinct member for Test 2's queued row — a member can't hold
+  // one reservation and simultaneously queue behind another on the same
+  // station (chrono_reservation_one_active_per_member_uq forbids it, and
+  // rightly so: it's not a realistic scenario).
+  const member2Row = await adminDb
+    .insert(schema.tenantMember)
+    .values({
+      id: createId(),
+      tenantId,
+      email: "member2@sweep.test",
+      name: "Sweep Member 2",
+      passwordHash: "x",
+      status: "active",
+    })
+    .returning();
+  const member2Id = member2Row[0]!.id;
 
   // --- Test 1: hold-expiry idempotency ---
   const [holdRow] = await withTenant(tenantId, (tx) =>
@@ -260,7 +288,7 @@ async function main() {
         tenantId,
         branchId: branch!.id,
         stationId: station!.id,
-        memberId,
+        memberId: member2Id,
         status: "pending",
         fromQueue: true,
         requestedDurationMinutes: 60,
