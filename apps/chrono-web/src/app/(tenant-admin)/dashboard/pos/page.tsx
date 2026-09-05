@@ -23,6 +23,7 @@ import {
   SelectContent,
   SelectItem,
 } from "agora/ui";
+import { createId } from "agora";
 import { api } from "@/lib/rpc";
 
 type Branch = { id: string; name: string; status: "active" | "disabled" };
@@ -86,7 +87,7 @@ export default function PosCheckoutPage() {
   const [tenders, setTenders] = useState<Tender[]>([{ method: "cash", amount: "" }]);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createId());
 
   useEffect(() => {
     (async () => {
@@ -152,7 +153,7 @@ export default function PosCheckoutPage() {
       }
       return [
         ...prev,
-        { key: crypto.randomUUID(), productId: p.id, name: p.name, unitPrice: p.price, quantity: 1 },
+        { key: createId(), productId: p.id, name: p.name, unitPrice: p.price, quantity: 1 },
       ];
     });
   }
@@ -162,7 +163,7 @@ export default function PosCheckoutPage() {
     setCart((prev) => [
       ...prev,
       {
-        key: crypto.randomUUID(),
+        key: createId(),
         productId: null,
         name: miscName.trim(),
         unitPrice: miscPrice.trim(),
@@ -217,7 +218,7 @@ export default function PosCheckoutPage() {
     setMemberSearch("");
     setCustomerName("");
     setIsWalkIn(true);
-    setIdempotencyKey(crypto.randomUUID());
+    setIdempotencyKey(createId());
   }
 
   async function completeSale() {

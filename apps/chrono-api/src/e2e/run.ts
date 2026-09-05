@@ -8667,6 +8667,225 @@ async function main() {
     delete process.env.BILLING_PROVIDER;
   }
 
+  // ── Y. App-usage (app-usage plan, Phase 5): device pairing → ingest →
+  //     the three staff-facing reads (permission gate) → cross-tenant
+  //     isolation. ──
+  {
+    const { chronoBranch } = await import("../modules/branch/schema");
+    const { chronoDevice } = await import("../modules/device/schema");
+    const { chronoAppUsageEvent } = await import("../modules/app-usage/schema");
+
+    const [appUsageBranch] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoBranch)
+        .values({ id: createId(), tenantId: acmeId, name: "App Usage Branch", code: "AUB" })
+        .returning(),
+    );
+
+    // Pair + approve a device WITH a station assigned.
+    const tokenRes = await req("POST", "/rpc/devices/provisioning-tokens", {
+      slug: "acme",
+      cookie: ownerCk,
+      json: { branchId: appUsageBranch!.id, name: "App Usage Kiosk", pairingCodeTtlMinutes: 30, maxUses: 1 },
+    });
+    check("app-usage: provisioning token created", tokenRes.status === 201, JSON.stringify(tokenRes.body));
+    const pairingCode = tokenRes.body?.provisioningToken?.pairingCode as string;
+    const pairRes = await req("POST", "/api/v1/device/pair", { json: { pairingCode } });
+    const fingerprint = "e2e-app-usage-fp";
+    const authRes = await req("POST", "/api/v1/device/auth", {
+      json: { provisioningToken: pairRes.body?.provisioningToken, fingerprint, hostname: "app-usage-kiosk" },
+    });
+    const deviceToken = authRes.body?.deviceToken as string;
+    check("app-usage: device auth mints a token", typeof deviceToken === "string" && deviceToken.length > 0);
+
+    const devicesList = await req("GET", "/rpc/devices?page=1&pageSize=10", { slug: "acme", cookie: ownerCk });
+    const deviceId = (devicesList.body?.items ?? []).find((d: any) => d.hostname === "app-usage-kiosk")?.id as string;
+    const approveRes = await req("POST", `/rpc/devices/${deviceId}/approve`, {
+      slug: "acme",
+      cookie: ownerCk,
+      json: { newStationName: "App Usage Station", newStationNumber: "AU-01" },
+    });
+    check("app-usage: device approved with a station", approveRes.status === 200, JSON.stringify(approveRes.body));
+    const stationId = approveRes.body?.device?.stationId as string;
+
+    // A device with NO assigned station gets 409 — approve always assigns
+    // one via the API, so a second device is approved then has its
+    // stationId nulled directly (the same state a station deletion's
+    // onDelete: "set null" would leave behind), mirroring the module's own
+    // ingest.test.ts.
+    const tokenRes2 = await req("POST", "/rpc/devices/provisioning-tokens", {
+      slug: "acme",
+      cookie: ownerCk,
+      json: { branchId: appUsageBranch!.id, name: "App Usage Kiosk 2", pairingCodeTtlMinutes: 30, maxUses: 1 },
+    });
+    const pairRes2 = await req("POST", "/api/v1/device/pair", {
+      json: { pairingCode: tokenRes2.body?.provisioningToken?.pairingCode },
+    });
+    const fingerprint2 = "e2e-app-usage-fp-2";
+    const authRes2 = await req("POST", "/api/v1/device/auth", {
+      json: { provisioningToken: pairRes2.body?.provisioningToken, fingerprint: fingerprint2, hostname: "app-usage-kiosk-2" },
+    });
+    const noStationDeviceToken = authRes2.body?.deviceToken as string;
+    const devicesList2 = await req("GET", "/rpc/devices?page=1&pageSize=10", { slug: "acme", cookie: ownerCk });
+    const deviceId2 = (devicesList2.body?.items ?? []).find((d: any) => d.hostname === "app-usage-kiosk-2")?.id as string;
+    await req("POST", `/rpc/devices/${deviceId2}/approve`, {
+      slug: "acme",
+      cookie: ownerCk,
+      json: { newStationName: "App Usage Station 2", newStationNumber: "AU-02" },
+    });
+    await withTenant(acmeId, (tx) =>
+      tx.update(chronoDevice).set({ stationId: null }).where(eq(chronoDevice.id, deviceId2)),
+    );
+    const noStationRes = await req("POST", "/api/v1/device/app-usage/events", {
+      bearer: noStationDeviceToken,
+      headers: { "x-device-fingerprint": fingerprint2 },
+      json: { launched: [], closed: [] },
+    });
+    check("app-usage: device with no station -> 409", noStationRes.status === 409, `status ${noStationRes.status}`);
+
+    // Happy path: launched then closed for the same runId.
+    const now = new Date();
+    const startedAt = new Date(now.getTime() - 60_000).toISOString();
+    const endedAt = now.toISOString();
+    const launchRes = await req("POST", "/api/v1/device/app-usage/events", {
+      bearer: deviceToken,
+      headers: { "x-device-fingerprint": fingerprint },
+      json: { launched: [{ runId: "e2e-run-1", category: "game", appName: "E2E Game", startedAt }], closed: [] },
+    });
+    check(
+      "app-usage: launched accepted",
+      launchRes.status === 201 && launchRes.body?.launchedAccepted === 1,
+      JSON.stringify(launchRes.body),
+    );
+    const closeRes = await req("POST", "/api/v1/device/app-usage/events", {
+      bearer: deviceToken,
+      headers: { "x-device-fingerprint": fingerprint },
+      json: { launched: [], closed: [{ runId: "e2e-run-1", endedAt }] },
+    });
+    check(
+      "app-usage: closed applied",
+      closeRes.status === 201 && closeRes.body?.closedApplied === 1,
+      JSON.stringify(closeRes.body),
+    );
+
+    const [row] = await withTenant(acmeId, (tx) =>
+      tx.select().from(chronoAppUsageEvent).where(eq(chronoAppUsageEvent.runId, "e2e-run-1")),
+    );
+    check(
+      "app-usage: row lands with the DEVICE-REPORTED timestamps, not server-receive time",
+      row?.startedAt?.toISOString() === startedAt && row?.endedAt?.toISOString() === endedAt,
+      JSON.stringify({ got: { startedAt: row?.startedAt, endedAt: row?.endedAt }, want: { startedAt, endedAt } }),
+    );
+
+    // Staff-facing reads — happy path (owner holds appUsage:read).
+    const currentRes = await req("GET", `/rpc/app-usage/current?stationId=${stationId}`, {
+      slug: "acme",
+      cookie: ownerCk,
+    });
+    check(
+      "app-usage: GET /current 200, returns the open station's rows",
+      currentRes.status === 200 && (currentRes.body?.items?.length ?? 0) >= 1,
+      JSON.stringify(currentRes.body),
+    );
+    const listRes = await req("GET", "/rpc/app-usage?page=1&pageSize=10", { slug: "acme", cookie: ownerCk });
+    check(
+      "app-usage: GET / 200, paginated history includes the posted run",
+      listRes.status === 200 && (listRes.body?.items ?? []).some((r: any) => r.runId === "e2e-run-1"),
+      JSON.stringify(listRes.body),
+    );
+    const from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const to = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    const summaryQs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=1&pageSize=10`;
+    const summaryRes = await req("GET", `/rpc/app-usage/summary?${summaryQs}`, { slug: "acme", cookie: ownerCk });
+    check(
+      "app-usage: GET /summary 200, aggregates the closed app",
+      summaryRes.status === 200 &&
+        (summaryRes.body?.items ?? []).some(
+          (r: any) => r.appName === "E2E Game" && r.category === "game",
+        ),
+      JSON.stringify(summaryRes.body),
+    );
+
+    // Permission gate: appUsage:read is a single-tier gate — every system
+    // role holds it, so there's no staff-vs-admin split to assert (unlike
+    // most other resources). Assign acmeStaff a custom role granting NOTHING
+    // to prove the real gate, mirroring the T1c section's own
+    // create-role→assign→revert convention.
+    const noGrantRole = await req("POST", "/rpc/roles", {
+      slug: "acme",
+      cookie: ownerCk,
+      json: { key: "no-app-usage", name: "No App Usage", permissions: {} },
+    });
+    check("app-usage: no-grant custom role created", noGrantRole.status === 201, JSON.stringify(noGrantRole.body));
+    await adminDb
+      .update(schema.member)
+      .set({ role: "no-app-usage" })
+      .where(and(eq(schema.member.organizationId, acmeId), eq(schema.member.userId, acmeStaff)));
+
+    const currentDenied = await req("GET", `/rpc/app-usage/current?stationId=${stationId}`, {
+      slug: "acme",
+      cookie: staffCk,
+    });
+    check(
+      "app-usage: GET /current 403 without appUsage:read",
+      currentDenied.status === 403,
+      `status ${currentDenied.status}`,
+    );
+    const listDenied = await req("GET", "/rpc/app-usage?page=1&pageSize=10", { slug: "acme", cookie: staffCk });
+    check(
+      "app-usage: GET / 403 without appUsage:read",
+      listDenied.status === 403,
+      `status ${listDenied.status}`,
+    );
+    const summaryDenied = await req("GET", `/rpc/app-usage/summary?${summaryQs}`, {
+      slug: "acme",
+      cookie: staffCk,
+    });
+    check(
+      "app-usage: GET /summary 403 without appUsage:read",
+      summaryDenied.status === 403,
+      `status ${summaryDenied.status}`,
+    );
+
+    // Revert acmeStaff to "staff" and remove the throwaway role — same
+    // cleanup convention T1c's own custom-role section follows.
+    await adminDb
+      .update(schema.member)
+      .set({ role: "staff" })
+      .where(and(eq(schema.member.organizationId, acmeId), eq(schema.member.userId, acmeStaff)));
+    await req("DELETE", "/rpc/roles/no-app-usage", { slug: "acme", cookie: ownerCk });
+
+    // Cross-tenant isolation: contoso's owner never sees acme's device-posted rows.
+    const contosoCurrent = await req("GET", `/rpc/app-usage/current?stationId=${stationId}`, {
+      slug: "contoso",
+      cookie: contosoOwnerCk,
+    });
+    check(
+      "app-usage: cross-tenant current returns empty, not acme's row",
+      contosoCurrent.status === 200 && (contosoCurrent.body?.items?.length ?? 0) === 0,
+      JSON.stringify(contosoCurrent.body),
+    );
+    const contosoList = await req("GET", "/rpc/app-usage?page=1&pageSize=10", {
+      slug: "contoso",
+      cookie: contosoOwnerCk,
+    });
+    check(
+      "app-usage: cross-tenant list never contains acme's runId",
+      contosoList.status === 200 && !(contosoList.body?.items ?? []).some((r: any) => r.runId === "e2e-run-1"),
+      JSON.stringify(contosoList.body),
+    );
+    const contosoSummary = await req("GET", `/rpc/app-usage/summary?${summaryQs}`, {
+      slug: "contoso",
+      cookie: contosoOwnerCk,
+    });
+    check(
+      "app-usage: cross-tenant summary never contains acme's app",
+      contosoSummary.status === 200 &&
+        !(contosoSummary.body?.items ?? []).some((r: any) => r.appName === "E2E Game"),
+      JSON.stringify(contosoSummary.body),
+    );
+  }
+
   // ── X. Hard delete acme; contoso must remain fully intact (runs LAST). ──
   const delStaff = await req("POST", "/rpc/tenant/delete", {
     slug: "acme",
