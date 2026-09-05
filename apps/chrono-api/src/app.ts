@@ -64,6 +64,7 @@ import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
+import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
 import { publicStationRoutes } from "./modules/station/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
 import { readPublishedLandingPage } from "agora/server/routes";
@@ -1150,6 +1151,12 @@ export const app = baseApp
   // host-resolved, outside /rpc/tenantMiddleware() (see
   // apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention).
   .route("/public/inquiries", inquiryPublicRoutes())
+  // IZUR's own (not a tenant's) anonymous lead-capture submission — the apex
+  // `/support` (apex-support-page plan) and `/company/contact`
+  // (apex-company-contact plan) pages both post here with a different
+  // `source`. Rate-limited, no tenant resolution at all (see
+  // apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention).
+  .route("/public/company-inquiries", companyInquiryPublicRoutes())
   // Chrono: live public station-availability view (public-stations plan) —
   // rate-limited, host-resolved, outside /rpc/tenantMiddleware(). Was
   // previously mounted inside rpc.ts under /rpc, unreachable at the
