@@ -50,7 +50,7 @@ export default function StaffResetPasswordPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

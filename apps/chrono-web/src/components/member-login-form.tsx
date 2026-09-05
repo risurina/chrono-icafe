@@ -58,7 +58,7 @@ export function MemberLoginForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

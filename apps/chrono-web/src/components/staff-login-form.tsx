@@ -90,7 +90,7 @@ export function StaffLoginForm({ customerLoginHref }: { customerLoginHref: strin
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

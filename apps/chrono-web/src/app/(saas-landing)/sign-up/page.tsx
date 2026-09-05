@@ -80,7 +80,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Create your business</CardTitle>

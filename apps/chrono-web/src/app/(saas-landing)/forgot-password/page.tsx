@@ -36,7 +36,7 @@ export default function StaffForgotPasswordPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

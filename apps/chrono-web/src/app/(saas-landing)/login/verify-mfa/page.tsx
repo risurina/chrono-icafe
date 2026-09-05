@@ -42,7 +42,7 @@ export default function VerifyMfaPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>
