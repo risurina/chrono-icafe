@@ -33,6 +33,7 @@ export default async function MemberLayout({ children }: { children: React.React
       displayName={branding?.displayName}
       logoUrl={branding?.logoUrl}
       logoDarkUrl={branding?.logoDarkUrl}
+      tagline={branding?.tagline}
     >
       {children}
     </MemberGate>

@@ -1,17 +1,17 @@
 "use client";
 
-import Link from "next/link";
-import { SiteHeader, ThemeToggle, Row, BrandHeader, IdentityMenu } from "agora/ui";
+import { ThemeToggle, Row, IdentityMenu } from "agora/ui";
+import { TenantHeader } from "@/components/landing/marketing-chrome";
 import { memberAuth } from "@/lib/member-client";
 import { MEMBER_USER_MENU_ITEMS } from "./member-nav.config";
 import type { MemberUser } from "@/lib/member-client";
 
 /**
- * The member area's own header — sticky/opaque (unlike the landing page's
- * fixed/transparent `TenantHeader`, which overlays a hero this surface
- * doesn't have). Deviation from the plan's "reuse TenantHeader with a
- * `surface` prop" note: kept as a small standalone component instead of
- * widening `TenantHeader`'s public props, to keep this phase's diff scoped.
+ * The member area's header — `TenantHeader` (the same component the tenant's
+ * public landing/auth pages use) with `surface="member"` (sticky/opaque, no
+ * hero to overlay) and its default Staff/Member-login CTA replaced by the
+ * signed-in member's own identity menu. `MemberNav`'s tab bar renders as its
+ * own row below this one (see `member-gate.tsx`'s `Chrome`).
  */
 export function MemberHeader({
   tenantName,
@@ -27,27 +27,12 @@ export function MemberHeader({
   member: MemberUser;
 }) {
   return (
-    <SiteHeader
-      position="sticky"
-      maxWidth="full"
-      containerClassName="h-16"
-      brand={
-        <Link href="/member" aria-label={`${displayName ?? tenantName} home`}>
-          {logoUrl || logoDarkUrl ? (
-            <BrandHeader
-              compact
-              displayName={displayName}
-              logoUrl={logoUrl}
-              logoDarkUrl={logoDarkUrl}
-              fallback={tenantName}
-            />
-          ) : (
-            <span className="block max-w-[11rem] truncate font-chrono text-base font-black uppercase tracking-tight text-primary sm:text-xl">
-              {displayName ?? tenantName}
-            </span>
-          )}
-        </Link>
-      }
+    <TenantHeader
+      tenantName={tenantName}
+      displayName={displayName}
+      logoUrl={logoUrl}
+      logoDarkUrl={logoDarkUrl}
+      surface="member"
       actions={
         <Row items="center" gap={2}>
           <Row className="hidden sm:flex">

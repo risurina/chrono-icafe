@@ -10,6 +10,7 @@ import { ApplyForTenantPrompt } from "./apply-for-tenant-prompt";
 import { MemberHeader } from "./member-header";
 import { MemberNav, MemberBottomNav } from "./member-nav";
 import { MEMBER_NAV, matchMemberNav } from "./member-nav.config";
+import { TenantFooter } from "@/components/landing/marketing-chrome";
 
 function ApprovalRequiredCard({ status }: { status: string | undefined }) {
   const copy =
@@ -47,12 +48,14 @@ function Chrome({
   displayName,
   logoUrl,
   logoDarkUrl,
+  tagline,
   children,
 }: {
   tenantName: string;
   displayName?: string | null;
   logoUrl?: string | null;
   logoDarkUrl?: string | null;
+  tagline?: string | null;
   children: React.ReactNode;
 }) {
   const { member } = useMemberArea();
@@ -69,6 +72,7 @@ function Chrome({
       <main className="flex-1 p-4 md:p-6">
         <RouteGate>{children}</RouteGate>
       </main>
+      <TenantFooter year={new Date().getFullYear()} tenantName={displayName ?? tenantName} tagline={tagline} />
       <MemberBottomNav />
     </div>
   );
@@ -86,12 +90,14 @@ export function MemberGate({
   displayName,
   logoUrl,
   logoDarkUrl,
+  tagline,
   children,
 }: {
   tenantName: string;
   displayName?: string | null;
   logoUrl?: string | null;
   logoDarkUrl?: string | null;
+  tagline?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -123,7 +129,13 @@ export function MemberGate({
 
   return (
     <MemberAreaProvider member={member}>
-      <Chrome tenantName={tenantName} displayName={displayName} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl}>
+      <Chrome
+        tenantName={tenantName}
+        displayName={displayName}
+        logoUrl={logoUrl}
+        logoDarkUrl={logoDarkUrl}
+        tagline={tagline}
+      >
         {children}
       </Chrome>
     </MemberAreaProvider>
