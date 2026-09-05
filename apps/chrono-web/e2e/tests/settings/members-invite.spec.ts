@@ -1,14 +1,18 @@
 import { test, expect } from "@playwright/test";
-import { findInviteLinkInTempInbox, newTempInbox } from "../../utils/temp-inbox";
+import { faker } from "../../utils/faker";
+import { waitForMailtrapInviteLink } from "../../utils/mailtrap-inbox";
 
 /**
  * Browser coverage for the member-invite UI on the settings page: creating an
  * invite, seeing it listed, resending/revoking it, and — reading the accept link
- * back out of a real disposable inbox after a real send through
- * `EMAIL_PROVIDER=resend` — the full accept flow through a real second browser
+ * back out of a Mailtrap sandbox inbox after a real send through
+ * `EMAIL_PROVIDER=mailtrap` — the full accept flow through a real second browser
  * session. The admin-only role gate, cross-tenant rejection, and replay
  * rejection remain covered by the API-level suite (`pnpm test:e2e` →
  * `apps/api/src/e2e/run.ts`).
+ *
+ * The third test below requires the chrono-api dev server to be running with
+ * `EMAIL_PROVIDER=mailtrap` + `MAILTRAP_API_TOKEN` + `MAILTRAP_TEST_INBOX_ID` set.
  */
 
 test.describe("Members invite", () => {
@@ -94,8 +98,7 @@ test.describe("Members invite", () => {
     const uniq = Date.now();
     const slug = `e2emacc${uniq}`;
     const ownerEmail = `pwmacc${uniq}@example.com`;
-    const inbox = await newTempInbox();
-    const inviteeEmail = inbox.email;
+    const inviteeEmail = faker.internet.email({ provider: "example.com" });
     const inviteeSlug = `e2emaccinv${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
 
@@ -123,8 +126,8 @@ test.describe("Members invite", () => {
     await page.getByRole("button", { name: "Invite crew" }).click();
     await expect(page.getByText(inviteeEmail)).toBeVisible();
 
-    // Recover the accept link from the real email sent via Resend.
-    const inviteLink = await findInviteLinkInTempInbox(inbox);
+    // Recover the accept link from the real email sent via Mailtrap.
+    const inviteLink = await waitForMailtrapInviteLink(inviteeEmail);
 
     // Sign the invitee out and create their own account (their own business),
     // matching how a real invitee would arrive with an existing session.

@@ -1,7 +1,11 @@
 # Plan: replace Guerrilla Mail with Mailtrap for real-send e2e verification
 
-**Depends on:** `.ai/plans/agora/draft/mailtrap-email-provider/README.md` (adds the
-`mailtrap` sender this plan sends through) — implement that plan first.
+**Depends on:** `.ai/plans/agora/archive/mailtrap-email-provider/README.md` (adds the
+`mailtrap` sender this plan sends through) — implemented (commits `8a3dea52`,
+`7e4d59ca`), confirmed by `replicate-chrono-member-area [3bcec6]`.
+
+**Sessions:**
+- Implementation: `mailtrap-e2e-email-verification [7ac5da]`
 
 ## Context / why
 
@@ -99,10 +103,25 @@ Scope is **chrono-web only** — `apps/agora-web`'s own `temp-inbox.ts`/
 ## Acceptance criteria
 
 - [ ] `members-invite.spec.ts`'s three tests pass against a chrono-api dev server
-      started with `EMAIL_PROVIDER=mailtrap` + the two env vars.
-- [ ] No reference to Guerrilla Mail, `api.guerrillamail.com`, or `temp-inbox.ts`
+      started with `EMAIL_PROVIDER=mailtrap` + the two env vars. **Not run this
+      session** — no `MAILTRAP_API_TOKEN`/`MAILTRAP_TEST_INBOX_ID` available to set
+      on the chrono-api dev server (the connected `mcp__mailtrap__*` tools don't
+      expose the raw token). Needs the developer to run it locally with those two
+      vars set, or a future session with them available.
+- [x] No reference to Guerrilla Mail, `api.guerrillamail.com`, or `temp-inbox.ts`
       remains anywhere in `apps/chrono-web`.
-- [ ] `pnpm --filter @agora/chrono-web typecheck` passes.
+- [x] `pnpm --filter @agora/chrono-web typecheck` passes.
+
+**Step 1 findings (live-verified via `mcp__mailtrap__*` this session, correcting the
+plan's assumed shape):** the actual Email Sandbox API has no `account_id` — only
+`GET https://mailtrap.io/api/sandboxes/{sandbox_id}/messages` (search matches
+`subject`/`to_email`/`to_name`) and
+`GET .../sandboxes/{sandbox_id}/messages/{message_id}/body.html`, both authed via
+`Api-Token: <token>`. `sandbox_id` is the same id as the inbox (`277668` for
+`chrono`). Confirmed against `docs.mailtrap.io/developers/email-sandbox/messages.md`
+and by a live `get-sandbox-messages`/`get-sandbox-message-html` round trip. So
+`MAILTRAP_ACCOUNT_ID` (Key decision 3, above) is unnecessary and was not added —
+only `MAILTRAP_API_TOKEN`/`MAILTRAP_TEST_INBOX_ID`, as `.env.example` now reflects.
 
 ## Verification commands
 
