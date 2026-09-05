@@ -205,5 +205,50 @@ before any UI is built.
 
 ## After Implementation
 
-Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
-Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.
+**Status: Implemented 2026-09-05.** Phase 1 landed in two commits, split at the
+plan's own backend/frontend seam so `apex-company-contact` could start the
+moment the endpoint was verified:
+
+- `feat(chrono-api): add public company-inquiry lead-capture endpoint` —
+  `contracts.ts` + `public-routes.ts` (`apps/chrono-api/src/modules/
+  company-inquiry/`), mounted at `POST /public/company-inquiries` in
+  `apps/chrono-api/src/app.ts`, plus `SUPPORT_INBOX_EMAIL` in
+  `apps/chrono-api/.env.example`.
+- `feat(chrono-web): add apex Support page with a real lead-capture form` —
+  `apps/chrono-web/src/app/(apex-marketing)/support/{page.tsx,support-form.tsx}`.
+
+**Verification:** `pnpm typecheck` (both packages + full workspace) passes.
+No `rls:proof` — no schema/tenancy touched. Backend curl smoke test: valid
+support/contact payloads → 201 + a real console-provider email logged;
+invalid payload → 400; 11th request from one IP within the hour → 429 with
+`Retry-After`. Full browser verification via Playwright against a live dev
+server: `/support` renders the hero/paths/FAQ/form, submitting the form
+returns a real 201, a real email is logged, and the UI swaps to the
+"Message sent" confirmation state.
+
+**Deviations from the plan** (documented in the commit messages too):
+1. The two internal-failure throws (`SUPPORT_INBOX_EMAIL` unset, email-send
+   failure) use a plain thrown `Error`, not `HttpError(500, ...)` —
+   `HttpError`'s status union has no `500`; these fall through to the app's
+   existing catch-all `onError` handler instead, the same path every other
+   unexpected server-side failure already takes.
+2. The FAQ section reuses the existing local `FaqAccordion`
+   (`apps/chrono-web/src/components/landing/faq-accordion.tsx`) instead of
+   `agora/ui`'s `FaqItem` — the plan's premise that `FaqItem` was already used
+   by the homepage's FAQ section didn't hold (the homepage actually uses
+   `FaqAccordion`), and `FaqAccordion` matches the rest of the marketing
+   site's established look.
+
+**Open Questions 1-3** stand resolved at their stated defaults (one-way
+notification only, `requestType` stays free text). **Question 2** (the real
+`SUPPORT_INBOX_EMAIL` value) is still a placeholder in `.env.example`
+(`support@example.com`) — the developer must set the real inbox address in
+their own `.env` before this goes to any real environment; until then the
+route 500s in a fresh environment that hasn't set it, by design (see Pass 1's
+failure-case stance — never silently claim success while dropping a lead).
+
+**Not implemented:** the `apex-company-contact` page itself (a sibling plan,
+now unblocked — it can build directly against the endpoint's field names and
+response shape verified here: `{ name, email, businessName?, requestType,
+message, numberOfPcs?, numberOfBranches?, source }` → `{ submitted: true }`,
+201).
