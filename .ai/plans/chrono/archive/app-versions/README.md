@@ -235,6 +235,28 @@ and manually verified (e.g. a temporary console log of its output) before Task 3
 
 ## After Implementation
 
-Not yet — this plan is accepted and in `ready/`, but depends on `apex-marketing-shell`
-landing first (see "Depends on" above). Claiming `Implementation:` + committing Phase 1
-is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.
+**Implementation:** Phase 1 shipped 2026-09-05, once `apex-marketing-shell` had landed.
+
+- `apps/chrono-web/src/app/(apex-marketing)/download/page.tsx` — the public download
+  page (content only; header/footer come from the group's shared `layout.tsx`).
+- `apps/chrono-web/src/lib/pc-client-releases.ts` — `getPcClientReleases()`, an
+  unauthenticated server-side fetch of `izur-it/chrono`'s GitHub releases with
+  `next: { revalidate: 300 }`, returning `[]` (never throwing) on failure.
+
+Verified: `pnpm --filter @agora/chrono-web typecheck` and `build` both pass; the page
+was manually loaded in a real browser against the live `izur-it/chrono` releases feed
+(v0.1.3 down to v0.1.0, correct sizes/dates/notes/download URLs, no console errors).
+No `apps/chrono-api` route, no tenant table, no `APP_TENANT_TABLES` entry — so no
+`rls:proof` run, per this plan's own Pass 2.
+
+Two intentional deviations from the plan's literal text, both already called out in the
+plan itself or judged at implementation time: the route lives at
+`(apex-marketing)/download` (the plan's own authoritative "Where it renders" section,
+not the one stray `(saas-landing)` prose reference elsewhere in this document), and the
+older-release notes collapse uses this directory's established raw
+`<details>`/`<summary>` + Tailwind convention (`marketing-chrome.tsx`, `hero-chips.tsx`,
+`faq-accordion.tsx`) rather than an `Accordion`/`Collapsible` component, which does not
+exist in `agora/ui` today.
+
+Open Question 2 (the PC-client's own Tauri updater configuration) remains unresolved —
+out of scope, no access to that repo, tracked for whoever owns it.
