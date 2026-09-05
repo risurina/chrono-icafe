@@ -11,11 +11,11 @@ Note: `apps/chrono-web/src/components/landing/marketing-chrome.tsx`'s
 though neither route exists yet — this plan is what makes those existing footer links
 actually resolve instead of 404ing.
 
-**Status:** Accepted 2026-09-05, in `ready/`. Open question 1 (legal-copy source —
-carry oikos's text forward vs. developer/legal-supplied copy) stands as its documented
-default ("carry forward") unless the developer says otherwise before implementation
-starts — this one specifically should not be treated as a rubber-stamped default the
-way a design/UX open question would be; confirm before publishing live.
+**Status:** Implemented 2026-09-05, archived. Phase 1 shipped both pages using Open
+Question 1's documented default (carry oikos's copy forward, "Last updated" date
+refreshed to the implementation date) — this was not re-confirmed with the developer
+before this commit, so re-confirm the legal copy before treating it as final/publishing
+live for real users.
 
 ---
 
@@ -167,5 +167,33 @@ manually verified before starting the Privacy page.
 
 ## After Implementation
 
-Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
-Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.
+**Summary:** Phase 1 shipped as planned — two static Server Components,
+`apps/chrono-web/src/app/(apex-marketing)/terms/page.tsx` and `.../privacy/page.tsx`,
+composed from `agora/ui`'s `Section`/`Stack` plus plain heading/paragraph text (matching
+the raw-text-tag convention already used in `marketing-chrome.tsx`/`tenant-sections.tsx`
+in this directory). Copy carried forward from the oikos reference per Open Question 1's
+default; "Last updated" set to September 5, 2026 (the implementation date).
+
+**Files changed:**
+- `apps/chrono-web/src/app/(apex-marketing)/terms/page.tsx` (new)
+- `apps/chrono-web/src/app/(apex-marketing)/privacy/page.tsx` (new)
+
+**Commands run:** `pnpm --filter @agora/chrono-web typecheck` (pass). No `rls:proof` —
+this phase touches no schema/tenancy/RLS, as the plan states. Manually verified in a
+real browser (Playwright) against the already-running dev server on
+`localtest.me:3000`: both `/terms` and `/privacy` render full section content inside
+the shared `(apex-marketing)` shell (header + footer, no duplication/layout shift), the
+footer's "Terms of Service"/"Privacy Policy" links resolve, and no console
+errors/warnings on either page.
+
+**What was not implemented:** Open Question 2 (surfacing these pages at sign-up, e.g. an
+"I agree to the Terms" checkbox) — explicitly out of scope for this plan, left for a
+future plan if the developer wants it.
+
+**Known risks:** legal copy is carried forward verbatim from the oikos reference and has
+not been reviewed by the developer or legal counsel in this session — see the Status
+line above.
+
+**Next recommended task:** none from this plan; the four sibling plans (apex-company-
+about, apex-pricing-page, apex-support-page, app-versions) are implementing in
+parallel in this same session.
