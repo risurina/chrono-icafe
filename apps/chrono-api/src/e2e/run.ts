@@ -421,6 +421,32 @@ async function main() {
     }
     return { status: res.status, body, setCookie };
   }
+  // `req()` follows redirects, which is right for JSON POSTs but useless for
+  // the OAuth routes below: `/start` and `/callback` are 302s whose Location
+  // header IS the assertion (the authorize URL to inspect; the final
+  // portal/apex destination). This variant stops at the redirect and hands
+  // it back instead of chasing it.
+  type NoFollowRes = { status: number; body: unknown; setCookie: string[]; location: string | null };
+  async function reqNoFollow(
+    method: string,
+    path: string,
+    opts: { slug?: string; host?: string; cookie?: string; headers?: Record<string, string> } = {},
+  ): Promise<NoFollowRes> {
+    const headers: Record<string, string> = { ...(opts.headers ?? {}) };
+    if (opts.slug) headers["x-tenant-slug"] = opts.slug;
+    if (opts.host) headers["x-tenant-host"] = opts.host;
+    if (opts.cookie) headers["cookie"] = opts.cookie;
+    const res = await fetch(`${base}${path}`, { method, headers, redirect: "manual" });
+    const setCookie = res.headers.getSetCookie?.() ?? [];
+    const text = await res.text().catch(() => "");
+    let body: unknown = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = text;
+    }
+    return { status: res.status, body, setCookie, location: res.headers.get("location") };
+  }
   const jar = (cookies: string[]) => cookies.map((c) => c.split(";")[0]).join("; ");
   async function staffCookie(email: string): Promise<string> {
     const r = await auth.api.signInEmail({ body: { email, password: PW }, asResponse: true });
@@ -8472,6 +8498,262 @@ async function main() {
     JSON.stringify(recentAuditAfter),
   );
 
+  // ── Member portal social login (chrono/portal-social-login plan, Phase 6) ──
+  // Re-runs the foundation's own member-oauth.test.ts case list
+  // (create/reuse/cross-tenant/collision-refuse/suspended/unavailable/
+  // missing-email/cancelled) against THIS app's database — a shared package's
+  // guarantee (TenantMemberOAuthAccounts' unique indexes, the RLS policy
+  // generated for it, this app's own tenant fixtures) is only real once each
+  // consuming app proves it locally, same reasoning as `rls:proof` itself
+  // (.ai/rules/database.md). Google is already configured for this whole
+  // suite (see the env block near the top of main()); Facebook is
+  // deliberately left unconfigured throughout, which doubles as this block's
+  // provider-unavailable case — no env mutation needed for either.
+  {
+    // Dedicated tenants for this block — NOT the shared acmeId/contosoId
+    // fixtures used elsewhere in this file: by this point in the run, acme
+    // has already been through (and one later section hard-deletes) several
+    // destructive lifecycle tests, so reusing it here would make these
+    // assertions depend on file ordering. Two fresh, disposable orgs keep
+    // this block self-contained.
+    const oauthAcmeId = await ensureOrg("oauth-acme", "OAuth Acme");
+    const oauthContosoId = await ensureOrg("oauth-contoso", "OAuth Contoso");
+    const realFetch = globalThis.fetch;
+    let googleSub = "chrono-google-sub-1";
+    let googleEmail = "newplayer@example.com";
+    // Implicit linking only ever applies to google + a verified email
+    // (packages/agora/src/identity/member-auth/index.ts's callback handler) —
+    // false is what drives the collision case into account_not_linked below,
+    // without needing to enable Facebook (left deliberately unconfigured for
+    // this whole suite) or wait out resolveAuthProviders()'s 5s cache.
+    let googleEmailVerified = true;
+
+    function fakeIdToken(claims: Record<string, unknown>): string {
+      const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+      return `${b64({ alg: "none" })}.${b64(claims)}.sig`;
+    }
+
+    globalThis.fetch = (async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      const url = String(input);
+      if (url.startsWith(base)) return realFetch(input, init);
+      if (url.startsWith("https://oauth2.googleapis.com/token")) {
+        return new Response(
+          JSON.stringify({
+            id_token: fakeIdToken({
+              iss: "https://accounts.google.com",
+              aud: "e2e-google-client-id",
+              sub: googleSub,
+              email: googleEmail,
+              email_verified: googleEmailVerified,
+              name: "New Player",
+              exp: Math.floor(Date.now() / 1000) + 3600,
+            }),
+          }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`Unexpected fetch in member OAuth e2e: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      // A pre-existing password member on acme, for the collision case.
+      await withTenant(oauthAcmeId, (tx) =>
+        tx.insert(schema.tenantMember).values({
+          tenantId: oauthAcmeId,
+          email: "existing-oauth@acme.test",
+          name: "Existing OAuth Member",
+          passwordHash: "scrypt$deadbeef$deadbeef",
+        }),
+      );
+      // A suspended member with a linked google account, for the suspended case.
+      const [suspendedMember] = await withTenant(oauthAcmeId, (tx) =>
+        tx
+          .insert(schema.tenantMember)
+          .values({
+            tenantId: oauthAcmeId,
+            email: "suspended-oauth@acme.test",
+            name: "Suspended OAuth Member",
+            passwordHash: null,
+            status: "suspended",
+          })
+          .returning({ id: schema.tenantMember.id }),
+      );
+      await withTenant(oauthAcmeId, (tx) =>
+        tx.insert(schema.tenantMemberOAuthAccount).values({
+          tenantId: oauthAcmeId,
+          memberId: suspendedMember!.id,
+          provider: "google",
+          providerAccountId: "chrono-google-suspended-1",
+          email: "suspended-oauth@acme.test",
+        }),
+      );
+
+      // ── provider-unavailable: facebook has no credentials in this suite ──
+      const fbUnavailable = await reqNoFollow("GET", "/portal/auth/facebook/start?tenant=oauth-acme");
+      check("member oauth: facebook /start 404s while unconfigured", fbUnavailable.status === 404);
+
+      async function driveMemberOAuth(
+        tenantSlug: string,
+        opts: { simulateCancel?: boolean } = {},
+      ): Promise<NoFollowRes> {
+        const start = await reqNoFollow("GET", `/portal/auth/google/start?tenant=${tenantSlug}`);
+        if (start.status !== 302) {
+          throw new Error(`member oauth /start did not redirect: ${start.status}`);
+        }
+        const cookie = jar(start.setCookie);
+        const authorizeUrl = new URL(start.location!);
+        const state = authorizeUrl.searchParams.get("state")!;
+        const cb = opts.simulateCancel
+          ? `/portal/auth/google/callback?state=${encodeURIComponent(state)}&error=access_denied`
+          : `/portal/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`;
+        return reqNoFollow("GET", cb, { cookie });
+      }
+
+      // ── create-on-first-login ──
+      const memberFirst = await driveMemberOAuth("oauth-acme");
+      check(
+        "member oauth: google create-on-first-login redirects to /portal",
+        memberFirst.location?.includes("/portal") ?? false,
+        memberFirst.location ?? "",
+      );
+      const acmeMembersAfterFirst = await withTenant(oauthAcmeId, (tx) => tx.select().from(schema.tenantMember));
+      const createdMember = acmeMembersAfterFirst.find((m) => m.email === googleEmail);
+      check("member oauth: create-on-first-login inserted exactly one TenantMembers row", !!createdMember);
+      check(
+        "member oauth: created member has passwordHash null (OAuth-only)",
+        createdMember?.passwordHash === null,
+      );
+
+      // ── reuse-on-second-login: same providerAccountId, no duplicate member ──
+      const memberSecond = await driveMemberOAuth("oauth-acme");
+      check(
+        "member oauth: reuse-on-second-login redirects to /portal",
+        memberSecond.location?.includes("/portal") ?? false,
+      );
+      const acmeMembersAfterSecond = await withTenant(oauthAcmeId, (tx) => tx.select().from(schema.tenantMember));
+      check(
+        "member oauth: no duplicate TenantMembers row on second login (tenant_member_email_uq holds)",
+        acmeMembersAfterSecond.filter((m) => m.email === googleEmail).length === 1,
+      );
+
+      // ── cross-tenant separation: same providerAccountId, two tenants ──
+      const memberCrossTenant = await driveMemberOAuth("oauth-contoso");
+      check(
+        "member oauth: cross-tenant login redirects to /portal",
+        memberCrossTenant.location?.includes("/portal") ?? false,
+      );
+      const contosoMembersAfter = await withTenant(oauthContosoId, (tx) => tx.select().from(schema.tenantMember));
+      const contosoCreatedMember = contosoMembersAfter.find((m) => m.email === googleEmail);
+      check("member oauth: cross-tenant login created a SEPARATE member row in contoso", !!contosoCreatedMember);
+      check(
+        "member oauth: cross-tenant member id differs from acme's",
+        !!contosoCreatedMember && contosoCreatedMember.id !== createdMember?.id,
+      );
+
+      // ── email-collision refusal (no google account linked to the existing
+      //    password member -> refuse to auto-link, never insert a duplicate) ──
+      const beforeCollisionCount = (
+        await withTenant(oauthAcmeId, (tx) => tx.select().from(schema.tenantMember))
+      ).length;
+      googleSub = "chrono-google-collision-1";
+      googleEmail = "existing-oauth@acme.test";
+      googleEmailVerified = false;
+      const memberCollision = await driveMemberOAuth("oauth-acme");
+      check(
+        "member oauth: collision redirects with account_not_linked",
+        memberCollision.location?.includes("error=account_not_linked") ?? false,
+      );
+      const afterCollisionCount = (
+        await withTenant(oauthAcmeId, (tx) => tx.select().from(schema.tenantMember))
+      ).length;
+      check(
+        "member oauth: collision inserted no new member row",
+        afterCollisionCount === beforeCollisionCount,
+      );
+      googleEmailVerified = true;
+
+      // ── suspended-member refusal ──
+      googleSub = "chrono-google-suspended-1";
+      googleEmail = "suspended-oauth@acme.test";
+      const memberSuspendedAttempt = await driveMemberOAuth("oauth-acme");
+      check(
+        "member oauth: suspended member is refused a session",
+        memberSuspendedAttempt.location?.includes("error=account_suspended") ?? false,
+      );
+      check(
+        "member oauth: suspended member gets no session cookie",
+        memberSuspendedAttempt.setCookie.every((c) => !c.startsWith("agora_member=")),
+      );
+
+      // ── missing provider email -> email_required ──
+      googleSub = "chrono-google-no-email";
+      const noEmailStart = await reqNoFollow("GET", "/portal/auth/google/start?tenant=oauth-acme");
+      const noEmailCookie = jar(noEmailStart.setCookie);
+      const noEmailAuthorizeUrl = new URL(noEmailStart.location!);
+      const noEmailState = noEmailAuthorizeUrl.searchParams.get("state")!;
+      const noEmailToken = fakeIdToken({
+        iss: "https://accounts.google.com",
+        aud: "e2e-google-client-id",
+        sub: "chrono-google-no-email",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      });
+      globalThis.fetch = (async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        const url = String(input);
+        if (url.startsWith(base)) return realFetch(input, init);
+        if (url.startsWith("https://oauth2.googleapis.com/token")) {
+          return new Response(JSON.stringify({ id_token: noEmailToken }), { status: 200 });
+        }
+        throw new Error(`Unexpected fetch in member OAuth e2e (no-email leg): ${url}`);
+      }) as typeof fetch;
+      const noEmailCallback = await reqNoFollow(
+        "GET",
+        `/portal/auth/google/callback?code=test-code&state=${encodeURIComponent(noEmailState)}`,
+        { cookie: noEmailCookie },
+      );
+      check(
+        "member oauth: missing provider email aborts with email_required",
+        noEmailCallback.location?.includes("error=email_required") ?? false,
+      );
+
+      // ── IdP-declined consent -> cancelled ──
+      globalThis.fetch = (async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        const url = String(input);
+        if (url.startsWith(base)) return realFetch(input, init);
+        if (url.startsWith("https://oauth2.googleapis.com/token")) {
+          return new Response(
+            JSON.stringify({
+              id_token: fakeIdToken({
+                iss: "https://accounts.google.com",
+                aud: "e2e-google-client-id",
+                sub: "chrono-google-cancel",
+                email: "cancel-oauth@example.com",
+                email_verified: true,
+                exp: Math.floor(Date.now() / 1000) + 3600,
+              }),
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`Unexpected fetch in member OAuth e2e (cancel leg): ${url}`);
+      }) as typeof fetch;
+      const memberCancelled = await driveMemberOAuth("oauth-acme", { simulateCancel: true });
+      check(
+        "member oauth: IdP-declined consent aborts with cancelled",
+        memberCancelled.location?.includes("error=cancelled") ?? false,
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
 
   // ── teardown ──
   await new Promise<void>((r) => server!.close(() => r()));
