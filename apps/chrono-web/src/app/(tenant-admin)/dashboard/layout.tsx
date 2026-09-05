@@ -274,7 +274,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         bottomItems={BOTTOM_NAV}
         basePath="/admin"
         defaultExpandAllGroups
-        sidebarTop={<TenantSwitcher organizations={orgs} dashboardPath="/admin" />}
+        sidebarTop={
+          <TenantSwitcher
+            organizations={orgs}
+            dashboardPath="/admin"
+            newWorkspacePath="/new-business"
+            entityLabel="Business"
+            entityLabelPlural="Businesses"
+            createLabel="New business"
+          />
+        }
         sidebarBottom={
           <UserMenu
             name={session.user.name}
