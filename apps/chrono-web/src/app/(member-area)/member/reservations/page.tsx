@@ -37,7 +37,9 @@ import {
   type ReservationPolicy,
   type MemberRestriction,
   type PublicBranch,
-} from "@/lib/reservations-portal";
+} from "@/lib/member/reservations";
+import { MemberPageHeader } from "@/components/member/member-page-header";
+import { RefreshButton } from "@/components/member/refresh-button";
 
 const DURATION_OPTIONS = [60, 120, 180, 240, 300, 360];
 
@@ -112,9 +114,17 @@ export default function PortalReservationsPage() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000);
-    return () => clearInterval(id);
   }, [load]);
+
+  // No polling in the member area (plan decision: "Realtime: none for
+  // members"). The hold countdown still ticks client-side via
+  // `useCountdown`; when it reaches 00:00 we reload once to reflect the
+  // server-side expiry instead of leaving a stale "YOUR PC IS READY" card.
+  useEffect(() => {
+    if (holdCountdown === "00:00") {
+      load();
+    }
+  }, [holdCountdown, load]);
 
   const reservationBan = restrictions.find((r) => r.type === "reservation_ban");
   const queueBan = restrictions.find((r) => r.type === "queue_ban");
@@ -203,7 +213,8 @@ export default function PortalReservationsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="space-y-6 p-6">
+        <MemberPageHeader title="Reservations" description="Reserve a station or join its queue." />
         <p className="text-muted-foreground">Loading…</p>
       </div>
     );
@@ -211,6 +222,11 @@ export default function PortalReservationsPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <MemberPageHeader
+        title="Reservations"
+        description="Reserve a station or join its queue."
+        actions={<RefreshButton onRefresh={load} />}
+      />
       {active && (
         <Card>
           <CardHeader>
