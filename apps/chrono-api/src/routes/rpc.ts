@@ -5,7 +5,7 @@ import {
   type ResolveActor,
   type RealtimeLimits,
 } from "agora/realtime";
-import { validateChronoScopes } from "../modules/realtime/contracts";
+import { validateChronoScopes } from "../modules/realtime/scope-validators";
 import {
   withTenant,
   adminDb,

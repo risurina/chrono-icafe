@@ -30,7 +30,7 @@ import {
 } from "agora/realtime";
 import { resolveDeviceAuthContext, type DeviceAuthVars } from "./device-auth-middleware";
 import { chronoDevice } from "./schema";
-import { validateChronoDeviceScopes } from "../realtime/contracts";
+import { validateChronoDeviceScopes } from "../realtime/scope-validators";
 
 /**
  * Resolves the device actor for one connection attempt, then — on success —

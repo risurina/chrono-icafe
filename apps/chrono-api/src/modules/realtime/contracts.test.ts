@@ -126,7 +126,7 @@ async function main() {
   const { APP_TENANT_TABLES } = await import("../../db/schema");
   const { chronoBranch } = await import("../branch/schema");
   const { createId } = await import("agora");
-  const { validateChronoScopes } = await import("./contracts");
+  const { validateChronoScopes } = await import("./scope-validators");
 
   const appSchema = await import("../../db/schema");
   const tables = Object.values(appSchema).filter((v) => is(v, PgTable)) as PgTable[];

@@ -3,19 +3,24 @@
  * foundation's `createRealtimeRoute` staff mount (`agora/realtime`,
  * `.ai/plans/agora/archive/websocket-foundation/README.md`).
  *
- * This module owns no table and no service, only contracts + the
- * `validateScopes` function the staff mount is configured with — the same
+ * This module owns no table and no service, only contracts — the same
  * "no entity of its own" shape as `reconciliation`
  * (`apps/chrono-api/src/modules/reconciliation/`).
+ *
+ * Client-safe: every export here is a pure Zod schema, type, or string-only
+ * function, and this file must stay free of `agora/db`/server-only imports —
+ * it crosses the browser boundary via the package's `./realtime` and
+ * `./station` subpath exports (`.ai/rules/dto.md`), and `chrono-web` pages
+ * import it purely for these schemas/types at build (static-generation) time,
+ * with no `DATABASE_URL` available. The DB-touching `ValidateScopes`
+ * implementations that used to live here have moved to `./scope-validators`
+ * (server-only, imported only from `apps/chrono-api`'s own route/mount code).
  *
  * See `.ai/plans/chrono/active/realtime-updates/README.md`, "Staff dashboard
  * wiring" and Phase 1.
  */
 
 import { z } from "zod";
-import { withTenant, inArray } from "agora/db";
-import type { ResolvedActor, ValidateScopes } from "agora/realtime";
-import { chronoBranch } from "../branch/schema";
 
 // ---------------------------------------------------------------------------
 // Event contracts (server -> staff browser, published on tenant/branch/
@@ -88,8 +93,12 @@ export const chronoRealtimeScopeSchema = z.string().regex(CHRONO_SCOPE_PATTERN);
 
 export type ChronoRealtimeScopeKind = z.infer<typeof chronoRealtimeScopeKindSchema>;
 
-/** Parse a well-formed Chrono scope string into its kind + referenced branch id, or null. */
-function parseChronoScope(
+/**
+ * Parse a well-formed Chrono scope string into its kind + referenced branch
+ * id, or null. Pure string parsing, no DB — exported for `./scope-validators`
+ * (and its own test) to reuse rather than re-implementing the pattern.
+ */
+export function parseChronoScope(
   scope: string,
 ): { kind: ChronoRealtimeScopeKind; branchId: string } | null {
   const match = CHRONO_SCOPE_PATTERN.exec(scope);
@@ -100,44 +109,9 @@ function parseChronoScope(
   return { kind: parsedKind.data, branchId };
 }
 
-/**
- * Chrono's `ValidateScopes` for the staff realtime mount. Receives the
- * transport's already lowercased/deduped/capped well-formed scope set
- * (per `agora/realtime`'s `realtimeScopeSetSchema` pipeline) and the resolved
- * actor, and returns only the subset naming a branch that actually belongs to
- * the caller's tenant — ONE batched `chronoBranch` query for the whole set,
- * never one query per scope (see `ValidateScopes`'s own doc comment on why a
- * per-scope callback would be a self-inflicted amplification vector).
- */
-export const validateChronoScopes: ValidateScopes = async (
-  scopes: string[],
-  actor: ResolvedActor,
-): Promise<string[]> => {
-  const parsed = scopes
-    .map((scope) => ({ scope, parsed: parseChronoScope(scope) }))
-    .filter(
-      (entry): entry is { scope: string; parsed: { kind: ChronoRealtimeScopeKind; branchId: string } } =>
-        entry.parsed !== null,
-    );
-  if (parsed.length === 0) return [];
-
-  const branchIds = [...new Set(parsed.map((entry) => entry.parsed.branchId))];
-
-  const ownedBranchIds = await withTenant(actor.tenantId, (tx) =>
-    tx
-      .select({ id: chronoBranch.id })
-      .from(chronoBranch)
-      .where(inArray(chronoBranch.id, branchIds)),
-  ).then((rows) => new Set(rows.map((row) => row.id)));
-
-  return parsed
-    .filter((entry) => ownedBranchIds.has(entry.parsed.branchId))
-    .map((entry) => entry.scope);
-};
-
 // ---------------------------------------------------------------------------
 // Device scope grammar (realtime-updates Phase 3) — the device mount's own
-// `ValidateScopes`, disjoint from the staff scope vocabulary above. A device
+// scope vocabulary, disjoint from the staff scope grammar above. A device
 // connects requesting its OWN private channel via `?scope=device:{deviceId}`
 // (its own id, per `resolveDeviceActor`'s `actorKey`) — this is the only
 // mechanism `createRealtimeRoute` exposes for a mount to grant a per-actor
@@ -147,25 +121,11 @@ export const validateChronoScopes: ValidateScopes = async (
 // the same "malformed fails the upgrade, well-formed-but-rejected just gets
 // no channel" split `agora/realtime`'s own `ValidateScopes` doc describes,
 // applied here as the actor-isolation boundary (a device can never subscribe
-// to another device's private channel, no matter what it asks for).
+// to another device's private channel, no matter what it asks for). The
+// matching `validateChronoDeviceScopes` implementation lives in
+// `./scope-validators`.
 // ---------------------------------------------------------------------------
 
-const CHRONO_DEVICE_SCOPE_PATTERN = /^device:([A-Za-z0-9_-]{1,64})$/;
-
-export const chronoDeviceScopeSchema = z.string().regex(CHRONO_DEVICE_SCOPE_PATTERN);
-
-/**
- * Chrono's `ValidateScopes` for the device realtime mount. No DB query
- * needed — the only fact that matters is already on the resolved actor
- * (`actor.actorKey` IS the device's own id), so this is a pure string
- * comparison, not a batched lookup like the staff validator above.
- */
-export const validateChronoDeviceScopes: ValidateScopes = async (
-  scopes: string[],
-  actor: ResolvedActor,
-): Promise<string[]> => {
-  return scopes.filter((scope) => {
-    const match = CHRONO_DEVICE_SCOPE_PATTERN.exec(scope);
-    return match !== null && match[1] === actor.actorKey;
-  });
-};
+export const chronoDeviceScopeSchema = z
+  .string()
+  .regex(/^device:([A-Za-z0-9_-]{1,64})$/);
