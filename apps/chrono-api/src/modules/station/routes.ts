@@ -1,11 +1,12 @@
 import { Hono } from "hono";
-import { withTenant, eq, and, asc, desc, count, ilike, type TenantTx } from "agora/db";
+import { withTenant, schema as base, eq, and, asc, desc, count, ilike, inArray, type TenantTx } from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
 import { type TenantVars, HttpError, zValidator, resolveOrgFromRequest, createRateLimiter, clientIp } from "agora/server";
 import { createId } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation, chronoStationGroup } from "./schema";
+import { chronoSession } from "../session/schema";
 import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { computeBranchSummary } from "../realtime/service";
 import { chronoStationStatusSchema, type StationStatusEvent } from "../realtime/contracts";
@@ -16,10 +17,12 @@ import {
   updateStationGroupSchema,
   stationListQuerySchema,
   stationGroupListQuerySchema,
+  stationBoardQuerySchema,
   type StationDto,
   type StationGroupDto,
   type PublicStationsResponse,
   type StationStatus,
+  type StationBoardStation,
 } from "./contracts";
 
 /** Explicit column list — never `qrSecret`/`qrSecretVersion` (`.ai/rules/dto.md`). */
@@ -67,6 +70,56 @@ function toStationDto(row: StationRow): StationDto {
     specs: row.specs as StationDto["specs"],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+type StationBoardRow = {
+  id: string;
+  stationNumber: string;
+  name: string;
+  stationType: string;
+  status: string;
+  locationZone: string | null;
+  stationGroupId: string | null;
+  stationGroupName: string | null;
+  sessionId: string | null;
+  sessionMemberId: string | null;
+  sessionMemberName: string | null;
+  sessionStatus: string | null;
+  sessionStartedAt: Date | null;
+  sessionScheduledEndAt: Date | null;
+  sessionPausedAt: Date | null;
+};
+
+/** Never a raw row — explicit projection per `.ai/rules/dto.md`. */
+function toStationBoardDto(row: StationBoardRow): StationBoardStation {
+  const hasActiveSession =
+    row.sessionId !== null &&
+    row.sessionMemberId !== null &&
+    row.sessionMemberName !== null &&
+    row.sessionStatus !== null &&
+    row.sessionStartedAt !== null;
+
+  return {
+    id: row.id,
+    stationNumber: row.stationNumber,
+    name: row.name,
+    stationType: row.stationType,
+    status: row.status as StationBoardStation["status"],
+    locationZone: row.locationZone,
+    stationGroupId: row.stationGroupId,
+    stationGroupName: row.stationGroupName,
+    activeSession: hasActiveSession
+      ? {
+          id: row.sessionId!,
+          memberId: row.sessionMemberId!,
+          memberName: row.sessionMemberName!,
+          status: row.sessionStatus as "active" | "paused",
+          startedAt: row.sessionStartedAt!.toISOString(),
+          scheduledEndAt: row.sessionScheduledEndAt?.toISOString() ?? null,
+          pausedAt: row.sessionPausedAt?.toISOString() ?? null,
+        }
+      : null,
   };
 }
 
@@ -320,6 +373,64 @@ export function stationRoutes() {
   return new Hono<{ Variables: TenantVars }>()
     // No own tenantMiddleware() — composed into `rpc`, which already applies
     // it globally before this router is mounted.
+
+    // GET /stations/board — the Station Control board's aggregate read: every
+    // station for one branch, with its group name and current active/paused
+    // session already joined in. Deliberately unpaginated (bounded to one
+    // branch), mirroring `publicStationRoutes()`'s own "read everything for
+    // this branch" precedent. Ungated beyond tenant membership, matching
+    // `GET /stations` / `GET /stations/groups` — staff need this to work the
+    // floor. See `.ai/plans/chrono/active/station-control-grouping/README.md`,
+    // Phase 1.
+    .get(
+      "/stations/board",
+      zValidator("query", stationBoardQuerySchema),
+      async (c) => {
+        const { tenantId } = c.var.tenant;
+        const { branchId } = c.req.valid("query");
+
+        const rows = await withTenant(tenantId, (tx) =>
+          tx
+            .select({
+              id: chronoStation.id,
+              stationNumber: chronoStation.stationNumber,
+              name: chronoStation.name,
+              stationType: chronoStation.stationType,
+              status: chronoStation.status,
+              locationZone: chronoStation.locationZone,
+              stationGroupId: chronoStation.stationGroupId,
+              stationGroupName: chronoStationGroup.name,
+              sessionId: chronoSession.id,
+              sessionMemberId: chronoSession.memberId,
+              sessionMemberName: base.tenantMember.name,
+              sessionStatus: chronoSession.status,
+              sessionStartedAt: chronoSession.startedAt,
+              sessionScheduledEndAt: chronoSession.scheduledEndAt,
+              sessionPausedAt: chronoSession.pausedAt,
+            })
+            .from(chronoStation)
+            .leftJoin(
+              chronoStationGroup,
+              eq(chronoStation.stationGroupId, chronoStationGroup.id),
+            )
+            .leftJoin(
+              chronoSession,
+              and(
+                eq(chronoSession.stationId, chronoStation.id),
+                inArray(chronoSession.status, ["active", "paused"]),
+              ),
+            )
+            .leftJoin(base.tenantMember, eq(chronoSession.memberId, base.tenantMember.id))
+            .where(eq(chronoStation.branchId, branchId))
+            .orderBy(asc(chronoStationGroup.name), asc(chronoStation.stationNumber)),
+        );
+
+        return c.json({
+          branchId,
+          stations: rows.map(toStationBoardDto),
+        });
+      },
+    )
 
     // GET /stations — ungated (staff need this to work the floor).
     .get(

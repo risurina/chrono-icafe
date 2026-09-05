@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { listQuerySchema } from "agora";
+import { chronoStationStatusSchema } from "../realtime/contracts";
 
 export const stationStatusSchema = z.enum(["available", "maintenance", "offline"]);
 
@@ -126,3 +127,44 @@ export type PublicStationAggregate = z.infer<typeof publicStationAggregateSchema
 export type PublicStation = z.infer<typeof publicStationSchema>;
 export type PublicBranchStations = z.infer<typeof publicBranchStationsSchema>;
 export type PublicStationsResponse = z.infer<typeof publicStationsResponseSchema>;
+
+// Station Control board — one aggregate read merging station + group + the
+// station's current active/paused session (if any). See
+// `.ai/plans/chrono/active/station-control-grouping/README.md`, Phase 1.
+// Deliberately unpaginated (bounded to one branch), mirroring
+// `publicStationRoutes()`'s own "read everything for this branch" precedent.
+export const stationBoardQuerySchema = z.object({
+  branchId: z.string().min(1),
+});
+
+export const stationBoardSessionSchema = z.object({
+  id: z.string(),
+  memberId: z.string(),
+  memberName: z.string(),
+  status: z.enum(["active", "paused"]),
+  startedAt: z.string(),
+  scheduledEndAt: z.string().nullable(),
+  pausedAt: z.string().nullable(),
+});
+
+export const stationBoardStationSchema = z.object({
+  id: z.string(),
+  stationNumber: z.string(),
+  name: z.string(),
+  stationType: z.string(),
+  status: chronoStationStatusSchema,
+  locationZone: z.string().nullable(),
+  stationGroupId: z.string().nullable(),
+  stationGroupName: z.string().nullable(),
+  activeSession: stationBoardSessionSchema.nullable(),
+});
+
+export const stationBoardResponseSchema = z.object({
+  branchId: z.string(),
+  stations: z.array(stationBoardStationSchema),
+});
+
+export type StationBoardQuery = z.infer<typeof stationBoardQuerySchema>;
+export type StationBoardSession = z.infer<typeof stationBoardSessionSchema>;
+export type StationBoardStation = z.infer<typeof stationBoardStationSchema>;
+export type StationBoardResponse = z.infer<typeof stationBoardResponseSchema>;
