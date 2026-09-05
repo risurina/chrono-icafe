@@ -7,6 +7,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoStationGroup } from "../station/schema";
@@ -153,6 +154,13 @@ export const chronoCreditPurchase = pgTable(
     voidedByUserId: text("voidedByUserId").references(() => base.user.id, {
       onDelete: "set null",
     }),
+    // Client-supplied `Idempotency-Key` header on `POST /portal/credits/purchase`
+    // (member-wallet-operation-hardening plan) — a double-click or a retry of
+    // a timed-out-but-succeeded request replays the same key and gets this
+    // row back unchanged instead of a second debit. Null for every purchase
+    // made without the header (unprotected, matches Stripe's own opt-in
+    // convention) and for staff-initiated grants (no member header at all).
+    idempotencyKey: text("idempotencyKey"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
@@ -161,6 +169,9 @@ export const chronoCreditPurchase = pgTable(
     index("chrono_credit_purchase_member_idx").on(t.memberId),
     index("chrono_credit_purchase_product_idx").on(t.productId),
     index("chrono_credit_purchase_status_idx").on(t.status),
+    uniqueIndex("chrono_credit_purchase_idempotency_uq")
+      .on(t.tenantId, t.memberId, t.idempotencyKey)
+      .where(sql`"idempotencyKey" is not null`),
   ],
 );
 

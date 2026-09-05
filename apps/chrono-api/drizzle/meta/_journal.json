@@ -148,6 +148,13 @@
       "when": 1788544954128,
       "tag": "0020_chrono_payment_customer_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788591033565,
+      "tag": "0021_member_wallet_ops_hardening",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,18 @@ export const chronoPayment = pgTable(
     // product credited as a wallet top-up only, or an amount mismatch void)
     // — see modules/payment/fulfilment.ts.
     fulfilmentNote: text("fulfilmentNote"),
+    // Client-supplied `Idempotency-Key` header on `POST /portal/payments/checkout`
+    // (member-wallet-operation-hardening plan) — distinct from
+    // `chronoPaymentEvent.idempotencyKey` below, which dedupes the PSP's own
+    // webhook deliveries. This one dedupes the member's *request to start* a
+    // checkout: a retried POST replays the same key and gets this row's
+    // `checkoutUrl` back instead of a second pending row + a second PSP
+    // session. Null for every checkout made without the header, and for
+    // legacy/cash/POS rows that predate this column.
+    idempotencyKey: text("idempotencyKey"),
+    // Stored so a replayed checkout can return the exact same redirect URL —
+    // `providerReference` alone (the PSP's own id) isn't enough to reconstruct it.
+    checkoutUrl: text("checkoutUrl"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
@@ -54,6 +66,9 @@ export const chronoPayment = pgTable(
     index("chrono_payment_session_idx").on(t.sessionId),
     index("chrono_payment_status_idx").on(t.status),
     index("chrono_payment_purpose_idx").on(t.purpose),
+    uniqueIndex("chrono_payment_client_idempotency_uq")
+      .on(t.tenantId, t.memberId, t.idempotencyKey)
+      .where(sql`"idempotencyKey" is not null`),
   ],
 );
 
