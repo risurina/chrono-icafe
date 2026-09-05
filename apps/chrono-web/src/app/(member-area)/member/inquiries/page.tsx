@@ -28,7 +28,7 @@ import {
   type PortalInquiryCategory,
   type PortalInquiryMessage,
   type PortalInquiryStatus,
-} from "@/lib/inquiries-portal";
+} from "@/lib/member/inquiries";
 
 const STATUS_VARIANT: Record<
   PortalInquiryStatus,
