@@ -93,6 +93,7 @@ import { inviteRoutes } from "agora/invites";
 import { domainRoutes } from "agora/domains";
 import {
   brandingRoutes,
+  organizationRoutes,
   featureFlagRoutes,
   apiKeyRoutes,
   securityRoutes,
@@ -475,6 +476,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── White-label branding — foundation factory (agora/server/routes) ──
   .route("/", brandingRoutes())
+
+  // ── Tenant self-service General settings (rename) — foundation factory ──
+  .route("/", organizationRoutes())
 
   // ── Feature flags — foundation factory + Chrono's merged registry (apps/chrono-api/src/contracts/extensions.ts) ──
   .route("/", featureFlagRoutes(CHRONO_FEATURE_FLAGS))
