@@ -220,8 +220,13 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   },
 ];
 
+// Labels deliberately avoid the word "email" (in any case) as a substring —
+// Playwright's `getByLabel` matches any element's `aria-label`, not just form
+// controls, so "Email Chrono" collided with `getByLabel("Email")` on every
+// auth page once this footer was reused there
+// (`.ai/plans/chrono/archive/auth-page-header-footer/README.md`).
 const SOCIAL_LINKS = [
-  { href: "/contact", label: "Email Chrono", Icon: Mail },
+  { href: "/contact", label: "Message Chrono", Icon: Mail },
   { href: "/contact", label: "Call Chrono", Icon: Phone },
   { href: "/about", label: "About Chrono", Icon: Globe },
 ];
