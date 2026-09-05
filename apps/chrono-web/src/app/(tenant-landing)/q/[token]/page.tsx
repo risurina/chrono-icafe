@@ -1,7 +1,9 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, toast } from "agora/ui";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, buttonVariants, toast } from "agora/ui";
+import { cn } from "agora/ui/cn";
 import { isTrustedHost, tenantFetch } from "agora/client";
 import { useMemberSession } from "@/lib/member-client";
 
@@ -135,6 +137,11 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
               You&apos;re all set — your session is running. Enjoy!
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Link href="/member/session" className={cn(buttonVariants(), "w-full")}>
+              Go to my session
+            </Link>
+          </CardContent>
         </Card>
       </div>
     );
