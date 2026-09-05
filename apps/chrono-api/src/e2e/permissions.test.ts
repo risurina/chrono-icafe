@@ -1055,6 +1055,57 @@ check(
     !hasPlatformPermission("viewer", { staff: ["manage"] }),
 );
 
+console.log("\n── platform global-customer permissions ──");
+check(
+  "platform viewer holds globalCustomer:read",
+  hasPlatformPermission("viewer", { globalCustomer: ["read"] }),
+);
+check(
+  "platform viewer does NOT hold globalCustomer:disable/resetSessions/sendPasswordReset",
+  !hasPlatformPermission("viewer", { globalCustomer: ["disable"] }) &&
+    !hasPlatformPermission("viewer", { globalCustomer: ["resetSessions"] }) &&
+    !hasPlatformPermission("viewer", { globalCustomer: ["sendPasswordReset"] }),
+);
+check(
+  "platform support holds globalCustomer:read only — NOT disable/resetSessions/sendPasswordReset",
+  hasPlatformPermission("support", { globalCustomer: ["read"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["disable"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["resetSessions"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["sendPasswordReset"] }),
+);
+check(
+  "platform admin holds every globalCustomer action",
+  hasPlatformPermission("admin", {
+    globalCustomer: ["read", "disable", "resetSessions", "sendPasswordReset"],
+  }),
+);
+check(
+  "no platform role holds globalCustomer at all",
+  !hasPlatformPermission(null, { globalCustomer: ["read"] }) &&
+    !hasPlatformPermission("owner", { globalCustomer: ["read"] }) &&
+    !hasPlatformPermission("member", { globalCustomer: ["read"] }),
+);
+// The gate must actually fail when the permission is removed from the role —
+// this is the RBAC rule's "must fail when removed" requirement, not plumbing.
+check(
+  "removing globalCustomer:disable from a role denies exactly that action",
+  hasPlatformPermission("admin", { globalCustomer: ["disable"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["disable"] }) &&
+    !hasPlatformPermission("viewer", { globalCustomer: ["disable"] }),
+);
+check(
+  "removing globalCustomer:resetSessions from a role denies exactly that action",
+  hasPlatformPermission("admin", { globalCustomer: ["resetSessions"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["resetSessions"] }) &&
+    !hasPlatformPermission("viewer", { globalCustomer: ["resetSessions"] }),
+);
+check(
+  "removing globalCustomer:sendPasswordReset from a role denies exactly that action",
+  hasPlatformPermission("admin", { globalCustomer: ["sendPasswordReset"] }) &&
+    !hasPlatformPermission("support", { globalCustomer: ["sendPasswordReset"] }) &&
+    !hasPlatformPermission("viewer", { globalCustomer: ["sendPasswordReset"] }),
+);
+
 console.log("\n── platform plan-catalog permissions ──");
 check(
   "platform viewer holds plan:read",

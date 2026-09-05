@@ -26,6 +26,7 @@ import {
   LifeBuoy,
   Activity,
   ListTodo,
+  Contact,
 } from "lucide-react";
 import {
   CenteredMessage,
@@ -65,6 +66,8 @@ const NAV: NavItem[] = [
   { type: "label", name: "Organizations" },
   { type: "item", name: "All organizations", href: "/organizations", icon: Building2 },
   { type: "item", name: "Users", href: "/organizations/members", icon: Users },
+  { type: "label", name: "Customers" },
+  { type: "item", name: "Global customers", href: "/global-customers", icon: Contact },
   { type: "label", name: "Billing" },
   { type: "item", name: "Billing", href: "/billing", icon: CreditCard },
   { type: "item", name: "Transactions", href: "/transactions", icon: Receipt },
@@ -113,6 +116,7 @@ const TITLES: Record<string, string> = {
   "/admin/staff/roles": "Custom roles",
   "/admin/impersonations": "Impersonations",
   "/admin/organizations/members": "Users",
+  "/admin/global-customers": "Global customers",
   "/admin/audit": "Audit log",
   "/admin/jobs": "Job queue",
   "/admin/health": "System health",

@@ -8248,6 +8248,216 @@ async function main() {
     `status ${shEventsOrdinary.status}`,
   );
 
+  // ── W0d. Platform admin: global customers (the platform-wide `customer`
+  //     identity pool, /admin/global-customers). Proves the permission gate
+  //     and the DB-level effect of each mutation directly (status column +
+  //     session-count), the same shape agora-api's e2e uses — a full sign-in
+  //     round trip through agora/customer-auth's own HTTP routes is a
+  //     separate, not-yet-existing e2e concern for that module and is out of
+  //     scope for this plan (see
+  //     .ai/plans/agora/active/platform-admin-global-customers/README.md). ──
+  {
+    const { hashMemberPassword } = await import("agora/member-auth");
+    const gcEmail = "e2e-global-customer@example.com";
+    const [existingGc] = await adminDb
+      .select({ id: schema.customer.id })
+      .from(schema.customer)
+      .where(eq(schema.customer.email, gcEmail))
+      .limit(1);
+    let gcId = existingGc?.id;
+    if (!gcId) {
+      const [created] = await adminDb
+        .insert(schema.customer)
+        .values({
+          email: gcEmail,
+          name: "E2E Global Customer",
+          passwordHash: await hashMemberPassword(PW),
+        })
+        .returning({ id: schema.customer.id });
+      gcId = created!.id;
+    }
+    await withTenant(acmeId, async (tx) => {
+      const [existingLink] = await tx
+        .select({ id: schema.tenantMember.id })
+        .from(schema.tenantMember)
+        .where(eq(schema.tenantMember.email, gcEmail))
+        .limit(1);
+      if (existingLink) return;
+      await tx.insert(schema.tenantMember).values({
+        tenantId: acmeId,
+        email: gcEmail,
+        name: "E2E Global Customer",
+        passwordHash: `scrypt$${"00".repeat(16)}$${"00".repeat(64)}`,
+        customerId: gcId,
+        status: "active",
+      });
+    });
+
+    const gcListAdmin = await req("GET", "/rpc-admin/global-customers?pageSize=100", {
+      cookie: platformAdminCk,
+    });
+    check(
+      "global-customers: admin list includes the seeded e2e global customer",
+      gcListAdmin.status === 200 &&
+        (gcListAdmin.body?.items ?? []).some((c: any) => c.id === gcId),
+      JSON.stringify(gcListAdmin.body),
+    );
+    const gcListViewer = await req("GET", "/rpc-admin/global-customers?pageSize=100", {
+      cookie: platformViewerCk,
+    });
+    check(
+      "global-customers: platform viewer may read (read-only floor)",
+      gcListViewer.status === 200,
+      `status ${gcListViewer.status}`,
+    );
+    const gcListOrdinary = await req("GET", "/rpc-admin/global-customers", { cookie: ownerCk });
+    check(
+      "global-customers: ordinary tenant owner blocked (403)",
+      gcListOrdinary.status === 403,
+      `status ${gcListOrdinary.status}`,
+    );
+
+    const gcDetail = await req("GET", `/rpc-admin/global-customers/${gcId}`, {
+      cookie: platformAdminCk,
+    });
+    check(
+      "global-customers: detail shows the linked tenant membership",
+      gcDetail.status === 200 &&
+        gcDetail.body?.memberships?.length === 1 &&
+        gcDetail.body?.memberships?.[0]?.tenantId === acmeId,
+      JSON.stringify(gcDetail.body),
+    );
+
+    const gcSuspendAsViewer = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/suspend`,
+      { cookie: platformViewerCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform viewer cannot suspend (403)",
+      gcSuspendAsViewer.status === 403,
+      `status ${gcSuspendAsViewer.status}`,
+    );
+
+    const gcSuspend = await req("POST", `/rpc-admin/global-customers/${gcId}/suspend`, {
+      cookie: platformAdminCk,
+      headers: HDR,
+    });
+    check(
+      "global-customers: platform admin can suspend",
+      gcSuspend.status === 200 && gcSuspend.body?.ok === true,
+      JSON.stringify(gcSuspend.body),
+    );
+
+    const [suspendedRow] = await adminDb
+      .select({ status: schema.customer.status })
+      .from(schema.customer)
+      .where(eq(schema.customer.id, gcId))
+      .limit(1);
+    check(
+      "global-customers: suspend sets customer.status = 'suspended'",
+      suspendedRow?.status === "suspended",
+      JSON.stringify(suspendedRow),
+    );
+
+    const sessionsAfterSuspend = await adminDb
+      .select({ id: schema.customerSession.id })
+      .from(schema.customerSession)
+      .where(eq(schema.customerSession.customerId, gcId));
+    check(
+      "global-customers: suspend revokes every active session",
+      sessionsAfterSuspend.length === 0,
+      `remaining sessions ${sessionsAfterSuspend.length}`,
+    );
+
+    const gcReactivate = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/reactivate`,
+      { cookie: platformAdminCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform admin can reactivate",
+      gcReactivate.status === 200 && gcReactivate.body?.ok === true,
+      JSON.stringify(gcReactivate.body),
+    );
+    const [reactivatedRow] = await adminDb
+      .select({ status: schema.customer.status })
+      .from(schema.customer)
+      .where(eq(schema.customer.id, gcId))
+      .limit(1);
+    check(
+      "global-customers: reactivate sets customer.status = 'active'",
+      reactivatedRow?.status === "active",
+      JSON.stringify(reactivatedRow),
+    );
+
+    const gcAuditRows = await adminDb
+      .select({ action: platformAuditEvent.action })
+      .from(platformAuditEvent)
+      .where(eq(platformAuditEvent.targetId, gcId));
+    check(
+      "global-customers: suspend + reactivate each wrote one platform audit row",
+      gcAuditRows.filter((r) => r.action === "platform_global_customer.suspend").length ===
+        1 &&
+        gcAuditRows.filter((r) => r.action === "platform_global_customer.reactivate")
+          .length === 1,
+      JSON.stringify(gcAuditRows),
+    );
+
+    const gcRevokeAsViewer = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/revoke-sessions`,
+      { cookie: platformViewerCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform viewer cannot revoke sessions (403)",
+      gcRevokeAsViewer.status === 403,
+      `status ${gcRevokeAsViewer.status}`,
+    );
+    const gcRevoke = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/revoke-sessions`,
+      { cookie: platformAdminCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform admin can revoke sessions",
+      gcRevoke.status === 200 && gcRevoke.body?.ok === true,
+      JSON.stringify(gcRevoke.body),
+    );
+
+    const gcResetAsViewer = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/send-password-reset`,
+      { cookie: platformViewerCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform viewer cannot send a password reset (403)",
+      gcResetAsViewer.status === 403,
+      `status ${gcResetAsViewer.status}`,
+    );
+    const gcReset = await req(
+      "POST",
+      `/rpc-admin/global-customers/${gcId}/send-password-reset`,
+      { cookie: platformAdminCk, headers: HDR },
+    );
+    check(
+      "global-customers: platform admin can trigger a password reset",
+      gcReset.status === 200 && gcReset.body?.ok === true,
+      JSON.stringify(gcReset.body),
+    );
+
+    const gcNotFound = await req(
+      "POST",
+      "/rpc-admin/global-customers/does-not-exist/suspend",
+      { cookie: platformAdminCk, headers: HDR },
+    );
+    check(
+      "global-customers: suspend 404s for an unknown customer id",
+      gcNotFound.status === 404,
+      `status ${gcNotFound.status}`,
+    );
+  }
+
   // ── W0e. PayMongo synthetic webhook — end-to-end through the real app.ts route. ──
   {
     process.env.PAYMONGO_WEBHOOK_SECRET = "whsec_e2e_paymongo";
