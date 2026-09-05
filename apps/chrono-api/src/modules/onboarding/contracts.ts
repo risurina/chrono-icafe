@@ -1,6 +1,6 @@
 import type { TenantTx } from "agora/db";
 import { eq, and, count } from "agora/db";
-import { adminDb, schema as base } from "agora/db";
+import { schema as base } from "agora/db";
 import type { OnboardingChecklistItem } from "agora";
 import { chronoBranch } from "../branch/schema";
 import { chronoStationGroup, chronoStation } from "../station/schema";
@@ -15,7 +15,13 @@ import { chronoShift } from "../shift/schema";
  * see `packages/agora/src/contracts/onboarding.ts`'s own doc comment).
  */
 export type ChronoOnboardingItem = OnboardingChecklistItem & {
-  /** Runs INSIDE the caller's own withTenant/adminDb transaction. */
+  /**
+   * Runs INSIDE the caller's own `withTenant` transaction — every read MUST
+   * go through the supplied `tx`, never a second connection (e.g. `adminDb`,
+   * a nested `withTenant`): `adminDb` and the tenant pool can be, and in the
+   * enforced e2e harness ARE, the same single-connection pool, so opening a
+   * second connection while `tx` is open deadlocks rather than errors.
+   */
   probe: (tx: TenantTx, tenantId: string) => Promise<boolean>;
 };
 
@@ -85,18 +91,23 @@ export const CHRONO_ONBOARDING_ITEMS = {
     requiredPermission: { staff: ["invite"] },
     wizardStep: { inlineable: true, skippable: true },
     // Foundation org tables (member, invitation) are NOT RLS-scoped — filtered
-    // explicitly by organizationId via adminDb, never withTenant. A `member`
-    // row appears only once an invite is ACCEPTED, so counting members alone
-    // would leave an owner who just invited their whole team stuck on red;
-    // a still-pending invitation counts too.
-    probe: async (_tx, tenantId) => {
-      const [memberCount] = await adminDb
+    // explicitly by organizationId, but the read runs through the caller's
+    // OWN transaction (tx), never a second adminDb connection: adminDb and
+    // the tenant pool (db) can be, and in the enforced e2e harness ARE, the
+    // same single-connection pool, so opening a second connection while tx
+    // is already open deadlocks rather than errors (see
+    // `packages/agora/src/core/server/onboarding.ts`'s `OnboardingProbeItem`
+    // doc comment). A `member` row appears only once an invite is ACCEPTED,
+    // so counting members alone would leave an owner who just invited their
+    // whole team stuck on red; a still-pending invitation counts too.
+    probe: async (tx, tenantId) => {
+      const [memberCount] = await tx
         .select({ n: count() })
         .from(base.member)
         .where(eq(base.member.organizationId, tenantId));
       if ((memberCount?.n ?? 0) > 1) return true;
       return exists(
-        adminDb
+        tx
           .select({ id: base.invitation.id })
           .from(base.invitation)
           .where(

@@ -28,6 +28,7 @@
     "test:session-realtime": "tsx src/modules/session/realtime.test.ts",
     "test:member-concurrency": "tsx src/modules/member/concurrency.test.ts",
     "test:onboarding-registry": "tsx ../../packages/agora/src/contracts/onboarding.test.ts",
+    "test:onboarding-probe-tx": "DB_DRIVER=pglite tsx src/modules/onboarding/probe-tx.test.ts",
     "test:loyalty-level": "tsx src/modules/loyalty/level.test.ts",
     "test:loyalty-concurrency": "tsx src/modules/loyalty/service.test.ts",
     "test:session-usage": "tsx src/modules/session/usage.test.ts",
