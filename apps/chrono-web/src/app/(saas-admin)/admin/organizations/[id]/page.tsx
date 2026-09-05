@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2, Circle } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -953,6 +954,38 @@ export default function PlatformAdminOrganizationDetailPage() {
             </Stack>
           </CardContent>
         </Card>
+
+        {org.onboarding.total > 0 && (
+          <Card className="min-w-[280px] flex-1" data-testid="org-onboarding-checklist">
+            <CardHeader>
+              <CardTitle>Onboarding checklist</CardTitle>
+              <CardDescription>
+                {org.onboarding.completedCount} of {org.onboarding.total} steps
+                complete. Read-only here — the business completes these from its
+                own dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Stack gap={2}>
+                {org.onboarding.items.map((item) => (
+                  <ListRow key={item.key}>
+                    <Row items="center" gap={2}>
+                      {item.done ? (
+                        <CheckCircle2 className="w-4 h-4 text-foreground shrink-0" />
+                      ) : (
+                        <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.stage}</p>
+                      </div>
+                    </Row>
+                  </ListRow>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="min-w-[280px] flex-1">
           <CardHeader>

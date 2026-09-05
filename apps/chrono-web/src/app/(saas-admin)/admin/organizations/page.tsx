@@ -300,6 +300,27 @@ export default function PlatformAdminOrganizationsPage() {
     },
     { key: "memberCount", header: "Users", sortable: true, render: (org) => org.memberCount },
     {
+      key: "onboarding",
+      header: "Onboarding",
+      render: (org) => (
+        <span data-testid="org-onboarding">
+          {org.onboarding.total === 0 ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <Badge
+              variant={
+                org.onboarding.completedCount === org.onboarding.total
+                  ? "success"
+                  : "secondary"
+              }
+            >
+              {org.onboarding.completedCount}/{org.onboarding.total}
+            </Badge>
+          )}
+        </span>
+      ),
+    },
+    {
       key: "status",
       header: "Status",
       render: (org) => (
