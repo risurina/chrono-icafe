@@ -321,6 +321,12 @@ export const app = baseApp
         "x-platform-admin",
         "x-upload-key",
         "x-upload-content-type",
+        // member-wallet-operation-hardening: a custom header is what forces
+        // the CORS preflight on the two mutating member-portal routes below
+        // (requireMemberActionHeader), and Idempotency-Key is the matching
+        // client-supplied replay-dedup header.
+        "x-member-action",
+        "Idempotency-Key",
       ],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),

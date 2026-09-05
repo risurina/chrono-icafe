@@ -206,9 +206,14 @@ async function main() {
 
   async function call(
     path: string,
-    opts: { method?: string; tenant?: { slug: string; memberToken: string }; body?: unknown } = {},
+    opts: {
+      method?: string;
+      tenant?: { slug: string; memberToken: string };
+      body?: unknown;
+      headers?: Record<string, string>;
+    } = {},
   ) {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...opts.headers };
     if (opts.body) headers["content-type"] = "application/json";
     if (opts.tenant) {
       headers["x-tenant-slug"] = opts.tenant.slug;
@@ -268,15 +273,46 @@ async function main() {
       "   for a fully-configured tenant), a wallet_topup checkout creates a pending payment\n" +
       "   row and returns a checkout URL.\n",
   );
+  const checkoutNoCsrfHeader = await call("/portal/payments/checkout", {
+    method: "POST",
+    tenant: tenantA,
+    body: { purpose: "wallet_topup", amount: "50.00" },
+  });
+  check(
+    "checkout: without the x-member-action CSRF-preflight header is rejected (400)",
+    checkoutNoCsrfHeader.status === 400,
+    `got ${checkoutNoCsrfHeader.status}`,
+  );
   const checkoutTopup = await call("/portal/payments/checkout", {
     method: "POST",
     tenant: tenantA,
+    headers: { "x-member-action": "1" },
     body: { purpose: "wallet_topup", amount: "50.00" },
   });
   check(
     "checkout: wallet_topup -> 201 with a paymentId and checkoutUrl",
     checkoutTopup.status === 201 && !!checkoutTopup.body?.paymentId && !!checkoutTopup.body?.checkoutUrl,
     JSON.stringify(checkoutTopup.body),
+  );
+  const checkoutReplay = await call("/portal/payments/checkout", {
+    method: "POST",
+    tenant: tenantA,
+    headers: { "x-member-action": "1", "Idempotency-Key": "test-idem-key-1" },
+    body: { purpose: "wallet_topup", amount: "50.00" },
+  });
+  const checkoutReplayAgain = await call("/portal/payments/checkout", {
+    method: "POST",
+    tenant: tenantA,
+    headers: { "x-member-action": "1", "Idempotency-Key": "test-idem-key-1" },
+    body: { purpose: "wallet_topup", amount: "75.00" },
+  });
+  check(
+    "checkout: a replayed Idempotency-Key returns the ORIGINAL paymentId/checkoutUrl unchanged",
+    checkoutReplay.status === 201 &&
+      checkoutReplayAgain.status === 200 &&
+      checkoutReplayAgain.body?.paymentId === checkoutReplay.body?.paymentId &&
+      checkoutReplayAgain.body?.checkoutUrl === checkoutReplay.body?.checkoutUrl,
+    JSON.stringify({ first: checkoutReplay.body, replay: checkoutReplayAgain.body }),
   );
   const [checkoutRow] = await withTenant(tenantA.tenantId, (tx) =>
     tx.select().from(chronoPayment).where(eq(chronoPayment.id, checkoutTopup.body.paymentId)),
