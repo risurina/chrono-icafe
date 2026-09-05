@@ -1,10 +1,30 @@
 import { Hono } from "hono";
-import { withTenant, eq, and, inArray, isNull, type TenantTx } from "agora/db";
-import { HttpError, zValidator, createRateLimiter } from "agora/server";
-import { createId } from "agora";
+import {
+  withTenant,
+  eq,
+  and,
+  asc,
+  desc,
+  gte,
+  lte,
+  ilike,
+  inArray,
+  isNull,
+  count,
+  sql,
+  type TenantTx,
+} from "agora/db";
+import { type TenantVars, HttpError, zValidator, createRateLimiter } from "agora/server";
+import { createId, buildPaginationMeta } from "agora";
+import { requirePermission } from "../../auth/require-permission";
 import { chronoAppUsageEvent } from "./schema";
 import { chronoSession } from "../session/schema";
-import { reportAppUsageEventsSchema } from "./contracts";
+import {
+  reportAppUsageEventsSchema,
+  appUsageCurrentQuerySchema,
+  appUsageListQuerySchema,
+  appUsageSummaryQuerySchema,
+} from "./contracts";
 import { requireDeviceBearerAuth, type DeviceAuthVars } from "../device/device-auth-middleware";
 
 // A run reporting longer than this is treated the same as a bad clock —
@@ -173,4 +193,138 @@ export function appUsageDeviceRoutes() {
         return c.json(result, 201);
       },
     );
+}
+
+/**
+ * Staff-facing app-usage routes (Phase 3), `appUsage:read`-gated — this
+ * module has no `manage` action at all (no human-triggered mutation exists).
+ * Composed as `.route("/app-usage", chronoAppUsageRoutes())` in
+ * `apps/chrono-api/src/routes/rpc.ts`. Named distinctly from the
+ * platform-global `appUsageRoutes` (agora/platform-admin's cross-tenant
+ * usage/limits routes) already imported in app.ts.
+ */
+export function chronoAppUsageRoutes() {
+  return new Hono<{ Variables: TenantVars }>()
+    // No own tenantMiddleware() — composed into `rpc`, which already applies
+    // it globally before this router is mounted.
+
+    // GET /current — "what's running right now" on a station. Served
+    // directly by the chrono_app_usage_current_idx partial index.
+    .get("/current", zValidator("query", appUsageCurrentQuerySchema), async (c) => {
+      requirePermission(c.var.tenant.permissions, { appUsage: ["read"] });
+      const { tenantId } = c.var.tenant;
+      const { stationId } = c.req.valid("query");
+
+      const rows = await withTenant(tenantId, (tx) =>
+        tx
+          .select()
+          .from(chronoAppUsageEvent)
+          .where(
+            and(
+              eq(chronoAppUsageEvent.tenantId, tenantId),
+              eq(chronoAppUsageEvent.stationId, stationId),
+              isNull(chronoAppUsageEvent.endedAt),
+            ),
+          )
+          .orderBy(desc(chronoAppUsageEvent.startedAt)),
+      );
+
+      return c.json({ items: rows });
+    })
+
+    // GET / — paginated history. Filters startedAt (domain time, when the
+    // run actually happened), never createdAt (row-write time).
+    .get("/", zValidator("query", appUsageListQuerySchema), async (c) => {
+      requirePermission(c.var.tenant.permissions, { appUsage: ["read"] });
+      const { tenantId } = c.var.tenant;
+      const { page, pageSize, sort, order, branchId, stationId, category, appName, from, to } =
+        c.req.valid("query");
+
+      const conds = [eq(chronoAppUsageEvent.tenantId, tenantId)];
+      if (branchId) conds.push(eq(chronoAppUsageEvent.branchId, branchId));
+      if (stationId) conds.push(eq(chronoAppUsageEvent.stationId, stationId));
+      if (category) conds.push(eq(chronoAppUsageEvent.category, category));
+      if (appName) conds.push(ilike(chronoAppUsageEvent.appName, `%${appName}%`));
+      if (from) conds.push(gte(chronoAppUsageEvent.startedAt, new Date(from)));
+      if (to) conds.push(lte(chronoAppUsageEvent.startedAt, new Date(to)));
+      const where = and(...conds);
+
+      const sortCol = sort === "appName" ? chronoAppUsageEvent.appName : chronoAppUsageEvent.startedAt;
+      const sortFn = order === "asc" ? asc : desc;
+
+      const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
+        const [total] = await tx
+          .select({ value: count() })
+          .from(chronoAppUsageEvent)
+          .where(where);
+        const rows = await tx
+          .select()
+          .from(chronoAppUsageEvent)
+          .where(where)
+          .orderBy(sortFn(sortCol))
+          .limit(pageSize)
+          .offset((page - 1) * pageSize);
+        return { rows, totalItems: total?.value ?? 0 };
+      });
+
+      return c.json({
+        items: rows,
+        meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
+      });
+    })
+
+    // GET /summary — aggregated totals (session count, total duration) per
+    // app/game, ordered by total duration desc. Server-side aggregation +
+    // pagination throughout — never fetch-all-then-aggregate client-side
+    // (.ai/rules/data-listing.md). totalItems is the count of DISTINCT
+    // (appName, category) groups, via the same two-query shape every other
+    // paginated list route in this app uses.
+    .get("/summary", zValidator("query", appUsageSummaryQuerySchema), async (c) => {
+      requirePermission(c.var.tenant.permissions, { appUsage: ["read"] });
+      const { tenantId } = c.var.tenant;
+      const { page, pageSize, branchId, category, from, to } = c.req.valid("query");
+
+      const conds = [
+        eq(chronoAppUsageEvent.tenantId, tenantId),
+        gte(chronoAppUsageEvent.startedAt, new Date(from)),
+        lte(chronoAppUsageEvent.startedAt, new Date(to)),
+      ];
+      if (branchId) conds.push(eq(chronoAppUsageEvent.branchId, branchId));
+      if (category) conds.push(eq(chronoAppUsageEvent.category, category));
+      const where = and(...conds);
+
+      const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
+        const groupedSq = tx
+          .select({
+            appName: chronoAppUsageEvent.appName,
+            category: chronoAppUsageEvent.category,
+          })
+          .from(chronoAppUsageEvent)
+          .where(where)
+          .groupBy(chronoAppUsageEvent.appName, chronoAppUsageEvent.category)
+          .as("grouped");
+        const [total] = await tx.select({ value: count() }).from(groupedSq);
+
+        const rows = await tx
+          .select({
+            appName: chronoAppUsageEvent.appName,
+            category: chronoAppUsageEvent.category,
+            sessionCount: sql<number>`count(*)::int`,
+            totalDurationSeconds: sql<number>`coalesce(sum(${chronoAppUsageEvent.durationSeconds}), 0)::int`,
+          })
+          .from(chronoAppUsageEvent)
+          .where(where)
+          .groupBy(chronoAppUsageEvent.appName, chronoAppUsageEvent.category)
+          .orderBy(sql`coalesce(sum(${chronoAppUsageEvent.durationSeconds}), 0) desc`)
+          .limit(pageSize)
+          .offset((page - 1) * pageSize);
+
+        return { rows, totalItems: total?.value ?? 0 };
+      });
+
+      return c.json({
+        items: rows,
+        meta: buildPaginationMeta(page, pageSize, totalItems),
+      });
+    });
 }

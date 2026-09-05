@@ -39,6 +39,7 @@
     "test:notification-templates": "tsx src/e2e/notification-templates.test.ts",
     "test:feature-resolution": "tsx src/e2e/feature-resolution.test.ts",
     "test:app-usage-ingest": "tsx src/modules/app-usage/ingest.test.ts",
+    "test:app-usage-retention": "tsx src/modules/app-usage/retention.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts && tsx src/db/rls.run.ts",
     "db:push": "drizzle-kit push && tsx src/db/rls.run.ts",

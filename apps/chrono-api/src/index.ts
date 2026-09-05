@@ -15,6 +15,7 @@ import { startQueueWorker } from "agora/queue";
 import { startSessionExpiryWorker } from "./modules/session/expiry";
 import { startCreditExpiryWorker } from "./modules/credit/expiry";
 import { startReservationSweepWorker } from "./modules/reservation/sweep";
+import { startAppUsageSweepWorker } from "./modules/app-usage/retention";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -62,6 +63,11 @@ const stopCreditExpiryWorker = startCreditExpiryWorker();
 // Phase 5.
 const stopReservationSweepWorker = startReservationSweepWorker();
 
+// Chrono: force-closes app-usage runs whose device has gone stale (the
+// orphaned-run policy) and prunes app-usage rows past the retention window —
+// see .ai/plans/chrono/in-progress/app-usage/README.md, Phase 3.
+const stopAppUsageSweepWorker = startAppUsageSweepWorker();
+
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     stopEmailWorker();
@@ -71,6 +77,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopSessionExpiryWorker();
     stopCreditExpiryWorker();
     stopReservationSweepWorker();
+    stopAppUsageSweepWorker();
     // Graceful realtime shutdown, in order: terminate every open socket in
     // this process (closeAllConnections — actually closes each ws, not just
     // registry bookkeeping), THEN drop every provider channel/listener, THEN

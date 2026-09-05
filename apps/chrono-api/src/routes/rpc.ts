@@ -86,6 +86,7 @@ import { loyaltyRoutes } from "../modules/loyalty/routes";
 import { voucherRoutes } from "../modules/voucher/routes";
 import { promoRoutes } from "../modules/promo/routes";
 import { staffDeviceRoutes } from "../modules/device/routes";
+import { chronoAppUsageRoutes } from "../modules/app-usage/routes";
 import { stationQrRoutes } from "../modules/qr/routes";
 import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
@@ -1404,6 +1405,9 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Chrono: inquiries, staff-facing (RLS-protected, staff/admin/owner read+manage) — apps/chrono-api/src/modules/inquiry ──
   .route("/inquiries", inquiryRoutes())
+
+  // ── Chrono: app-usage, staff-facing (RLS-protected, read-only, staff+ appUsage:read) — apps/chrono-api/src/modules/app-usage ──
+  .route("/app-usage", chronoAppUsageRoutes())
 
   // ── Chrono: landing-page settings editor, staff-facing (RLS-protected, admin+ manage) — apps/chrono-api/src/modules/landing-page ──
   // The foundation factory REPLACES chrono's own landingPageRoutes() rather
