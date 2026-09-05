@@ -150,17 +150,22 @@ function buildPaginationMeta(
   };
 }
 
-/** Wire shape for a staff-facing member-profile row (identity + venue fields
- * joined in one row) — never the raw Drizzle join result. */
+/** Wire shape for a staff-facing member row — every `tenantMember` belonging
+ * to the tenant, left-joined against its `chronoMemberProfile` (which may not
+ * exist: a global-customer "apply" or a directly-created `/rpc/customers` row
+ * has none). `profileId`/`applicationStatus`/`appliedAt`/`approvedAt`/
+ * `rejectedAt`/`phone` are null exactly when there is no profile row — never
+ * the raw Drizzle join result. */
 type MemberProfileListItem = {
-  id: string;
   memberId: string;
+  profileId: string | null;
   tenantId: string;
   name: string;
   email: string;
+  status: "active" | "suspended";
   phone: string | null;
-  applicationStatus: string;
-  appliedAt: string;
+  applicationStatus: string | null;
+  appliedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
   createdAt: string;
@@ -198,37 +203,46 @@ export function memberProfileRoutes() {
         const { tenantId } = c.var.tenant;
         requirePermission(c.var.tenant.permissions, { memberProfile: ["read"] });
         const { page, pageSize, sort, order } = c.req.valid("query");
+        // Sort by the profile column when one was requested — a null
+        // `appliedAt` (no profile row) sorts last in Postgres regardless of
+        // direction, which is an acceptable, non-crashing default; the list
+        // is still always ordered by `tenantMember.createdAt` as the
+        // fallback default (no profile-less bias for the common case).
         const sortCol =
-          sort === "appliedAt"
-            ? chronoMemberProfile.appliedAt
-            : chronoMemberProfile.createdAt;
+          sort === "appliedAt" ? chronoMemberProfile.appliedAt : base.tenantMember.createdAt;
         const sortFn = order === "asc" ? asc : desc;
 
+        // LEFT JOIN, not inner: every tenantMember belonging to this tenant
+        // must appear, including one with no chronoMemberProfile row (a
+        // global-customer "apply" or a directly-created /rpc/customers row —
+        // see .ai/plans/chrono/active/customers-members-merge/README.md).
         const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
           const [total] = await tx
             .select({ value: count() })
-            .from(chronoMemberProfile)
-            .innerJoin(
-              base.tenantMember,
+            .from(base.tenantMember)
+            .leftJoin(
+              chronoMemberProfile,
               eq(chronoMemberProfile.memberId, base.tenantMember.id),
             );
           const rows = await tx
             .select({
-              id: chronoMemberProfile.id,
-              memberId: chronoMemberProfile.memberId,
-              tenantId: chronoMemberProfile.tenantId,
+              memberId: base.tenantMember.id,
+              profileId: chronoMemberProfile.id,
+              tenantId: base.tenantMember.tenantId,
               name: base.tenantMember.name,
               email: base.tenantMember.email,
+              status: base.tenantMember.status,
               phone: chronoMemberProfile.phone,
               applicationStatus: chronoMemberProfile.applicationStatus,
               appliedAt: chronoMemberProfile.appliedAt,
               approvedAt: chronoMemberProfile.approvedAt,
               rejectedAt: chronoMemberProfile.rejectedAt,
               createdAt: chronoMemberProfile.createdAt,
+              memberCreatedAt: base.tenantMember.createdAt,
             })
-            .from(chronoMemberProfile)
-            .innerJoin(
-              base.tenantMember,
+            .from(base.tenantMember)
+            .leftJoin(
+              chronoMemberProfile,
               eq(chronoMemberProfile.memberId, base.tenantMember.id),
             )
             .orderBy(sortFn(sortCol))
@@ -238,17 +252,18 @@ export function memberProfileRoutes() {
         });
 
         const items: MemberProfileListItem[] = rows.map((r) => ({
-          id: r.id,
           memberId: r.memberId,
+          profileId: r.profileId,
           tenantId: r.tenantId,
           name: r.name,
           email: r.email,
+          status: r.status as "active" | "suspended",
           phone: r.phone,
           applicationStatus: r.applicationStatus,
-          appliedAt: r.appliedAt.toISOString(),
+          appliedAt: r.appliedAt ? r.appliedAt.toISOString() : null,
           approvedAt: r.approvedAt ? r.approvedAt.toISOString() : null,
           rejectedAt: r.rejectedAt ? r.rejectedAt.toISOString() : null,
-          createdAt: r.createdAt.toISOString(),
+          createdAt: (r.createdAt ?? r.memberCreatedAt).toISOString(),
         }));
 
         return c.json({

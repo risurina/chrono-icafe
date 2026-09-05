@@ -1165,57 +1165,12 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   // .ai/plans/chrono/active/members/README.md, "Permission vocabulary".
   .route("/member-profiles", memberProfileRoutes())
 
-  // ── Customers / DSAR (admin+): list, export, or delete one tenant_member ──
-  // The customer pool is RLS-scoped, so all reads/writes go through withTenant.
-  .get(
-    "/customers",
-    zValidator("query", listQuerySchema(["name", "email", "createdAt"])),
-    async (c) => {
-      const { tenantId } = c.var.tenant;
-      requirePermission(c.var.tenant.permissions, { customer: ["read"] });
-      const { page, pageSize, q, sort, order } = c.req.valid("query");
-      const where = q
-        ? or(
-            ilike(base.tenantMember.name, `%${q}%`),
-            ilike(base.tenantMember.email, `%${q}%`),
-          )
-        : undefined;
-      const sortCol =
-        sort === "name"
-          ? base.tenantMember.name
-          : sort === "email"
-            ? base.tenantMember.email
-            : base.tenantMember.createdAt;
-      const sortFn = order === "asc" ? asc : desc;
-
-      const { rows, totalItems } = await withTenant(tenantId, async (tx) => {
-        const [total] = await tx
-          .select({ value: count() })
-          .from(base.tenantMember)
-          .where(where);
-        const rows = await tx
-          .select({
-            id: base.tenantMember.id,
-            tenantId: base.tenantMember.tenantId,
-            email: base.tenantMember.email,
-            name: base.tenantMember.name,
-            status: base.tenantMember.status,
-            createdAt: base.tenantMember.createdAt,
-          })
-          .from(base.tenantMember)
-          .where(where)
-          .orderBy(sortFn(sortCol))
-          .limit(pageSize)
-          .offset((page - 1) * pageSize);
-        return { rows, totalItems: total?.value ?? 0 };
-      });
-      const items: Customer[] = rows.map(toCustomer);
-      return c.json({
-        items,
-        meta: buildPaginationMeta(page, pageSize, totalItems, sort, order),
-      });
-    },
-  )
+  // ── Customers / DSAR (admin+): create/edit/suspend/reactivate/export/delete
+  // one tenant_member. No list route here — `GET /rpc/member-profiles`
+  // (apps/chrono-api/src/modules/member/routes.ts) is the one merged listing
+  // surface for every tenantMember (profiled or not); see
+  // .ai/plans/chrono/active/customers-members-merge/README.md. The customer
+  // pool is RLS-scoped, so all reads/writes go through withTenant.
   // Create a customer directly (admin+, temp-password flow). Password is hashed
   // before the tx opens; duplicate (tenantId, email) → 409. RLS-scoped.
   .post("/customers", zValidator("json", createCustomerSchema), async (c) => {
