@@ -16,6 +16,7 @@ import {
   OnboardingChecklistCard,
   type OnboardingChecklistState,
 } from "@/components/dashboard/onboarding/onboarding-checklist-card";
+import { provisionDefaultsIfNeeded } from "@/lib/onboarding-defaults";
 
 type Me = { tenantSlug: string; role: string };
 
@@ -33,7 +34,11 @@ export default function OverviewPage() {
         toast.error("Could not load your tenant. Are you a member of this business?");
         return;
       }
-      setMe((await meRes.json()) as Me);
+      const meJson = (await meRes.json()) as Me;
+      setMe(meJson);
+      if (meJson.role === "owner" || meJson.role === "admin") {
+        void provisionDefaultsIfNeeded();
+      }
       const [p, m, b, o] = await Promise.all([
         api.rpc.projects.$get({ query: { pageSize: "1" } }),
         api.rpc.members.$get({ query: { pageSize: "1" } }),
