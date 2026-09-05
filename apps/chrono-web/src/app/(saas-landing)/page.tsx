@@ -36,7 +36,6 @@ import {
   CardContent,
   CardFooter,
   Badge,
-  FaqItem,
   StatTile,
   SectionHeading,
   Table,
@@ -60,6 +59,7 @@ import {
   TenantFooter,
 } from "@/components/landing/marketing-chrome";
 import { HeroChips } from "@/components/landing/hero-chips";
+import { FaqAccordion } from "@/components/landing/faq-accordion";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -710,14 +710,12 @@ export default async function Home() {
 
           <Section maxWidth="full" border="bottom">
             <div className="py-20">
-              <SectionHeading eyebrow="FAQ" title="Common questions." className="mb-8 max-w-prose" />
-              <div className="max-w-3xl">
-                {faqs.map(({ q, a }) => (
-                  <FaqItem key={q} question={q}>
-                    {a}
-                  </FaqItem>
-                ))}
-              </div>
+              <FaqAccordion
+                eyebrow="FAQ"
+                title="Common questions"
+                description="Everything you need to know about running your business on Chrono."
+                faqs={faqs}
+              />
             </div>
           </Section>
 
