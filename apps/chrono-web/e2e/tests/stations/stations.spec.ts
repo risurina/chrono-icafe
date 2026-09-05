@@ -18,8 +18,13 @@ const SEEDED_PASSWORD = "Password123!";
 
 async function findInviteLink(toEmail: string): Promise<string> {
   const deadline = Date.now() + 15_000;
+  // The console email driver logs the recipient's stored (lowercase-
+  // normalized) address, not the mixed-case value the invite form was
+  // filled with — case-insensitive match required, a pre-existing gap in
+  // this helper, unrelated to station-control-grouping.
   const pattern = new RegExp(
     `\\[email:console\\] to=${toEmail.replace(/[.+]/g, "\\$&")}.*?link=(\\S+)`,
+    "i",
   );
   while (Date.now() < deadline) {
     const log = readFileSync(DEV_LOG_PATH, "utf8");
@@ -61,13 +66,25 @@ async function createBranch(
   await expect(page.getByText(name)).toBeVisible();
 }
 
-/** Look up a branch's id from the tenant-scoped list. */
+/**
+ * Look up a branch's id from the tenant-scoped list.
+ *
+ * `x-tenant-slug` is required here — unlike the browser's own RPC client
+ * (which derives it from `window.location.host`), a raw `page.request` call
+ * has no tenant context of its own, and the API's `tenantMiddleware()`
+ * requires this header explicitly (no Host-header fallback). Pre-existing
+ * gap in this helper, unrelated to station-control-grouping — fixed here so
+ * the tenant-isolation test's own assertions (which this file's tab-rename
+ * fix depends on) are real.
+ */
 async function findBranchId(
   page: import("@playwright/test").Page,
+  slug: string,
   name: string,
 ): Promise<string> {
   const res = await page.request.get(`${API_URL}/rpc/branches`, {
     params: { pageSize: "100" },
+    headers: { "x-tenant-slug": slug },
   });
   expect(res.ok()).toBeTruthy();
   const body = (await res.json()) as { items: { id: string; name: string }[] };
@@ -113,7 +130,11 @@ test.describe("Stations", () => {
     await page.getByLabel("Number *").fill(stationNumber);
     await page.getByLabel("Name *").fill(stationName);
 
-    await page.getByRole("combobox", { name: "None" }).click();
+    // The trigger's accessible name comes from its associated
+    // <Label htmlFor="s-group">Group</Label>, not its displayed value
+    // ("None") — a pre-existing characteristic of this Select/Label
+    // pairing (confirmed via direct inspection), unrelated to grouping.
+    await page.getByRole("combobox", { name: "Group" }).click();
     await page.getByRole("option", { name: groupName }).click();
 
     await page.getByRole("button", { name: "Create station" }).click();
@@ -181,6 +202,9 @@ test.describe("Stations", () => {
     // Staff creates a station
     await page.goto(`${base}/admin/stations`);
     await page.waitForLoadState("networkidle");
+    // "Station Control" is now the default tab (station-control-grouping
+    // plan) — switch to the CRUD tab this test actually exercises.
+    await page.getByRole("tab", { name: "Manage Stations" }).click();
 
     await page.getByRole("button", { name: "Add Station" }).click();
     await page.getByLabel("Number *").fill(stationNumber);
@@ -221,7 +245,7 @@ test.describe("Stations", () => {
     // Tenant A
     await signUp(page, { name: "Tenant A", email: emailA, slug: slugA });
     await createBranch(page, baseA, branchNameA);
-    const branchIdA = await findBranchId(page, branchNameA);
+    const branchIdA = await findBranchId(page, slugA, branchNameA);
 
     // Create station for Tenant A via API to get its ID
     const createRes = await page.request.post(`${API_URL}/rpc/stations`, {
@@ -230,6 +254,7 @@ test.describe("Stations", () => {
         name: stationNameA,
         stationNumber: "001",
       },
+      headers: { "x-tenant-slug": slugA },
     });
     expect(createRes.ok()).toBeTruthy();
     const { station: stationA } = (await createRes.json()) as { station: { id: string } };
@@ -243,24 +268,36 @@ test.describe("Stations", () => {
     await pageB.goto(`${baseB}/admin/stations`);
     await pageB.waitForLoadState("networkidle");
     await expect(pageB.getByText(stationNameA)).toHaveCount(0);
-    
+
+    // "Station Control" is now the default tab (station-control-grouping
+    // plan) — switch to the CRUD tab this search assertion actually exercises.
+    await pageB.getByRole("tab", { name: "Manage Stations" }).click();
+
     // Search just to be sure
     await pageB.getByPlaceholder("Search stations…").fill("PC-01");
     await expect(pageB.getByText("No stations yet.")).toBeVisible();
     await expect(pageB.getByText(stationNameA)).toHaveCount(0);
 
-    // Direct API attempt from Tenant B to fetch Tenant A's station
-    const crossResGet = await pageB.request.get(`${API_URL}/rpc/stations/${stationA.id}`);
+    // Direct API attempt from Tenant B to fetch Tenant A's station — each
+    // call carries tenant B's own `x-tenant-slug` so it genuinely resolves
+    // to tenant B's context first (otherwise it 404s for the wrong reason:
+    // "Unknown tenant", not RLS-scoped isolation).
+    const crossResGet = await pageB.request.get(`${API_URL}/rpc/stations/${stationA.id}`, {
+      headers: { "x-tenant-slug": slugB },
+    });
     expect(crossResGet.status()).toBe(404);
 
     // Direct API attempt from Tenant B to edit Tenant A's station
     const crossResPatch = await pageB.request.patch(`${API_URL}/rpc/stations/${stationA.id}`, {
-      data: { name: "Hacked" }
+      data: { name: "Hacked" },
+      headers: { "x-tenant-slug": slugB },
     });
     expect(crossResPatch.status()).toBe(404);
 
     // Direct API attempt from Tenant B to delete Tenant A's station
-    const crossResDel = await pageB.request.delete(`${API_URL}/rpc/stations/${stationA.id}`);
+    const crossResDel = await pageB.request.delete(`${API_URL}/rpc/stations/${stationA.id}`, {
+      headers: { "x-tenant-slug": slugB },
+    });
     expect(crossResDel.status()).toBe(404);
 
     await ctxB.close();

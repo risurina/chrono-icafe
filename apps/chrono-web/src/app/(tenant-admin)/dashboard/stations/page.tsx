@@ -36,6 +36,7 @@ import { api } from "@/lib/rpc";
 import type { PaginationMeta } from "agora";
 import { connectChronoRealtime, onStationStatus } from "@/lib/realtime";
 import type { StationStatusEvent } from "@agora/chrono-api/realtime";
+import { StationControlBoard } from "@/components/dashboard/stations/station-control-board";
 
 type StationQrStatus = {
   stationId: string;
@@ -131,7 +132,7 @@ const EMPTY_GROUP_FORM: GroupFormState = {
 };
 
 export default function StationsPage() {
-  const [activeTab, setActiveTab] = useState("stations");
+  const [activeTab, setActiveTab] = useState("control");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [groups, setGroups] = useState<StationGroup[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
@@ -180,7 +181,7 @@ export default function StationsPage() {
   ]);
 
   const loadStations = useCallback(async () => {
-    if (activeTab !== "stations") return;
+    if (activeTab !== "manage-stations") return;
     const res = await (api.rpc as any).stations.$get({
       query: {
         page: String(query.page),
@@ -202,6 +203,21 @@ export default function StationsPage() {
     loadBranches();
   }, [loadBranches]);
 
+  // Auto-select the first branch once branches load and none is chosen yet —
+  // "Station Control" (the day-to-day floor-monitoring view) is the default
+  // tab, so it must not land on an empty "select a branch" state when a
+  // branch already exists. This shared `branchId` filter also drives the
+  // "Manage Stations"/"Groups & Rates" tabs (deliberate — one branch filter
+  // for the whole page, per the plan's page-level `branchId` design), so
+  // auto-selecting here changes their default from "All branches" to the
+  // first branch too, not just the board's.
+  useEffect(() => {
+    if (!branchId && branches.length > 0) {
+      query.setFilters({ branchId: branches[0]!.id });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branches, branchId]);
+
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
@@ -217,7 +233,7 @@ export default function StationsPage() {
   // here; a page reload or filter change still gets the authoritative list
   // from `loadStations()` above.
   useEffect(() => {
-    if (activeTab !== "stations" || !branchId) return;
+    if (activeTab !== "manage-stations" || !branchId) return;
     const connection = connectChronoRealtime([`branch:${branchId}`]);
     const offStatus = onStationStatus(connection, (event: StationStatusEvent) => {
       setStations((prev) =>
@@ -588,11 +604,16 @@ export default function StationsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="stations">Stations</TabsTrigger>
+          <TabsTrigger value="control">Station Control</TabsTrigger>
+          <TabsTrigger value="manage-stations">Manage Stations</TabsTrigger>
           <TabsTrigger value="groups">Groups & Rates</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="stations" className="space-y-4 pt-4">
+        <TabsContent value="control" className="space-y-4 pt-4">
+          <StationControlBoard branchId={branchId} />
+        </TabsContent>
+
+        <TabsContent value="manage-stations" className="space-y-4 pt-4">
           <div className="flex justify-between items-center">
             <DataTableToolbar
               q={query.q}

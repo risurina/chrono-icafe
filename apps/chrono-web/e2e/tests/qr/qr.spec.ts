@@ -67,6 +67,9 @@ async function createBranchAndStation(
 
   await page.goto(`${base}/admin/stations`);
   await page.waitForLoadState("networkidle");
+  // "Station Control" is now the default tab (station-control-grouping
+  // plan) — switch to the CRUD tab this helper actually exercises.
+  await page.getByRole("tab", { name: "Manage Stations" }).click();
 
   // A station needs a pricing group before a session can be started on it
   // (qr Phase 5 / sessions' own "no pricing group" guard) — required for any
@@ -79,7 +82,7 @@ async function createBranchAndStation(
     await page.getByLabel("Hourly Rate ($) *").fill("10.00");
     await page.getByRole("button", { name: "Create group" }).click();
     await expect(page.getByText(groupName).first()).toBeVisible();
-    await page.getByRole("tab", { name: "Stations" }).click();
+    await page.getByRole("tab", { name: "Manage Stations" }).click();
   }
 
   await page.getByRole("button", { name: /add station/i }).click();

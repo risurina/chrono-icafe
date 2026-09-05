@@ -760,6 +760,127 @@ async function main() {
     );
   }
 
+  // ── Chrono station board (GET /rpc/stations/board) ──
+  // station-control-grouping plan, Phase 1: offline (non-Playwright)
+  // coverage for the aggregate read the Station Control board is built on —
+  // this is the only coverage that runs without a human driving Playwright.
+  {
+    const { chronoBranch } = await import("../modules/branch/schema");
+    const { chronoStation, chronoStationGroup } = await import("../modules/station/schema");
+
+    const [boardBranch] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoBranch)
+        .values({ id: createId(), tenantId: acmeId, name: "Board Branch", code: "BOARD" })
+        .returning(),
+    );
+    const [boardGroup] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoStationGroup)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          branchId: boardBranch!.id,
+          name: "Board Group",
+          code: "BOARDGRP",
+          hourlyRate: "10.00",
+        })
+        .returning(),
+    );
+    const [groupedStation] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoStation)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          branchId: boardBranch!.id,
+          stationGroupId: boardGroup!.id,
+          name: "Board PC 1",
+          stationNumber: "BP-01",
+        })
+        .returning(),
+    );
+    const [ungroupedStation] = await withTenant(acmeId, (tx) =>
+      tx
+        .insert(chronoStation)
+        .values({
+          id: createId(),
+          tenantId: acmeId,
+          branchId: boardBranch!.id,
+          name: "Board PC 2",
+          stationNumber: "BP-02",
+        })
+        .returning(),
+    );
+
+    // Happy read: staff owner sees both stations, group name denormalized,
+    // no active session on either (none started), no `qrSecret` leak.
+    const boardOwner = await req("GET", `/rpc/stations/board?branchId=${boardBranch!.id}`, {
+      slug: "acme",
+      cookie: ownerCk,
+    });
+    const boardStations: Array<Record<string, unknown>> = boardOwner.body?.stations ?? [];
+    check(
+      "stations/board: 200, both stations present",
+      boardOwner.status === 200 && boardStations.length === 2,
+      `status ${boardOwner.status} count ${boardStations.length}`,
+    );
+    const boardGrouped = boardStations.find((s) => s.id === groupedStation!.id);
+    const boardUngrouped = boardStations.find((s) => s.id === ungroupedStation!.id);
+    check(
+      "stations/board: grouped station carries its group name, no active session",
+      boardGrouped?.stationGroupName === "Board Group" && boardGrouped?.activeSession === null,
+      JSON.stringify(boardGrouped),
+    );
+    check(
+      "stations/board: ungrouped station has a null group and no active session",
+      boardUngrouped?.stationGroupId === null &&
+        boardUngrouped?.stationGroupName === null &&
+        boardUngrouped?.activeSession === null,
+      JSON.stringify(boardUngrouped),
+    );
+    check(
+      "stations/board: never leaks qrSecret/qrSecretVersion",
+      boardStations.every((s) => !("qrSecret" in s) && !("qrSecretVersion" in s)),
+      JSON.stringify(boardStations),
+    );
+
+    // Missing branchId → 400 (Zod validation).
+    const boardMissingBranch = await req("GET", "/rpc/stations/board", { slug: "acme", cookie: ownerCk });
+    check(
+      "stations/board: missing branchId 400s",
+      boardMissingBranch.status === 400,
+      `status ${boardMissingBranch.status}`,
+    );
+
+    // Cross-tenant: contoso staff reading acme's branchId gets an EMPTY
+    // array (RLS-scoped), never acme's rows and never a 404 — matches this
+    // module's existing "empty, not 404" convention for a branchId filter.
+    const boardContosoCk = await staffCookie("owner@contoso.test");
+    const boardCrossTenant = await req("GET", `/rpc/stations/board?branchId=${boardBranch!.id}`, {
+      slug: "contoso",
+      cookie: boardContosoCk,
+    });
+    check(
+      "stations/board: cross-tenant read returns an empty array, not acme's rows",
+      boardCrossTenant.status === 200 && (boardCrossTenant.body?.stations ?? []).length === 0,
+      `status ${boardCrossTenant.status} body ${JSON.stringify(boardCrossTenant.body)}`,
+    );
+
+    // Role gate: a portal/member cookie (not staff) is refused by
+    // tenantMiddleware() before the handler runs, same as every other
+    // /rpc/* route.
+    const boardPortalCookie = await req("GET", `/rpc/stations/board?branchId=${boardBranch!.id}`, {
+      slug: "acme",
+      cookie: custCk,
+    });
+    check(
+      "stations/board: portal/customer cookie refused on the staff route (401)",
+      boardPortalCookie.status === 401,
+      `status ${boardPortalCookie.status}`,
+    );
+  }
+
   // I. DB-level RLS proof: acme context cannot read contoso's row.
   const leak = await withTenant(acmeId, (tx) =>
     tx.select().from(project).where(eq(project.id, contosoProject!.id)),

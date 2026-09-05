@@ -29,6 +29,7 @@ import {
 import { useListQuery } from "agora/ui";
 import { type PaginationMeta } from "agora";
 import { api } from "@/lib/rpc";
+import { computeElapsedSeconds, formatDuration } from "@/lib/session-time";
 // Types derived from RPC client types
 type SessionRow = {
   id: string;
@@ -57,32 +58,6 @@ type SessionRow = {
 
 type Branch = { id: string; name: string; code: string };
 type Station = { id: string; name: string; status: string; branchId: string };
-
-function computeElapsedSeconds(s: SessionRow, nowMs: number): number {
-  if (s.status === "ended") {
-    if (s.endedAt) {
-        return Math.floor((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000);
-    }
-    return 0;
-  }
-  
-  const start = new Date(s.startedAt).getTime();
-  let elapsed = Math.floor((nowMs - start) / 1000);
-  
-  if (s.status === "paused" && s.pausedAt) {
-    const pauseStart = new Date(s.pausedAt).getTime();
-    elapsed -= Math.floor((nowMs - pauseStart) / 1000);
-  }
-  
-  return Math.max(0, elapsed);
-}
-
-function formatDuration(seconds: number): string {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-}
 
 export default function SessionsPage() {
   const query = useListQuery(["branchId", "status"]);
