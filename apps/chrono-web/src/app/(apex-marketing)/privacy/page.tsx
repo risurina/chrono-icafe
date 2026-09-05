@@ -43,7 +43,7 @@ const SECTIONS = [
 
 export default function PrivacyPage() {
   return (
-    <Section maxWidth="lg" className="pb-24 pt-32">
+    <Section maxWidth="full" className="pb-24 pt-32">
       <div className="mx-auto max-w-3xl">
         <div className="mb-12 border-b border-border pb-12">
           <span className={EYEBROW}>Privacy Policy</span>

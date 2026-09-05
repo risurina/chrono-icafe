@@ -231,7 +231,7 @@ export default async function DownloadPage() {
     <>
       {/* pt-32 clears the shared fixed 80px header, same as every other
           apex-marketing page's first section. */}
-      <Section className="pb-16 pt-32">
+      <Section maxWidth="full" className="pb-16 pt-32">
         <Grid cols={2} gap={4} className="items-center">
           <Stack gap={6}>
             <span className="text-xs font-black uppercase tracking-[0.3em] text-primary">
@@ -305,7 +305,7 @@ export default async function DownloadPage() {
         </Grid>
       </Section>
 
-      <Section id="releases" border="top" className="py-20">
+      <Section id="releases" maxWidth="full" border="top" className="py-20">
         <Stack gap={8}>
           <SectionHeading
             eyebrow="Releases"

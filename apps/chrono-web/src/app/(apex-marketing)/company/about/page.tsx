@@ -66,7 +66,7 @@ export default function AboutIzurPage() {
           treatment as the apex landing hero (`(saas-landing)/page.tsx`),
           which shares this route group's fixed, transparent-until-scroll
           `MarketingHeader`. */}
-      <Section className="pb-20 pt-32 lg:pb-28 lg:pt-40">
+      <Section maxWidth="full" className="pb-20 pt-32 lg:pb-28 lg:pt-40">
         <Stack gap={6} className="max-w-3xl">
           <Badge variant="secondary" className="w-fit uppercase tracking-widest">
             About IZUR
@@ -90,7 +90,7 @@ export default function AboutIzurPage() {
         </Stack>
       </Section>
 
-      <Section border="top" tone="muted" className="py-16">
+      <Section maxWidth="full" border="top" tone="muted" className="py-16">
         <Card className="mx-auto max-w-3xl">
           <CardContent className="flex gap-4 p-8">
             <Quote className="h-8 w-8 shrink-0 text-primary" aria-hidden />
@@ -104,7 +104,7 @@ export default function AboutIzurPage() {
         </Card>
       </Section>
 
-      <Section className="py-16">
+      <Section maxWidth="full" className="py-16">
         <Grid cols={2} gap={4}>
           {CREDIBILITY_CARDS.map(({ title, description, icon: Icon }) => (
             <Card key={title}>
