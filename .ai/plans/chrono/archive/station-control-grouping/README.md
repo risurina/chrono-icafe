@@ -1,6 +1,9 @@
 # Station Control: group by station group, surface live session state on the card
 
-Status: Draft — awaiting approval.
+Status: **Done.** Phases 1, 3, and 4 implemented and verified (typecheck, `rls:proof`,
+and Playwright e2e all green). Phase 2 (session transfer) deferred per developer
+decision — Phases 1/3/4 shipped a fully working board without Transfer; a follow-up
+plan should cover Phase 2 if/when needed.
 App: chrono (`apps/chrono-api` + `apps/chrono-web`)
 
 ## Problem
@@ -531,21 +534,17 @@ generated slugs/emails, no seeded fixtures, per `.ai/rules/e2e-testing.md`):
    station number renders. Start a session on one VIP station from its card, assert the
    card now shows the member's name and a ticking timer, Pause it, assert the button
    set changes to "Resume", Add Time, then End it, assert the card returns to
-   "available" with no customer/timer. If Phase 2 shipped: start a session, Transfer it
-   to the branch's other available VIP station, assert the original station's card
-   returns to available and the destination shows the session.
+   "available" with no customer/timer. (No Transfer case — Phase 2 is deferred.)
 2. **Role gate** (matches `sessions.spec.ts`'s own "no staff-denial case by design"
    precedent — the axis here is portal-member vs. staff, not staff-vs-admin): a portal
-   member's session cookie calling `GET /rpc/stations/board` and
-   `POST /rpc/sessions/:id/transfer` (if built) gets 401/403, exactly like the existing
-   cross-check in `sessions.spec.ts`'s role-gate test.
+   member's session cookie calling `GET /rpc/stations/board` gets 401/403, exactly like
+   the existing cross-check in `sessions.spec.ts`'s role-gate test.
 3. **Tenant isolation**: tenant B's `/admin/stations` Station Control view never shows
    tenant A's stations/groups/sessions; a direct `GET /rpc/stations/board?branchId=<A's
    branch>` call from tenant B's session returns an empty `stations` array (RLS-scoped,
    no cross-tenant leak — matches this module's existing "empty, not 404" convention for
    a branchId filter, since branchId itself isn't validated for ownership on this read
-   path per Phase 1); a direct cross-tenant `POST /rpc/sessions/:id/transfer` (if built)
-   404s, matching the existing pause/end/extend 404 precedent in `sessions.spec.ts`.
+   path per Phase 1).
 
 **Acceptance criteria:** all 3 cases pass headed, per this repo's existing manual
 Playwright setup (`pnpm dev` running first, no `apps/chrono-api/.env` present).
@@ -569,15 +568,14 @@ for the exact helper functions — `signUp`, `portalSignUp`, `createBranchStatio
   the 500ms debounce. Mitigated by the same debounce plus the 15s poll being a floor,
   not a ceiling — not expected to be a real problem at this scale, but worth watching in
   practice.
-- **Phase 2's business-rule risk** (re-rating on transfer) is exactly why Open Question
-  2 exists — implementing it before that's answered risks building the wrong billing
-  behavior.
+- **Phase 2 (Transfer) is deferred entirely** — its business-rule risk (re-rating on
+  transfer) is exactly why isolating it from this pass was the right call; a follow-up
+  plan picks up the fully-specified design above when Transfer is actually requested.
 - **Tab rename regression**: covered by re-running the two existing specs unmodified in
   Phase 3's own verification step.
 
 ## Plan Closure
 
-Move this plan from `.ai/plans/chrono/active/` to `.ai/plans/chrono/archive/` once Phase
-4 passes (or once Phases 1/3/4 pass, if Transfer/Phase 2 is deferred per Open Question
-1 — in that case, leave a note here and in the closing commit that Phase 2 is tracked
-separately, not silently dropped).
+Move this plan from `.ai/plans/chrono/active/` to `.ai/plans/chrono/archive/` once
+Phases 1, 3, and 4 pass. Phase 2 (Transfer) is deferred, not dropped — note in the
+closing commit that it remains fully specified above for a future follow-up plan.
