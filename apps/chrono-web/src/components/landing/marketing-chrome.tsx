@@ -50,9 +50,10 @@ const CTA_PILL =
 
 const NAV = [
   { label: "Features", href: "/#features" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "About", href: "/about" },
-  { label: "Support", href: "/contact" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "About", href: "/company/about" },
+  { label: "Support", href: "/support" },
+  { label: "Download", href: "/download" },
   { label: "Login", href: "/login" },
 ];
 
@@ -87,7 +88,7 @@ export function MarketingHeader() {
             <ThemeToggle />
           </Row>
           <Link
-            href="/contact"
+            href="/company/contact"
             className={cn(buttonVariants(), CTA_PILL)}
             data-testid="marketing-cta"
           >
@@ -225,18 +226,20 @@ const FOOTER_COLUMNS: FooterColumn[] = [
     heading: "Platform",
     links: [
       { label: "Features", href: "/#features" },
-      { label: "Private Demo", href: "/contact" },
+      { label: "Private Demo", href: "/company/contact" },
       { label: "Pricing", href: "/#pricing" },
       { label: "Information", href: "/#faq" },
+      { label: "Download", href: "/download" },
+      { label: "Support", href: "/support" },
     ],
   },
   {
     heading: "Company",
     links: [
-      { label: "About IZUR", href: "/about" },
+      { label: "About IZUR", href: "/company/about" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
-      { label: "Contact", href: "/contact" },
+      { label: "Contact", href: "/company/contact" },
     ],
   },
 ];
@@ -247,9 +250,9 @@ const FOOTER_COLUMNS: FooterColumn[] = [
 // auth page once this footer was reused there
 // (`.ai/plans/chrono/archive/auth-page-header-footer/README.md`).
 const SOCIAL_LINKS = [
-  { href: "/contact", label: "Message Chrono", Icon: Mail },
-  { href: "/contact", label: "Call Chrono", Icon: Phone },
-  { href: "/about", label: "About Chrono", Icon: Globe },
+  { href: "/company/contact", label: "Message Chrono", Icon: Mail },
+  { href: "/company/contact", label: "Call Chrono", Icon: Phone },
+  { href: "/company/about", label: "About Chrono", Icon: Globe },
 ];
 
 /** The pulsing "live" dot — `chart-2` is the palette's emerald. */
