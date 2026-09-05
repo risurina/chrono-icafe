@@ -272,9 +272,14 @@ the existing `startRetentionWorker()` call from `agora`.
 
 **Acceptance Criteria**
 - Migration applies cleanly; `ChronoAppUsageEvents` exists with FORCE RLS.
-- `pnpm --filter @agora/chrono-api rls:proof` passes (add a probe row for this table if
-  the proof script enumerates `APP_TENANT_TABLES` generically — confirm against the
-  actual proof script shape before assuming).
+- `pnpm --filter @agora/chrono-api rls:proof` passes — this only proves the RLS
+  *mechanism* (forced RLS, non-bypassing app role); it does **not** probe
+  `ChronoAppUsageEvents` or any other Chrono table specifically (confirmed:
+  `apps/chrono-api/src/rls-proof.ts` is an unmodified copy of the scaffold's own proof,
+  hardcoded to four foundation tables — see
+  `.ai/analysis/2026-09-05-chrono-rls-proof-gap.md`, filed separately, not fixed here).
+  The real per-table isolation proof for this module is Phase 5's e2e cross-tenant
+  assertion.
 
 **Verification Commands**
 - `pnpm typecheck`
