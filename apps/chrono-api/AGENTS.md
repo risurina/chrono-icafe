@@ -233,6 +233,48 @@ product going unsellable between checkout and webhook delivery) and
 `docs/runbooks/customer-payment-webhook.md` for registering the webhook URL
 in PayMongo and what an amount-mismatch row means operationally.
 
+### Operation hardening (member-wallet-operation-hardening plan)
+
+Both member-initiated mutations above, plus `POST /portal/credits/purchase`
+(`modules/credit/portal-routes.ts`, the wallet-funded catalog purchase used
+by `/member/promos/[id]`), carry three additional defenses — see
+`.ai/plans/chrono/active/member-wallet-operation-hardening/README.md` for the
+full design:
+
+- **CSRF-preflight header.** Every mutating handler calls
+  `requireMemberActionHeader(c)` (`agora/member-auth`) first, before any DB
+  work — mirrors `requireAdminHeader`'s platform-admin precedent. Requires
+  `x-member-action: 1`; missing it is a 400 before the handler does anything
+  else. `x-member-action` (and `Idempotency-Key`, below) are in `app.ts`'s
+  CORS `allowHeaders` — a custom header is what forces the preflight, so the
+  origin allowlist (`corsOrigin`) actually gets to run.
+- **Optional `Idempotency-Key` header.** A client-supplied key, looked up
+  against `chronoCreditPurchase.idempotencyKey` /
+  `chronoPayment.idempotencyKey` (both a nullable column with a partial
+  unique index on `(tenantId, memberId, idempotencyKey)`) before the mutation
+  runs. Found → the ORIGINAL result is returned unchanged (200), no second
+  wallet debit / no second PSP checkout session. Not found → proceeds
+  normally, persisting the key. Omitted → today's behavior, unprotected. A
+  race between two concurrent requests sharing a key is caught on the
+  resulting unique-violation and resolved to the winner's row. `chronoPayment`
+  also gained a `checkoutUrl` column so a replayed checkout can return the
+  exact same redirect URL (previously only `providerReference`, the PSP's own
+  id, was stored). The web client (`lib/member/payments.ts`,
+  `lib/member/credits.ts`, and the `/member/wallet` / `/member/promos/[id]`
+  components) generates this per user-initiated attempt and keeps it stable
+  across a retry of that same attempt.
+- **Fail-closed rate limiting.** `checkoutLimiter` / `purchaseLimiter` both
+  pass `{ failOpen: false }` to `createRateLimiter` (`agora/server`) — on a
+  Redis/Upstash outage these two money-moving routes block (429) rather than
+  silently dropping throttling, the opposite of the process-wide
+  `RATE_LIMIT_FAIL_OPEN` default every other limiter in this app still uses.
+
+Explicitly out of scope for this pass (see the plan's own "Out of scope"):
+MFA/step-up auth, broader member-portal session/lockout hardening, and a
+daily/rolling online-payment velocity ceiling — considered and declined by
+the developer; the per-transaction ₱20–₱10,000 bound and the 10/15min
+checkout throttle remain the only volume limits.
+
 ## Landing pages
 
 Chrono's public surfaces are the apex marketing page (`(saas-landing)/page.tsx`)
