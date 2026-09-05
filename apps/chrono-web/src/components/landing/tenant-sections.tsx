@@ -191,11 +191,11 @@ export function TenantHero({
     <Section
       maxWidth="full"
       border="bottom"
-      className="premium-dots relative overflow-hidden"
+      className="premium-dots relative flex min-h-[calc(100svh)] overflow-hidden"
+      containerClassName="mt-20 flex items-center"
       data-testid="landing-section-hero"
     >
-      {/* pt clears the 80px fixed header; the background bleeds up behind it. */}
-      <Grid cols={2} gap={4} className="items-center pb-24 pt-40 lg:gap-16">
+      <Grid cols={2} gap={4} className="w-full items-center lg:gap-16">
         <Stack gap={8} className="flex flex-col items-start text-left">
           {eyebrow ? (
             <Row
