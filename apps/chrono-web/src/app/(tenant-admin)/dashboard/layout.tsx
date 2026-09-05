@@ -23,6 +23,7 @@ import {
   MessageSquare,
   CreditCard,
   Scale,
+  AppWindow,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -70,6 +71,9 @@ const BASE_NAV: NavItem[] = [
   // not deleted; page and API routes are untouched, may be reused later.
   { type: "item", name: "Branches", href: "/branches", icon: Building2 },
   { type: "item", name: "Devices", href: "/devices", icon: MonitorSmartphone },
+  // Permission-gated below (appUsage:read) — filtered out of NAV, not listed
+  // as always-visible, since a custom tenant role may not hold it.
+  { type: "item", name: "App Usage", href: "/app-usage", icon: AppWindow },
 
   // Branch-scoped, staff-facing floor operations (what a shift worker touches
   // day to day at a single branch) — grouped separately from Business/Money.
@@ -125,6 +129,7 @@ const TITLES: Record<string, string> = {
   "/admin/branches": "Branches",
   "/admin/stations": "Stations",
   "/admin/devices": "Devices",
+  "/admin/app-usage": "App Usage",
   "/admin/shifts": "Shifts",
   "/admin/sessions": "Sessions",
   "/admin/members": "Members",
@@ -188,6 +193,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: orgs } = useListOrganizations();
   const pathname = usePathname();
   const [projectsEnabled, setProjectsEnabled] = useState(true);
+  // null = not yet loaded — the App Usage nav entry stays visible until then
+  // (no flash), same reasoning as projectsEnabled's true default above.
+  const [permissions, setPermissions] = useState<Record<string, string[]> | null>(null);
 
   useRegisterUploadTarget<UploadTarget>(DEFAULT_UPLOAD_TARGET);
 
@@ -206,9 +214,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [session]);
 
-  const NAV = projectsEnabled
-    ? BASE_NAV
-    : BASE_NAV.filter((item) => item.type !== "item" || item.href !== "/projects");
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      const res = await api.rpc.me.$get();
+      if (cancelled || !res.ok) return;
+      const body = await res.json();
+      setPermissions(body.permissions ?? {});
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  // Visibility only — the server route is the real gate
+  // (.ai/rules/rbac.md). Every system role holds appUsage:read, so this only
+  // matters for a custom tenant role that doesn't grant it.
+  const appUsageVisible = permissions === null || (permissions.appUsage ?? []).includes("read");
+
+  const NAV = (
+    projectsEnabled
+      ? BASE_NAV
+      : BASE_NAV.filter((item) => item.type !== "item" || item.href !== "/projects")
+  ).filter((item) => appUsageVisible || item.type !== "item" || item.href !== "/app-usage");
 
   useEffect(() => {
     if (!isPending && !session) window.location.href = "/admin/login";
