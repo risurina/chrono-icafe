@@ -1,6 +1,13 @@
 # Chrono follow-up: auth-page header/footer chrome
 
-Status: Approved 2026-09-05. Not started.
+Status: Implemented and archived 2026-09-05. All 5 phases complete, all
+verification commands (`pnpm typecheck` per phase, manual `pnpm dev` checks
+across the full page inventory, and the new e2e spec) passed. One deviation
+from the plan's file list: `new-business/page.tsx` had its own hand-rolled
+`PageShell`/`SiteHeader`/`SiteFooter` (pre-existing, not called out in the
+plan) that duplicated `StaffAuthChrome` once wrapped — stripped in Phase 3 to
+match `apps/agora-web`'s `new-workspace/page.tsx`, which never had this
+duplication.
 
 ## Context
 
