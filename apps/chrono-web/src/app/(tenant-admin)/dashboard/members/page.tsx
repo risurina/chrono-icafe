@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import Link from "next/link";
 import type { PaginationMeta } from "agora";
 import {
   DataTable,
@@ -34,11 +33,13 @@ import { api } from "@/lib/rpc";
 
 type Member = {
   memberId: string;
+  profileId: string | null;
   name: string;
   email: string;
+  status: "active" | "suspended";
   phone: string | null;
-  applicationStatus: "pending" | "approved" | "rejected";
-  appliedAt: string;
+  applicationStatus: "pending" | "approved" | "rejected" | null;
+  appliedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
 };
@@ -59,6 +60,14 @@ export default function MembersPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newCust, setNewCust] = useState({ email: "", name: "", password: "" });
+  const [creating, setCreating] = useState(false);
+  const [editCustFor, setEditCustFor] = useState<{
+    memberId: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   const loadPendingCount = useCallback(async () => {
     const res = await api.rpc["member-profiles"]["pending-count"].$get();
@@ -207,6 +216,100 @@ export default function MembersPage() {
     }
   }
 
+  // ── Customer account actions (merged in from the retired Customers
+  // settings page — see .ai/plans/chrono/active/customers-members-merge/README.md.
+  // These act on the same tenantMember row as the player fields above; a row
+  // with no chronoMemberProfile (profileId === null) only ever gets these. ──
+
+  async function createCustomer(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = await api.rpc.customers.$post({ json: newCust });
+      if (res.ok) {
+        toast.success("Customer created.");
+        setCreateOpen(false);
+        setNewCust({ email: "", name: "", password: "" });
+        loadAll();
+      } else if ((res.status as number) === 403) {
+        toast.error("Only admins can create customers.");
+      } else if ((res.status as number) === 409) {
+        toast.error("A customer with that email already exists.");
+      } else {
+        toast.error("Could not create the customer.");
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function saveCustomerEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editCustFor) return;
+    const res = await api.rpc.customers[":id"].$patch({
+      param: { id: editCustFor.memberId },
+      json: { name: editCustFor.name, email: editCustFor.email },
+    });
+    if (res.ok) {
+      toast.success("Customer updated.");
+      setEditCustFor(null);
+      loadAll();
+    } else if ((res.status as number) === 403) {
+      toast.error("Only admins can edit customers.");
+    } else if ((res.status as number) === 409) {
+      toast.error("A customer with that email already exists.");
+    } else {
+      toast.error("Could not update the customer.");
+    }
+  }
+
+  async function setCustomerSuspended(memberId: string, suspend: boolean) {
+    const res = suspend
+      ? await api.rpc.customers[":id"].suspend.$post({ param: { id: memberId } })
+      : await api.rpc.customers[":id"].reactivate.$post({ param: { id: memberId } });
+    if (res.ok) {
+      toast.success(suspend ? "Customer suspended." : "Customer reactivated.");
+      loadAll();
+    } else if ((res.status as number) === 403) {
+      toast.error("Only admins can change a customer's status.");
+    } else {
+      toast.error("Could not update the customer.");
+    }
+  }
+
+  async function exportCustomer(memberId: string, email: string) {
+    const res = await api.rpc.customers[":id"].export.$get({ param: { id: memberId } });
+    if (!res.ok) {
+      toast.error(
+        (res.status as number) === 403
+          ? "Only admins can export customer data."
+          : "Could not export this customer.",
+      );
+      return;
+    }
+    const bundle = await res.json();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `customer-${email}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Customer data exported.");
+  }
+
+  async function deleteCustomer(memberId: string) {
+    const res = await api.rpc.customers[":id"].$delete({ param: { id: memberId } });
+    if (res.ok) {
+      toast.success("Customer data deleted.");
+      loadAll();
+    } else if ((res.status as number) === 403) {
+      toast.error("Only admins can delete customer data.");
+    } else {
+      toast.error("Could not delete this customer.");
+    }
+  }
+
   return (
     <Stack gap={8}>
       <div>
@@ -237,9 +340,16 @@ export default function MembersPage() {
               view={query.view}
               onViewChange={query.setView}
             />
-            <Can permissions={me?.permissions} resource="memberProfile" action="invite">
-              <Button onClick={() => setInviteOpen(true)}>Invite player</Button>
-            </Can>
+            <Row gap={2}>
+              <Can permissions={me?.permissions} resource="customer" action="create">
+                <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                  Create customer
+                </Button>
+              </Can>
+              <Can permissions={me?.permissions} resource="memberProfile" action="invite">
+                <Button onClick={() => setInviteOpen(true)}>Invite player</Button>
+              </Can>
+            </Row>
           </Row>
 
           {(() => {
@@ -273,22 +383,70 @@ export default function MembersPage() {
                   </form>
                 );
               }
+              if (editCustFor?.memberId === member.memberId) {
+                return (
+                  <form
+                    onSubmit={saveCustomerEdit}
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    <Input
+                      placeholder="Full name"
+                      className="min-w-32 flex-1"
+                      value={editCustFor.name}
+                      onChange={(e) =>
+                        setEditCustFor((s) => s && { ...s, name: e.target.value })
+                      }
+                      required
+                    />
+                    <Input
+                      type="email"
+                      placeholder="customer@example.com"
+                      className="min-w-40 flex-1"
+                      value={editCustFor.email}
+                      onChange={(e) =>
+                        setEditCustFor((s) => s && { ...s, email: e.target.value })
+                      }
+                      required
+                    />
+                    <Button type="submit" size="sm">
+                      Save
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditCustFor(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </form>
+                );
+              }
               return (
                 <Row shrink items="center">
                   <Badge
-                    variant={
-                      member.applicationStatus === "approved"
-                        ? "success"
-                        : member.applicationStatus === "rejected"
-                          ? "destructive"
-                          : "warning"
-                    }
+                    variant={member.status === "active" ? "success" : "warning"}
                     className="capitalize"
                   >
-                    {member.applicationStatus}
+                    {member.status}
                   </Badge>
 
-                  {member.applicationStatus === "pending" ? (
+                  {member.profileId ? (
+                    <Badge
+                      variant={
+                        member.applicationStatus === "approved"
+                          ? "success"
+                          : member.applicationStatus === "rejected"
+                            ? "destructive"
+                            : "warning"
+                      }
+                      className="capitalize"
+                    >
+                      {member.applicationStatus}
+                    </Badge>
+                  ) : null}
+
+                  {member.profileId && member.applicationStatus === "pending" ? (
                     <>
                       <Button
                         variant="outline"
@@ -310,25 +468,70 @@ export default function MembersPage() {
                     </>
                   ) : null}
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setEditPhoneFor({
-                        id: member.memberId,
-                        phone: member.phone ?? "",
-                      })
-                    }
-                  >
-                    Edit phone
-                  </Button>
+                  {member.profileId ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setEditPhoneFor({
+                          id: member.memberId,
+                          phone: member.phone ?? "",
+                        })
+                      }
+                    >
+                      Edit phone
+                    </Button>
+                  ) : null}
 
-                  <Link
-                    href="/admin/settings/customers"
-                    className="text-primary hover:underline text-sm ml-2"
+                  <Can permissions={me?.permissions} resource="customer" action="update">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setEditCustFor({
+                          memberId: member.memberId,
+                          name: member.name,
+                          email: member.email,
+                        })
+                      }
+                    >
+                      Edit
+                    </Button>
+                  </Can>
+                  <Can
+                    permissions={me?.permissions}
+                    resource="customer"
+                    action={member.status === "active" ? "suspend" : "reactivate"}
                   >
-                    Account
-                  </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCustomerSuspended(member.memberId, member.status === "active")
+                      }
+                    >
+                      {member.status === "active" ? "Suspend" : "Reactivate"}
+                    </Button>
+                  </Can>
+                  <Can permissions={me?.permissions} resource="customer" action="export">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportCustomer(member.memberId, member.email)}
+                    >
+                      Export
+                    </Button>
+                  </Can>
+                  <Can permissions={me?.permissions} resource="customer" action="delete">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteCustomer(member.memberId)}
+                    >
+                      Delete
+                    </Button>
+                  </Can>
                 </Row>
               );
             };
@@ -419,6 +622,53 @@ export default function MembersPage() {
               </Button>
               <Button type="submit" disabled={inviting}>
                 {inviting ? "Sending…" : "Send invite"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a customer</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={createCustomer} className="space-y-4">
+            <Field>
+              <Label htmlFor="new-cust-name">Full name</Label>
+              <Input
+                id="new-cust-name"
+                value={newCust.name}
+                onChange={(e) => setNewCust((s) => ({ ...s, name: e.target.value }))}
+                required
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="new-cust-email">Email</Label>
+              <Input
+                id="new-cust-email"
+                type="email"
+                value={newCust.email}
+                onChange={(e) => setNewCust((s) => ({ ...s, email: e.target.value }))}
+                required
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="new-cust-password">Temp password</Label>
+              <Input
+                id="new-cust-password"
+                type="password"
+                value={newCust.password}
+                onChange={(e) => setNewCust((s) => ({ ...s, password: e.target.value }))}
+                required
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? "Creating…" : "Create customer"}
               </Button>
             </DialogFooter>
           </form>

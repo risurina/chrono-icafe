@@ -1,4 +1,4 @@
-import { Building2, Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, FileText, type LucideIcon } from "lucide-react";
+import { Building2, Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, TriangleAlert, ScrollText, FileText, type LucideIcon } from "lucide-react";
 
 export type SettingsSection = {
   name: string;
@@ -101,13 +101,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Sessions and two-factor authentication.",
     href: "/admin/settings/security",
     icon: ShieldCheck,
-    group: "Team",
-  },
-  {
-    name: "Customers",
-    description: "Manage and export customer accounts.",
-    href: "/admin/settings/customers",
-    icon: Contact,
     group: "Team",
   },
   {
