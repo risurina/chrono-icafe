@@ -17,7 +17,9 @@
 process.env.DB_DRIVER = "pglite";
 // Register Chrono's own permission resources (branch/station/shift) BEFORE
 // the first agora/auth import below, which freezes the shared registry.
-const { registerChronoPermissions } = await import("../auth/permissions");
+const { registerChronoPermissions, CHRONO_PERMISSION_STATEMENTS } = await import(
+  "../auth/permissions"
+);
 registerChronoPermissions();
 const { hasPermission, permissionsForRole } = await import("agora/auth");
 // Chrono's own typed wrapper (foundation + Chrono resources) — needed to
@@ -1704,6 +1706,33 @@ check(
   "an unrecognized role may NOT report:read or :readFinancial (deny-by-default)",
   hasChronoPermission("not-a-real-role", { report: ["read"] }) === false &&
     hasChronoPermission("not-a-real-role", { report: ["readFinancial"] }) === false,
+);
+
+console.log("\n── chrono app-usage permissions (app-usage Phase 1) ──");
+// A single-tier, read-only resource — no `manage`/`write` action exists at
+// all, since this module has no human-triggered mutation (see the plan's
+// "Audit/notifications"). Gated on `read`, matching securityAlert/report/
+// reconciliation/inquiry's own "reads are gated" precedent.
+check(
+  "staff may appUsage:read",
+  hasChronoPermission("staff", { appUsage: ["read"] }),
+);
+check(
+  "admin may appUsage:read",
+  hasChronoPermission("admin", { appUsage: ["read"] }),
+);
+check(
+  "owner may appUsage:read",
+  hasChronoPermission("owner", { appUsage: ["read"] }),
+);
+check(
+  "member (unrecognized role) may NOT appUsage:read (deny-by-default)",
+  hasChronoPermission("member", { appUsage: ["read"] }) === false,
+);
+check(
+  "no manage action exists for appUsage (read-only resource, resource-coverage drift guard)",
+  JSON.stringify(CHRONO_PERMISSION_STATEMENTS.appUsage) === JSON.stringify(["read"]),
+  JSON.stringify(CHRONO_PERMISSION_STATEMENTS.appUsage),
 );
 
 console.log("\n── platform system-health permissions (spec #17) ──");

@@ -31,6 +31,7 @@ import { chronoSecurityAlert } from "../modules/security-alert/schema";
 import { chronoQrTokenUse } from "../modules/qr/schema";
 import { chronoInquiry, chronoInquiryMessage } from "../modules/inquiry/schema";
 import { chronoLandingPage } from "../modules/landing-page/schema";
+import { chronoAppUsageEvent } from "../modules/app-usage/schema";
 
 export {
   chronoBranch,
@@ -66,6 +67,7 @@ export {
   chronoInquiry,
   chronoInquiryMessage,
   chronoLandingPage,
+  chronoAppUsageEvent,
 };
 
 /**
@@ -265,4 +267,5 @@ export const APP_TENANT_TABLES = [
   "ChronoInquiries",
   "ChronoInquiryMessages",
   "ChronoLandingPages",
+  "ChronoAppUsageEvents",
 ] as const;

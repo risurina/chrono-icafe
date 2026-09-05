@@ -5,6 +5,7 @@
 
 **Sessions:**
 - Planning: plan-folder-taxonomy-refactor [6a865f]
+- Implementation: agora-19 [75ff11]
 
 **2026-09-05 — moved from `blocked/` to `draft/`, Pass 1/2 rewritten against current
 reality.** Two of the three prior "Unblocking condition" gates are now satisfied:

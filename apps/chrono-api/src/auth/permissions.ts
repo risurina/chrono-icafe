@@ -134,6 +134,14 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // Both staff and admin get read; no split per Open Question 1 in
   // .ai/plans/chrono/active/reconciliation/README.md.
   reconciliation: ["read"],
+  // Per-station app/game telemetry (live view + usage report). Read-only — no
+  // `manage` action exists at all, since this module has no human-triggered
+  // mutation (the only writes are device-ingested or sweep-driven). Gated on
+  // `read`, matching securityAlert/report/reconciliation/inquiry's own
+  // "reads are gated" precedent — NOT device GET's ungated one (device is the
+  // outlier: a hardware-trust list with no read action defined at all). See
+  // .ai/plans/chrono/in-progress/app-usage/README.md, "Permissions".
+  appUsage: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -153,6 +161,7 @@ export const CHRONO_STAFF_GRANTS = {
   inquiry: ["read", "manage"],
   payment: ["read", "create", "pay"],
   reconciliation: ["read"],
+  appUsage: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_ADMIN_GRANTS = {
@@ -175,6 +184,7 @@ export const CHRONO_ADMIN_GRANTS = {
   inquiry: ["read", "manage"],
   payment: ["read", "create", "pay", "void", "refund"],
   reconciliation: ["read"],
+  appUsage: ["read"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
