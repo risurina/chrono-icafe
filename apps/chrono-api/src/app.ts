@@ -34,7 +34,7 @@ import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
 import { createCustomerAuthRoutes, createCustomerApplyRoutes } from "agora/customer-auth";
 import { checkReadiness } from "agora/health";
-import { withAdmin, withTenant, eq, count, inArray } from "agora/db";
+import { withAdmin, withTenant, eq, count, inArray, sql } from "agora/db";
 import { chronoPaymentEvent } from "./modules/payment/schema";
 import {
   createId,
@@ -990,7 +990,21 @@ export const app = baseApp
             idempotencyKey: parsed.eventId,
             payloadJson: JSON.parse(payload),
           })
-          .onConflictDoNothing({ target: [chronoPaymentEvent.tenantId, chronoPaymentEvent.idempotencyKey] })
+          // The matching `where` predicate is required: `chrono_payment_event_
+          // idempotency_uq` (modules/payment/schema.ts) is a PARTIAL unique
+          // index (`.where(sql\`"idempotencyKey" is not null\`)`), and Postgres
+          // only accepts a partial index as an ON CONFLICT arbiter when the
+          // inference specification's own predicate matches it exactly —
+          // omitting it 500s every real delivery with "there is no unique or
+          // exclusion constraint matching the ON CONFLICT specification"
+          // (caught below as a bare exception, silently masquerading as an
+          // ignored/unrecognized event). Found while building this plan's
+          // Phase C6 e2e spec, which is the first thing to ever drive this
+          // insert against a real Postgres unique index end-to-end.
+          .onConflictDoNothing({
+            target: [chronoPaymentEvent.tenantId, chronoPaymentEvent.idempotencyKey],
+            where: sql`"idempotencyKey" is not null`,
+          })
           .returning({ id: chronoPaymentEvent.id }),
       );
     } catch {
