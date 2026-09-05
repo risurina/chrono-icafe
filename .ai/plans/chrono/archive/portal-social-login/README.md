@@ -1,5 +1,16 @@
 # Chrono: wire social login into the member portal pages
 
+Status: **Archived 2026-09-05 — both phases landed.** Phase 5 (`db80d02d`) wired
+`MemberSocialSignIn` into `MemberLoginForm`/`TenantSignUpForm`, adapted to the
+member-area rewrite's current "/member" redirect (the plan's own "/portal" default
+predates that rewrite — see the phase's commit message). Phase 6 (`35069dbd`) added the
+`run.ts` OAuth flow re-run (all 8 cases pass; `rls:proof` re-confirms
+`TenantMemberOAuthAccounts` isolation) and the `social-login-ui.spec.ts` Playwright spec
+(5/5 pass). One deviation: D6's "hidden on the verified custom domain" case is proved via
+`parseHost()` classification rather than a full page load, because Next 15's
+`allowedDevOrigins` dev-server guard blocks a spoofed-Host page from hydrating locally —
+see the Phase 6 commit message for the full reasoning.
+
 ## Context
 
 Companion plan to `.ai/plans/agora/active/member-portal-social-login/README.md`, which
