@@ -88,6 +88,9 @@ const PLATFORM_ADMIN_NAME = "Platform Admin";
 const PLATFORM_VIEWER_EMAIL = "platform-viewer@agora.test";
 const PLATFORM_VIEWER_NAME = "Platform Viewer";
 
+const CHRONO_SUPERADMIN_EMAIL = "admin@chrono.izur.com.ph";
+const CHRONO_SUPERADMIN_NAME = "Chrono Admin";
+
 // tenantSubscription is unique per tenant (tenant_subscription_tenant_uq), so
 // each seeded org gets exactly one row here, covering the three statuses the
 // admin dashboard's KPIs and e2e spec need real data for.
@@ -170,6 +173,19 @@ async function ensurePlatformViewer() {
   await adminDb
     .update(schema.user)
     .set({ platformRole: "viewer", role: "impersonator" })
+    .where(eq(schema.user.id, userId));
+}
+
+/**
+ * Chrono's own real platform-admin holder, kept separate from the generic
+ * platform@agora.test demo admin above — grants the "admin" platform role
+ * (every platform permission) to admin@chrono.izur.com.ph.
+ */
+async function ensureChronoSuperAdmin() {
+  const userId = await ensureUser(CHRONO_SUPERADMIN_EMAIL, CHRONO_SUPERADMIN_NAME);
+  await adminDb
+    .update(schema.user)
+    .set({ platformRole: "admin", role: "impersonator" })
     .where(eq(schema.user.id, userId));
 }
 
@@ -685,6 +701,7 @@ async function ensureGlobalCustomer(tenantIds: string[]): Promise<void> {
 async function seed() {
   await ensurePlatformAdmin();
   await ensurePlatformViewer();
+  await ensureChronoSuperAdmin();
 
   const orgIdBySlug: Record<string, string> = {};
   orgIdBySlug.gaming = await seedGamingTenant();
