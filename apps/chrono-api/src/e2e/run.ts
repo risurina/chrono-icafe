@@ -3377,6 +3377,19 @@ async function main() {
     JSON.stringify(listAsAdmin.body),
   );
 
+  // Chrono's onboarding registry (platform-admin-onboarding-progress plan) is
+  // wired into platformAdminRoutes — every row must carry the real 7-item
+  // checklist's total, not the foundation's empty-registry {0,0}. Without
+  // this, a silently-broken wiring (field always {0,0}, or never called)
+  // would pass the enforced gate green.
+  check(
+    "every org list row carries the Chrono onboarding registry (total 7, not the empty foundation default)",
+    listAsAdmin.status === 200 &&
+      (listAsAdmin.body?.items ?? []).length > 0 &&
+      (listAsAdmin.body?.items ?? []).every((o: any) => o.onboarding?.total === 7),
+    JSON.stringify(listAsAdmin.body?.items?.map((o: any) => ({ id: o.id, onboarding: o.onboarding }))),
+  );
+
   const listAsViewer = await req("GET", "/rpc-admin/organizations", { cookie: platformViewerCk });
   check("platform viewer may also list (read-only permission)", listAsViewer.status === 200);
 
@@ -3476,6 +3489,27 @@ async function main() {
       contosoDetail.body?.owner?.email &&
       typeof contosoDetail.body?.estMrr === "number",
     JSON.stringify(contosoDetail.body),
+  );
+
+  const CHRONO_ONBOARDING_KEYS = [
+    "createBranch",
+    "addStationGroup",
+    "addStation",
+    "inviteStaff",
+    "addProducts",
+    "pairDevice",
+    "openShift",
+  ];
+  check(
+    "org detail's onboarding.items names all seven Chrono checklist keys",
+    contosoDetail.status === 200 &&
+      contosoDetail.body?.onboarding?.total === 7 &&
+      Array.isArray(contosoDetail.body?.onboarding?.items) &&
+      contosoDetail.body.onboarding.items.length === 7 &&
+      CHRONO_ONBOARDING_KEYS.every((key) =>
+        contosoDetail.body.onboarding.items.some((i: any) => i.key === key),
+      ),
+    JSON.stringify(contosoDetail.body?.onboarding),
   );
 
   const archiveAsViewer = await req("POST", `/rpc-admin/organizations/${contosoId}/archive`, {

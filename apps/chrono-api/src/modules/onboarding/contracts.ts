@@ -1,7 +1,7 @@
 import type { TenantTx } from "agora/db";
 import { eq, and, count } from "agora/db";
 import { schema as base } from "agora/db";
-import type { OnboardingChecklistItem } from "agora";
+import { buildOnboardingChecklistRegistry, type OnboardingChecklistItem } from "agora";
 import { chronoBranch } from "../branch/schema";
 import { chronoStationGroup, chronoStation } from "../station/schema";
 import { chronoProduct } from "../pos/schema";
@@ -173,3 +173,18 @@ export const CHRONO_ONBOARDING_ITEMS = {
       ),
   },
 } as const satisfies Record<string, ChronoOnboardingItem>;
+
+/**
+ * The registry Chrono's platform admin surface wires into
+ * `platformAdminRoutes({ onboarding })` — built with the foundation's own
+ * builder (`agora`'s `buildOnboardingChecklistRegistry`) rather than
+ * hand-constructing `{ items, keys }`. Stays in this module (not
+ * `apps/chrono-api/src/contracts/extensions.ts`) because
+ * `CHRONO_ONBOARDING_ITEMS` already lives here — moving it would also drag
+ * the server-only `TenantTx` type into a file that today only imports
+ * browser-safe foundation types. See `.ai/rules/business-app.md`, "Extension
+ * seams", for the general convention this deliberately departs from.
+ */
+export const CHRONO_ONBOARDING_REGISTRY = buildOnboardingChecklistRegistry(
+  CHRONO_ONBOARDING_ITEMS,
+);

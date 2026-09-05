@@ -85,6 +85,7 @@ import {
   appUsageRoutes,
   appFilesRoutes,
 } from "agora/platform-admin/routes";
+import { CHRONO_ONBOARDING_REGISTRY } from "./modules/onboarding/contracts";
 import { project } from "./db/schema";
 import { memberPortalRoutes } from "./modules/member/portal-routes";
 import { walletPortalRoutes } from "./modules/wallet/portal-routes";
@@ -1176,7 +1177,10 @@ export const app = baseApp
   .route("/api/v1", apiV1)
   // Platform admin (Agora staff, cross-tenant, no tenant context). Gated
   // per-route by requirePlatformPermissionForRequest, not tenantMiddleware.
-  .route("/rpc-admin", platformAdminRoutes({ lifecycle }))
+  .route(
+    "/rpc-admin",
+    platformAdminRoutes({ lifecycle, onboarding: CHRONO_ONBOARDING_REGISTRY }),
+  )
   // Cross-tenant metrics — lives in `agora/platform-admin`; the app injects
   // `projectCountsByTenant` so the foundation reads the app-owned `project`
   // table without importing app schema. Same gate (organization:read).
