@@ -1,6 +1,20 @@
 # Tenant onboarding progress — platform admin Organizations (Chrono wiring)
 
-> **Status: Revised after plan-audit (round 2) — ready to implement.** **Depends on**
+> **Status: Implemented and archived.** All four phases landed: Phase 0 (fix the
+> `inviteStaff` connection-nesting deadlock, proven via a new
+> `test:onboarding-probe-tx` regression test — reproduced pre-fix, resolved post-fix),
+> Phase 1 (wire `CHRONO_ONBOARDING_REGISTRY` into `platformAdminRoutes`, plus a new
+> `run.ts` assertion), Phase 2 (the Onboarding column + checklist card on the two
+> `apps/chrono-web` admin pages, verified in a real browser session), and Phase 3 (the
+> `organizations-onboarding.spec.ts` e2e spec, verified passing end-to-end). See this
+> plan's implementation commits for the exact verification results and one noted
+> deviation (the enforced `test:e2e` gate's `TEST_DATABASE_URL`-backed real-Postgres
+> path had a pre-existing, unrelated database-ownership issue on this machine;
+> Phase 1 was verified instead via the harness's PGlite branch, diffed against the
+> prior commit to confirm no regression — see that phase's commit message).
+>
+> **Status (as originally written): Revised after plan-audit (round 2) — ready to
+> implement.** **Depends on**
 > `.ai/plans/agora/archive/platform-admin-onboarding-progress/README.md` landing first
 > (Phases 1-2 there: the foundation resolver, contracts, and route wiring this plan
 > wires into). No branch/worktree/code exists yet.
