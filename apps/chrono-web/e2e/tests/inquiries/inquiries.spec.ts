@@ -43,7 +43,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(`${base}/portal`, { timeout: 15_000 });
+  await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
 test.describe("Inquiries", () => {
@@ -177,7 +177,7 @@ test.describe("Inquiries", () => {
     });
 
     // Member A submits an inquiry via the portal.
-    await pageMemberA.goto(`${baseA}/portal/inquiries`);
+    await pageMemberA.goto(`${baseA}/member/inquiries`);
     await pageMemberA.waitForLoadState("networkidle");
     await pageMemberA.getByLabel("Subject").fill("Member A's private inquiry");
     await pageMemberA.getByLabel("Message").fill("This should never be visible to tenant B.");
@@ -207,7 +207,7 @@ test.describe("Inquiries", () => {
       name: faker.person.fullName(),
       email: faker.internet.email({ provider: "example.com" }),
     });
-    await pageMemberA2.goto(`${baseA}/portal/inquiries`);
+    await pageMemberA2.goto(`${baseA}/member/inquiries`);
     await pageMemberA2.waitForLoadState("networkidle");
     await expect(pageMemberA2.getByText("Member A's private inquiry")).not.toBeVisible();
   });

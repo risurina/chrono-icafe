@@ -10,7 +10,7 @@ import { faker } from "../../utils/faker";
  *   product (any_station); as staff, sell it to the customer, confirm the lot
  *   appears with the right remaining minutes; as admin, grant a free 30-minute
  *   comp with a reason, confirm it appears as a separate lot; as staff, consume
- *   10 minutes and confirm the balance drops; as the customer, reload /portal and
+ *   10 minutes and confirm the balance drops; as the customer, reload /member and
  *   confirm the lots/ledger match what staff recorded.
  * - Role gate: staff can Sell/Consume but Grant and Create Product are unavailable
  *   (not rendered — Can-gated); admin/owner can do both.
@@ -65,7 +65,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(`${base}/portal`, { timeout: 15_000 });
+  await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
 /** Opens the Credits "Members" tab, searches for `customerName`, and opens

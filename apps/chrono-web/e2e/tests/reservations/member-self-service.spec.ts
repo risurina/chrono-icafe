@@ -45,7 +45,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(`${base}/portal`, { timeout: 15_000 });
+  await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
 /** Create a branch + station for a tenant via the staff dashboard API, so the
@@ -103,7 +103,7 @@ test.describe("Member reservations", () => {
     expect(created.reservation.status).toBe("confirmed");
 
     // The member's own portal page reflects the active reservation.
-    await pageMember.goto(`${base}/portal/reservations`);
+    await pageMember.goto(`${base}/member/reservations`);
     await pageMember.waitForLoadState("networkidle");
     await expect(pageMember.getByText("Your reservation")).toBeVisible();
 

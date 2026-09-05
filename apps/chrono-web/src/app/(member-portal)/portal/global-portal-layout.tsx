@@ -5,7 +5,17 @@ import { usePathname } from "next/navigation";
 import { Button, ThemeToggle, CenteredMessage, Row } from "agora/ui";
 import { customerAuth, useGlobalCustomerSession } from "@/lib/customer-client";
 
-const PUBLIC = ["/portal/login", "/portal/sign-up", "/portal/forgot", "/portal/reset"];
+// `/portal/accept-invite` is a tenant-member invite link (hardcoded in
+// foundation emails, kept at this path per the plan) that renders its own
+// `memberAuth`-based flow regardless of host — it must not be gated behind a
+// global-customer session.
+const PUBLIC = [
+  "/portal/login",
+  "/portal/sign-up",
+  "/portal/forgot",
+  "/portal/reset",
+  "/portal/accept-invite",
+];
 
 /** Shell for the global customer identity's own apex-level pages. */
 export function GlobalPortalLayout({ children }: { children: React.ReactNode }) {

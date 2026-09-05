@@ -44,7 +44,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("Password123!");
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(new RegExp(`//${new URL(base).hostname}:3000/portal$`), {
+  await page.waitForURL(new RegExp(`//${new URL(base).hostname}:3000/member$`), {
     timeout: 30_000,
   });
 }

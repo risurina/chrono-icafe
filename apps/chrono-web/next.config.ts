@@ -52,6 +52,33 @@ const nextConfig: NextConfig = {
       ],
     };
   },
+  // `/portal` (the tenant member area) moved to `/member` — the apex host's
+  // own `/portal` (global-customer home) is untouched, exactly like the
+  // `/admin` rewrite's own host-conditioned split above. `missing: notApex`
+  // means "on a tenant host" (a subdomain or verified custom domain), never
+  // the apex. Not a rewrite (the URL itself must change, per the plan), and
+  // not middleware — config-level only.
+  async redirects() {
+    const notApex = [
+      { type: "host" as const, value: APP_HOSTNAME_PATTERN },
+      { type: "host" as const, value: `www\\.${APP_HOSTNAME_PATTERN}` },
+    ];
+    return [
+      { source: "/portal", missing: notApex, destination: "/member", permanent: false },
+      {
+        source: "/portal/reservations",
+        missing: notApex,
+        destination: "/member/reservations",
+        permanent: false,
+      },
+      {
+        source: "/portal/inquiries",
+        missing: notApex,
+        destination: "/member/inquiries",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

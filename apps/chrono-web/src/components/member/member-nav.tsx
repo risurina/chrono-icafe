@@ -1,0 +1,40 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { NavTabs, BottomNav, type NavTabItem } from "agora/ui";
+import { MEMBER_TAB_ITEMS, MEMBER_BOTTOM_NAV_ITEMS, matchMemberNav } from "./member-nav.config";
+
+function toNavItems(pathname: string): NavTabItem[] {
+  return MEMBER_TAB_ITEMS.map((item) => ({
+    href: item.href,
+    label: item.label,
+    icon: item.icon,
+    active: matchMemberNav(pathname, item.href, item.exact),
+    disabled: item.disabled,
+    testId: `member-nav-${item.key}`,
+  }));
+}
+
+/** Desktop tab bar — sticky under the header, horizontal-scroll for 10 items. */
+export function MemberNav() {
+  const pathname = usePathname();
+  return (
+    <div className="sticky top-16 z-30 overflow-x-auto bg-background">
+      <NavTabs items={toNavItems(pathname)} className="min-w-max px-4" />
+    </div>
+  );
+}
+
+/** Mobile bottom bar — 5 shortlabel items, `< md`. */
+export function MemberBottomNav() {
+  const pathname = usePathname();
+  const items: NavTabItem[] = MEMBER_BOTTOM_NAV_ITEMS.map((item) => ({
+    href: item.href,
+    label: item.shortLabel,
+    icon: item.icon,
+    active: matchMemberNav(pathname, item.href, item.exact),
+    disabled: item.disabled,
+    testId: `member-bottom-nav-${item.key}`,
+  }));
+  return <BottomNav items={items} className="md:hidden" />;
+}

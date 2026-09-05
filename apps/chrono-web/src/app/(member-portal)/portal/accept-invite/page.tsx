@@ -45,7 +45,7 @@ export default function AcceptInvitePage() {
       setLoading(false);
       return;
     }
-    window.location.href = "/portal";
+    window.location.href = "/member";
   }
 
   return (

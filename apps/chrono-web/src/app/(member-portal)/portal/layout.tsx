@@ -1,18 +1,12 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { isTenantHost } from "agora/client";
-import { CenteredMessage } from "agora/ui";
-import { TenantPortalLayout } from "./tenant-portal-layout";
 import { GlobalPortalLayout } from "./global-portal-layout";
 
+/**
+ * Apex-only now: the tenant member area moved to `/member/*`
+ * (`next.config.ts` redirects a tenant host's `/portal` there before this
+ * ever renders). This group keeps only the global-customer apex pages plus
+ * the shared `/portal/{login,sign-up,forgot,reset,accept-invite}` auth
+ * pages, whose links are hardcoded in foundation emails.
+ */
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  const [isTenant, setIsTenant] = useState<boolean | null>(null);
-  useEffect(() => setIsTenant(isTenantHost(window.location.host)), []);
-  if (isTenant === null) return <CenteredMessage>Loading…</CenteredMessage>;
-  return isTenant ? (
-    <TenantPortalLayout>{children}</TenantPortalLayout>
-  ) : (
-    <GlobalPortalLayout>{children}</GlobalPortalLayout>
-  );
+  return <GlobalPortalLayout>{children}</GlobalPortalLayout>;
 }

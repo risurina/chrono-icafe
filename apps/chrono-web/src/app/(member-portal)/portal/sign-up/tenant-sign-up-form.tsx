@@ -34,7 +34,7 @@ export function TenantSignUpForm() {
       setLoading(false);
       return;
     }
-    location.href = "/portal";
+    location.href = "/member";
   }
 
   return (

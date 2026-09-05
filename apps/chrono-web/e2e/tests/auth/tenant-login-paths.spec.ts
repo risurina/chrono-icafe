@@ -4,7 +4,7 @@ import { faker } from "../../utils/faker";
 /**
  * Tenant login paths — on a business's own host:
  *
- *   /login        → customer (member) sign-in → /portal
+ *   /login        → customer (member) sign-in → /member
  *   /admin/login  → staff sign-in             → /admin (the back office)
  *   /admin/*      → the tenant back office (public URL; was /dashboard/*)
  *
@@ -45,7 +45,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(new RegExp(`//${new URL(base).hostname}:3000/portal$`), {
+  await page.waitForURL(new RegExp(`//${new URL(base).hostname}:3000/member$`), {
     timeout: 30_000,
   });
 }
@@ -124,7 +124,7 @@ test.describe("Tenant login paths", () => {
     await expect(page.getByRole("heading", { name: "Branches" })).toBeVisible();
   });
 
-  test("customer: /login is the member sign-in → /portal; /portal/login redirects to /login; apex /login stays staff", async ({
+  test("customer: /login is the member sign-in → /member; /portal/login redirects to /login; apex /login stays staff", async ({
     page,
     browser,
   }) => {
@@ -154,7 +154,7 @@ test.describe("Tenant login paths", () => {
     );
 
     await fillAndSubmitSignIn(customerPage, customerEmail);
-    await customerPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await customerPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
 

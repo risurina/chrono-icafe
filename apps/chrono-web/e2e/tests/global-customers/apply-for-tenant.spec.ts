@@ -51,13 +51,13 @@ test.describe("Global customer — apply to a tenant", () => {
     await expect(page.getByText("Welcome, Global Test Customer")).toBeVisible();
 
     // ── Apply to tenant A's portal (happy path) ──
-    await page.goto(`http://${slugA}.localtest.me:3000/portal`);
+    await page.goto(`http://${slugA}.localtest.me:3000/member`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Join this business" })).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     // Reloads into the member area once the linked tenantMember exists.
     await expect(
-      page.getByText("You're signed in as a customer of this business."),
+      page.getByRole("heading", { name: /^Welcome/ }),
     ).toBeVisible({ timeout: 15_000 });
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
@@ -77,12 +77,12 @@ test.describe("Global customer — apply to a tenant", () => {
 
     // ── Apply to tenant B independently (same global identity, no
     // second global sign-up) ──
-    await page.goto(`http://${slugB}.localtest.me:3000/portal`);
+    await page.goto(`http://${slugB}.localtest.me:3000/member`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Join this business" })).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(
-      page.getByText("You're signed in as a customer of this business."),
+      page.getByRole("heading", { name: /^Welcome/ }),
     ).toBeVisible({ timeout: 15_000 });
 
     // Now tenant B's own list shows it too — a distinct row from tenant A's.
@@ -118,11 +118,11 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
     await page.getByRole("button", { name: /create account/i }).click();
 
-    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
     await expect(
-      page.getByText("You're signed in as a customer of this business."),
+      page.getByRole("heading", { name: /^Welcome/ }),
     ).toBeVisible();
   });
 });

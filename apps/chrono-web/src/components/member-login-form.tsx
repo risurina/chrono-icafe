@@ -40,7 +40,7 @@ export function MemberLoginForm() {
       setLoading(false);
       return;
     }
-    location.href = safeNextPath(searchParams.get("next")) ?? "/portal";
+    location.href = safeNextPath(searchParams.get("next")) ?? "/member";
   }
 
   return (

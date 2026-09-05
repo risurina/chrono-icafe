@@ -47,7 +47,7 @@ function MembershipRow({ membership }: { membership: GlobalCustomerMembership })
 /**
  * Global customer account home. To become a customer of a specific
  * business, visit that business's `/portal` while signed in here — it
- * offers a one-click "Apply" (see apps/chrono-web/src/app/portal/tenant-portal-layout.tsx).
+ * offers a one-click "Apply" (see apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx).
  */
 export function GlobalPortalHome() {
   const { customer } = useGlobalCustomerSession();

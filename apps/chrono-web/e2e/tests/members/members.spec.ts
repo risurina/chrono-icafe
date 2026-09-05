@@ -60,7 +60,7 @@ test.describe("Members", () => {
     await customer1Page.getByLabel("Email").fill(customer1Email);
     await customer1Page.getByLabel("Password", { exact: true }).fill("Password123!");
     await customer1Page.getByRole("button", { name: /create account/i }).click();
-    await customer1Page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await customer1Page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
     await customer1Page.getByRole("button", { name: "Apply for membership" }).click();
@@ -78,7 +78,7 @@ test.describe("Members", () => {
     await customer2Page.getByLabel("Email").fill(customer2Email);
     await customer2Page.getByLabel("Password", { exact: true }).fill("Password123!");
     await customer2Page.getByRole("button", { name: /create account/i }).click();
-    await customer2Page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await customer2Page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
     await customer2Page.getByRole("button", { name: "Apply for membership" }).click();
@@ -149,7 +149,7 @@ test.describe("Members", () => {
     await customerPage.getByLabel("Email").fill(customerEmail);
     await customerPage.getByLabel("Password", { exact: true }).fill("Password123!");
     await customerPage.getByRole("button", { name: /create account/i }).click();
-    await customerPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await customerPage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
     await customerPage.getByRole("button", { name: "Apply for membership" }).click();
@@ -214,7 +214,7 @@ test.describe("Members", () => {
     await customerPage.getByLabel("Email").fill(customerEmail);
     await customerPage.getByLabel("Password", { exact: true }).fill("Password123!");
     await customerPage.getByRole("button", { name: /create account/i }).click();
-    await customerPage.waitForURL(new RegExp(`//${slugA}\\.localtest\\.me:3000/portal$`), {
+    await customerPage.waitForURL(new RegExp(`//${slugA}\\.localtest\\.me:3000/member$`), {
       timeout: 30_000,
     });
     await customerPage.getByRole("button", { name: "Apply for membership" }).click();

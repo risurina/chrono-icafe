@@ -95,7 +95,7 @@ test.describe("Invite a customer", () => {
     await inviteePage.getByRole("button", { name: "Activate account" }).click();
 
     // accept-invite signs the customer straight in and lands them on /portal.
-    await inviteePage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await inviteePage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 15_000,
     });
 
@@ -104,7 +104,7 @@ test.describe("Invite a customer", () => {
     await inviteePage.getByLabel("Email").fill(inviteeEmail);
     await inviteePage.getByLabel("Password").fill("Password123!");
     await inviteePage.getByRole("button", { name: "Sign in" }).click();
-    await inviteePage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/portal$`), {
+    await inviteePage.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/member$`), {
       timeout: 15_000,
     });
 
@@ -190,7 +190,7 @@ test.describe("Invite a customer", () => {
     await correctPage.goto(inviteLink);
     await correctPage.getByLabel("Password").fill("Password123!");
     await correctPage.getByRole("button", { name: "Activate account" }).click();
-    await correctPage.waitForURL(new RegExp(`//${slugA}\\.localtest\\.me:3000/portal$`), {
+    await correctPage.waitForURL(new RegExp(`//${slugA}\\.localtest\\.me:3000/member$`), {
       timeout: 15_000,
     });
     await correctCtx.close();

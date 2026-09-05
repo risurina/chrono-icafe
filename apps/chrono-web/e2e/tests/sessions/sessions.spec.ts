@@ -65,7 +65,7 @@ async function portalSignUp(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(`${base}/portal`, { timeout: 15_000 });
+  await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
 /** Creates a branch + station-group + station via the real dashboard UI,
