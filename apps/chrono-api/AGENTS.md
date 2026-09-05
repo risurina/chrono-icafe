@@ -15,13 +15,14 @@ Migrating from an existing implementation, started 2026-09-01. Wave 1 is in prog
 `branches`, `stations` (+ station groups), `devices` (schema landed), `members`
 (`ChronoMemberProfiles` extending `tenantMember`), `wallet`/`credits`, and `shifts` have
 landed schema + RLS, with routes/permission gates and web UI landed for most (see
-`.ai/plans/chrono/active/*/README.md` for each module's exact phase status — some are
-schema-only, others are through web UI + e2e). `sessions` is schema/contracts in
+`.ai/plans/chrono/in-progress/*/README.md` for each module's exact phase status — some
+are schema-only, others are through web UI + e2e). `sessions` is schema/contracts in
 progress, not yet routed. `reservations` and `pos` (schema + Zod contracts) have also
-landed ahead of the originally planned Wave 1 order. See each module's plan folder under
-`.ai/plans/chrono/active/` (or `.ai/plans/chrono/archive/reservations/` once fully
-closed) for the authoritative per-module status — this section is a snapshot, not the
-source of truth.
+landed ahead of the originally planned Wave 1 order (`reservations` is fully closed,
+archived at `.ai/plans/chrono/archive/reservations/README.md`). See each module's plan
+folder under `.ai/plans/chrono/in-progress/` (or `.ai/plans/chrono/archive/<module>/`
+once closed) for the authoritative per-module status — this section is a snapshot, not
+the source of truth.
 
 ## Business domain
 
@@ -48,9 +49,9 @@ behavior only where it's genuinely the right call or the developer asks for pari
 never as the default. Watch for the old implementation's own foundation-vs-business
 boundary mistakes before repeating them here (e.g. a prior bespoke member system that
 should have reused the foundation's tenant member pool instead of forking it — already
-corrected, see `.ai/plans/chrono/active/members/README.md`).
+corrected, see `.ai/plans/chrono/archive/members/README.md`).
 
-Every landed plan under `.ai/plans/chrono/active/*/README.md` already exercises this
+Every landed plan under `.ai/plans/chrono/{in-progress,archive}/*/README.md` already exercises this
 judgment in places (see each plan's "deliberate differences from oikos" notes), but each
 also leaves some "match oikos or diverge" calls as open questions for the developer.
 Resolve those through this lens — lean toward the improvement, not toward parity — unless
@@ -62,7 +63,8 @@ there's a concrete reason to keep oikos's behavior.
 `branches` → `stations` → `devices` (kiosk pairing/auth) → `members` (customer pool) →
 `sessions` → `shifts` → `wallet`/`credits`. Each lands under
 `apps/chrono-api/src/modules/<domain>/` per `.ai/rules/business-app.md`. Current state
-(see each `.ai/plans/chrono/active/<module>/README.md` for the authoritative phase-by-
+(see each module's plan under `.ai/plans/chrono/in-progress/<module>/README.md` or, once
+closed, `.ai/plans/chrono/archive/<module>/README.md`, for the authoritative phase-by-
 phase status):
 
 - `branch`, `station`, `member` (`ChronoMemberProfiles`), `shift` — schema + routes +
@@ -71,7 +73,7 @@ phase status):
 - `payment` — schema + routes + permission gates landed; web UI + e2e landed.
   Member-facing online checkout (credit-purchase / wallet-topup via the
   tenant's own PayMongo account, webhook-driven fulfilment) landed API-side
-  (`.ai/plans/chrono/active/member-credit-purchase/README.md`, Phases
+  (`.ai/plans/chrono/archive/member-credit-purchase/README.md`, Phases
   C1–C4); its web UI is superseded by `member-area`'s Phase 7, and its e2e
   spec is deferred until that UI lands.
 - `wallet` — schema + RLS landed (staff routes not yet built; the member
@@ -84,15 +86,16 @@ phase status):
   tracking, a per-tenant/branch policy, and a background sweep — API-side phases
   (schema, contracts, permissions, member portal routes, session-claim wiring, sweep)
   landed; member UI and e2e spec not yet built. See
-  `.ai/plans/chrono/active/reservations-queue-and-self-service/README.md` and
+  `.ai/plans/chrono/archive/reservations-queue-and-self-service/README.md` and
   `apps/chrono-docs/product/member-reservations.md`.
 
 **Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`,
 `reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
 `onboarding-checklist`, `app-versions`, `app-usage`, `public-releases`,
 `admin-station-client`. Present in the source implementation; not planned until Wave 1
-is proven. `public-stations` and `tenant-landing` are now actively planned (see
-`.ai/plans/chrono/active/`), ahead of the rest of this list.
+is proven. `public-stations` and `tenant-landing` have since landed ahead of the rest of
+this list — archived at `.ai/plans/chrono/archive/public-stations/README.md` and
+`.ai/plans/chrono/archive/tenant-landing/README.md`.
 
 **Out of scope for this pass** — `apps/chrono-mobile`, `apps/chrono-pc-client` (+
 `-service`, `-tauri`), `apps/chrono-docs` from the source implementation. This pass is
@@ -145,7 +148,7 @@ forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
   `.ai/plans/agora/archive/global-customers/README.md`.
 - **`{tenantSlug}.APP_DOMAIN/stations`** (verified custom domains resolve the same way)
   — public, unauthenticated live station-availability page (implemented:
-  `.ai/plans/chrono/active/public-stations/README.md`). Resolved via
+  `.ai/plans/chrono/archive/public-stations/README.md`). Resolved via
   `getRequestTenant()` (`agora/next`) on the incoming host, exactly like the
   authenticated dashboard's own resolution — no session, no membership, no Next.js
   middleware. An unknown host or a tenant in a terminal lifecycle status
@@ -182,7 +185,7 @@ For any such route:
 - **Never return a raw row.** Respond with an explicit column allowlist —
   no un-narrowed `$inferSelect` object reaching the client.
 
-See `.ai/plans/chrono/active/security-hardening/README.md` Phase 2 for the full
+See `.ai/plans/chrono/archive/security-hardening/README.md` Phase 2 for the full
 reasoning (the rate-limiting gap found across the `devices`/`qr`/`inquiries`/
 `public-stations` plans was one convention gap, not four separate bugs).
 
@@ -227,7 +230,7 @@ purchase at `/member/promos/[id]` uses `/portal/credits/purchase` instead — se
 `fulfilCustomerPayment` is the ONLY place a payment row is ever marked
 `paid`. The `/portal/credits?payment=<id>` return page the customer's browser
 lands on must poll `GET /portal/payments/:id`, never assume success from the
-redirect itself. See `.ai/plans/chrono/active/member-credit-purchase/README.md`
+redirect itself. See `.ai/plans/chrono/archive/member-credit-purchase/README.md`
 for the full design (the two rollback traps around price drift and a
 product going unsellable between checkout and webhook delivery) and
 `docs/runbooks/customer-payment-webhook.md` for registering the webhook URL
@@ -238,7 +241,7 @@ in PayMongo and what an amount-mismatch row means operationally.
 Both member-initiated mutations above, plus `POST /portal/credits/purchase`
 (`modules/credit/portal-routes.ts`, the wallet-funded catalog purchase used
 by `/member/promos/[id]`), carry three additional defenses — see
-`.ai/plans/chrono/active/member-wallet-operation-hardening/README.md` for the
+`.ai/plans/chrono/in-progress/member-wallet-operation-hardening/README.md` for the
 full design:
 
 - **CSRF-preflight header.** Every mutating handler calls

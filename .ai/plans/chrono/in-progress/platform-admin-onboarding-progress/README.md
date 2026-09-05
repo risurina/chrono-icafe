@@ -1,7 +1,7 @@
 # Tenant onboarding progress — platform admin Organizations (Chrono wiring)
 
 > **Status: Revised after plan-audit (round 2) — ready to implement.** **Depends on**
-> `.ai/plans/agora/active/platform-admin-onboarding-progress/README.md` landing first
+> `.ai/plans/agora/archive/platform-admin-onboarding-progress/README.md` landing first
 > (Phases 1-2 there: the foundation resolver, contracts, and route wiring this plan
 > wires into). No branch/worktree/code exists yet.
 >

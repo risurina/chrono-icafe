@@ -123,7 +123,7 @@ rubber-stamp open question").
 ### Unblocking condition
 
 Re-open this plan (move `.ai/plans/chrono/blocked/app-versions/` → `.ai/plans/chrono/
-active/app-versions/`) once **both** of the following are true:
+draft/app-versions/`) once **both** of the following are true:
 1. `devices` module Phase 1 (schema) has landed, so a real device identity/bearer-auth
    shape exists to design the consuming side against, and
 2. a decision has been made — by the developer, not inferred by an agent — on whether
@@ -166,5 +166,5 @@ Not applicable — this plan is not implementation-ready. When the unblocking co
 are met, write a fresh Pass 1/Pass 2/phased plan (this document may be used as a
 starting reference for the workflow analysis, but its Pass 2 must be redone against the
 real `devices` schema once it exists) and file it under
-`.ai/plans/chrono/active/app-versions/README.md`, then update
+`.ai/plans/chrono/draft/app-versions/README.md`, then update
 `.ai/handover/chrono-migration.md`'s deferred-modules table accordingly.

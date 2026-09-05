@@ -159,5 +159,5 @@ until one is asked for.
 - **Whole-row, not per-field, policy override.** A branch either has its own complete
   policy or uses the tenant default in full.
 
-See `.ai/plans/chrono/active/reservations-queue-and-self-service/README.md` for the full
+See `.ai/plans/chrono/archive/reservations-queue-and-self-service/README.md` for the full
 plan, its two audit rounds, and every decision's reasoning.

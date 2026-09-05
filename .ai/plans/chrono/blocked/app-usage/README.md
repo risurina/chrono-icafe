@@ -130,5 +130,5 @@ stronger (zero viable write path exists today, not merely an under-specified one
 
 Not applicable — this plan is not implementation-ready. When the unblocking conditions
 are met, write a fresh Pass 1/Pass 2/phased plan against the real `devices` and
-`sessions` schemas and file it under `.ai/plans/chrono/active/app-usage/README.md`, then
+`sessions` schemas and file it under `.ai/plans/chrono/draft/app-usage/README.md`, then
 update `.ai/handover/chrono-migration.md`'s deferred-modules table accordingly.

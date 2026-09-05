@@ -288,7 +288,7 @@ DONE — `devices` plan fully archived (`.ai/plans/chrono/archive/devices/`), al
 ## Unblocking
 
 Moves from `.ai/plans/chrono/blocked/admin-station-client/` to
-`.ai/plans/chrono/active/admin-station-client/` only if/when a PC-client app is
+`.ai/plans/chrono/draft/admin-station-client/` only if/when a PC-client app is
 commissioned and a command-delivery channel (queue table + device polling/push) is
 designed for it — the only remaining scope this plan owns is remote command dispatch
 (lock/unlock/reboot/force-logout). List/approve/revoke is already live; do not re-plan

@@ -234,7 +234,7 @@ Tracked by a future, separate plan. This plan's Phase 1 cannot begin until that 
 ## Unblocking
 
 This plan moves from `.ai/plans/chrono/blocked/public-releases/` to
-`.ai/plans/chrono/active/public-releases/` once a separate `app-versions` plan exists
+`.ai/plans/chrono/draft/public-releases/` once a separate `app-versions` plan exists
 and its schema (Phase 0 above) is implemented and migrated. At that point, re-read this
 file's Pass 1/Pass 2 (still valid), confirm the Open Questions above against whatever
 `app-versions` actually shipped, and proceed to Phase 1.
