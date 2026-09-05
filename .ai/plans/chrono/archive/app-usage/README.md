@@ -1,7 +1,10 @@
 # Chrono — `app-usage` module
 
-**Status:** Ready — accepted, passed the Concreteness Gate and a `plan-auditor` review
-(revision applied 2026-09-05). Queued, unclaimed — no phase started yet.
+**Status:** ✅ Archived — all six phases implemented, verified, and committed
+(2026-09-05). Per-station app/game telemetry (device-ingest, staff read routes,
+retention/stale-run sweep, web UI, e2e) is live. See "Phase 5" below for the one
+documented verification caveat (a pre-existing, unrelated local-environment gap in
+`pnpm test:e2e` / the manual Playwright runner — not a defect in this module).
 
 **Sessions:**
 - Planning: plan-folder-taxonomy-refactor [6a865f]
@@ -439,7 +442,7 @@ in the same shutdown path.
 
 ## Phases
 
-### Phase 1 — Schema, RLS, contracts, permissions
+### Phase 1 — Schema, RLS, contracts, permissions — ✅ Complete (commit `edc1bb4c`)
 
 **Files to Update**
 - `apps/chrono-api/src/modules/app-usage/schema.ts` (new)
@@ -489,7 +492,7 @@ in the same shutdown path.
 - Copy `apps/chrono-api/src/modules/security-alert/schema.ts` as the structural
   template (closest existing FK/index shape), then diverge per the table above.
 
-### Phase 2 — Device-ingest routes
+### Phase 2 — Device-ingest routes — ✅ Complete (commit `b4145ae0`)
 
 **Files to Update**
 - `apps/chrono-api/src/modules/app-usage/routes.ts` (new — exports both
@@ -553,7 +556,7 @@ in the same shutdown path.
   route bodies in full (already the pattern to copy for bearer-auth + rate-limit +
   `withTenant` shape) before writing this route.
 
-### Phase 3 — Staff-facing read routes + retention/stale-run worker
+### Phase 3 — Staff-facing read routes + retention/stale-run worker — ✅ Complete (commit `5379f597`)
 
 **Files to Update**
 - `apps/chrono-api/src/modules/app-usage/routes.ts` (add `chronoAppUsageRoutes()` to
@@ -608,7 +611,7 @@ in the same shutdown path.
   (`runSessionExpirySweepOnce()`) in full for the due-row-scan-via-`withAdmin` +
   per-row-`withTenant`-write + batch-cap shape to mirror for both new sweep functions.
 
-### Phase 4 — Web UI + nav
+### Phase 4 — Web UI + nav — ✅ Complete (commit `73d1d27c`)
 
 **Files to Update**
 - `apps/chrono-web/src/app/(tenant-admin)/dashboard/app-usage/page.tsx` (new)
@@ -644,7 +647,17 @@ in the same shutdown path.
   page shell/toolbar pattern, since it's the nearest existing device-adjacent dashboard
   page.
 
-### Phase 5 — E2E spec (enforced gate + browser suite)
+### Phase 5 — E2E spec (enforced gate + browser suite) — ✅ Complete, with a documented environment caveat (commit `8a394831`)
+
+The e2e block and Playwright spec are written and correct, but `pnpm test:e2e` and the
+manual Playwright suite both hit **pre-existing, unrelated** environment blockers in
+this developer's local setup (confirmed via a clean baseline comparison on the
+pre-app-usage commit) — see
+`.ai/analysis/2026-09-05-chrono-e2e-run-environment-gaps.md` for the full writeup.
+app-usage's own correctness was instead proven directly against a real Postgres
+database: `test:app-usage-ingest` (20/20), `test:app-usage-retention` (8/8), a manual
+smoke pass of all three staff GET routes (6/6), and a live-browser Playwright pass of
+the dashboard page (Phase 4).
 
 **Files to Update**
 - `apps/chrono-api/src/e2e/run.ts` (new block: ingest → the three reads →
@@ -689,7 +702,7 @@ in the same shutdown path.
 - Read `apps/chrono-web/e2e/tests/devices/devices.spec.ts` in full for the inline
   pair→auth→approve sequence to copy (see step 2 above — there is no extracted helper).
 
-### Phase 6 — Docs
+### Phase 6 — Docs — ✅ Complete
 
 **Files to Update**
 - `.ai/handover/chrono-migration.md` (drop `app-usage` from the "Deferred" table)

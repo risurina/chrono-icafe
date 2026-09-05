@@ -91,11 +91,14 @@ phase status):
 
 **Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`,
 `reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
-`onboarding-checklist`, `app-versions`, `app-usage`, `public-releases`,
+`onboarding-checklist`, `app-versions`, `public-releases`,
 `admin-station-client`. Present in the source implementation; not planned until Wave 1
-is proven. `public-stations` and `tenant-landing` have since landed ahead of the rest of
-this list — archived at `.ai/plans/chrono/archive/public-stations/README.md` and
-`.ai/plans/chrono/archive/tenant-landing/README.md`.
+is proven. `public-stations`, `tenant-landing`, and `app-usage` have since landed ahead
+of the rest of this list — archived at `.ai/plans/chrono/archive/public-stations/README.md`,
+`.ai/plans/chrono/archive/tenant-landing/README.md`, and
+`.ai/plans/chrono/archive/app-usage/README.md`. `app-usage` (per-station app/game
+telemetry: device-ingest, staff read routes, retention/stale-run sweep, web UI) landed
+schema/routes/permissions/UI/e2e in full.
 
 **Out of scope for this pass** — `apps/chrono-mobile`, `apps/chrono-pc-client` (+
 `-service`, `-tauri`), `apps/chrono-docs` from the source implementation. This pass is
