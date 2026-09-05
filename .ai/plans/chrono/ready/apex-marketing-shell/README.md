@@ -3,7 +3,8 @@
 **Sessions:**
 - Planning: mailtrap-e2e-email-verification [7ac5da]
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/` — build first, everything else in this
+batch depends on it.
 
 **Depended on by:** `.ai/plans/chrono/ready/app-versions/README.md` (download),
 `.ai/plans/chrono/draft/apex-support-page/README.md`,
@@ -217,7 +218,5 @@ task with any ambiguity; the rest is a mechanical edit once that's confirmed.
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and passes the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.

@@ -11,7 +11,11 @@ Note: `apps/chrono-web/src/components/landing/marketing-chrome.tsx`'s
 though neither route exists yet — this plan is what makes those existing footer links
 actually resolve instead of 404ing.
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/`. Open question 1 (legal-copy source —
+carry oikos's text forward vs. developer/legal-supplied copy) stands as its documented
+default ("carry forward") unless the developer says otherwise before implementation
+starts — this one specifically should not be treated as a rubber-stamped default the
+way a design/UX open question would be; confirm before publishing live.
 
 ---
 
@@ -163,7 +167,5 @@ manually verified before starting the Privacy page.
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and passes the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.

@@ -7,7 +7,9 @@
 that plan creates the `(apex-marketing)` route group and its shared layout
 (`MarketingHeader`/`MarketingFooter`, no tenant gating) this page's content sits inside.
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/`. Open questions 1-3 (CTA target, future
+live-catalog endpoint, per-tier feature-claim accuracy) stand as documented — question 3
+specifically should be checked against what Chrono actually ships before publishing.
 
 ## Why a standalone route, not the existing `/#pricing` anchor
 
@@ -189,7 +191,5 @@ before the page is built around claims that aren't true yet.
 
 ## After Implementation
 
-Not yet — this plan is a draft. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and to pass the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.

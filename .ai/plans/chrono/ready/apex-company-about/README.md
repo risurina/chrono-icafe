@@ -8,7 +8,9 @@ that plan creates the `(apex-marketing)` route group + shared layout
 (`MarketingHeader`/`MarketingFooter`, no tenant gating) this page's content sits inside,
 and wires the nav/footer "About" link to `/company/about`.
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/`. Open question 1 (verbatim vs. updated
+factual claims) stands as documented default unless overridden before/during
+implementation.
 
 ---
 
@@ -156,7 +158,5 @@ or ordering constraint with any other phase in this plan.
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and passes the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.

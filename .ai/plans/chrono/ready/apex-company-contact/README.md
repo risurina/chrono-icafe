@@ -18,7 +18,9 @@
   2), so this plan no longer needs to extend the schema itself; it only needs
   `apex-support-page` to have landed first.
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/`. Open questions 2-3 (copy tone, two-page
+split confirmation) stand as documented defaults unless overridden before/during
+implementation.
 
 ---
 
@@ -207,7 +209,5 @@ endpoint before `page.tsx`/layout wiring is finished.
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and to pass the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.

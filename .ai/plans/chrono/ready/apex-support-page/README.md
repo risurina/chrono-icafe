@@ -12,7 +12,9 @@ and wires the nav/footer "Support" link to `/support`.
 which reuses this plan's `/public/company-inquiries` endpoint with `source: "contact"`
 instead of building a second one. That plan should not implement before this one lands.
 
-**Status:** Draft (not yet accepted — do not implement).
+**Status:** Accepted 2026-09-05, in `ready/`. Open questions 1-3 (auto-reply, exact
+`SUPPORT_INBOX_EMAIL` value, `requestType` free-text-vs-dropdown) stand as documented
+defaults unless the developer overrides them before/during implementation.
 
 ---
 
@@ -203,7 +205,5 @@ before any UI is built.
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and passes the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`. Claiming `Implementation:` + committing
+Phase 1 is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.
