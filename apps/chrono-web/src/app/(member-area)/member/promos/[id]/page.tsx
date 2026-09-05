@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -38,6 +38,13 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [buyingOnline, setBuyingOnline] = useState(false);
+  // Re-entry guards + stable per-attempt idempotency keys (member-wallet-
+  // operation-hardening plan) — see the same pattern's comment on
+  // /member/wallet's topup handler for the full reasoning.
+  const purchaseSubmittingRef = useRef(false);
+  const purchaseIdempotencyKeyRef = useRef<string | null>(null);
+  const buyOnlineSubmittingRef = useRef(false);
+  const buyOnlineIdempotencyKeyRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const [products, balance, gatewayStatus] = await Promise.all([
@@ -58,15 +65,22 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
   const insufficient = product ? Number(wallet?.balance ?? "0") < Number(product.priceAmount) : false;
 
   async function onConfirmPurchase() {
-    if (!product) return;
+    if (!product || purchaseSubmittingRef.current) return;
+    purchaseSubmittingRef.current = true;
+    if (!purchaseIdempotencyKeyRef.current) {
+      purchaseIdempotencyKeyRef.current = crypto.randomUUID();
+    }
     setPurchasing(true);
-    const res = await purchaseCreditProduct(product.id);
+    const res = await purchaseCreditProduct(product.id, purchaseIdempotencyKeyRef.current);
     setPurchasing(false);
     setConfirmOpen(false);
+    purchaseSubmittingRef.current = false;
     if (res.error) {
       toast.error(res.error);
       return;
     }
+    // Succeeded — a genuinely new purchase attempt later gets a fresh key.
+    purchaseIdempotencyKeyRef.current = null;
     const newBalance = await getMyWalletBalance();
     if (newBalance.data) setWallet(newBalance.data);
     toast.success(
@@ -81,14 +95,23 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
   // checkout session and redirects; the return page (/member/wallet)
   // polls for the webhook's outcome.
   async function onBuyOnline() {
-    if (!product) return;
+    if (!product || buyOnlineSubmittingRef.current) return;
+    buyOnlineSubmittingRef.current = true;
+    if (!buyOnlineIdempotencyKeyRef.current) {
+      buyOnlineIdempotencyKeyRef.current = crypto.randomUUID();
+    }
     setBuyingOnline(true);
-    const res = await createCheckout({ purpose: "credit_purchase", productId: product.id });
+    const res = await createCheckout(
+      { purpose: "credit_purchase", productId: product.id },
+      buyOnlineIdempotencyKeyRef.current,
+    );
     setBuyingOnline(false);
+    buyOnlineSubmittingRef.current = false;
     if (!res.data) {
       toast.error(res.error ?? "Unable to start checkout.");
       return;
     }
+    buyOnlineIdempotencyKeyRef.current = null;
     window.location.href = res.data.checkoutUrl;
   }
 
@@ -146,7 +169,13 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
           <CardFooter>
             <Stack gap={2}>
               <Row gap={2}>
-                <Button onClick={() => setConfirmOpen(true)} disabled={insufficient}>
+                <Button
+                  onClick={() => {
+                    purchaseIdempotencyKeyRef.current = null;
+                    setConfirmOpen(true);
+                  }}
+                  disabled={insufficient}
+                >
                   Buy with wallet
                 </Button>
                 <Button

@@ -35,11 +35,32 @@ export function getPaymentGateway(): Promise<Result<PaymentGatewayStatus>> {
   return api.portal.payments.gateway.$get().then((res) => unwrap(res, (json) => json as PaymentGatewayStatus));
 }
 
-/** Creates a pending payment + PSP checkout session. Redirect the browser to
- * `checkoutUrl` — never treat this call itself as a completed purchase. */
-export function createCheckout(input: CreateCheckoutInput): Promise<Result<CheckoutResult>> {
+/**
+ * Creates a pending payment + PSP checkout session. Redirect the browser to
+ * `checkoutUrl` — never treat this call itself as a completed purchase.
+ *
+ * `idempotencyKey` (member-wallet-operation-hardening plan): pass the SAME
+ * key on a retry of the same user-initiated attempt (a double-click, or the
+ * caller retrying after a timed-out-but-uncertain response) to get the
+ * original `{paymentId, checkoutUrl}` back instead of a second pending
+ * payment row and a second PSP session. Omit it for a genuinely new attempt.
+ * `x-member-action` forces the CORS preflight the server now requires on
+ * this route (CSRF defense-in-depth).
+ */
+export function createCheckout(
+  input: CreateCheckoutInput,
+  idempotencyKey?: string,
+): Promise<Result<CheckoutResult>> {
   return api.portal.payments.checkout
-    .$post({ json: input })
+    .$post(
+      { json: input },
+      {
+        headers: {
+          "x-member-action": "1",
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
+      },
+    )
     .then((res) => unwrap(res, (json) => json as CheckoutResult));
 }
 

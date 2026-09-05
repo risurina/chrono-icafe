@@ -192,6 +192,14 @@ export default function MemberWalletPage() {
   const [topupAmount, setTopupAmount] = useState("");
   const [topupError, setTopupError] = useState<string | null>(null);
   const [topupSubmitting, setTopupSubmitting] = useState(false);
+  // Re-entry guard (a `useRef`, checked synchronously — unlike `topupSubmitting`
+  // state, which only disables the button after the next render) plus a stable
+  // idempotency key held across a retry of the SAME attempt. Reset to null
+  // only once the dialog is (re)opened, so a failed attempt's retry reuses
+  // the key but a genuinely new top-up gets a fresh one. See
+  // member-wallet-operation-hardening plan.
+  const topupSubmittingRef = useRef(false);
+  const topupIdempotencyKeyRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -223,6 +231,7 @@ export default function MemberWalletPage() {
   }
 
   async function onSubmitTopup() {
+    if (topupSubmittingRef.current) return;
     setTopupError(null);
     const amount = Number(topupAmount);
     if (!topupAmount || Number.isNaN(amount) || amount < Number(MIN_TOPUP_AMOUNT) || amount > Number(MAX_TOPUP_AMOUNT)) {
@@ -234,13 +243,24 @@ export default function MemberWalletPage() {
       );
       return;
     }
+    topupSubmittingRef.current = true;
+    if (!topupIdempotencyKeyRef.current) {
+      topupIdempotencyKeyRef.current = crypto.randomUUID();
+    }
     setTopupSubmitting(true);
-    const res = await createCheckout({ purpose: "wallet_topup", amount: topupAmount });
+    const res = await createCheckout(
+      { purpose: "wallet_topup", amount: topupAmount },
+      topupIdempotencyKeyRef.current,
+    );
     setTopupSubmitting(false);
+    topupSubmittingRef.current = false;
     if (!res.data) {
       toast.error(res.error ?? "Unable to start checkout.");
       return;
     }
+    // Succeeded — about to navigate away, so the next dialog open (a
+    // genuinely new top-up) should mint a fresh key rather than replay this one.
+    topupIdempotencyKeyRef.current = null;
     window.location.href = res.data.checkoutUrl;
   }
 
@@ -315,7 +335,14 @@ export default function MemberWalletPage() {
         </CardContent>
         <CardFooter>
           <Stack gap={2}>
-            <Button data-testid="topup-button" onClick={() => setTopupOpen(true)} disabled={!gateway?.available}>
+            <Button
+              data-testid="topup-button"
+              onClick={() => {
+                topupIdempotencyKeyRef.current = null;
+                setTopupOpen(true);
+              }}
+              disabled={!gateway?.available}
+            >
               Top up online
             </Button>
             {!loading && !gateway?.available ? (

@@ -59,10 +59,27 @@ export function getMyCreditLedger(query: {
     .then((res) => unwrap(res, (json) => json as CreditLedgerPage));
 }
 
+/**
+ * `idempotencyKey` (member-wallet-operation-hardening plan): pass the SAME
+ * key on a retry of the same user-initiated attempt (a double-click, or the
+ * caller retrying after a timed-out-but-uncertain response) to get the
+ * original purchase/grant back instead of a second wallet debit. Omit it for
+ * a genuinely new purchase attempt. `x-member-action` forces the CORS
+ * preflight the server now requires on this route (CSRF defense-in-depth).
+ */
 export function purchaseCreditProduct(
   productId: string,
+  idempotencyKey?: string,
 ): Promise<Result<{ purchase: { id: string }; grant: CreditGrant }>> {
   return api.portal.credits.purchase
-    .$post({ json: { productId } })
+    .$post(
+      { json: { productId } },
+      {
+        headers: {
+          "x-member-action": "1",
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
+      },
+    )
     .then((res) => unwrap(res, (json) => json as { purchase: { id: string }; grant: CreditGrant }));
 }
