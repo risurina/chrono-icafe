@@ -3189,6 +3189,73 @@ async function main() {
     `status ${staffAfterResume.status}`,
   );
 
+  // ── U1. Tenant self-service General settings: view + rename organization.name
+  //     (owner-only, tenant:read / tenant:update — same owner-only precedent as
+  //     tenant lifecycle above). Role gate + cross-tenant isolation. ──
+  const orgGetOwner = await req("GET", "/rpc/organization", { slug: "acme", cookie: ownerCk });
+  check(
+    "owner reads organization (200, name Acme Corp)",
+    orgGetOwner.status === 200 && orgGetOwner.body?.organization?.name === "Acme Corp",
+    `status ${orgGetOwner.status} ${JSON.stringify(orgGetOwner.body)}`,
+  );
+
+  const orgGetStaff = await req("GET", "/rpc/organization", { slug: "acme", cookie: staffCk });
+  check("staff blocked from organization read (403)", orgGetStaff.status === 403, `status ${orgGetStaff.status}`);
+  const orgGetAdmin = await req("GET", "/rpc/organization", { slug: "acme", cookie: adminCk });
+  check("admin blocked from organization read (403)", orgGetAdmin.status === 403, `status ${orgGetAdmin.status}`);
+
+  // Role gate: neither staff nor admin may rename the business.
+  const orgPatchStaff = await req("PATCH", "/rpc/organization", {
+    slug: "acme",
+    cookie: staffCk,
+    json: { name: "Staff Attempted Rename" },
+  });
+  check(
+    "staff blocked from organization rename (403)",
+    orgPatchStaff.status === 403,
+    `status ${orgPatchStaff.status}`,
+  );
+  const orgPatchAdmin = await req("PATCH", "/rpc/organization", {
+    slug: "acme",
+    cookie: adminCk,
+    json: { name: "Admin Attempted Rename" },
+  });
+  check(
+    "admin blocked from organization rename (403)",
+    orgPatchAdmin.status === 403,
+    `status ${orgPatchAdmin.status}`,
+  );
+
+  // Happy path: owner renames.
+  const orgPatchOwner = await req("PATCH", "/rpc/organization", {
+    slug: "acme",
+    cookie: ownerCk,
+    json: { name: "Acme Corp Renamed" },
+  });
+  check(
+    "owner renames organization (200, renamed)",
+    orgPatchOwner.status === 200 && orgPatchOwner.body?.organization?.name === "Acme Corp Renamed",
+    `status ${orgPatchOwner.status} ${JSON.stringify(orgPatchOwner.body)}`,
+  );
+  const orgGetAfterRename = await req("GET", "/rpc/organization", { slug: "acme", cookie: ownerCk });
+  check(
+    "rename persisted on reread (200, Acme Corp Renamed)",
+    orgGetAfterRename.status === 200 &&
+      orgGetAfterRename.body?.organization?.name === "Acme Corp Renamed",
+    `status ${orgGetAfterRename.status} ${JSON.stringify(orgGetAfterRename.body)}`,
+  );
+
+  // Cross-tenant isolation: contoso's own name is untouched by acme's rename.
+  const orgGetContoso = await req("GET", "/rpc/organization", {
+    slug: "contoso",
+    cookie: contosoOwnerCk,
+  });
+  check(
+    "contoso organization unaffected by acme's rename (still Contoso Ltd)",
+    orgGetContoso.status === 200 && orgGetContoso.body?.organization?.name === "Contoso Ltd",
+    `status ${orgGetContoso.status} ${JSON.stringify(orgGetContoso.body)}`,
+  );
+
   // ── V. Tenant export contains ONLY the tenant's rows (isolation). ──
   const exp = await req("GET", "/rpc/tenant/export", { slug: "acme", cookie: ownerCk });
   check(

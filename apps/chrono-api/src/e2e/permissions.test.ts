@@ -171,6 +171,7 @@ check(
 );
 for (const action of [
   "read",
+  "update",
   "suspend",
   "resume",
   "export",
@@ -198,6 +199,7 @@ for (const [resource, action] of [
   ["integration", "manage"],
   ["security", "manage"],
   ["audit", "read"],
+  ["tenant", "update"],
   ["tenant", "delete"],
   ["tenant", "transfer-ownership"],
   ["notificationFeed", "read"],
