@@ -28,19 +28,27 @@ import { MemberPageHeader } from "@/components/member/member-page-header";
 import { formatCurrency, formatMinutes } from "@/lib/member/format";
 import { getCreditProducts, purchaseCreditProduct, type CreditProduct } from "@/lib/member/credits";
 import { getMyWalletBalance, type WalletBalance } from "@/lib/member/wallet";
+import { createCheckout, getPaymentGateway, type PaymentGatewayStatus } from "@/lib/member/payments";
 
 export default function MemberPromoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [product, setProduct] = useState<CreditProduct | null | undefined>(undefined);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
+  const [gateway, setGateway] = useState<PaymentGatewayStatus | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [buyingOnline, setBuyingOnline] = useState(false);
 
   const load = useCallback(async () => {
-    const [products, balance] = await Promise.all([getCreditProducts(), getMyWalletBalance()]);
+    const [products, balance, gatewayStatus] = await Promise.all([
+      getCreditProducts(),
+      getMyWalletBalance(),
+      getPaymentGateway(),
+    ]);
     const found = products.data?.find((p) => p.id === id) ?? null;
     setProduct(found);
     if (balance.data) setWallet(balance.data);
+    if (gatewayStatus.data) setGateway(gatewayStatus.data);
   }, [id]);
 
   useEffect(() => {
@@ -66,6 +74,22 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
         newBalance.data?.balance ?? "0.00",
       )}.`,
     );
+  }
+
+  // Online PSP checkout (GCash/card) — fulfilment is webhook-only, so this
+  // never grants anything itself. It only creates the pending payment +
+  // checkout session and redirects; the return page (/member/wallet)
+  // polls for the webhook's outcome.
+  async function onBuyOnline() {
+    if (!product) return;
+    setBuyingOnline(true);
+    const res = await createCheckout({ purpose: "credit_purchase", productId: product.id });
+    setBuyingOnline(false);
+    if (!res.data) {
+      toast.error(res.error ?? "Unable to start checkout.");
+      return;
+    }
+    window.location.href = res.data.checkoutUrl;
   }
 
   return (
@@ -120,9 +144,24 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
             </Stack>
           </CardContent>
           <CardFooter>
-            <Button onClick={() => setConfirmOpen(true)} disabled={insufficient}>
-              Buy with wallet
-            </Button>
+            <Stack gap={2}>
+              <Row gap={2}>
+                <Button onClick={() => setConfirmOpen(true)} disabled={insufficient}>
+                  Buy with wallet
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onBuyOnline}
+                  disabled={!gateway?.available || buyingOnline}
+                  data-testid="buy-online-button"
+                >
+                  {buyingOnline ? "Redirecting…" : "Buy online (GCash/Card)"}
+                </Button>
+              </Row>
+              {gateway && !gateway.available ? (
+                <p className="text-sm text-muted-foreground">Ask staff at the counter to add credits.</p>
+              ) : null}
+            </Stack>
           </CardFooter>
         </Card>
       )}

@@ -152,8 +152,14 @@ export function paymentPortalRoutes(opts: {
         amountMinorUnits: Number(toCents(amount)),
         currency,
         description,
-        successUrl: tenantHostUrl(org.slug, `/portal/credits?payment=${payment!.id}`),
-        cancelUrl: tenantHostUrl(org.slug, "/portal/credits?payment=cancelled"),
+        // The member-area web app moved everything under `/member/*` after
+        // this plan's Pass 2 was written (`/portal/credits` no longer
+        // exists) — the wallet page is the single return/poll destination
+        // for both purposes, since fulfilment always credits the wallet
+        // first (see fulfilment.ts). `payment=cancelled` is a literal
+        // sentinel the web app special-cases without an API call.
+        successUrl: tenantHostUrl(org.slug, `/member/wallet?payment=${payment!.id}`),
+        cancelUrl: tenantHostUrl(org.slug, "/member/wallet?payment=cancelled"),
         customerEmail: email,
       });
 
