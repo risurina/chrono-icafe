@@ -1,7 +1,11 @@
 # Chrono — `app-versions` (PC-client release info)
 
 **Sessions:**
-- Planning: consolidate-customers-members-page [7ffb50]
+- Planning: mailtrap-e2e-email-verification [7ac5da] (original: consolidate-customers-members-page [7ffb50])
+
+**Depends on:** `.ai/plans/chrono/draft/apex-marketing-shell/README.md` landing first —
+that plan creates the `(apex-marketing)` route group + shared layout
+(`MarketingHeader`/`MarketingFooter`, no tenant gating) this page's Phase 1 now targets.
 
 **Status:** re-opened from `blocked/` on 2026-09-05. The original blocking premise —
 "no PC-client binary exists to version" — is factually false: a real, code-signed
@@ -86,11 +90,21 @@ Task 2).
   patterns in `apps/chrono-web/src/app/` — both are async Server Components composed
   from `agora/ui` (`PageShell`, `Main`), not raw HTML.
 
-**Where it renders:** `apps/chrono-web/src/app/(saas-landing)/download/page.tsx` — a new
-top-level public route alongside the existing `about`/`contact`/`new-business` pages in
-that group. `(saas-landing)` is confirmed (by reading its current contents) to already
-hold apex-level public marketing pages of exactly this shape; it is not tenant-scoped
-content the way `(tenant-landing)` is, so this is the correct group, not a new one.
+**Where it renders:** `apps/chrono-web/src/app/(apex-marketing)/download/page.tsx` — a
+new route group, not `(saas-landing)`. Investigation during this planning pass found
+`(saas-landing)/about` and `/contact` were **repurposed** into each tenant's own
+configurable landing content (a registry-driven "About" section, and a real
+tenant-scoped "submit an inquiry to this cafe" form posting to `/public/inquiries`) —
+they 404 without a tenant and are not the apex marketing pages an earlier plan note
+assumed. `apps/chrono-api/AGENTS.md` now states the apex marketing page is the single
+`(saas-landing)/page.tsx`. This page, `/support`, `/pricing`, `/terms`, `/privacy`, and
+the company `/company/about` + `/company/contact` pages are new, genuinely apex-only
+content with no existing route to collide with, so they get their own group:
+`(apex-marketing)`, built by the `apex-marketing-shell` plan this one depends on. That
+shell's `layout.tsx` wraps every page in the group with the existing
+`MarketingHeader`/`MarketingFooter` (`@/components/landing/marketing-chrome`, already
+used by the homepage) — no tenant gating, renders identically on any host — so this
+page's own file needs no header/footer/PageShell of its own, only its content.
 
 **Caching:** GitHub's unauthenticated rate limit (60/hr/IP) is the reason this must not
 be a client-side fetch — a Next.js server `fetch()` with `next: { revalidate: 300 }` (5
@@ -125,9 +139,20 @@ last-known-good cached response to fall back on if GitHub is briefly down.
 ## Phase 1 — Public PC-client download page
 
 **Files to update:**
-- New: `apps/chrono-web/src/app/(saas-landing)/download/page.tsx` — async Server
-  Component, `agora/ui`'s `PageShell`/`Main` (mirror `about/page.tsx`'s shell usage),
-  no raw HTML chrome.
+- New: `apps/chrono-web/src/app/(apex-marketing)/download/page.tsx` — async Server
+  Component. Content only (no header/footer — the group `layout.tsx` from
+  `apex-marketing-shell` supplies those): a hero (`Section`) with copy + a requirements
+  grid (Windows 10/11 64-bit, x64, ~200MB free, admin install) on one side and a
+  download `Card` for the latest release (version, "Download for Windows" `Button`, a
+  SmartScreen note) on the other, then a `#releases` section listing every release
+  (`Card` per release: name/version/date/size `Badge`s, its own download `Button`,
+  release notes rendered plain — latest expanded, older ones behind a collapsible
+  `Accordion`/`Collapsible` from `agora/ui`). This mirrors oikos's reference
+  (`~/karta/karta-tenant/apps/chrono-web/src/app/(landing)/download/download-client.tsx`)
+  for layout/UX only — rebuilt fresh from `agora/ui` primitives and semantic tokens, not
+  ported (its raw HTML chrome, hardcoded `gold`/`zinc-950` literals, and hand-rolled
+  markdown renderer are exactly what `.ai/rules/component-first-ui.md` and
+  `.ai/rules/styling.md` prohibit here).
 - New: `apps/chrono-web/src/lib/pc-client-releases.ts` — server-only helper:
   `getPcClientReleases()` fetching `https://api.github.com/repos/izur-it/chrono/releases`
   with `next: { revalidate: 300 }`, mapped to a small local type (not a `packages/agora`
@@ -168,9 +193,10 @@ last-known-good cached response to fall back on if GitHub is briefly down.
 - Visiting `/download` on the apex host renders the current release list matching
   `izur-it/chrono`'s actual GitHub releases (verify against `gh release list --repo
   izur-it/chrono` at test time).
-- Every visible affordance is built from `agora/ui` primitives (`PageShell`, `Main`,
-  `Card`, `Badge`, `Button`) — no raw `div`/`button` chrome, per
-  `.ai/rules/component-first-ui.md`.
+- Every visible affordance is built from `agora/ui` primitives (`Section`, `Card`,
+  `Badge`, `Button`, `Accordion`/`Collapsible`) — no raw `div`/`button` chrome, per
+  `.ai/rules/component-first-ui.md`. Header/footer come from the group `layout.tsx`,
+  not this page.
 - Simulating a GitHub fetch failure (e.g., temporarily pointing the helper at an
   invalid URL) renders the fallback state, not a 500.
 - No new DB table, no `APP_TENANT_TABLES` entry, no new permission resource, no
@@ -195,23 +221,20 @@ and manually verified (e.g. a temporary console log of its output) before Task 3
 
 ## Open Questions (developer to confirm/override)
 
-1. Should the download page also be linked from inside the tenant dashboard (e.g. a
-   "Download the station app" link under a stations/devices settings area), or does the
-   public `/download` page fully cover the need for now? If yes, that's a small follow-up
-   phase (a link, not a new fetch surface) — not included above since it wasn't asked
-   for.
+1. ~~Should the download page also be linked from inside the tenant dashboard~~ —
+   resolved 2026-09-05: not now, public page only. Instead it's linked from the apex
+   marketing nav/footer (`apex-marketing-shell` plan adds a "Download" entry).
 2. Confirm with whoever owns the PC-client's actual source repo that its Tauri updater
    is (or will be) configured to check `izur-it/chrono` releases directly — this plan
    assumes that wiring is either already done or someone else's task, and does not
    verify it (no access to that source).
-3. Exact route path — `/download` assumed here; confirm it doesn't collide with an
-   existing or planned route in `(saas-landing)`.
+3. ~~Exact route path~~ — resolved 2026-09-05: `(apex-marketing)/download`, no
+   collision (see "Where it renders" above).
 
 ---
 
 ## After Implementation
 
-Not yet — this plan is in `draft/`. Per `.ai/rules/feature-planning.md`, it needs the
-developer's explicit acceptance (and passes the Concreteness Gate above) before moving
-to `ready/`, and claiming `Implementation:` + committing Phase 1 before moving to
-`in-progress/`.
+Not yet — this plan is accepted and in `ready/`, but depends on `apex-marketing-shell`
+landing first (see "Depends on" above). Claiming `Implementation:` + committing Phase 1
+is the move to `in-progress/`, per `.ai/rules/feature-planning.md`.
