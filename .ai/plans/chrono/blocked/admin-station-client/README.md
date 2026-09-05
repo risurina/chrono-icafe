@@ -205,72 +205,22 @@ The task brief allows either "platform-admin or tenant-admin." This plan picks
 - Live push updates for connectivity status — polling only, consistent with
   `chrono-realtime-updates` being deferred platform-wide.
 
-## Phases — Phase 0/1/2 below are SUPERSEDED (see 2026-09-02 update at top); kept
-verbatim for historical reference only, not to be executed
+## Phases
 
-### Phase 0 (prerequisite, not part of this plan) — `devices` schema + auth middleware
+Phase 0 (`devices` schema + auth middleware) and the original Phase 1 (permission
+resource + routes) and Phase 2 (web UI + e2e) are **done** — landed via `devices`' own
+plan, fully archived at `.ai/plans/chrono/archive/devices/`
+(`apps/chrono-api/src/modules/device/routes.ts`'s GET/approve/revoke/link,
+`apps/chrono-web/src/app/dashboard/devices/page.tsx`,
+`apps/chrono-web/e2e/tests/devices/devices.spec.ts`). Do not re-implement them; see the
+2026-09-02 update at the top of this file for the reconciliation.
 
-DONE — `devices` plan fully archived (`.ai/plans/chrono/archive/devices/`), all 5 phases.
-
-### Phase 1 — Permission resource, routes — SUPERSEDED, already landed via `devices`' own plan (`apps/chrono-api/src/modules/device/routes.ts`'s GET/approve/revoke/link + the `device` permission resource). Do not re-implement.
-
-**Files to Update**
-- `apps/chrono-api/src/auth/permissions.ts` (`device: ["read", "manage"]`)
-- `apps/chrono-api/src/modules/device/routes.ts` (admin routes — separate from any
-  device-auth-bearer routes `devices`' own plan adds to this same module folder)
-
-**Step-by-Step Tasks**
-1. Re-read `devices`' actual landed schema/contracts (not this plan's sketch above) and
-   reconcile field names before writing routes.
-2. Add `device` to `CHRONO_PERMISSION_STATEMENTS`, staff gets nothing, admin+ gets both
-   actions (per Pass 1's reasoning).
-3. `GET`, approve, revoke, command-dispatch routes, all `withTenant`-scoped.
-4. Audit-event writes on approve/revoke/command-dispatch.
-
-**Acceptance Criteria**
-- `staff` cannot approve/revoke/dispatch (403); can optionally read if that default
-  changes during review — confirm against the reconciled `devices` schema, don't assume
-  this plan's sketch.
-- Cross-tenant isolation: tenant A cannot see or act on tenant B's devices.
-
-**Verification Commands**
-- `pnpm typecheck`
-- `pnpm --filter @agora/chrono-api rls:proof`
-
-**Out-of-Scope**
-- Web UI (Phase 2).
-
-**Execution Start Point**
-- Read `devices`' final `schema.ts`/`contracts.ts` and its device-auth middleware in
-  full before writing a single route.
-
-### Phase 2 — Web UI + E2E spec — SUPERSEDED, already landed via `devices`' own plan (`apps/chrono-web/src/app/dashboard/devices/page.tsx` + `apps/chrono-web/e2e/tests/devices/devices.spec.ts`). Do not re-implement.
-
-### Original Phase 2 text (reference only)
-
-**Files to Update**
-- `apps/chrono-web/src/app/dashboard/devices/page.tsx`
-- `apps/chrono-web/e2e/tests/devices/admin-control.spec.ts`
-
-**Step-by-Step Tasks**
-1. Build the `DataTable` + row actions per the Web UI sketch.
-2. E2E: happy path (approve a pending device, see it listed as approved); role gate
-   (`staff` cannot approve/revoke — 403 + hidden controls); cross-tenant isolation
-   (tenant A never sees tenant B's devices in the list).
-
-**Acceptance Criteria**
-- All three e2e assertions pass.
-
-**Verification Commands**
-- Chrono web Playwright suite (manual runner, per plan #1's Phase 2 note).
-
-**Out-of-Scope**
-- Remote-command delivery correctness on the actual kiosk side (that's `devices`'/the
-  PC-client's own concern, out of scope for the whole migration pass).
-
-**Execution Start Point**
-- Copy an existing Chrono admin-table e2e spec (e.g. `stations` or `branches` once its
-  own e2e lands) for the role-gate/isolation assertion shape.
+The only phase this plan still owns is **remote command dispatch**
+(lock/unlock/reboot/force-logout), and it cannot be written concretely — Files to
+Update, Step-by-Step Tasks, Acceptance Criteria, etc. — until the PC-client and a
+command-delivery channel exist (see "Unblocking" below). Once unblocked, this section
+gets a real Phase 3 built against `devices`' actual command vocabulary at that time —
+not sketched in advance here.
 
 ## Open Questions (developer to confirm/override)
 
