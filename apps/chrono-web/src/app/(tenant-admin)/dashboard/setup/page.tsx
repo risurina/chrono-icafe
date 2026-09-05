@@ -118,7 +118,7 @@ export default function OnboardingSetupPage() {
   }
 
   return (
-    <Stack className="w-full" gap={6}>
+    <Stack gap={6}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Get set up</h1>
         <p className="text-sm text-muted-foreground">

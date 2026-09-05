@@ -48,7 +48,9 @@ export async function waitForMailtrapInviteLink(toEmail: string): Promise<string
       `/${inboxId}/messages?search=${encodeURIComponent(toEmail)}`,
     );
     const messages = (await listRes.json()) as SandboxMessage[];
-    const match = messages.find((m) => m.to_email === toEmail);
+    const match = messages.find(
+      (m) => m.to_email.toLowerCase() === toEmail.toLowerCase(),
+    );
 
     if (match) {
       const htmlRes = await mailtrapFetch(`/${inboxId}/messages/${match.id}/body.html`);

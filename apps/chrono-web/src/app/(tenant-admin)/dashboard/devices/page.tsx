@@ -451,7 +451,7 @@ export default function DevicesPage() {
   ];
 
   return (
-    <Stack className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+    <Stack gap={6}>
       <Row className="justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Devices</h1>

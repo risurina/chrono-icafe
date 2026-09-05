@@ -21,6 +21,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  Stack,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
 
@@ -101,7 +102,7 @@ export default function SalesReportPage() {
   }, [load, branchId, canSeeAllBranches]);
 
   return (
-    <div className="space-y-6">
+    <Stack gap={6}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Sales report</h1>
         <p className="text-sm text-muted-foreground">
@@ -247,6 +248,6 @@ export default function SalesReportPage() {
           </div>
         </>
       ) : null}
-    </div>
+    </Stack>
   );
 }

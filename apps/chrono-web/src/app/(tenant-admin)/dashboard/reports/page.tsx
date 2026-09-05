@@ -12,6 +12,7 @@ import {
   TrendChart,
   Button,
   Can,
+  Stack,
   type TrendChartSeries,
   type SparklinePoint,
 } from "agora/ui";
@@ -62,7 +63,7 @@ export default function ReportsOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <Stack gap={6}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
         <p className="text-sm text-muted-foreground">
@@ -130,6 +131,6 @@ export default function ReportsOverviewPage() {
           </Card>
         </>
       )}
-    </div>
+    </Stack>
   );
 }

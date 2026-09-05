@@ -11,6 +11,7 @@ import {
   Input,
   Button,
   TrendChart,
+  Stack,
   type TrendChartSeries,
 } from "agora/ui";
 import { api } from "@/lib/rpc";
@@ -73,7 +74,7 @@ export default function WalletActivityReportPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <Stack gap={6}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Wallet activity</h1>
         <p className="text-sm text-muted-foreground">
@@ -143,6 +144,6 @@ export default function WalletActivityReportPage() {
           </Card>
         </>
       ) : null}
-    </div>
+    </Stack>
   );
 }

@@ -78,7 +78,7 @@ export default function GeneralSettingsPage() {
         <>
           {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
 
-          <form onSubmit={save} className="max-w-xl">
+          <form onSubmit={save}>
             <Card>
               <CardHeader>
                 <CardTitle>Business identity</CardTitle>
