@@ -253,3 +253,12 @@ Phases 3–4 depend on them.
   archiving this plan**: run `pnpm --filter @agora/chrono-web e2e -- e2e/tests/member/wallet-operation-hardening.spec.ts`
   (needs `pnpm dev` already running) once machine resources are free, fix
   anything it surfaces, then move this plan to `archive/`.
+- 2026-09-05 — Ran the outstanding verification once the machine had freed up:
+  started `pnpm --filter @agora/chrono-web dev` on :3000, confirmed :8787
+  already up, then `npx playwright test
+  e2e/tests/member/wallet-operation-hardening.spec.ts` — **3/3 passed**
+  (missing `x-member-action` rejected pre-DB-work on both checkout and
+  purchase; a replayed `Idempotency-Key` returns the original grant with no
+  second debit, a different key debits again). Re-confirmed
+  `pnpm --filter @agora/chrono-api typecheck` and `rls:proof` (`RLS PROOF:
+  PASS ✅`) on the same pass. All 6 phases fully verified. Archived.
