@@ -6,8 +6,12 @@ const DEV_LOG_PATH = process.env.DEV_LOG_PATH ?? "/tmp/agora-dev.log";
 
 async function findInviteLink(toEmail: string): Promise<string> {
   const deadline = Date.now() + 15_000;
+  // The server always lowercases the recipient before logging, so match
+  // case-insensitively rather than assuming toEmail's own casing survives
+  // (mirrors invite-customer.spec.ts's own findInviteLink).
   const pattern = new RegExp(
     `\\[email:console\\] to=${toEmail.replace(/[.+]/g, "\\$&")}.*?link=(\\S+)`,
+    "i",
   );
   while (Date.now() < deadline) {
     const log = readFileSync(DEV_LOG_PATH, "utf8");
@@ -235,12 +239,57 @@ test.describe("Members", () => {
     // 4. Verify Tenant B's list does not show Customer A
     await page.goto(`${baseB}/admin/members`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText("No members yet.")).toBeVisible();
+    await expect(page.getByText("No players yet.")).toBeVisible();
     await expect(page.getByText(customerEmail)).toHaveCount(0);
 
     // Search specifically for it
-    await page.getByPlaceholder("Search members…").fill("Isolation");
-    await expect(page.getByText("No members yet.")).toBeVisible();
+    await page.getByPlaceholder("Search players…").fill("Isolation");
+    await expect(page.getByText("No players yet.")).toBeVisible();
     await expect(page.getByText(customerEmail)).toHaveCount(0);
+  });
+
+  test("customers-members merge: a directly-created customer has no application status but full account actions", async ({
+    page,
+  }) => {
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const slug = `e2ememcr${uniq}`;
+    const ownerEmail = faker.internet.email({ provider: "example.com" });
+    const custEmail = faker.internet.email({ provider: "example.com" });
+    const base = `http://${slug}.localtest.me:3000`;
+
+    await signUp(page, { name: "Tenant Owner", email: ownerEmail, slug });
+
+    // 1. Create a customer directly (no chronoMemberProfile row).
+    await page.goto(`${base}/admin/members`);
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "Create customer" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Full name").fill("Direct Customer");
+    await dialog.getByLabel("Email").fill(custEmail);
+    await dialog.getByLabel("Temp password").fill("Password123!");
+    await dialog.getByRole("button", { name: "Create customer" }).click();
+    await expect(page.getByText("Customer created.")).toBeVisible();
+
+    // The server lowercases the stored email (createCustomer's
+    // toEmail = email.toLowerCase()), so match case-insensitively — mirrors
+    // invite-customer.spec.ts's own findInviteLink/row-matching convention.
+    const row = page.getByRole("row", { name: new RegExp(custEmail, "i") });
+    await expect(row).toBeVisible();
+
+    // 2. No application-status badge and no profile-only actions.
+    for (const status of ["pending", "approved", "rejected"]) {
+      await expect(row.getByText(status, { exact: true })).toHaveCount(0);
+    }
+    await expect(row.getByRole("button", { name: "Approve" })).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Reject" })).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Edit phone" })).toHaveCount(0);
+
+    // 3. Full account actions are present and work: starts active, suspend
+    // flips it to suspended (the merged Customers functionality).
+    await expect(row.getByText("active", { exact: true })).toBeVisible();
+    await row.getByRole("button", { name: "Suspend" }).click();
+    await expect(page.getByText("Customer suspended.")).toBeVisible();
+    await expect(row.getByText("suspended", { exact: true })).toBeVisible();
+    await expect(row.getByRole("button", { name: "Reactivate" })).toBeVisible();
   });
 });

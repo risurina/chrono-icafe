@@ -61,17 +61,20 @@ test.describe("Global customer — apply to a tenant", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
-    // the applied customer shows up in tenant A's customer list. ──
-    await page.goto(`http://${slugA}.localtest.me:3000/admin/settings/customers`);
+    // the applied customer shows up in tenant A's Members list (the applied
+    // customer has no chronoMemberProfile row, so this is the real proof the
+    // Members list's LEFT JOIN surfaces every tenantMember, not just
+    // profiled ones — see .ai/plans/chrono/active/customers-members-merge/README.md). ──
+    await page.goto(`http://${slugA}.localtest.me:3000/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
 
     // ── Tenant B: create a second, independent business. ──
     const { slug: slugB } = await signUpNewWorkspace(page);
 
-    // Before applying to B, tenant B's own customer list must NOT show this
+    // Before applying to B, tenant B's own Members list must NOT show this
     // global customer — the two tenant memberships are fully independent.
-    await page.goto(`http://${slugB}.localtest.me:3000/admin/settings/customers`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).not.toBeVisible();
 
@@ -86,13 +89,13 @@ test.describe("Global customer — apply to a tenant", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // Now tenant B's own list shows it too — a distinct row from tenant A's.
-    await page.goto(`http://${slugB}.localtest.me:3000/admin/settings/customers`);
+    await page.goto(`http://${slugB}.localtest.me:3000/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
 
     // ── The apex "Your businesses" list surfaces both memberships — the
     // customer's own cross-tenant view, distinct from either tenant's
-    // (tenant-scoped) customer list above. ──
+    // (tenant-scoped) Members list above. ──
     await page.goto("http://localtest.me:3000/portal");
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Your businesses")).toBeVisible();
