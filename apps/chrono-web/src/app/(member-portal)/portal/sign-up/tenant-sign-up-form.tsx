@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Button,
   Input,
@@ -13,17 +14,33 @@ import {
   CardContent,
   Field,
   AuthLayout,
+  MemberSocialSignIn,
+  useMemberAuthProviders,
+  Row,
+  Separator,
   toast,
 } from "agora/ui";
+import { describeMemberAuthError } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
 
 /** Customer registration → member area. Scoped to the current tenant. */
 export function TenantSignUpForm() {
+  const searchParams = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const providers = useMemberAuthProviders();
+
+  // Surface an error handed back by the OAuth round trip — Google/Facebook
+  // "sign up" and "sign in" share the same callback, so a new member can land
+  // here too (e.g. account_not_linked when the email already has a password).
+  useEffect(() => {
+    const code = searchParams.get("error");
+    if (code) toast.error(describeMemberAuthError(code));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +63,14 @@ export function TenantSignUpForm() {
           <CardDescription>Join this business as a customer.</CardDescription>
         </CardHeader>
         <CardContent>
+          <MemberSocialSignIn providers={providers} next="/member" />
+          {providers && providers.social.length > 0 ? (
+            <Row items="center" gap={3} className="mb-4">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground">OR</span>
+              <Separator className="flex-1" />
+            </Row>
+          ) : null}
           <form onSubmit={onSubmit} className="space-y-4">
             <Field>
               <Label htmlFor="name">Your name</Label>
