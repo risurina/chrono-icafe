@@ -237,3 +237,19 @@ Phases 3–4 depend on them.
 ## Handover log
 
 - 2026-09-05 — Plan written and accepted. Starting Phase 1.
+- 2026-09-05 — Phases 1–6 implemented and committed
+  (`9b70b4e3`, `cc1f6186`, `72a255be`, `6b7a2fce`, `358dffe5`, `50a8f12d`).
+  Phases 1–5 fully verified (`typecheck`, `rls:proof`,
+  `test:credit-concurrency`, `test:payment-portal-routes`, `chrono-web`
+  `build`) — all passing. Phase 6's rate-limiter unit test
+  (`rate-limit.test.ts`) also passes (8/8). **Not yet verified**: the new
+  `apps/chrono-web/e2e/tests/member/wallet-operation-hardening.spec.ts` —
+  written against the same pattern as the existing, passing
+  `online-checkout.spec.ts`/`wallet-history.spec.ts`, but this session's dev
+  machine was under heavy memory pressure from several concurrent sessions
+  and the headed Playwright run had to be stopped before completing (first
+  attempt was OOM-killed by the system; a retry was still mid-flight, real
+  browser alive and progressing, when told to stop). **Next step before
+  archiving this plan**: run `pnpm --filter @agora/chrono-web e2e -- e2e/tests/member/wallet-operation-hardening.spec.ts`
+  (needs `pnpm dev` already running) once machine resources are free, fix
+  anything it surfaces, then move this plan to `archive/`.
