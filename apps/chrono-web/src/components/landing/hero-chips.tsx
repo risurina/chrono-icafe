@@ -29,7 +29,7 @@ export function HeroChips({
         <Row key={label} items="center" gap={2} className="gap-2.5">
           <span
             aria-hidden
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]"
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
           />
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/90">
             {label}
