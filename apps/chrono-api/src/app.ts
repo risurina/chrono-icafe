@@ -61,6 +61,7 @@ import {
 import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
 import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
+import { appUsageDeviceRoutes } from "./modules/app-usage/routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
@@ -1141,6 +1142,11 @@ export const app = baseApp
   // same intentional bypass `deviceAuthRoutes()` above already relies on;
   // do not "fix" this ordering.
   .route("/api/v1/device", deviceRealtimeRoutes(upgradeWebSocket))
+  // Device-facing app-usage telemetry ingest (app-usage plan, Phase 2). Same
+  // "must not lose data to a maintenance window" reasoning as heartbeat/the
+  // realtime websocket above — mounted here, BEFORE the `/api/v1/*`
+  // maintenance gate below, deliberately. Do not "fix" this ordering.
+  .route("/api/v1/device", appUsageDeviceRoutes())
   // Chrono: public QR scan resolve/consume (qr plan Phase 3) — no Better
   // Auth staff session; `/consume` gates on its own `memberMiddleware()`
   // (tenantMember/portal session) inside the router itself. Rate-limited
