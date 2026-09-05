@@ -281,27 +281,32 @@ at the mount site. No route returns a raw row. An anonymous caller 401s on every
 **Verify:** `pnpm typecheck` · `rls:proof` · `pnpm --filter @agora/chrono-api test:e2e`
 
 ### Phase C5 — Web UI — **superseded, not built here**
-**Superseded by** `.ai/plans/chrono/active/member-area/README.md`'s Phase 7, a
-separate, already-running effort implementing the `/portal/*` member-area
-pages (including `/portal/credits` and `/portal/wallet`). This backend-only
-pass (C1–C4, C7) deliberately does not touch any `apps/chrono-web/src/app`
-files under `/portal/credits` or `/member/*` — that surface belongs entirely
-to that other effort. The two pages, the promos card, the client helpers, and
-the home-page links described below are that effort's responsibility, not a
-future phase of this plan.
+**Superseded by** `.ai/plans/chrono/archive/member-area/README.md`'s Phase 7
+(now shipped), a separate effort that implemented the `/member/*` member-area
+pages — the sellable-pack catalog and wallet-funded purchase live at
+`/member/promos` / `/member/promos/[id]`, wallet balance/history at
+`/member/wallet`. This backend-only pass (C1–C4, C7) deliberately did not
+touch any `apps/chrono-web/src/app` files under `/member/*` — that surface
+belonged entirely to that other effort. The two pages, the promos card, the
+client helpers, and the home-page links described below are that effort's
+responsibility, not a future phase of this plan. Online PSP checkout
+(`/portal/payments/*`) itself still has no web UI — only the wallet-funded
+purchase route was built by member-area's Phase 7.
 ~~The two pages, the promos card, the client helpers, and the home-page links.~~
 ~~**Accept:** a member can buy a pack end to end on `{slug}.localtest.me:3000/portal/credits`;~~
 ~~online-buy is disabled with honest copy when the tenant has no gateway; the return page~~
 ~~never claims success before the webhook lands.~~
 ~~**Verify:** `pnpm typecheck` · manual walkthrough~~
 
-### Phase C6 — E2E spec — **deferred until Phase C5's UI lands**
-Deferred, not skipped: this spec drives real `/portal/credits` pages that
-Phase C5 (now `member-area` Phase 7) has not yet shipped. Add it as a
-follow-up pass once that UI lands — the backend surface it needs
-(`/portal/payments/*`, the webhook, `/portal/credits/products`,
-`/portal/promos`) is already in place and covered by this plan's own
-`fulfilment.test.ts` / `portal-routes.test.ts`.
+### Phase C6 — E2E spec — **deferred until online PSP checkout has a web UI**
+Deferred, not skipped: this spec drives a real online-checkout page that
+still doesn't exist. `member-area` Phase 7 shipped the wallet-funded catalog
+purchase (`/member/promos`, `/member/promos/[id]`) — a different, already
+end-to-end-tested flow — but built no UI for `/portal/payments/*` (PSP
+checkout/top-up). Add this spec as a follow-up pass once that UI lands — the
+backend surface it needs (`/portal/payments/*`, the webhook,
+`/portal/credits/products`, `/portal/promos`) is already in place and covered
+by this plan's own `fulfilment.test.ts` / `portal-routes.test.ts`.
 
 Original spec, to build once the UI exists —
 `apps/chrono-web/e2e/tests/portal-credits/purchase.spec.ts`, per

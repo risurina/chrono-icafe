@@ -105,7 +105,14 @@ aren't being ported yet.
 Chrono's tenant-facing URLs match the reference site (`gaming.chrono.izur.com.ph`):
 
 - **`{slug}.APP_DOMAIN/login`** — customer (member) sign-in (`agora/member-auth`,
-  `tenantMember`) → `/portal/*`, the member area.
+  `tenantMember`) → `/member/*`, the member area (`(member-area)/member/**`;
+  the gold-on-black shell + tab bar re-skinned from the reference site — see
+  `.ai/plans/chrono/archive/member-area/README.md`). `/portal/{login, sign-up,
+  forgot, reset, accept-invite}` stay at `/portal/*` — foundation emails
+  hardcode those links — plus the apex `/portal/*` global-customer home
+  below; `/portal` and `/portal/{reservations,inquiries}` on a tenant host
+  redirect (`next.config.ts`, not middleware) to `/member`,
+  `/member/reservations`, `/member/inquiries`.
 - **`{slug}.APP_DOMAIN/admin/login`** — staff sign-in (Better Auth) → `/admin/*`.
 - **`{slug}.APP_DOMAIN/admin/*`** — the tenant back office. This is a `next.config.ts`
   host-based rewrite (fires on any non-apex host — subdomain or verified custom
@@ -195,7 +202,9 @@ the caller (PayMongo), only records/mutates one row.
 ## Member online checkout (member-credit-purchase plan)
 
 A member buys a credit pack or tops up their wallet online, from
-`{slug}.APP_DOMAIN/portal/credits`, via `modules/payment/portal-routes.ts`
+`{slug}.APP_DOMAIN/member/promos` / `/member/wallet` (the wallet-funded catalog
+purchase at `/member/promos/[id]` uses `/portal/credits/purchase` instead — see
+`.ai/plans/chrono/archive/member-area/README.md`), via `modules/payment/portal-routes.ts`
 (mounted `/portal/payments`, `memberMiddleware()`-gated):
 
 - `GET /portal/payments/gateway` — `{ available, currency }`, read directly off
