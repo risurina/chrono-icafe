@@ -2,10 +2,19 @@ import { Hono } from "hono";
 import { withTenant, eq, and, isNull, or, asc, desc, count } from "agora/db";
 import { buildPaginationMeta } from "agora";
 import { gt } from "drizzle-orm";
-import { type MemberVars, memberMiddleware } from "agora/member-auth";
+import {
+  type MemberVars,
+  memberMiddleware,
+  requireMemberActionHeader,
+} from "agora/member-auth";
 import { zValidator, createRateLimiter } from "agora/server";
 import { recordAudit } from "agora/audit";
-import { chronoCreditProduct, chronoCreditGrant, chronoCreditGrantLedgerEntry } from "./schema";
+import {
+  chronoCreditProduct,
+  chronoCreditGrant,
+  chronoCreditGrantLedgerEntry,
+  chronoCreditPurchase,
+} from "./schema";
 import {
   creditLedgerListQuerySchema,
   portalPurchaseCreditProductSchema,
@@ -30,8 +39,20 @@ import { purchaseCreditProduct } from "./service";
 // (app.ts's staffSignInLimiter, member-auth's loginLimiter, etc). Applied
 // inside this module's own /purchase handler rather than at the app.ts
 // mount site, since the limiter key needs `c.var.member.memberId`, which
-// only exists after memberMiddleware() has already run.
-const purchaseLimiter = createRateLimiter(10, 15 * 60 * 1000, "member-credit-purchase");
+// only exists after memberMiddleware() has already run. `failOpen: false`
+// (member-wallet-operation-hardening plan) — a money-moving route should
+// block (429) on a Redis outage, not silently drop throttling.
+const purchaseLimiter = createRateLimiter(10, 15 * 60 * 1000, "member-credit-purchase", {
+  failOpen: false,
+});
+
+/** True if `err` is a Postgres unique-violation (SQLSTATE 23505) — same
+ * per-file convention as `credit/routes.ts`. Used to catch the race where two
+ * concurrent requests carrying the same Idempotency-Key both miss the
+ * lookup-before-execute check below and both reach the insert. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+}
 
 export function creditPortalRoutes() {
   return new Hono<{ Variables: MemberVars }>()
@@ -116,9 +137,44 @@ export function creditPortalRoutes() {
     // the product isn't active; 422 (via debitWallet) on insufficient
     // wallet balance, in which case NO grant/purchase row is written — the
     // whole thing rolls back inside the one transaction.
+    //
+    // `requireMemberActionHeader` (CSRF-preflight) and an optional
+    // `Idempotency-Key` header both added by the
+    // member-wallet-operation-hardening plan — a double-click or a client
+    // retry of a timed-out-but-succeeded request replays the same key and
+    // gets the ORIGINAL purchase back (200) instead of a second debit. A
+    // request with no key is unprotected, same as before this plan.
     .post("/purchase", zValidator("json", portalPurchaseCreditProductSchema), async (c) => {
+      requireMemberActionHeader(c);
       const { tenantId, memberId } = c.var.member;
       const { productId } = c.req.valid("json");
+      const idempotencyKey = c.req.header("Idempotency-Key")?.slice(0, 128);
+
+      const findByIdempotencyKey = (key: string) =>
+        withTenant(tenantId, (tx) =>
+          tx
+            .select({ purchase: chronoCreditPurchase, grant: chronoCreditGrant })
+            .from(chronoCreditPurchase)
+            .innerJoin(chronoCreditGrant, eq(chronoCreditPurchase.grantId, chronoCreditGrant.id))
+            .where(
+              and(
+                eq(chronoCreditPurchase.tenantId, tenantId),
+                eq(chronoCreditPurchase.memberId, memberId),
+                eq(chronoCreditPurchase.idempotencyKey, key),
+              ),
+            )
+            .then((rows) => rows[0]),
+        );
+
+      if (idempotencyKey) {
+        const existing = await findByIdempotencyKey(idempotencyKey);
+        if (existing) {
+          return c.json(
+            { purchase: existing.purchase, grant: toPortalCreditGrantDto(existing.grant) },
+            200,
+          );
+        }
+      }
 
       const retryAfter = await purchaseLimiter.blockedFor(`${tenantId}:${memberId}`);
       if (retryAfter !== null) {
@@ -128,9 +184,27 @@ export function creditPortalRoutes() {
       }
       await purchaseLimiter.record(`${tenantId}:${memberId}`);
 
-      const result = await withTenant(tenantId, (tx) =>
-        purchaseCreditProduct(tx, { tenantId, memberId, productId }),
-      );
+      let result;
+      try {
+        result = await withTenant(tenantId, (tx) =>
+          purchaseCreditProduct(tx, { tenantId, memberId, productId, idempotencyKey }),
+        );
+      } catch (err) {
+        // Two concurrent requests carrying the same key both missed the
+        // lookup above and both reached the insert — the loser's unique
+        // violation is not a real error, it means the winner already holds
+        // the row we'd have returned anyway.
+        if (idempotencyKey && isUniqueViolation(err)) {
+          const existing = await findByIdempotencyKey(idempotencyKey);
+          if (existing) {
+            return c.json(
+              { purchase: existing.purchase, grant: toPortalCreditGrantDto(existing.grant) },
+              200,
+            );
+          }
+        }
+        throw err;
+      }
 
       // Best-effort, after commit — never rolls back or blocks the purchase.
       await recordAudit({

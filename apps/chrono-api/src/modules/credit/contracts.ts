@@ -106,11 +106,13 @@ export type CreditGrantStatus = z.infer<typeof creditGrantStatusSchema>;
 // --- Member portal DTOs (Phase C) ---------------------------------------
 
 /**
- * No idempotency key in this pass — see the plan's documented fallback
- * ("skip the migration; rely on the rate limiter + a disabled purchase
- * button client-side"). Double-submit protection is client-side (disable
- * the button while the request is in flight) plus the 10/15min member rate
- * limiter at the app.ts mount site.
+ * The request body itself carries no idempotency key — it travels as an
+ * optional `Idempotency-Key` header instead (member-wallet-operation-hardening
+ * plan), read directly off `c.req.header(...)` in the route, not through this
+ * Zod schema. Double-submit protection is now: the header (if sent) matched
+ * against `chronoCreditPurchase.idempotencyKey`'s partial unique index, plus
+ * the pre-existing 10/15min member rate limiter and client-side button
+ * disabling.
  */
 export const portalPurchaseCreditProductSchema = z.object({
   productId: z.string().min(1),

@@ -219,6 +219,14 @@ export async function purchaseCreditProduct(
      * rollback traps" (#1, price drift).
      */
     chargeAmount?: string;
+    /**
+     * Client-supplied `Idempotency-Key` from `POST /portal/credits/purchase`
+     * — stored on the purchase row so a replayed request can be matched back
+     * to it instead of re-executing the debit. Every existing caller omits
+     * this and gets today's behaviour (no dedup). See
+     * member-wallet-operation-hardening plan.
+     */
+    idempotencyKey?: string;
   },
 ) {
   const [product] = await tx
@@ -290,6 +298,7 @@ export async function purchaseCreditProduct(
       priceAmount: chargeAmount,
       currency: product.currency,
       walletTransactionId: transaction.id,
+      idempotencyKey: args.idempotencyKey,
     })
     .returning();
 
