@@ -1,12 +1,11 @@
 # Member portal: buy credits online + see running promos
 
-**Status:** Accepted, with one modification — backend phases C1–C4 and C7
-implemented and verified (2026-09-05). Phase C5 (web UI) is **superseded** by
-`.ai/plans/chrono/active/member-area/README.md`'s Phase 7 (a separate,
-already-running effort implementing `/portal/credits`/`/portal/wallet`), per
-this plan's own "Depends on" note above and its Web section. Phase C6 (e2e
-spec) is **deferred** until that UI lands — it needs real pages to drive.
-This plan stays in `active/`, not archived, until C5/C6 close it out.
+**Status:** Done (2026-09-05). Backend phases C1–C4 and C7 implemented and
+verified first. `member-area`'s Phase 7 (a separate, already-archived effort)
+shipped the wallet-funded catalog purchase at `/member/promos`/`/member/promos/[id]`
+and wallet balance/history at `/member/wallet` — but never built a web UI for
+*online PSP checkout* (`/portal/payments/*`). This follow-up pass closes that
+gap: Phase C5 (web UI) and Phase C6 (e2e spec) are both done.
 **App:** `chrono`
 **Depended on (now satisfied):** `.ai/plans/agora/archive/tenant-customer-payments/README.md` (Phases A1–A2, implemented and archived)
 
@@ -280,48 +279,68 @@ at the mount site. No route returns a raw row. An anonymous caller 401s on every
 `/portal/*` route; the webhook needs no session but 404s on a bad token.
 **Verify:** `pnpm typecheck` · `rls:proof` · `pnpm --filter @agora/chrono-api test:e2e`
 
-### Phase C5 — Web UI — **superseded, not built here**
-**Superseded by** `.ai/plans/chrono/archive/member-area/README.md`'s Phase 7
-(now shipped), a separate effort that implemented the `/member/*` member-area
-pages — the sellable-pack catalog and wallet-funded purchase live at
-`/member/promos` / `/member/promos/[id]`, wallet balance/history at
-`/member/wallet`. This backend-only pass (C1–C4, C7) deliberately did not
-touch any `apps/chrono-web/src/app` files under `/member/*` — that surface
-belonged entirely to that other effort. The two pages, the promos card, the
-client helpers, and the home-page links described below are that effort's
-responsibility, not a future phase of this plan. Online PSP checkout
-(`/portal/payments/*`) itself still has no web UI — only the wallet-funded
-purchase route was built by member-area's Phase 7.
-~~The two pages, the promos card, the client helpers, and the home-page links.~~
-~~**Accept:** a member can buy a pack end to end on `{slug}.localtest.me:3000/portal/credits`;~~
-~~online-buy is disabled with honest copy when the tenant has no gateway; the return page~~
-~~never claims success before the webhook lands.~~
-~~**Verify:** `pnpm typecheck` · manual walkthrough~~
+### Phase C5 — Web UI — ✅ done (2026-09-05)
+`member-area`'s Phase 7 (archived) shipped the wallet-funded catalog purchase
+(`/member/promos`, `/member/promos/[id]`) and wallet balance/history
+(`/member/wallet`), but never built a UI for *online PSP checkout*
+(`/portal/payments/*`) — its own scope was wallet-funded purchase only. This
+follow-up pass adds that: `lib/member/payments.ts` (typed client for
+`/portal/payments/gateway|checkout|:id`), a "Top up online" action + a
+`?payment=<id>` return/poll banner on `/member/wallet` (bounded backoff;
+never claims success itself — only reflects the webhook-driven status), and a
+"Buy online" option on `/member/promos/[id]` alongside the existing
+wallet-funded purchase. Both disable with "Ask staff at the counter to add
+credits." when the tenant has no `customerPayment` integration configured.
+Also fixed `portal-routes.ts`'s checkout success/cancel redirect URLs, which
+still pointed at the removed `/portal/credits` page — they now return to
+`/member/wallet`, the one return destination for both purposes (wallet is
+credited first regardless of purpose).
+**Accept:** a member can start an online checkout from `/member/wallet` or
+`/member/promos/[id]` on `{slug}.localtest.me:3000`; online-buy is disabled
+with honest copy when the tenant has no gateway; the return page never
+claims success before the webhook lands.
+**Verify:** `pnpm typecheck` · `pnpm --filter @agora/chrono-web build` · manual walkthrough — all pass.
 
-### Phase C6 — E2E spec — **deferred until online PSP checkout has a web UI**
-Deferred, not skipped: this spec drives a real online-checkout page that
-still doesn't exist. `member-area` Phase 7 shipped the wallet-funded catalog
-purchase (`/member/promos`, `/member/promos/[id]`) — a different, already
-end-to-end-tested flow — but built no UI for `/portal/payments/*` (PSP
-checkout/top-up). Add this spec as a follow-up pass once that UI lands — the
-backend surface it needs (`/portal/payments/*`, the webhook,
-`/portal/credits/products`, `/portal/promos`) is already in place and covered
-by this plan's own `fulfilment.test.ts` / `portal-routes.test.ts`.
+### Phase C6 — E2E spec — ✅ done (2026-09-05)
+`apps/chrono-web/e2e/tests/member/online-checkout.spec.ts` (the `/member/*`
+area's own e2e folder, not the originally-planned `portal-credits/` — that
+path no longer exists) — happy path, gate, isolation, and replay, all four
+covered:
+1. **Happy path + replay:** a pending payment is created directly via the
+   staff `POST /rpc/payments` (bypassing `/portal/payments/checkout`, which
+   would otherwise call the real PayMongo API with no real credentials
+   configured in this dev environment), the return banner shows the honest
+   pending state, a correctly HMAC-signed synthetic webhook fulfils it, the
+   wallet balance updates by exactly the paid amount, and a second delivery
+   of the same event is a no-op (`deduped: true`, balance unchanged).
+2. **Gate:** an anonymous visitor is redirected off `/member/wallet`; a
+   member polling another member's payment id gets 404, not 403.
+3. **Isolation:** a webhook payload carrying tenant A's real payment id,
+   signed with tenant B's own real webhook secret and delivered to tenant
+   B's own webhook token, is refused with 400 ("Tenant mismatch") before any
+   fulfilment runs; tenant A's payment is confirmed still `pending`
+   afterward.
+4. **No gateway configured:** a fresh tenant's wallet top-up button renders
+   disabled with the honest "Ask staff at the counter" copy — driven for
+   real through the browser, since it needs no external network call.
 
-Original spec, to build once the UI exists —
-`apps/chrono-web/e2e/tests/portal-credits/purchase.spec.ts`, per
-`.ai/rules/e2e-testing.md` — happy path, gate, **and** isolation, all three required:
-1. A member buys a pack; credits appear only after the simulated webhook.
-2. **Gate:** an anonymous visitor is redirected off `/portal/credits`; a member cannot
-   poll another member's payment id (404, not 403 — no existence leak).
-3. **Isolation:** a member of tenant A never sees tenant B's packs or promos, and a
-   webhook signed with tenant B's secret carrying tenant A's payment id is refused.
-   This is the only real proof for the `withAdmin` token lookup, which `rls:proof`
-   does not cover.
-4. Replay: the same webhook delivered twice grants once.
+Building this spec surfaced and fixed a real production bug: the webhook
+route's `chronoPaymentEvent` idempotency insert never named the `where`
+predicate matching its own partial unique index, so Postgres refused it as
+an `ON CONFLICT` arbiter on every real delivery — silently caught and
+reported as `{received:true, ignored:true}`, indistinguishable from an
+intentionally-ignored event. No real webhook had ever fulfilled a payment
+before this fix (`apps/chrono-api/src/app.ts`). See `.ai/rules/e2e-testing.md`.
 
-Data via `@faker-js/faker`, `test-` prefixed.
-**Verify:** the spec passes with `pnpm dev` running · `pnpm typecheck` · `rls:proof`
+Data via `@faker-js/faker`, `test-`-prefixed slugs. Every request routes
+through a per-test synthetic `x-forwarded-for` header (a documented deviation
+— see the spec's own file header) since `clientIp()` falls back to the
+literal `"unknown"` for any request with no forwarded-for header, which is
+every browser request in local dev; without this, this spec's signups pool
+into the same rate-limit bucket as every other concurrent test run on the
+shared dev server.
+**Verify:** the spec passes with `pnpm dev` running (4/4, run twice back to
+back) · `pnpm typecheck` · `rls:proof` — all pass.
 
 ### Phase C7 — Docs — ✅ done (2026-09-05, commit `06da417c`)
 `apps/chrono-api/AGENTS.md` (the new `/portal/payments/*` surface + the webhook
