@@ -37,7 +37,7 @@ export function GlobalSignUpForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Create your account</CardTitle>

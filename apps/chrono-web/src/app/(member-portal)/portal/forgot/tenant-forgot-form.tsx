@@ -32,7 +32,7 @@ export function TenantForgotForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

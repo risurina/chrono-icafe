@@ -55,7 +55,7 @@ export function TenantSignUpForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

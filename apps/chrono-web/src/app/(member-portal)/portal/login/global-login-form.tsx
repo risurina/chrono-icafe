@@ -36,7 +36,7 @@ export function GlobalLoginForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Sign in</CardTitle>

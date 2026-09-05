@@ -49,7 +49,7 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <TenantBrandHeader />
       <Card>
         <CardHeader>

@@ -17,7 +17,7 @@ import {
  */
 export default function SuspendedPage() {
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Business suspended</CardTitle>

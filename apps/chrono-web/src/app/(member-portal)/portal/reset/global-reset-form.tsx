@@ -46,7 +46,7 @@ export function GlobalResetForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Set a new password</CardTitle>

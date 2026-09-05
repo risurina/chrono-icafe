@@ -31,7 +31,7 @@ export function GlobalForgotForm() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout inset>
       <Card>
         <CardHeader>
           <CardTitle>Reset your password</CardTitle>
