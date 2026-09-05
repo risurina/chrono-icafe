@@ -1,4 +1,5 @@
 import { api, unwrap, type Result } from "./client";
+import type { PaginationMeta } from "./format";
 
 export type CreditProduct = {
   id: string;
@@ -28,6 +29,34 @@ export function getCreditProducts(): Promise<Result<CreditProduct[]>> {
 
 export function getMyCreditBalance(): Promise<Result<CreditBalance>> {
   return api.portal.credits.balance.$get().then((res) => unwrap(res, (json) => json as CreditBalance));
+}
+
+export type CreditLedgerEntry = {
+  id: string;
+  grantId: string;
+  type: string;
+  quantityDelta: number;
+  reason: string | null;
+  createdAt: string;
+};
+
+export type CreditLedgerPage = { items: CreditLedgerEntry[]; meta: PaginationMeta };
+
+export function getMyCreditLedger(query: {
+  page?: number;
+  pageSize?: number;
+  sort?: string;
+  order?: "asc" | "desc";
+} = {}): Promise<Result<CreditLedgerPage>> {
+  return api.portal.credits.ledger
+    .$get({
+      query: {
+        page: String(query.page ?? 1),
+        pageSize: String(query.pageSize ?? 20),
+        ...(query.sort ? { sort: query.sort, order: query.order ?? "asc" } : {}),
+      },
+    })
+    .then((res) => unwrap(res, (json) => json as CreditLedgerPage));
 }
 
 export function purchaseCreditProduct(

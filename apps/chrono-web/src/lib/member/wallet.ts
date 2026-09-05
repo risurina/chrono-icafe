@@ -23,6 +23,8 @@ export function getMyWalletHistory(query: {
   page?: number;
   pageSize?: number;
   type?: "credit" | "debit" | "adjustment";
+  sort?: string;
+  order?: "asc" | "desc";
 } = {}): Promise<Result<WalletHistoryPage>> {
   return api.portal.wallet.history
     .$get({
@@ -30,6 +32,7 @@ export function getMyWalletHistory(query: {
         page: String(query.page ?? 1),
         pageSize: String(query.pageSize ?? 20),
         ...(query.type ? { type: query.type } : {}),
+        ...(query.sort ? { sort: query.sort, order: query.order ?? "asc" } : {}),
       },
     })
     .then((res) => unwrap(res, (json) => json as WalletHistoryPage));

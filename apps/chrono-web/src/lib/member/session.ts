@@ -37,9 +37,17 @@ export function getMySessionSummary(): Promise<Result<SessionSummary>> {
 export function getMySessions(query: {
   page?: number;
   pageSize?: number;
+  sort?: string;
+  order?: "asc" | "desc";
 } = {}): Promise<Result<{ items: PortalSessionSummary[]; meta: PaginationMeta }>> {
   return api.portal.sessions
-    .$get({ query: { page: String(query.page ?? 1), pageSize: String(query.pageSize ?? 20) } })
+    .$get({
+      query: {
+        page: String(query.page ?? 1),
+        pageSize: String(query.pageSize ?? 20),
+        ...(query.sort ? { sort: query.sort, order: query.order ?? "asc" } : {}),
+      },
+    })
     .then((res) => unwrap(res, (json) => json as { items: PortalSessionSummary[]; meta: PaginationMeta }));
 }
 
