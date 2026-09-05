@@ -1,4 +1,4 @@
-import { Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, FileText, type LucideIcon } from "lucide-react";
+import { Building2, Palette, KeyRound, ToggleRight, Webhook, Globe, CreditCard, ShieldCheck, Blocks, Users, Contact, TriangleAlert, ScrollText, FileText, type LucideIcon } from "lucide-react";
 
 export type SettingsSection = {
   name: string;
@@ -19,6 +19,13 @@ export const SETTINGS_GROUP_ORDER = [
 // Single source of truth for the settings submodules: drives both the
 // secondary nav strip and the settings overview grid.
 export const SETTINGS_SECTIONS: SettingsSection[] = [
+  {
+    name: "General",
+    description: "Business name and basic details.",
+    href: "/admin/settings/general",
+    icon: Building2,
+    group: "Business",
+  },
   {
     name: "Branding",
     description: "Logo, colors, and business identity.",
