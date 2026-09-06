@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Check,
   Wallet,
@@ -36,7 +37,6 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
   CardFooter,
   Badge,
   StatTile,
@@ -100,18 +100,6 @@ export default async function Home() {
 
   // Apex → generic marketing page.
   if (!tenant) {
-    const stations = [
-      { name: "Station 01", state: "active" as const, note: "42m left" },
-      { name: "Station 02", state: "ready" as const, note: "Available" },
-      { name: "Station 03", state: "alert" as const, note: "Awaiting payment" },
-    ];
-
-    const activity = [
-      "Payment confirmed — Station 03",
-      "Shift opened — front desk",
-      "Reservation checked in — Station 07",
-    ];
-
     const problems = [
       {
         title: "Manual tracking gets messy",
@@ -410,76 +398,16 @@ export default async function Home() {
                   </p>
                 </Stack>
 
-                <Card className="overflow-hidden">
-                  <CardHeader className="border-b">
-                    <Row items="center" justify="between">
-                      <Row items="center" gap={2}>
-                        <span
-                          className="h-2 w-2 rounded-full bg-primary animate-pulse"
-                          aria-hidden
-                        />
-                        <CardTitle className="text-sm">Live Branch Command Center</CardTitle>
-                      </Row>
-                      <Badge variant="secondary">Example: Main Branch</Badge>
-                    </Row>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4">
-                    <Grid cols={4} gap={3}>
-                      <StatTile label="Active Sessions" value={18} />
-                      <StatTile label="Available Stations" value={7} />
-                      <StatTile label="Payments Today" value={24} />
-                      <StatTile
-                        label="Open Alerts"
-                        value={<span className="text-destructive">3</span>}
-                        className="border-destructive/30"
-                      />
-                    </Grid>
-                    <Grid cols={2} gap={4}>
-                      <Stack gap={2}>
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Stations
-                        </p>
-                        {stations.map((station) => (
-                          <Row key={station.name} items="center" justify="between">
-                            <Row items="center" gap={2}>
-                              <Monitor
-                                className={cn(
-                                  "h-4 w-4",
-                                  station.state === "active" && "text-primary",
-                                  station.state === "ready" && "text-muted-foreground",
-                                  station.state === "alert" && "text-destructive",
-                                )}
-                                aria-hidden
-                              />
-                              <span className="text-sm">{station.name}</span>
-                            </Row>
-                            <Badge
-                              variant={
-                                station.state === "active"
-                                  ? "default"
-                                  : station.state === "alert"
-                                    ? "destructive"
-                                    : "outline"
-                              }
-                            >
-                              {station.note}
-                            </Badge>
-                          </Row>
-                        ))}
-                      </Stack>
-                      <Stack gap={2}>
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Activity
-                        </p>
-                        {activity.map((item) => (
-                          <p key={item} className="text-sm text-muted-foreground">
-                            {item}
-                          </p>
-                        ))}
-                      </Stack>
-                    </Grid>
-                  </CardContent>
-                </Card>
+                <Row items="center" justify="center" className="h-full">
+                  <Image
+                    src="/brand/mascot.png"
+                    alt="Chrono owl mascot"
+                    width={768}
+                    height={512}
+                    priority
+                    className="h-auto w-full max-w-md object-contain"
+                  />
+                </Row>
               </Grid>
             </div>
           </Section>
