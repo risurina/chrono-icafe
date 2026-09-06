@@ -38,22 +38,36 @@
  * vocabulary.
  */
 export type AnalyticsEventProps = {
-  /** A tenant's public landing page was viewed. */
-  TENANT_PAGE_VIEW: { tenantName: string; path: string };
+  /**
+   * A tenant's public landing page was viewed.
+   *
+   * `source` is the resolved traffic-attribution dimension (`?source=` on the
+   * URL, defaulting to `"direct"` — see `getRequestTenant`'s caller in
+   * `app/(saas-landing)/page.tsx`), e.g. `venue_qr`, `global_discovery`,
+   * `google`, `facebook`, `share`. `track()` persists it for the rest of the
+   * tab's session so a later conversion event below carries the same value.
+   */
+  TENANT_PAGE_VIEW: { tenantName: string; path: string; source?: string };
   /** A tenant's `/stations` availability page was viewed. */
-  TENANT_STATIONS_VIEW: { tenantName: string; totalStations: number };
+  TENANT_STATIONS_VIEW: { tenantName: string; totalStations: number; source?: string };
   /** A player account was created from a tenant surface. */
-  PLAYER_SIGNUP_FROM_TENANT: { method: "portal_sign_up" | "customer_apply" };
+  PLAYER_SIGNUP_FROM_TENANT: { method: "portal_sign_up" | "customer_apply"; source?: string };
   /** A player signed in from a tenant surface. */
-  PLAYER_LOGIN_FROM_TENANT: Record<string, never>;
+  PLAYER_LOGIN_FROM_TENANT: { source?: string };
   /** The tenant's page was shared. */
-  TENANT_SHARE: { tenantName: string; method: "native" | "clipboard" };
-  /** A directions affordance was used. */
+  TENANT_SHARE: { tenantName: string; method: "native" | "clipboard"; source?: string };
+  /**
+   * A directions affordance was used. `source` here names the UI section the
+   * click came from (`contact_map`/`stations_section`) — an existing,
+   * unrelated field. It is deliberately NOT joined with the traffic-source
+   * dimension the other events carry, to avoid two different meanings on one
+   * key.
+   */
   DIRECTIONS_CLICK: { source: "contact_map" | "stations_section" };
   /** A phone, email or social link on the contact section was used. */
-  CONTACT_CLICK: { channel: string };
+  CONTACT_CLICK: { channel: string; source?: string };
   /** The live-availability section's own call to action was used. */
-  STATION_AVAILABILITY_INTERACTION: { action: string };
+  STATION_AVAILABILITY_INTERACTION: { action: string; source?: string };
   /** A player created a global customer account. */
   PLAYER_SIGNUP: Record<string, never>;
   /** A settled search on /discover — one event per search, never per keystroke. */
@@ -73,8 +87,57 @@ export type AnalyticsEventProps = {
    * tenant host and has the slug from the URL, never the org id. The slug is
    * public and non-personal, same as an org id.
    */
-  PLAYER_CONNECTS_TO_BUSINESS: { tenantSlug: string };
+  PLAYER_CONNECTS_TO_BUSINESS: { tenantSlug: string; source?: string };
 };
+
+/**
+ * Events that carry the session's traffic-attribution `source` dimension
+ * (QR code, global discovery, direct, …). `track()` auto-fills this field
+ * from the value persisted earlier in the session (see `persistSessionSource`
+ * below) when a call site doesn't pass one explicitly, so a downstream
+ * conversion event (share, login, connect, …) is joinable to the visit that
+ * started it with no call-site changes needed. `DIRECTIONS_CLICK` is
+ * deliberately excluded — its own `source` field already means something
+ * unrelated (which UI section triggered it).
+ */
+const SOURCE_AWARE_EVENTS = new Set<AnalyticsEvent>([
+  "TENANT_PAGE_VIEW",
+  "TENANT_STATIONS_VIEW",
+  "PLAYER_SIGNUP_FROM_TENANT",
+  "PLAYER_LOGIN_FROM_TENANT",
+  "TENANT_SHARE",
+  "CONTACT_CLICK",
+  "STATION_AVAILABILITY_INTERACTION",
+  "PLAYER_CONNECTS_TO_BUSINESS",
+]);
+
+const SESSION_SOURCE_KEY = "chrono:analytics:source";
+
+/**
+ * Persist the resolved traffic source for the rest of this tab's session.
+ * Called with the tenant landing page's own resolved `?source=` value (via
+ * `TrackOnMount` in `components/landing/analytics-bindings.tsx`) so every
+ * later source-aware event in the same visit reuses it. Best-effort:
+ * `sessionStorage` can throw in a private window or with storage disabled,
+ * and attribution is not worth failing a page render for.
+ */
+export function persistSessionSource(source: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SESSION_SOURCE_KEY, source);
+  } catch {
+    // best-effort — see doc comment above.
+  }
+}
+
+function readSessionSource(): string {
+  if (typeof window === "undefined") return "direct";
+  try {
+    return window.sessionStorage.getItem(SESSION_SOURCE_KEY) ?? "direct";
+  } catch {
+    return "direct";
+  }
+}
 
 /**
  * The closed event-name union, DERIVED from the props map above rather than
@@ -97,8 +160,20 @@ export function track<E extends AnalyticsEvent>(
     : [props: AnalyticsEventProps[E]]
 ): void {
   if (typeof window === "undefined") return;
-  if (process.env.NODE_ENV !== "development") return;
   const [props] = args;
+  let finalProps: Record<string, unknown> = { ...(props ?? {}) };
+
+  if (SOURCE_AWARE_EVENTS.has(event)) {
+    if (typeof finalProps.source === "string") {
+      // An explicit source (the tenant page's own resolved `?source=`) seeds
+      // the session for every later event on this visit.
+      persistSessionSource(finalProps.source);
+    } else {
+      finalProps = { ...finalProps, source: readSessionSource() };
+    }
+  }
+
+  if (process.env.NODE_ENV !== "development") return;
   // eslint-disable-next-line no-console
-  console.log("[analytics]", event, props ?? {});
+  console.log("[analytics]", event, finalProps);
 }
