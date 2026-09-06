@@ -85,3 +85,44 @@ export type BusinessLeadListItem = z.infer<typeof businessLeadListItemSchema>;
 
 /** Hard cap on the public directory read — see the plan's assumption 13. */
 export const DISCOVER_RESULT_LIMIT = 20;
+
+/**
+ * At most this many businesses (highest demand first) get pulled to the
+ * front of `GET /public/discover/businesses` (growth-loop-hardening Phase
+ * 10). Deliberately NOT "sort the whole page by demand" — that would let one
+ * popular business's demand crowd out the rest of a small directory. The
+ * remainder of the page keeps its original alphabetical relative order.
+ */
+export const DISCOVERY_DEMAND_BOOST_SLOTS = 3;
+
+/**
+ * Ranks an already-bounded, already-alphabetical directory page by
+ * pre-signup demand: at most `DISCOVERY_DEMAND_BOOST_SLOTS` businesses with
+ * `demand > 0` move to the front (highest demand first, alphabetical
+ * tiebreak — same normalizer as `GET /rpc/growth/demand`); every other
+ * business — including any demand-having business beyond the boost cap —
+ * keeps its original relative order. A page with zero demand across every
+ * listed business is therefore identical, entry for entry, to the plain
+ * alphabetical order it replaces.
+ *
+ * Pure function (no DB) so it is unit-testable with fixture data alone — see
+ * `business-lead/ranking.test.ts`.
+ */
+export function rankBusinessesByDemand<T extends { name: string }>(
+  orgs: readonly T[],
+  demandByNormalizedName: ReadonlyMap<string, number>,
+): T[] {
+  const boosted = orgs
+    .map((org) => ({
+      org,
+      demand: demandByNormalizedName.get(normalizeBusinessName(org.name)) ?? 0,
+    }))
+    .filter((entry) => entry.demand > 0)
+    .sort((a, b) => b.demand - a.demand || a.org.name.localeCompare(b.org.name))
+    .slice(0, DISCOVERY_DEMAND_BOOST_SLOTS)
+    .map((entry) => entry.org);
+
+  const boostedSet = new Set<T>(boosted);
+  const rest = orgs.filter((org) => !boostedSet.has(org));
+  return [...boosted, ...rest];
+}

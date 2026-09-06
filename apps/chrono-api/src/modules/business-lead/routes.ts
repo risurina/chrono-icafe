@@ -37,6 +37,7 @@ import {
   createBusinessLeadSchema,
   discoverBusinessesQuerySchema,
   normalizeBusinessName,
+  rankBusinessesByDemand,
   DISCOVER_RESULT_LIMIT,
   type BusinessDirectoryResult,
 } from "./contracts";
@@ -279,7 +280,27 @@ export function businessLeadPublicRoutes() {
           ]),
         );
 
-        return orgs.map<BusinessDirectoryResult>((o) => ({
+        // 4. Demand-count ranking signal (Phase 10) — computed the same
+        //    normalized-match way `GET /rpc/growth/demand` already does,
+        //    bounded to exactly the orgs already matched above (never a
+        //    separate unbounded scan of ChronoBusinessLeads).
+        const normalizedNames = orgs.map((o) => normalizeBusinessName(o.name));
+        const demandRows =
+          normalizedNames.length > 0
+            ? await tx
+                .select({
+                  businessNameNormalized: chronoBusinessLead.businessNameNormalized,
+                  value: count(),
+                })
+                .from(chronoBusinessLead)
+                .where(inArray(chronoBusinessLead.businessNameNormalized, normalizedNames))
+                .groupBy(chronoBusinessLead.businessNameNormalized)
+            : [];
+        const demandByNormalizedName = new Map(
+          demandRows.map((r) => [r.businessNameNormalized, Number(r.value)]),
+        );
+
+        const unranked = orgs.map<BusinessDirectoryResult>((o) => ({
           organizationId: o.organizationId,
           name: o.name,
           slug: o.slug,
@@ -289,6 +310,8 @@ export function businessLeadPublicRoutes() {
           // availability line rather than a misleading "0 of 0 available".
           liveAvailability: availabilityByTenant.get(o.organizationId) ?? null,
         }));
+
+        return rankBusinessesByDemand(unranked, demandByNormalizedName);
       });
 
       discoverCache.set(cacheKey, { at: now, data: results });
