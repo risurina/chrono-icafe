@@ -82,41 +82,91 @@ export default function MemberDashboardPage() {
         </Card>
       ) : null}
 
-      {/* Playtime hero */}
+      {/*
+        Home dashboard states (member-portal-v2 phase 2). This branches purely
+        on data already fetched above (session summary) — no new queries.
+
+        Precedence rule when more than one state could apply: an ACTIVE
+        SESSION always wins the hero slot over an upcoming reservation. An
+        active session is a live, currently-happening state the member needs
+        to monitor/act on right now; an upcoming reservation is a future
+        commitment with no immediate action needed. If a member has both, the
+        reservation should render as a small secondary note beside the
+        active-session hero — never suppressed, just demoted — so the member
+        doesn't lose visibility of an upcoming booking just because they're
+        mid-session.
+
+        NOT IMPLEMENTED in this pass: the "upcoming reservation" hero branch
+        (and the secondary note above). `member/page.tsx` does not fetch
+        reservation data anywhere today — no call to
+        `getMyReservation()` (`lib/member/reservations.ts`), and
+        `MemberAreaProvider` doesn't carry it either — and this phase is
+        scoped to reuse-only, no new fetches. So today this hero only ever
+        renders the no-session or active-session state below; wiring
+        reservations into this page and adding the third branch is follow-up
+        work, per the phase's own "stop, don't add a query" instruction.
+      */}
       <Card data-testid="playtime-hero">
-        <CardHeader>
-          <CardTitle>Playtime</CardTitle>
-          <CardDescription>
-            {session?.active
-              ? `Active on ${session.active.stationName}`
-              : "No active session right now."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <Skeleton className="h-16 w-full" />
-          ) : (
-            <Row items="center" className="justify-between gap-4">
-              <Stack gap={1}>
-                <span className="text-3xl font-bold tracking-tight">
-                  {session ? formatSecondsToday(session.today.billableSeconds) : "0m"}
-                </span>
-                <span className="text-xs text-muted-foreground">Today&apos;s usage</span>
-              </Stack>
-              <Badge variant={session?.active ? "success" : "secondary"}>
-                {session?.active ? "Session active" : "Idle"}
-              </Badge>
-            </Row>
-          )}
-        </CardContent>
-        <CardFooter className="gap-2">
-          <Link href="/member/session" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
-            View sessions
-          </Link>
-          <Link href="/member/reservations" className={cn(buttonVariants(), "flex-1")}>
-            Reserve a station
-          </Link>
-        </CardFooter>
+        {session?.active ? (
+          <>
+            <CardHeader>
+              <Row items="center" className="justify-between">
+                <CardTitle>Active session</CardTitle>
+                <Badge variant="success">Live</Badge>
+              </Row>
+              <CardDescription>{session.active.stationName}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-16 w-full" />
+              ) : (
+                <Stack gap={1}>
+                  <span className="text-3xl font-bold tracking-tight">
+                    {formatSecondsToday(session.today.billableSeconds)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Today&apos;s usage so far — started {formatDate(session.active.startedAt)}
+                  </span>
+                </Stack>
+              )}
+            </CardContent>
+            <CardFooter className="gap-2">
+              <Link href="/member/session" className={cn(buttonVariants(), "flex-1")}>
+                View active session
+              </Link>
+            </CardFooter>
+          </>
+        ) : (
+          <>
+            <CardHeader>
+              <CardTitle>Playtime</CardTitle>
+              <CardDescription>No active session right now.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-16 w-full" />
+              ) : (
+                <Row items="center" className="justify-between gap-4">
+                  <Stack gap={1}>
+                    <span className="text-3xl font-bold tracking-tight">
+                      {session ? formatSecondsToday(session.today.billableSeconds) : "0m"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">Today&apos;s usage</span>
+                  </Stack>
+                  <Badge variant="secondary">Idle</Badge>
+                </Row>
+              )}
+            </CardContent>
+            <CardFooter className="gap-2">
+              <Link href="/member/session" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
+                View sessions
+              </Link>
+              <Link href="/member/reservations" className={cn(buttonVariants(), "flex-1")}>
+                Reserve a station
+              </Link>
+            </CardFooter>
+          </>
+        )}
       </Card>
 
       <Grid cols={2} gap={4} className="md:grid-cols-2">
