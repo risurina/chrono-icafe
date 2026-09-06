@@ -53,6 +53,7 @@ import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
+import { getTenantVenueInfo } from "@/lib/venue";
 import { LandingSections } from "@/components/landing/render";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import {
@@ -723,9 +724,10 @@ export default async function Home() {
   // hiding one is a settings change, not a code change. This replaces a
   // hardcoded three-card placeholder that never read the tenant's config at all.
   const heading = branding?.displayName?.trim() || tenant.name;
-  const [landing, stations] = await Promise.all([
+  const [landing, stations, venue] = await Promise.all([
     getTenantLanding(),
     getTenantStations(),
+    getTenantVenueInfo(),
   ]);
 
   return (
@@ -745,7 +747,7 @@ export default async function Home() {
           context={{
             tenantName: heading,
             tenantSlug: landing?.tenantSlug ?? null,
-            data: { stations } satisfies ChronoLandingData,
+            data: { stations, venue } satisfies ChronoLandingData,
           }}
         />
       </Main>

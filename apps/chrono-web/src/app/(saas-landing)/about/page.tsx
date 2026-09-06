@@ -4,6 +4,7 @@ import { PageShell, Main } from "agora/ui";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
+import { getTenantVenueInfo } from "@/lib/venue";
 import { LandingSections } from "@/components/landing/render";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
@@ -33,10 +34,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutPage() {
-  const [landing, stations, branding] = await Promise.all([
+  const [landing, stations, branding, venue] = await Promise.all([
     getTenantLanding(),
     getTenantStations(),
     getPublicBranding(),
+    getTenantVenueInfo(),
   ]);
   // Only "no such tenant" is a 404 — a missing or unpublished config still
   // renders, because every section carries defaults.
@@ -62,7 +64,7 @@ export default async function AboutPage() {
           context={{
             tenantName: venueName,
             tenantSlug,
-            data: { stations } satisfies ChronoLandingData,
+            data: { stations, venue } satisfies ChronoLandingData,
           }}
         />
       </Main>

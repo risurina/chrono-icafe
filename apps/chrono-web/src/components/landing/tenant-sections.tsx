@@ -344,41 +344,23 @@ export type Rate = {
   period: string;
   features: readonly string[];
   isPopular?: boolean;
+  /**
+   * Optional second price line (e.g. a member rate). Rendered as a sub-line on
+   * the same card rather than a second card, so one rate group stays one card.
+   */
+  note?: string;
 };
 
-const DEFAULT_RATES: readonly Rate[] = [
-  {
-    title: "Regular rate",
-    price: "₱30",
-    period: "/ hr",
-    features: ["Walk-in friendly", "Standard station access", "Smooth gameplay"],
-  },
-  {
-    title: "Member rate",
-    price: "₱25",
-    period: "/ hr",
-    features: [
-      "Discounted hourly rate",
-      "Priority access when available",
-      "Best for regular players",
-    ],
-    isPopular: true,
-  },
-  {
-    title: "Promo rate",
-    price: "₱100",
-    period: "/ 5 hrs",
-    features: [
-      "Long-session value",
-      "Great for group play",
-      "Limited-time availability",
-    ],
-  },
-];
+/**
+ * NO DEFAULT RATES. Prices are the one thing a public venue page must never
+ * invent — a placeholder price is a false quote, and it would render on exactly
+ * the path an outage creates (`getTenantVenueInfo()` returns null on failure, so
+ * a defaulted prop would silently fire). `rates` is therefore required: an
+ * absent or empty list renders no section at all.
+ */
+export type TenantRatesProps = { rates: readonly Rate[]; cta?: Cta };
 
-export type TenantRatesProps = { rates?: readonly Rate[]; cta?: Cta };
-
-export function TenantRates({ rates = DEFAULT_RATES, cta }: TenantRatesProps) {
+export function TenantRates({ rates, cta }: TenantRatesProps) {
   if (rates.length === 0) return null;
 
   return (
@@ -425,23 +407,35 @@ export function TenantRates({ rates = DEFAULT_RATES, cta }: TenantRatesProps) {
                     {rate.period}
                   </span>
                 </Row>
+                {rate.note ? (
+                  <span className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    {rate.note}
+                  </span>
+                ) : null}
               </Col>
 
-              <Stack gap={4} className="mb-8 flex-1">
-                <span className={LABEL}>Includes</span>
-                {rate.features.map((feature) => (
-                  <Row key={feature} items="center" gap={3}>
-                    <Check
-                      className="h-3.5 w-3.5 shrink-0 text-primary"
-                      strokeWidth={3}
-                      aria-hidden
-                    />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {feature}
-                    </span>
-                  </Row>
-                ))}
-              </Stack>
+              {/* Only render the "Includes" block when there is something to
+                  list — a real rate group carries a price, not a feature list,
+                  and an empty label would read as missing content. No spacer is
+                  needed in its place: the CTA's own `mt-auto` already pins it to
+                  the bottom of the (stretched) grid cell. */}
+              {rate.features.length > 0 ? (
+                <Stack gap={4} className="mb-8 flex-1">
+                  <span className={LABEL}>Includes</span>
+                  {rate.features.map((feature) => (
+                    <Row key={feature} items="center" gap={3}>
+                      <Check
+                        className="h-3.5 w-3.5 shrink-0 text-primary"
+                        strokeWidth={3}
+                        aria-hidden
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {feature}
+                      </span>
+                    </Row>
+                  ))}
+                </Stack>
+              ) : null}
 
               <Link
                 href={cta?.href ?? "/stations"}
@@ -683,6 +677,8 @@ export type TenantStationsProps = {
     stations: readonly {
       id: string;
       name: string;
+      /** Free-text category the tenant set — `publicStationSchema.stationType`. */
+      stationType: string;
       status: StationStatus;
     }[];
   }[];
@@ -1013,11 +1009,33 @@ export function TenantAbout({ title, body }: TenantAboutProps) {
 
 /* ────────────────────────── contact / location ───────────────────────── */
 
+/**
+ * The tenant's own social profiles, from `ChronoBranches.socialLinks`. Every
+ * field is optional and only non-empty ones render — a venue that has not set a
+ * TikTok must not show a dead TikTok link.
+ */
+export type TenantSocialLinks = {
+  facebook?: string | null;
+  messenger?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  discord?: string | null;
+} | null;
+
+const SOCIAL_LABELS: Record<string, string> = {
+  facebook: "Facebook",
+  messenger: "Messenger",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  discord: "Discord",
+};
+
 export type TenantContactProps = {
   email: string | null;
   phone: string | null;
   address: string | null;
   operatingHours: string | null;
+  socialLinks?: TenantSocialLinks;
 };
 
 export function TenantContact({
@@ -1025,7 +1043,11 @@ export function TenantContact({
   phone,
   address,
   operatingHours,
+  socialLinks = null,
 }: TenantContactProps) {
+  const socials = Object.entries(socialLinks ?? {})
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0)
+    .map(([key, href]) => ({ key, href, label: SOCIAL_LABELS[key] ?? key }));
   const rows = [
     { icon: MapPin, label: "Address", value: address },
     { icon: Clock, label: "Business hours", value: operatingHours },
@@ -1033,7 +1055,7 @@ export function TenantContact({
     { icon: Mail, label: "Email", value: email, href: email ? `mailto:${email}` : null },
   ].filter((r): r is typeof r & { value: string } => Boolean(r.value));
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && socials.length === 0) return null;
 
   // The map is derived from the tenant's own address — no extra field to
   // configure, and no API key: Google's `output=embed` search URL needs neither.
@@ -1075,6 +1097,30 @@ export function TenantContact({
                 </CardHeader>
               </Card>
             ))}
+            {socials.length > 0 ? (
+              <Card className={cn(PANEL, "col-span-2")}>
+                <CardHeader className="gap-4 p-0">
+                  <CardDescription className={LABEL}>Follow us</CardDescription>
+                  <Row wrap gap={3}>
+                    {socials.map((s) => (
+                      <Link
+                        key={s.key}
+                        href={s.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "h-9 text-[10px] font-black uppercase tracking-widest",
+                        )}
+                        data-testid={`landing-social-${s.key}`}
+                      >
+                        {s.label}
+                      </Link>
+                    ))}
+                  </Row>
+                </CardHeader>
+              </Card>
+            ) : null}
           </Grid>
 
           {mapsQuery ? (
@@ -1183,6 +1229,124 @@ export function TenantCta({ tenantName, cta }: TenantCtaProps) {
             Member sign in
           </Link>
         </Row>
+      </Stack>
+    </Section>
+  );
+}
+
+/* ───────────────────────────── experience ────────────────────────────── */
+
+/**
+ * Friendly labels for the station types a tenant actually runs. `stationType`
+ * is a free-text column, so anything not listed here is title-cased rather than
+ * dropped — a tenant who invents their own category still gets a readable chip.
+ */
+const STATION_TYPE_LABELS: Record<string, string> = {
+  pc: "Gaming PCs",
+  vip: "VIP Gaming PCs",
+  console: "Console Gaming",
+  sim: "Racing Sims",
+  vr: "VR Stations",
+};
+
+function titleCase(raw: string): string {
+  return raw
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+export type TenantExperienceProps = {
+  /** Distinct raw `stationType` values the tenant actually has stations for. */
+  stationTypes: readonly string[];
+};
+
+/**
+ * What this venue actually offers — derived entirely from the tenant's REAL
+ * station data, never a fixed marketing list. A tenant with no stations yet
+ * renders nothing rather than an empty row of chips.
+ */
+export function TenantExperience({ stationTypes }: TenantExperienceProps) {
+  if (stationTypes.length === 0) return null;
+
+  return (
+    <Section
+      id="experience"
+      maxWidth="full"
+      border="bottom"
+      data-testid="landing-section-experience"
+    >
+      <Stack gap={0} className="py-24">
+        <SectionIntro
+          align="left"
+          eyebrow="What you can play on"
+          title="Our gaming setup"
+        />
+        <Row wrap gap={3}>
+          {stationTypes.map((type) => (
+            <Row
+              key={type}
+              items="center"
+              gap={3}
+              className="rounded-full border border-border bg-card/40 px-6 py-3 transition-colors hover:border-primary/40"
+              data-testid={`landing-experience-${type}`}
+            >
+              <Monitor className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="text-xs font-black uppercase tracking-widest">
+                {STATION_TYPE_LABELS[type] ?? titleCase(type)}
+              </span>
+            </Row>
+          ))}
+        </Row>
+      </Stack>
+    </Section>
+  );
+}
+
+/* ───────────────────────────── player CTA ────────────────────────────── */
+
+export type TenantPlayerCtaProps = { tenantName: string };
+
+/**
+ * The join / sign-in moment. Server-rendered links only — no session check, so
+ * it costs a public marketing page nothing and can never bounce an anonymous
+ * visitor. Both destinations are real, working, unauthenticated-reachable
+ * routes: `/portal/sign-up` (tenant-scoped member signup) and `/login`.
+ */
+export function TenantPlayerCta({ tenantName }: TenantPlayerCtaProps) {
+  return (
+    <Section
+      id="join"
+      maxWidth="full"
+      border="bottom"
+      data-testid="landing-section-playerCta"
+    >
+      <Stack gap={0} className="py-24">
+        <Stack gap={8} className="mx-auto flex max-w-2xl flex-col items-center text-center">
+          <SectionIntro
+            eyebrow="Join the community"
+            title={`Stay connected to ${tenantName}.`}
+            lead="Create a player account to track your time, top up, and book ahead."
+          />
+          <Row wrap gap={4} justify="center">
+            <Link
+              href="/portal/sign-up"
+              className={cn(buttonVariants(), PILL_CTA, "shadow-lg shadow-primary/20")}
+              data-testid="landing-playercta-join"
+            >
+              {`Join ${tenantName}`}
+            </Link>
+            <Link
+              href="/login"
+              className={cn(buttonVariants({ variant: "outline" }), PILL_CTA)}
+              data-testid="landing-playercta-signin"
+            >
+              Already a member? Sign in
+            </Link>
+          </Row>
+        </Stack>
       </Stack>
     </Section>
   );
