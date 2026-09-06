@@ -102,12 +102,31 @@ Scope is **chrono-web only** — `apps/agora-web`'s own `temp-inbox.ts`/
 
 ## Acceptance criteria
 
-- [ ] `members-invite.spec.ts`'s three tests pass against a chrono-api dev server
-      started with `EMAIL_PROVIDER=mailtrap` + the two env vars. **Not run this
-      session** — no `MAILTRAP_API_TOKEN`/`MAILTRAP_TEST_INBOX_ID` available to set
-      on the chrono-api dev server (the connected `mcp__mailtrap__*` tools don't
-      expose the raw token). Needs the developer to run it locally with those two
-      vars set, or a future session with them available.
+- [x] `members-invite.spec.ts`'s first two tests ("owner sends an invite and sees
+      it listed", "owner resends and revokes a pending invite") pass against a
+      chrono-api dev server started with `EMAIL_PROVIDER=mailtrap` forced via the
+      shell (`EMAIL_PROVIDER=mailtrap pnpm --filter @agora/chrono-api dev`, on
+      port 8787, started and stopped this session — chrono-web's own dev server
+      on port 3000 was already running and untouched).
+- [~] The third test ("invitee accepts the invite via the emailed link") is
+      **still not run** — it needs `MAILTRAP_API_TOKEN`/`MAILTRAP_TEST_INBOX_ID`
+      exported directly into the *Playwright test-runner's own shell* (it reads
+      `process.env` with no dotenv loading — see `mailtrap-inbox.ts`'s own header
+      comment). Having them in `chrono-api/.env` only feeds the server side. Two
+      attempts this session both still hit
+      `Error: MAILTRAP_TEST_INBOX_ID is required...`, meaning the export never
+      actually reached the same shell that ran `playwright test`. This session
+      will not read `MAILTRAP_API_TOKEN` out of `.env` itself (project
+      `CLAUDE.md`: never read/print `.env` contents or echo tokens), so this is
+      deferred to the developer:
+      ```bash
+      cd apps/chrono-web
+      export MAILTRAP_API_TOKEN=<value from chrono-api/.env>
+      export MAILTRAP_TEST_INBOX_ID=277668
+      pnpm exec playwright test e2e/tests/settings/members-invite.spec.ts
+      ```
+      (all three lines in one continuous shell — a separate terminal/tab loses
+      the exports).
 - [x] No reference to Guerrilla Mail, `api.guerrillamail.com`, or `temp-inbox.ts`
       remains anywhere in `apps/chrono-web`.
 - [x] `pnpm --filter @agora/chrono-web typecheck` passes.
@@ -147,3 +166,16 @@ only `MAILTRAP_API_TOKEN`/`MAILTRAP_TEST_INBOX_ID`, as `.env.example` now reflec
 Read `apps/chrono-web/e2e/utils/temp-inbox.ts` (the file being replaced) and
 `apps/chrono-web/e2e/tests/settings/members-invite.spec.ts` in full first, then
 confirm the live Mailtrap API shape (step 1) before writing any code.
+
+## Plan Closure
+
+Code fully implemented, typechecked, and Guerrilla-Mail-free (see above). 2 of
+the 3 target tests are verified passing. The 3rd (the actual real-send/
+real-read-back assertion — the whole point of this plan) is **not yet verified
+green**, blocked purely on getting `MAILTRAP_API_TOKEN` into the Playwright
+process's own shell, which needs the developer (this session won't read it out
+of `.env`). Archived anyway per the developer's explicit call to close this out
+now rather than leave it in `in-progress/` indefinitely; the developer runs the
+command in the acceptance-criteria section above at their convenience. If it
+fails for a reason other than the missing env var, reopen this plan (move back
+to `in-progress/`) rather than patching in place.
