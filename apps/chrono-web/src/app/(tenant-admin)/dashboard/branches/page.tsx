@@ -30,6 +30,7 @@ import {
 } from "agora/ui";
 import { api } from "@/lib/rpc";
 import type { PaginationMeta } from "agora";
+import type { HoursConfigInput } from "@agora/chrono-api/branch";
 
 type BranchStatus = "active" | "disabled";
 
@@ -54,9 +55,69 @@ type Branch = {
     tiktok?: string | null;
     discord?: string | null;
   } | null;
+  hoursConfig: HoursConfigInput | null;
   createdAt: string;
   updatedAt: string;
 };
+
+// ---------------------------------------------------------------------------
+// Structured hours editor state. `HoursConfigInput` (the day-of-week union
+// contract from `@agora/chrono-api/branch`, `hoursConfigSchema`) is the
+// on-the-wire shape; `HoursFormState` is a friendlier local shape for the
+// day-row editor below (an explicit `mode` instead of a discriminated-by-value
+// union) that converts to/from it at the form boundary.
+// ---------------------------------------------------------------------------
+
+type DayKey = keyof HoursConfigInput;
+type DayMode = "closed" | "open" | "24h";
+type DayFormState = { mode: DayMode; open: string; close: string };
+type HoursFormState = Record<DayKey, DayFormState>;
+
+const DAY_DEFS: { key: DayKey; label: string }[] = [
+  { key: "monday", label: "Monday" },
+  { key: "tuesday", label: "Tuesday" },
+  { key: "wednesday", label: "Wednesday" },
+  { key: "thursday", label: "Thursday" },
+  { key: "friday", label: "Friday" },
+  { key: "saturday", label: "Saturday" },
+  { key: "sunday", label: "Sunday" },
+];
+
+const DEFAULT_DAY_FORM: DayFormState = { mode: "closed", open: "09:00", close: "17:00" };
+
+function emptyHoursForm(): HoursFormState {
+  const form = {} as HoursFormState;
+  for (const d of DAY_DEFS) form[d.key] = { ...DEFAULT_DAY_FORM };
+  return form;
+}
+
+/** A missing/absent day (or an explicit `"closed"`) both render as Closed. */
+function hoursConfigToForm(hc: HoursConfigInput | null | undefined): HoursFormState {
+  const form = emptyHoursForm();
+  if (!hc) return form;
+  for (const d of DAY_DEFS) {
+    const entry = hc[d.key];
+    if (!entry || entry === "closed") {
+      form[d.key] = { ...DEFAULT_DAY_FORM };
+    } else if (entry === "24h") {
+      form[d.key] = { mode: "24h", open: DEFAULT_DAY_FORM.open, close: DEFAULT_DAY_FORM.close };
+    } else {
+      form[d.key] = { mode: "open", open: entry.open, close: entry.close };
+    }
+  }
+  return form;
+}
+
+/** Always writes an explicit value per day — never leaves a day absent. */
+function formToHoursConfig(hf: HoursFormState): HoursConfigInput {
+  const out = {} as HoursConfigInput;
+  for (const d of DAY_DEFS) {
+    const s = hf[d.key];
+    out[d.key] =
+      s.mode === "closed" ? "closed" : s.mode === "24h" ? "24h" : { open: s.open, close: s.close };
+  }
+  return out;
+}
 
 type FormState = {
   name: string;
@@ -75,6 +136,7 @@ type FormState = {
   instagram: string;
   tiktok: string;
   discord: string;
+  hours: HoursFormState;
 };
 
 const EMPTY_FORM: FormState = {
@@ -94,6 +156,7 @@ const EMPTY_FORM: FormState = {
   instagram: "",
   tiktok: "",
   discord: "",
+  hours: emptyHoursForm(),
 };
 
 function branchToForm(b: Branch): FormState {
@@ -114,6 +177,7 @@ function branchToForm(b: Branch): FormState {
     instagram: b.socialLinks?.instagram ?? "",
     tiktok: b.socialLinks?.tiktok ?? "",
     discord: b.socialLinks?.discord ?? "",
+    hours: hoursConfigToForm(b.hoursConfig),
   };
 }
 
@@ -139,6 +203,7 @@ function formToPayload(f: FormState) {
     operatingHours: f.operatingHours.trim() || undefined,
     googleMapsUrl: f.googleMapsUrl.trim() || undefined,
     socialLinks: hasSocialLinks ? socialLinks : undefined,
+    hoursConfig: formToHoursConfig(f.hours),
   };
 }
 
@@ -171,6 +236,20 @@ export default function BranchesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  function setDayMode(day: DayKey, mode: DayMode) {
+    setForm((f) => ({
+      ...f,
+      hours: { ...f.hours, [day]: { ...f.hours[day], mode } },
+    }));
+  }
+
+  function setDayTime(day: DayKey, field: "open" | "close", value: string) {
+    setForm((f) => ({
+      ...f,
+      hours: { ...f.hours, [day]: { ...f.hours[day], [field]: value } },
+    }));
+  }
 
   function openCreate() {
     setEditing(null);
@@ -290,7 +369,7 @@ export default function BranchesPage() {
             <Button onClick={openCreate}>Add Branch</Button>
           </DialogTrigger>
         </Row>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit branch" : "Add branch"}</DialogTitle>
           </DialogHeader>
@@ -391,6 +470,61 @@ export default function BranchesPage() {
                 value={form.operatingHours}
                 onChange={(e) => setForm({ ...form, operatingHours: e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Structured hours</Label>
+              <p className="text-xs text-muted-foreground">
+                Drives the live &ldquo;Open now&rdquo; / &ldquo;Opens at&rdquo; status shown
+                on the public site, alongside the free-text note above.
+              </p>
+              <Stack gap={2}>
+                {DAY_DEFS.map((day) => {
+                  const state = form.hours[day.key];
+                  return (
+                    <Row key={day.key} items="center" gap={3} wrap>
+                      <span className="w-24 shrink-0 text-sm font-medium">{day.label}</span>
+                      <Select
+                        value={state.mode}
+                        onValueChange={(v) => setDayMode(day.key, v as DayMode)}
+                      >
+                        <SelectTrigger
+                          id={`hours-${day.key}-mode`}
+                          aria-label={`${day.label} hours`}
+                          className="w-32 shrink-0"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="closed">Closed</SelectItem>
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="24h">24 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {state.mode === "open" ? (
+                        <Row items="center" gap={2}>
+                          <Input
+                            type="time"
+                            aria-label={`${day.label} opening time`}
+                            value={state.open}
+                            onChange={(e) => setDayTime(day.key, "open", e.target.value)}
+                            required
+                            className="w-28"
+                          />
+                          <span className="text-xs text-muted-foreground">to</span>
+                          <Input
+                            type="time"
+                            aria-label={`${day.label} closing time`}
+                            value={state.close}
+                            onChange={(e) => setDayTime(day.key, "close", e.target.value)}
+                            required
+                            className="w-28"
+                          />
+                        </Row>
+                      ) : null}
+                    </Row>
+                  );
+                })}
+              </Stack>
             </div>
             <div className="space-y-2">
               <Label htmlFor="googleMapsUrl">Google Maps URL</Label>
