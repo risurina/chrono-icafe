@@ -162,3 +162,27 @@ Single phase, one file: `apps/chrono-web/src/app/(member-area)/member/wallet/pag
 Read `apps/chrono-web/src/app/(member-area)/member/wallet/page.tsx` in full before
 editing — confirm exact current line numbers for the constants block and the
 `Dialog` JSX haven't shifted, then make the edits above in that one file.
+
+## Plan Closure
+
+Implemented via Jules (session `13437559104396825689`), committed `e5c4ad8d`.
+`branch-reviewer` verdict: **APPROVE**, no criticals/warnings, one non-blocking
+cosmetic suggestion (a preset button doesn't highlight if the user manually types
+the same numeric value with different formatting — no functional impact, not
+fixed). `pnpm --filter @agora/chrono-web typecheck` passes (re-confirmed
+independently after the review, not just at implementation time).
+
+**Outstanding, developer-owed:** the two verification-command e2e specs
+(`apps/chrono-web/e2e/tests/member/online-checkout.spec.ts`,
+`.../member/wallet-operation-hardening.spec.ts`) were not executed — this
+repo's Chrono Playwright config runs headed with no `webServer` (manual only,
+per `.ai/rules/rbac.md`'s testing note), and `chrono-web`'s dev server defaults
+to the same port 3000 already bound by the running `agora-web` dev server in
+this checkout, so both a headless run and a same-machine concurrent run were
+impractical here. `branch-reviewer`'s static read of both specs found nothing
+that could be affected by this change (neither touches the dialog's title/
+description/input markup, only `topup-button`/`payment-status-card` testids).
+Run both for real before treating this as fully verified: stop whatever is on
+port 3000, `pnpm --filter @agora/chrono-web dev` + `pnpm --filter
+@agora/chrono-api dev`, then `pnpm --filter @agora/chrono-web e2e --
+e2e/tests/member/online-checkout.spec.ts e2e/tests/member/wallet-operation-hardening.spec.ts`.
