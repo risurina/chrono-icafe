@@ -298,6 +298,16 @@ export async function closeSession(
     return { session: locked, alreadyClosed: true };
   }
 
+  // Station name for user-facing transaction copy below — never the raw
+  // session/station id. A single indexed-PK lookup alongside the wallet
+  // balance read just below; falls back to a still-non-ID label if the
+  // station has since been deleted out from under an old session.
+  const [sessionStation] = await tx
+    .select({ name: chronoStation.name })
+    .from(chronoStation)
+    .where(eq(chronoStation.id, locked.stationId));
+  const sessionLabel = sessionStation ? `Session at ${sessionStation.name}` : "Session charge";
+
   // Billable seconds = wall-clock elapsed since start, minus accumulated
   // paused time, minus the still-open pause segment if closing while paused.
   const pausedNow =
@@ -322,7 +332,7 @@ export async function closeSession(
     memberId: locked.memberId,
     quantityMinutes: creditMinutesElapsed,
     stationGroupId: locked.stationGroupId,
-    reason: `Session ${locked.id}`,
+    reason: sessionLabel,
     referenceType: "session",
     referenceId: locked.id,
     performedByUserId: args.performedByUserId ?? undefined,
@@ -343,7 +353,7 @@ export async function closeSession(
       tenantId: args.tenantId,
       memberId: locked.memberId,
       amount: amountCharged,
-      reason: `Session ${locked.id}`,
+      reason: sessionLabel,
       referenceType: "session",
       referenceId: locked.id,
       performedByUserId: args.performedByUserId ?? undefined,

@@ -323,7 +323,7 @@ export async function refundSale(
       tenantId: args.tenantId,
       memberId: sale.memberId,
       amount: payment.amount,
-      reason: `POS refund for sale ${sale.id}`,
+      reason: "POS refund",
       referenceType: "pos_refund",
       referenceId: sale.id,
       performedByUserId: args.performedByUserId,
