@@ -66,6 +66,7 @@ import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
+import { businessLeadPublicRoutes } from "./modules/business-lead/routes";
 import { publicStationRoutes } from "./modules/station/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
 import { readPublishedLandingPage } from "agora/server/routes";
@@ -1169,6 +1170,12 @@ export const app = baseApp
   // /public/stations path every caller actually fetches — moved here to
   // match the qr/inquiries convention above.
   .route("/public/stations", publicStationRoutes())
+
+  // Cross-tenant business directory + cold-start lead capture. Mounted outside
+  // /rpc: this reads across every listed tenant at once, so there is no single
+  // tenant to resolve, and /rpc would 401 an anonymous caller. Both handlers
+  // rate-limit themselves; see modules/business-lead/routes.ts.
+  .route("/public/discover", businessLeadPublicRoutes())
   // Platform Maintenance / global read-only enforcement (System Settings, spec
   // #14) for TENANT traffic only. The `/rpc-admin/*` surface is a separate
   // mount and never passes through here, so an admin can always turn the flags
