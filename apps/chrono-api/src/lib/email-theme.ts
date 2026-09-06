@@ -32,8 +32,9 @@ function normalizeHex(value: string, underSurface: string): string | undefined {
     v = "#" + [...v.slice(1)].map((c) => c + c).join("");
   }
   if (/^#[0-9a-fA-F]{8}$/.test(v)) {
-    // Flatten alpha over `underSurface` (both already 6-digit by this point
-    // in the token map's declared order — background/card resolve first).
+    // Flatten alpha over `underSurface` — `card` is resolved into a local
+    // variable first and passed explicitly as `underSurface` to every other
+    // token's call, so there's no dependency on object-literal key order.
     v = flattenAlphaOverSolid(v, underSurface);
   }
   return HEX6.test(v) ? v : undefined;
