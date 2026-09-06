@@ -210,6 +210,33 @@ route). Small, mostly copy + one new link.
   aggregation or Phase 3's QR response reshaping surfaces one during Pass 2, flag it before
   implementation.
 
+## Resolved for implementation (2026-09-07, developer directed "implement")
+
+Conservative defaults chosen where the developer did not specify further, so implementation
+could proceed without guessing on anything security- or architecture-sensitive:
+
+1. **Phase 0**: Option (a) — **hide** wallet balance, loyalty tier/progress, and "member since"
+   entirely for a `pending`/`rejected` applicant (safer default than showing financial/status
+   data pre-approval). The companion API-layer gate (blocking wallet/loyalty portal **routes**
+   for non-approved members) is explicitly **not** included — per the plan's own carve-out,
+   that is a separate, larger authorization decision and stays out of scope for this
+   display-only fix.
+2. **Phase 1**: Proceed with **structural consolidation only** (Session+Connect→one item,
+   History merged, Leaderboard removed) — **no renames** (Dashboard/Session/History keep
+   their current labels). Renaming is a product/copy decision that should not be made
+   unilaterally.
+3. **Phase 5**: **Deferred, not implemented in this pass.** Reversing "no realtime for members"
+   is a real architecture decision (realtime provider vs. polling, cost/complexity) that
+   should not be made without explicit developer sign-off. Left as `future/`-eligible; the
+   existing static/manual-refresh behavior is unchanged.
+4. **Scope check**: Phase 7 (venue-list live status) and Phase 9 (support routing) stay in
+   this plan — they operate on this plan's own files (`global-portal-home.tsx`,
+   `member-gate.tsx`, `member/settings/page.tsx`), not on `tenant-experience-v2`'s or
+   `growth-loop-hardening`'s files. No overlap found; no move needed.
+
+**Phases implemented in this pass:** 0, 1 (structural only), 2, 3, 4, 6, 7, 8, 9.
+**Phase 5 explicitly excluded** — needs its own developer decision before it becomes a phase.
+
 ## Open questions (must be answered before the affected phase is `ready/`)
 
 1. **Phase 0**: What should a pending/rejected applicant actually be able to see and do?
