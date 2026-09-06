@@ -1,6 +1,45 @@
 import { z } from "zod";
+import type { HoursConfig } from "./hours";
 
 export const branchStatusSchema = z.enum(['active', 'disabled']);
+
+// ---------------------------------------------------------------------------
+// Structured operating hours (`hoursConfig`). Parsed by `computeOpenStatus`
+// (./hours.ts). `operatingHours` (free text) stays permanently alongside this
+// as a tenant-editable supplementary note — never deprecated or replaced.
+// ---------------------------------------------------------------------------
+
+const timeOfDaySchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:MM, e.g. 09:00");
+
+export const dayHoursSchema = z.union([
+  z.object({ open: timeOfDaySchema, close: timeOfDaySchema }),
+  z.literal("24h"),
+  z.literal("closed"),
+]);
+
+export const hoursConfigSchema = z
+  .object({
+    sunday: dayHoursSchema.optional(),
+    monday: dayHoursSchema.optional(),
+    tuesday: dayHoursSchema.optional(),
+    wednesday: dayHoursSchema.optional(),
+    thursday: dayHoursSchema.optional(),
+    friday: dayHoursSchema.optional(),
+    saturday: dayHoursSchema.optional(),
+  })
+  .strict();
+
+export type DayHours = z.infer<typeof dayHoursSchema>;
+export type HoursConfigInput = z.infer<typeof hoursConfigSchema>;
+
+/** The computed, point-in-time status derived from `hoursConfig` + `timezone`. */
+export const openStatusSchema = z.object({
+  isOpen: z.boolean(),
+  opensAt: z.string().nullable(),
+});
+export type OpenStatusDto = z.infer<typeof openStatusSchema>;
 
 export const branchSocialLinksSchema = z
   .object({
@@ -25,6 +64,7 @@ export const createBranchSchema = z.object({
   longitude: z.string().max(20).optional(),
   googleMapsUrl: z.string().url().max(2048).optional(),
   socialLinks: branchSocialLinksSchema,
+  hoursConfig: hoursConfigSchema.nullable().optional(),
 });
 
 export const updateBranchSchema = createBranchSchema.partial();
@@ -49,6 +89,7 @@ export const branchDtoSchema = z.object({
   operatingHours: z.string().nullable(),
   googleMapsUrl: z.string().nullable(),
   socialLinks: branchSocialLinksSchema.nullable(),
+  hoursConfig: hoursConfigSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -69,6 +110,7 @@ type BranchRow = {
   operatingHours: string | null;
   googleMapsUrl: string | null;
   socialLinks: unknown;
+  hoursConfig: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -89,6 +131,7 @@ export function toBranchDto(row: BranchRow): BranchDto {
     operatingHours: row.operatingHours,
     googleMapsUrl: row.googleMapsUrl,
     socialLinks: row.socialLinks as BranchDto["socialLinks"],
+    hoursConfig: (row.hoursConfig as HoursConfig | null) ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -111,6 +154,12 @@ export const publicVenueBranchSchema = z.object({
   contactNumber: z.string().nullable(),
   email: z.string().nullable(),
   socialLinks: branchSocialLinksSchema.nullable(),
+  // The raw structured config (for a future dashboard editor / debugging) plus
+  // the already-computed status — `null` on both when the tenant has not
+  // configured structured hours yet, so the public page falls back to the
+  // plain-text `operatingHours` display above rather than fabricating one.
+  hoursConfig: hoursConfigSchema.nullable(),
+  openStatus: openStatusSchema.nullable(),
 });
 
 /**

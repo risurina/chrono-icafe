@@ -176,6 +176,13 @@
       "when": 1788671430865,
       "tag": "0024_business_lead_requester_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788703157834,
+      "tag": "0025_branch_hours_config",
+      "breakpoints": true
     }
   ]
 }

@@ -158,6 +158,7 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
       summary: chronoData(ctx).stations?.aggregate ?? null,
       specLines: [DEFAULTS.specs.gpu, DEFAULTS.specs.network].filter(Boolean),
       gameTags: HERO_GAME_TAGS,
+      openStatus: chronoData(ctx).venue?.branch?.openStatus ?? null,
     }),
   }),
   stations: defineLandingSection({
@@ -283,6 +284,7 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
       // Real profiles from the tenant's own branch record — rendered only when
       // set, so a venue with no TikTok never shows a dead TikTok link.
       socialLinks: chronoData(ctx).venue?.branch?.socialLinks ?? null,
+      openStatus: chronoData(ctx).venue?.branch?.openStatus ?? null,
     }),
   }),
   faq: defineLandingSection({

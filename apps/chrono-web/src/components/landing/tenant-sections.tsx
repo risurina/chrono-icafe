@@ -163,6 +163,9 @@ function GaugeTile({
 
 /* ─────────────────────────────── hero ────────────────────────────────── */
 
+/** The computed open/closed status — `null` when the tenant has no structured hours yet. */
+export type OpenStatus = { isOpen: boolean; opensAt: string | null };
+
 export type TenantHeroProps = {
   eyebrow: string | null;
   title: string;
@@ -174,6 +177,8 @@ export type TenantHeroProps = {
   branchName?: string | null;
   specLines?: readonly string[];
   gameTags?: readonly string[];
+  /** `null` when no structured hours are configured — renders nothing, never a fabricated status. */
+  openStatus?: OpenStatus | null;
 };
 
 export function TenantHero({
@@ -186,6 +191,7 @@ export function TenantHero({
   branchName,
   specLines = [],
   gameTags = [],
+  openStatus = null,
 }: TenantHeroProps) {
   const total = summary?.total ?? 0;
   const inUse = summary?.inUse ?? 0;
@@ -289,18 +295,48 @@ export function TenantHero({
                 {branchName ?? "Main floor"}
               </span>
             </Col>
-            <Row
-              items="center"
-              gap={2}
-              className="shrink-0 rounded-full border border-border px-3 py-1.5"
-            >
-              <span
-                aria-hidden
-                className="h-2 w-2 animate-pulse rounded-full bg-chart-2"
-              />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-chart-2">
-                Live
-              </span>
+            <Row items="center" gap={3}>
+              {openStatus ? (
+                <Row
+                  items="center"
+                  gap={2}
+                  className="shrink-0 rounded-full border border-border px-3 py-1.5"
+                  data-testid="landing-hero-open-status"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      openStatus.isOpen ? "bg-chart-2" : "bg-muted-foreground",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-widest",
+                      openStatus.isOpen ? "text-chart-2" : "text-muted-foreground",
+                    )}
+                  >
+                    {openStatus.isOpen
+                      ? "● Open now"
+                      : openStatus.opensAt
+                        ? `● Closed — opens at ${openStatus.opensAt}`
+                        : "● Closed"}
+                  </span>
+                </Row>
+              ) : null}
+              <Row
+                items="center"
+                gap={2}
+                className="shrink-0 rounded-full border border-border px-3 py-1.5"
+              >
+                <span
+                  aria-hidden
+                  className="h-2 w-2 animate-pulse rounded-full bg-chart-2"
+                />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-chart-2">
+                  Live
+                </span>
+              </Row>
             </Row>
           </Row>
 
@@ -1025,6 +1061,8 @@ export type TenantContactProps = {
   address: string | null;
   operatingHours: string | null;
   socialLinks?: TenantSocialLinks;
+  /** `null` when no structured hours are configured — renders nothing, never a fabricated status. */
+  openStatus?: OpenStatus | null;
 };
 
 export function TenantContact({
@@ -1033,18 +1071,21 @@ export function TenantContact({
   address,
   operatingHours,
   socialLinks = null,
+  openStatus = null,
 }: TenantContactProps) {
   const socials = Object.entries(socialLinks ?? {})
     .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0)
     .map(([key, href]) => ({ key, href, label: SOCIAL_LABELS[key] ?? key }));
   const rows = [
     { icon: MapPin, label: "Address", value: address },
+    // "Business hours" stays the plain-text supplementary note (permanent —
+    // never replaced by the computed status below).
     { icon: Clock, label: "Business hours", value: operatingHours },
     { icon: Phone, label: "Phone", value: phone, href: phone ? `tel:${phone}` : null },
     { icon: Mail, label: "Email", value: email, href: email ? `mailto:${email}` : null },
   ].filter((r): r is typeof r & { value: string } => Boolean(r.value));
 
-  if (rows.length === 0 && socials.length === 0) return null;
+  if (rows.length === 0 && socials.length === 0 && !openStatus) return null;
 
   // The map is derived from the tenant's own address — no extra field to
   // configure, and no API key: Google's `output=embed` search URL needs neither.
@@ -1061,6 +1102,37 @@ export function TenantContact({
         <SectionIntro align="left" eyebrow="Location & contact" title="Find us" />
         <Grid cols={2} gap={4} className="items-start lg:gap-16">
           <Grid cols={2} gap={4}>
+            {openStatus ? (
+              <Card
+                className={cn(PANEL, "col-span-2")}
+                data-testid="landing-contact-open-status"
+              >
+                <CardHeader className="gap-4 p-0">
+                  <Row items="center" gap={3}>
+                    <Row
+                      items="center"
+                      justify="center"
+                      className="h-8 w-8 shrink-0 rounded-lg border border-border"
+                    >
+                      <Clock className="h-4 w-4 text-primary" aria-hidden />
+                    </Row>
+                    <CardDescription className={LABEL}>Status</CardDescription>
+                  </Row>
+                  <CardTitle
+                    className={cn(
+                      "text-sm font-bold leading-relaxed",
+                      openStatus.isOpen ? "text-chart-2" : "text-muted-foreground",
+                    )}
+                  >
+                    {openStatus.isOpen
+                      ? "● Open now"
+                      : openStatus.opensAt
+                        ? `● Closed — opens at ${openStatus.opensAt}`
+                        : "● Closed"}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            ) : null}
             {rows.map(({ icon: Icon, label, value, href }) => (
               <Card key={label} className={PANEL}>
                 <CardHeader className="gap-4 p-0">

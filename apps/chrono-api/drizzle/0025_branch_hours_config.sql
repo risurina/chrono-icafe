@@ -1,0 +1,1 @@
+ALTER TABLE "ChronoBranches" ADD COLUMN "hoursConfig" jsonb;

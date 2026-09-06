@@ -23,6 +23,8 @@ type VenueInfo = {
     contactNumber: string | null;
     email: string | null;
     socialLinks: Record<string, string | null | undefined> | null;
+    hoursConfig: unknown;
+    openStatus: { isOpen: boolean; opensAt: string | null } | null;
   } | null;
   rateGroups: { id: string; name: string; hourlyRate: string; memberRate: string | null }[];
 };
@@ -175,7 +177,9 @@ test.describe("Public venue info — cross-tenant isolation", () => {
       "contactNumber",
       "email",
       "googleMapsUrl",
+      "hoursConfig",
       "name",
+      "openStatus",
       "operatingHours",
       "socialLinks",
     ]);
