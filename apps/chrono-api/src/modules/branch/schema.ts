@@ -27,6 +27,12 @@ export const chronoBranch = pgTable(
       tiktok?: string | null;
       discord?: string | null;
     } | null>(),
+    // Structured day-of-week open/close hours, parseable by `computeOpenStatus`
+    // (./hours.ts). Nullable — absent means "no structured hours configured
+    // yet", so the public page falls back to the plain-text `operatingHours`
+    // display with no fabricated status. `operatingHours` itself is kept
+    // permanently as a tenant-editable supplementary note, never deprecated.
+    hoursConfig: jsonb("hoursConfig").$type<import("./hours").HoursConfig | null>(),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },

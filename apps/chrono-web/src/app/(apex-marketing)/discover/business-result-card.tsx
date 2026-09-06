@@ -23,7 +23,10 @@ function tenantHref(slug: string): string {
   const { protocol, host } = window.location;
   // Strip a leading subdomain only if one is present (the apex may be
   // `chrono.example.com` or bare `localtest.me:3000`).
-  return `${protocol}//${slug}.${host}`;
+  // `?source=global_discovery` attributes the visit to this listing so the
+  // tenant page's `TENANT_PAGE_VIEW` (and every downstream conversion event
+  // in the same session) can be joined back to it — see `lib/analytics.ts`.
+  return `${protocol}//${slug}.${host}?source=global_discovery`;
 }
 
 export function BusinessResultCard({

@@ -19,6 +19,7 @@ import {
   toBranchDto,
   type PublicVenueInfoResponse,
 } from "./contracts";
+import { computeOpenStatus, type HoursConfig } from "./hours";
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -124,6 +125,7 @@ export function branchRoutes() {
               longitude: input.longitude,
               googleMapsUrl: input.googleMapsUrl,
               socialLinks: input.socialLinks ?? null,
+              hoursConfig: input.hoursConfig ?? null,
             })
             .returning(),
         );
@@ -167,6 +169,7 @@ export function branchRoutes() {
               ...(input.longitude !== undefined && { longitude: input.longitude }),
               ...(input.googleMapsUrl !== undefined && { googleMapsUrl: input.googleMapsUrl }),
               ...(input.socialLinks !== undefined && { socialLinks: input.socialLinks }),
+              ...(input.hoursConfig !== undefined && { hoursConfig: input.hoursConfig }),
               updatedAt: new Date(),
             })
             .where(and(eq(chronoBranch.id, id), eq(chronoBranch.tenantId, tenantId)))
@@ -266,6 +269,8 @@ export function publicVenueInfoRoutes() {
             contactNumber: chronoBranch.contactNumber,
             email: chronoBranch.email,
             socialLinks: chronoBranch.socialLinks,
+            hoursConfig: chronoBranch.hoursConfig,
+            timezone: chronoBranch.timezone,
           })
           .from(chronoBranch)
           .where(eq(chronoBranch.status, "active"))
@@ -289,6 +294,8 @@ export function publicVenueInfoRoutes() {
           .where(eq(chronoStationGroup.branchId, branch.id))
           .orderBy(asc(chronoStationGroup.name));
 
+        const hoursConfig = (branch.hoursConfig as HoursConfig | null) ?? null;
+
         return {
           branch: {
             name: branch.name,
@@ -298,6 +305,8 @@ export function publicVenueInfoRoutes() {
             contactNumber: branch.contactNumber,
             email: branch.email,
             socialLinks: branch.socialLinks ?? null,
+            hoursConfig,
+            openStatus: computeOpenStatus(hoursConfig, new Date(), branch.timezone),
           },
           rateGroups: groups.map((g) => ({
             id: g.id,

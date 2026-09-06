@@ -9,7 +9,15 @@ import { track, type AnalyticsEvent, type AnalyticsEventProps } from "@/lib/anal
  * without any of them becoming client components themselves.
  */
 
-/** Fire one event once, on mount. */
+/**
+ * Fire one event once, on mount.
+ *
+ * `track()` itself persists `props.source` (when present) to `sessionStorage`
+ * for the rest of the visit — see `SOURCE_AWARE_EVENTS`/`persistSessionSource`
+ * in `lib/analytics.ts`. `TrackOnMount` needs no source-specific logic of its
+ * own; the tenant landing page's `TENANT_PAGE_VIEW` call already passes its
+ * resolved `?source=` through `props`, same as any other event prop.
+ */
 export function TrackOnMount<E extends AnalyticsEvent>({
   event,
   props,

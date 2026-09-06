@@ -55,7 +55,8 @@ import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
 import { getTenantVenueInfo } from "@/lib/venue";
-import { tenantPageMetadata } from "@/lib/seo";
+import { tenantPageMetadata, tenantStructuredData } from "@/lib/seo";
+import { getTenantCanonicalUrl } from "@/lib/tenant";
 import { LandingSections } from "@/components/landing/render";
 import { TrackOnMount } from "@/components/landing/analytics-bindings";
 import type { ChronoLandingData } from "@/components/landing/registry";
@@ -116,7 +117,11 @@ const HERO_CHIPS = [
   "Audit Trail Ready",
 ] as const;
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   // Which branch renders is decided by the HOST alone, never by whether a fetch
   // succeeded. The page used to derive it from a `/public/tenant` fetch that
   // returned `null` for both "no such tenant" AND "the API call failed", so an
@@ -1020,10 +1025,31 @@ export default async function Home() {
   // through a content blip instead of 404ing.
   if (!landing) notFound();
 
+  // Traffic-source attribution (QR code, global discovery, direct, …) — read
+  // once, server-side, and defaulted to "direct" when absent. `TrackOnMount`
+  // passes it through `TENANT_PAGE_VIEW`'s own props, and `track()` persists
+  // it (`lib/analytics.ts`) so a later conversion event in the same session
+  // carries the same value.
+  const rawSource = (await searchParams).source;
+  const source = (Array.isArray(rawSource) ? rawSource[0] : rawSource) || "direct";
+
   const heading = branding?.displayName?.trim() || landing.venueName;
+  const canonicalUrl = await getTenantCanonicalUrl("/");
+  const structuredData = tenantStructuredData(venue, branding, {
+    name: heading,
+    url: canonicalUrl,
+    description: landing.resolved.seo.description ?? landing.resolved.hero.subtitle ?? null,
+  });
 
   return (
     <PageShell>
+      {structuredData ? (
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger -- server-rendered, server-controlled JSON-LD, not user HTML.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      ) : null}
       <TenantHeader
         tenantName={heading}
         displayName={branding?.displayName}
@@ -1034,7 +1060,7 @@ export default async function Home() {
       <Main>
         <TrackOnMount
           event="TENANT_PAGE_VIEW"
-          props={{ tenantName: heading, path: "/" }}
+          props={{ tenantName: heading, path: "/", source }}
         />
         <LandingSections
           surface="tenant"
