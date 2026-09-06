@@ -21,14 +21,37 @@ import { cn } from "agora/ui/cn";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { formatMinutes, formatCurrency, formatDate } from "@/lib/member/format";
+import { formatMinutes, formatCurrency, formatDate, formatDateTime } from "@/lib/member/format";
 import { getMySessionSummary, type SessionSummary } from "@/lib/member/session";
 import { getMyWalletBalance, getLastTopUp, type WalletBalance, type WalletTransaction } from "@/lib/member/wallet";
 import { getMyLoyalty, type LoyaltyMe } from "@/lib/member/loyalty";
 import { getCreditProducts, type CreditProduct } from "@/lib/member/credits";
+import {
+  getMyReservation,
+  getPublicStations,
+  type PortalReservation,
+  type PublicBranch,
+} from "@/lib/member/reservations";
 
 function TierBadge({ tier }: { tier: string }) {
   return <Badge className="capitalize">{tier}</Badge>;
+}
+
+/** Resolves a reservation's station + branch name from the public stations
+ * listing (the same data source `member/reservations/page.tsx` uses) — the
+ * reservation DTO itself only carries `stationId`. */
+function findStationLabel(branches: PublicBranch[], stationId: string): string | null {
+  for (const branch of branches) {
+    const station = branch.stations.find((s) => s.id === stationId);
+    if (station) return `${station.name} · ${branch.name}`;
+  }
+  return null;
+}
+
+function formatReservationWhen(reservation: PortalReservation): string {
+  if (reservation.status === "hold") return "Ready now — claim your hold";
+  if (reservation.status === "pending") return "Waiting in queue";
+  return reservation.startAt ? formatDateTime(reservation.startAt) : "Scheduled";
 }
 
 export default function MemberDashboardPage() {
@@ -39,21 +62,27 @@ export default function MemberDashboardPage() {
   const [lastTopUp, setLastTopUp] = useState<WalletTransaction | null>(null);
   const [loyalty, setLoyalty] = useState<LoyaltyMe | null>(null);
   const [products, setProducts] = useState<CreditProduct[]>([]);
+  const [reservation, setReservation] = useState<PortalReservation | null>(null);
+  const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [s, w, t, l, p] = await Promise.all([
+    const [s, w, t, l, p, r, stationsRes] = await Promise.all([
       getMySessionSummary(),
       getMyWalletBalance(),
       getLastTopUp(),
       getMyLoyalty(),
       getCreditProducts(),
+      getMyReservation(),
+      getPublicStations(),
     ]);
     if (s.data) setSession(s.data);
     if (w.data) setWallet(w.data);
     if (t.data !== undefined) setLastTopUp(t.data);
     if (l.data) setLoyalty(l.data);
     if (p.data) setProducts(p.data);
+    if (r.data) setReservation(r.data.reservation);
+    if (stationsRes) setBranches(stationsRes.branches);
     setLoading(false);
   }, []);
 
@@ -84,27 +113,19 @@ export default function MemberDashboardPage() {
 
       {/*
         Home dashboard states (member-portal-v2 phase 2). This branches purely
-        on data already fetched above (session summary) — no new queries.
+        on data already fetched above (session summary + the member's own
+        reservation, via the existing `getMyReservation()` — no new backend
+        route, same call `member/reservations/page.tsx` already makes).
 
         Precedence rule when more than one state could apply: an ACTIVE
         SESSION always wins the hero slot over an upcoming reservation. An
         active session is a live, currently-happening state the member needs
         to monitor/act on right now; an upcoming reservation is a future
         commitment with no immediate action needed. If a member has both, the
-        reservation should render as a small secondary note beside the
+        reservation renders as a small secondary note beside the
         active-session hero — never suppressed, just demoted — so the member
         doesn't lose visibility of an upcoming booking just because they're
         mid-session.
-
-        NOT IMPLEMENTED in this pass: the "upcoming reservation" hero branch
-        (and the secondary note above). `member/page.tsx` does not fetch
-        reservation data anywhere today — no call to
-        `getMyReservation()` (`lib/member/reservations.ts`), and
-        `MemberAreaProvider` doesn't carry it either — and this phase is
-        scoped to reuse-only, no new fetches. So today this hero only ever
-        renders the no-session or active-session state below; wiring
-        reservations into this page and adding the third branch is follow-up
-        work, per the phase's own "stop, don't add a query" instruction.
       */}
       <Card data-testid="playtime-hero">
         {session?.active ? (
@@ -127,12 +148,63 @@ export default function MemberDashboardPage() {
                   <span className="text-xs text-muted-foreground">
                     Today&apos;s usage so far — started {formatDate(session.active.startedAt)}
                   </span>
+                  {reservation ? (
+                    <span
+                      data-testid="reservation-secondary-note"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Also upcoming: {findStationLabel(branches, reservation.stationId) ?? "a station"} —{" "}
+                      {formatReservationWhen(reservation)}.{" "}
+                      <Link href="/member/reservations" className="text-primary hover:underline">
+                        View reservation
+                      </Link>
+                    </span>
+                  ) : null}
                 </Stack>
               )}
             </CardContent>
             <CardFooter className="gap-2">
               <Link href="/member/session" className={cn(buttonVariants(), "flex-1")}>
                 View active session
+              </Link>
+            </CardFooter>
+          </>
+        ) : reservation ? (
+          <>
+            <CardHeader>
+              <Row items="center" className="justify-between">
+                <CardTitle>Upcoming reservation</CardTitle>
+                <Badge variant="secondary">
+                  {reservation.status === "hold"
+                    ? "Ready"
+                    : reservation.status === "pending"
+                      ? "In queue"
+                      : "Scheduled"}
+                </Badge>
+              </Row>
+              <CardDescription>
+                {findStationLabel(branches, reservation.stationId) ?? "Station reserved"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-16 w-full" />
+              ) : (
+                <Stack gap={1}>
+                  <span className="text-3xl font-bold tracking-tight">
+                    {formatReservationWhen(reservation)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {reservation.status === "hold"
+                      ? "Your hold is waiting — head to the station to claim it."
+                      : "You have an upcoming reservation."}
+                  </span>
+                </Stack>
+              )}
+            </CardContent>
+            <CardFooter className="gap-2">
+              <Link href="/member/reservations" className={cn(buttonVariants(), "flex-1")}>
+                View reservation
               </Link>
             </CardFooter>
           </>
