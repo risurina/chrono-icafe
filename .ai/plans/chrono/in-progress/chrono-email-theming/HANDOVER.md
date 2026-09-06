@@ -31,8 +31,10 @@ total. One Jules session per phase.
 
 ## Phase 3 — Migrate Chrono's own ad hoc email call sites (4 sites, incl. business-lead)
 
-- Status: fired 2026-09-06, awaiting completion.
-- Session id: `9177594113553321491` — https://jules.google.com/session/9177594113553321491
+- Status: **done**. Session `9177594113553321491` completed, pulled and
+  applied. Grep-confirmed exactly 4 `renderBrandedEmail` sites + 2 owl-logo
+  files (no third missed site). `pnpm --filter @agora/chrono-api typecheck`
+  passes. Committed `e7e5449a`.
 
 ## Phase 4 — Verification + docs
 
