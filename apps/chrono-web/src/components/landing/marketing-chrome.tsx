@@ -11,6 +11,7 @@ import {
   type FooterColumn,
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
+import { apexUrl } from "@/lib/app-domain";
 import { ChronoBrand } from "./chrono-brand";
 
 /**
@@ -403,7 +404,22 @@ export function TenantFooter({
           <span>
             © {year} {tenantName}
           </span>
-          {hidePlatformBranding ? null : <span>{platformBrandingLabel}</span>}
+          {hidePlatformBranding ? null : (
+            <Row gap={4} items="center" wrap justify="center">
+              <span>{platformBrandingLabel}</span>
+              {/* The other half of the two-sided loop: a player who liked this
+                  venue may run one themselves. Absolute, because the apex is a
+                  different host from the tenant's — same NEXT_PUBLIC_APP_DOMAIN
+                  precedent every other cross-host link here uses. */}
+              <Link
+                href={apexUrl("/")}
+                className="transition-colors hover:text-foreground"
+                data-testid="tenant-footer-partner-link"
+              >
+                Run your gaming business with Chrono →
+              </Link>
+            </Row>
+          )}
         </Row>
       }
     />

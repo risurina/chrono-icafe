@@ -22,6 +22,7 @@ import {
 } from "agora/ui";
 import { describeMemberAuthError } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
+import { track } from "@/lib/analytics";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
 
 /** Customer registration → member area. Scoped to the current tenant. */
@@ -51,6 +52,7 @@ export function TenantSignUpForm() {
       setLoading(false);
       return;
     }
+    track("PLAYER_SIGNUP_FROM_TENANT", { method: "portal_sign_up" });
     location.href = "/member";
   }
 

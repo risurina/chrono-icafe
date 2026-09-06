@@ -4,7 +4,10 @@ import { PageShell, Main } from "agora/ui";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
+import { getTenantVenueInfo } from "@/lib/venue";
+import { tenantPageMetadata } from "@/lib/seo";
 import { LandingSections } from "@/components/landing/render";
+import { TrackOnMount } from "@/components/landing/analytics-bindings";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
 
@@ -22,21 +25,16 @@ import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrom
  */
 
 export async function generateMetadata(): Promise<Metadata> {
-  // Shares one request with the page body via the cache()d resolver.
-  const landing = await getTenantLanding();
-  if (!landing) return {};
-  const { resolved, venueName } = landing;
-  return {
-    title: resolved.seo.title ?? venueName,
-    description: resolved.seo.description ?? resolved.hero.subtitle ?? undefined,
-  };
+  // Shares one request with the page body via the cache()d resolvers.
+  return tenantPageMetadata("/about");
 }
 
 export default async function AboutPage() {
-  const [landing, stations, branding] = await Promise.all([
+  const [landing, stations, branding, venue] = await Promise.all([
     getTenantLanding(),
     getTenantStations(),
     getPublicBranding(),
+    getTenantVenueInfo(),
   ]);
   // Only "no such tenant" is a 404 — a missing or unpublished config still
   // renders, because every section carries defaults.
@@ -55,6 +53,10 @@ export default async function AboutPage() {
       />
 
       <Main>
+        <TrackOnMount
+          event="TENANT_PAGE_VIEW"
+          props={{ tenantName: venueName, path: "/about" }}
+        />
         <LandingSections
           surface="tenant"
           sections={sections}
@@ -62,7 +64,7 @@ export default async function AboutPage() {
           context={{
             tenantName: venueName,
             tenantSlug,
-            data: { stations } satisfies ChronoLandingData,
+            data: { stations, venue } satisfies ChronoLandingData,
           }}
         />
       </Main>

@@ -16,8 +16,13 @@ import {
   TenantContact,
   TenantFaq,
   TenantCta,
+  TenantExperience,
+  TenantPlayerCta,
+  TenantShare,
   type TenantStationsProps,
+  type Rate,
 } from "./tenant-sections";
+import type { PublicVenueInfoResponse } from "@/lib/venue";
 
 /**
  * Chrono's own live-data shape, carried through
@@ -30,7 +35,56 @@ export type ChronoLandingData = {
     branches: TenantStationsProps["branches"];
     aggregate: TenantStationsProps["aggregate"];
   } | null;
+  /** Real business info + published rates — `/public/venue-info`. */
+  venue?: PublicVenueInfoResponse | null;
 };
+
+/** "30.00" -> "₱30"; "30.50" -> "₱30.50". Trailing ".00" is noise on a price. */
+function formatPeso(amount: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `₱${amount}`;
+  return `₱${Number.isInteger(n) ? n.toString() : n.toFixed(2)}`;
+}
+
+/**
+ * Real station-group rates -> rate cards. One card per group.
+ *
+ * Groups priced at zero are DROPPED: `hourlyRate` is `notNull().default("0")`,
+ * so an unpriced group would otherwise publish "₱0 / hr" to the public. A
+ * `memberRate` becomes a sub-line on the same card, never a second card and
+ * never an invented feature bullet — `features` stays empty because a rate
+ * group carries a price, not a feature list.
+ */
+function toRateCards(venue: PublicVenueInfoResponse | null | undefined): readonly Rate[] {
+  return (venue?.rateGroups ?? [])
+    .filter((g) => Number(g.hourlyRate) > 0)
+    .map((g) => ({
+      title: g.name,
+      price: formatPeso(g.hourlyRate),
+      period: "/ hr",
+      features: [] as readonly string[],
+      // Both rates are Drizzle `numeric`, i.e. STRINGS — comparing them raw
+      // would treat "60.00" and "60" as different and print a member price
+      // identical to the headline one. Compare the values, not the encodings.
+      note:
+        g.memberRate &&
+        Number(g.memberRate) > 0 &&
+        Number(g.memberRate) !== Number(g.hourlyRate)
+          ? `Members ${formatPeso(g.memberRate)} / hr`
+          : undefined,
+    }));
+}
+
+/** The tenant's distinct REAL station types, in first-seen order. */
+function distinctStationTypes(data: ChronoLandingData): readonly string[] {
+  const seen = new Set<string>();
+  for (const branch of data.stations?.branches ?? []) {
+    for (const station of branch.stations) {
+      if (station.stationType) seen.add(station.stationType);
+    }
+  }
+  return [...seen];
+}
 
 const chronoData = (ctx: LandingSectionContext): ChronoLandingData =>
   (ctx.data ?? {}) as ChronoLandingData;
@@ -127,13 +181,49 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     defaultEnabled: true,
     defaultOrder: 20,
     Component: TenantRates,
-    propsFrom: () => ({}),
+    // Real, tenant-set rates from `ChronoStationGroups` — never placeholders.
+    // An outage makes `venue` null, which yields an empty list, which renders
+    // no section at all (see TenantRates' own note on why there is no default).
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      rates: toRateCards(chronoData(ctx).venue),
+    }),
+  }),
+  experience: defineLandingSection({
+    key: "experience",
+    label: "Gaming experience",
+    surface: "tenant",
+    defaultEnabled: true,
+    // Between specs (30) and games (40): what's free -> how to join (18) ->
+    // what it costs (20) -> the hardware -> what you can play on -> the titles.
+    defaultOrder: 35,
+    Component: TenantExperience,
+    // Derived from the ALREADY-FETCHED station payload — no extra API call.
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      stationTypes: distinctStationTypes(chronoData(ctx)),
+    }),
+  }),
+  playerCta: defineLandingSection({
+    key: "playerCta",
+    label: "Join / sign in",
+    surface: "tenant",
+    defaultEnabled: true,
+    // Right after live availability: the visitor has just seen a free seat.
+    defaultOrder: 18,
+    Component: TenantPlayerCta,
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      tenantName: ctx.tenantName,
+    }),
   }),
   specs: defineLandingSection({
     key: "specs",
     label: "Station specs",
     surface: "tenant",
-    defaultEnabled: true,
+    // Off by default: `DEFAULTS.specs` is a fixed, non-tenant-specific hardware
+    // list, so leaving it on advertises kit a venue may not own. Same reasoning
+    // and same one-line fix as `testimonials`/`events` below. A tenant can still
+    // switch it back on from the sections editor. Making it genuinely
+    // tenant-editable needs the `venue` config block in the TODO above.
+    defaultEnabled: false,
     defaultOrder: 30,
     Component: TenantSpecs,
     propsFrom: () => ({ specs: DEFAULTS.specs }),
@@ -142,7 +232,9 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     key: "games",
     label: "Games",
     surface: "tenant",
-    defaultEnabled: true,
+    // Off by default, same reason as `specs`: `DEFAULTS.games` is a fixed
+    // 8-title list, not this venue's actual library.
+    defaultEnabled: false,
     defaultOrder: 40,
     Component: TenantGames,
     propsFrom: () => ({ games: DEFAULTS.games }),
@@ -186,7 +278,12 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     defaultEnabled: true,
     defaultOrder: 80,
     Component: TenantContact,
-    propsFrom: (r: ResolvedLandingConfig) => r.contact,
+    propsFrom: (r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      ...r.contact,
+      // Real profiles from the tenant's own branch record — rendered only when
+      // set, so a venue with no TikTok never shows a dead TikTok link.
+      socialLinks: chronoData(ctx).venue?.branch?.socialLinks ?? null,
+    }),
   }),
   faq: defineLandingSection({
     key: "faq",
@@ -198,6 +295,19 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     defaultOrder: 90,
     Component: TenantFaq,
     propsFrom: (r: ResolvedLandingConfig) => ({ faqs: r.faqs }),
+  }),
+  share: defineLandingSection({
+    key: "share",
+    label: "Share this venue",
+    surface: "tenant",
+    defaultEnabled: true,
+    // Late on the page, just before the closing CTA — a visitor shares once
+    // they have already decided they like the place.
+    defaultOrder: 95,
+    Component: TenantShare,
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      tenantName: ctx.tenantName,
+    }),
   }),
   cta: defineLandingSection({
     key: "cta",

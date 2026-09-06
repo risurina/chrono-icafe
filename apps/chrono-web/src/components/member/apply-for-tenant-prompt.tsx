@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, CenteredMessage, Card, CardHeader, CardTitle, CardDescription, CardContent, toast } from "agora/ui";
 import { applyForTenantMembership } from "@/lib/customer-client";
+import { track } from "@/lib/analytics";
 
 /**
  * Shown instead of redirecting to /login when a signed-in GLOBAL customer
@@ -21,6 +22,7 @@ export function ApplyForTenantPrompt() {
       setApplying(false);
       return;
     }
+    track("PLAYER_SIGNUP_FROM_TENANT", { method: "customer_apply" });
     location.reload();
   }
 

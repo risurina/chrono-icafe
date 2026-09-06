@@ -1,6 +1,19 @@
 import { notFound } from "next/navigation";
-import { getRequestTenant } from "agora/next";
+import type { Metadata } from "next";
+import { PageShell, Main, Section, Stack, SectionHeading } from "agora/ui";
+import { getRequestTenant } from "@/lib/tenant";
+import { getPublicBranding } from "@/lib/branding";
+import { getTenantLanding } from "@/lib/landing";
+import { tenantPageMetadata } from "@/lib/seo";
+import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
 import { StationAvailabilityPoller } from "./client";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return tenantPageMetadata("/stations", (venueName) => ({
+    title: `${venueName} — Live station availability`,
+    description: `See which stations are free at ${venueName} right now.`,
+  }));
+}
 
 export default async function PublicStationsPage() {
   const tenant = await getRequestTenant();
@@ -14,37 +27,62 @@ export default async function PublicStationsPage() {
   if (tenant.slug) headers["x-tenant-slug"] = tenant.slug;
   else if (tenant.host) headers["x-tenant-host"] = tenant.host;
 
-  // We fetch initial data server-side
+  // Initial data is fetched server-side; the client then polls.
+  // Tenant resolution and the terminal-status guard both live in the API — a
+  // suspended, cancelled, archived or unknown tenant answers 404 there, which
+  // is why that status maps straight to `notFound()` and nothing else does.
   const res = await fetch(`${apiUrl}/public/stations`, {
     headers,
     cache: "no-store",
   });
 
   if (!res.ok) {
-    if (res.status === 404) {
-      notFound();
-    }
-    // For other errors, we might want to still render the shell and let the client retry,
-    // but typically a server error means we can't render the initial state.
-    // Given the requirements, a suspended/unknown tenant MUST render 404.
-    // If it's a 500 from the backend, we throw it to boundary or show error.
-    // The requirement says "never 500... for unknown or suspended tenant". 
-    // The backend returns 404 for suspended. So res.ok will be false and status 404, which correctly calls notFound().
+    if (res.status === 404) notFound();
     throw new Error(`Failed to fetch public stations: ${res.statusText}`);
   }
 
   const initialData = await res.json();
 
+  // Branding + venue name for the shared tenant chrome. Both are cache()d and
+  // already fetched by this tenant's other public surfaces.
+  const [branding, landing] = await Promise.all([
+    getPublicBranding(),
+    getTenantLanding(),
+  ]);
+  const venueName =
+    branding?.displayName?.trim() || landing?.venueName || "this venue";
+  const currentYear = new Date().getFullYear();
+
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto p-4 md:p-8 max-w-6xl space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Station Availability</h1>
-          <p className="text-muted-foreground mt-2">Live view of available stations</p>
-        </div>
-        
-        <StationAvailabilityPoller initialData={initialData} />
-      </main>
-    </div>
+    <PageShell>
+      <TenantHeader
+        tenantName={venueName}
+        displayName={branding?.displayName}
+        logoUrl={branding?.logoUrl}
+        logoDarkUrl={branding?.logoDarkUrl}
+      />
+
+      <Main>
+        <Section maxWidth="full" className="py-12">
+          <Stack gap={8}>
+            <SectionHeading
+              eyebrow="Live now"
+              title={`${venueName} — Live PC availability`}
+              description="Updated every 15 seconds. Available means the station is free to take right now; in use means someone is playing on it."
+            />
+            <StationAvailabilityPoller
+              initialData={initialData}
+              venueName={venueName}
+            />
+          </Stack>
+        </Section>
+      </Main>
+
+      <TenantFooter
+        year={currentYear}
+        tenantName={venueName}
+        tagline={branding?.tagline}
+      />
+    </PageShell>
   );
 }

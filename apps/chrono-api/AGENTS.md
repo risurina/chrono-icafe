@@ -78,7 +78,17 @@ phase status):
   spec is deferred until that UI lands.
 - `wallet` — schema + RLS landed (staff routes not yet built; the member
   self-service top-up path is routed via `payment`'s own checkout, above).
-- `session` — contracts + money helpers in progress; no schema/routes yet.
+- `session` — schema + contracts + money/expiry helpers + staff routes
+  (`sessionRoutes()`, mounted at `apps/chrono-api/src/routes/rpc.ts`) + member
+  portal routes landed. **`session/service.ts` writes `chronoStation.status`**:
+  `"occupied"` on start, back to `"available"` on end. That last fact is
+  load-bearing for anything reading station status — the public station contract
+  used to allow only three statuses while sessions were already writing a
+  fourth, so the whole public live-availability surface silently blanked out
+  whenever a venue was busy (`getTenantStations()` re-validates and returns
+  `null` on a parse failure). This entry previously read "contracts + money
+  helpers in progress; no schema/routes yet", and that stale line is what let
+  the mismatch be planned around rather than caught.
 - `pos` and `reservation` landed ahead of their originally planned wave (`pos`: schema +
   contracts; `reservation`: schema, contracts, routes, web UI, e2e — plan archived at
   `.ai/plans/chrono/archive/reservations/README.md`). `reservation` has since gained a
@@ -89,11 +99,17 @@ phase status):
   `.ai/plans/chrono/archive/reservations-queue-and-self-service/README.md` and
   `apps/chrono-docs/product/member-reservations.md`.
 
-**Deferred (later waves, not in this pass)** — `loyalty`, `vouchers`, `promos`,
-`reports`, `reconciliation`, `security-alerts`, `qr`, `inquiries`,
-`onboarding-checklist`, `app-versions`, `public-releases`,
-`admin-station-client`. Present in the source implementation; not planned until Wave 1
-is proven. `public-stations`, `tenant-landing`, and `app-usage` have since landed ahead
+**Deferred (later waves, not in this pass)** — `reports`, `reconciliation`,
+`security-alerts`, `qr`, `inquiries`, `onboarding-checklist`, `app-versions`,
+`public-releases`, `admin-station-client`. Present in the source implementation; not
+planned until Wave 1 is proven. `loyalty`, `voucher` and `promo` were listed here too,
+but all three already have real schema under
+`apps/chrono-api/src/modules/{loyalty,voucher,promo}/schema.ts` and are registered in
+`APP_TENANT_TABLES` (`ChronoLoyaltyAccounts`, `ChronoLoyaltyTransactions`,
+`ChronoVouchers`, `ChronoPromos`, `ChronoPromoRedemptions`) — they are landed at the
+data layer, not deferred. Note none of them is surfaced on the public tenant site:
+voucher codes are deliberately controlled-distribution, and no public promo DTO has
+been agreed. `public-stations`, `tenant-landing`, and `app-usage` have since landed ahead
 of the rest of this list — archived at `.ai/plans/chrono/archive/public-stations/README.md`,
 `.ai/plans/chrono/archive/tenant-landing/README.md`, and
 `.ai/plans/chrono/archive/app-usage/README.md`. `app-usage` (per-station app/game
@@ -149,6 +165,21 @@ forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
   (`POST /portal/customer/apply`) to become a customer of that tenant. See
   `.ai/rules/business-app.md`, "Global customers", and
   `.ai/plans/agora/archive/global-customers/README.md`.
+- **`{tenantSlug}.APP_DOMAIN/`** and **`{tenantSlug}.APP_DOMAIN/about`** — the
+  tenant's own white-label public site. Both render the same registry-driven
+  section list (see "Landing pages" below); `/` is the canonical URL and
+  `/about` is kept for existing links. **They now behave identically for an
+  unresolvable tenant.** They did not: `/about` called `getTenantLanding()` and
+  `notFound()`, while `/`'s own `fetchTenant()` returned `null` for an unknown
+  subdomain *and* for a real apex visit, so an unknown subdomain silently
+  rendered the generic Chrono marketing page at that subdomain's URL. `/` now
+  404s that case off `getTenantLanding()` — deliberately **not** off a fetch
+  failure, since a transient API blip must degrade the page, never 404 a live
+  tenant (`apps/chrono-web/src/lib/landing.ts` documents that distinction). A
+  true apex host still falls through to the marketing branch unchanged.
+  Both pages emit OpenGraph tags via `apps/chrono-web/src/lib/seo.ts`; `og:image`
+  is the tenant's own logo when it has one and is omitted otherwise — no hero/OG
+  image field exists and a placeholder would be a fabricated brand asset.
 - **`{tenantSlug}.APP_DOMAIN/stations`** (verified custom domains resolve the same way)
   — public, unauthenticated live station-availability page (implemented:
   `.ai/plans/chrono/archive/public-stations/README.md`). Resolved via
@@ -156,7 +187,12 @@ forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
   authenticated dashboard's own resolution — no session, no membership, no Next.js
   middleware. An unknown host or a tenant in a terminal lifecycle status
   (`suspended`/`cancelled`/`archived`/`deleting`) renders a 404, never stale or
-  cross-tenant data.
+  cross-tenant data. It now carries the same `TenantHeader`/`TenantFooter` chrome
+  as the landing pages, and reports **four** honest status buckets — Available /
+  In use / Maintenance / Offline. The old single "In Use / Offline" card sat over
+  an aggregate the API computed as `maintenance + offline`, so a machine under
+  maintenance was advertised as in use and a genuinely occupied one was counted
+  nowhere.
 
 ## Unauthenticated routes
 
@@ -284,9 +320,9 @@ checkout throttle remain the only volume limits.
 ## Landing pages
 
 Chrono's public surfaces are the apex marketing page (`(saas-landing)/page.tsx`)
-and each tenant's own landing page (`/about` on the tenant host). The **tenant**
-page is fully configurable; the marketing page is not (its copy is Chrono's, not
-a tenant's).
+and each tenant's own landing page (`/` and `/about` on the tenant host). The
+**tenant** page is fully configurable; the marketing page is not (its copy is
+Chrono's, not a tenant's).
 
 The machinery is the **foundation's** — config schema, section registry,
 resolvers, `TenantLandingPages` storage, the route factory, and the
@@ -318,6 +354,70 @@ error even though the registry map itself is prop-type-erased.
 Sections live in `components/landing/tenant-sections.tsx`, composed **only** from
 `agora/ui` primitives — no raw `div`/`span`/`ul` chrome. Give every section root
 a `data-testid`; the e2e spec asserts presence *and* absence.
+
+### The white-label section vocabulary
+
+`CHRONO_LANDING_SECTIONS` gained three sections
+(`.ai/plans/chrono/*/tenant-white-label-site`), all following the recipe above —
+no page file changed:
+
+- **`experience`** (order 35) — a chip row of the tenant's DISTINCT real
+  `stationType` values, derived from the station payload the page has already
+  fetched. **Zero extra API calls**, and a tenant with no stations renders
+  nothing rather than an empty row.
+- **`playerCta`** (order 18, right after live availability) — the join /
+  sign-in moment. The section is server-rendered; only the actions are a client
+  island (`PlayerCtaActions`), branching anonymous / signed-in global customer /
+  existing member. It calls `useMemberSession()` + `useGlobalCustomerSession()`
+  directly and must **never** reuse `MemberGate`, which hard-redirects anonymous
+  visitors to `/login` — on a public marketing page that would bounce every
+  visitor the page exists to convert. It defaults to the anonymous branch while
+  either session is still resolving.
+- **`share`** (order 95) — Web Share API with a clipboard + toast fallback. No
+  platform-specific SDK.
+
+Two existing sections changed:
+
+- **`rates`** is now real data — one card per `ChronoStationGroup`, priced from
+  `hourlyRate`, with `memberRate` as a sub-line on the same card. Its invented
+  `DEFAULT_RATES` fallback was **deleted**, not merely unused: the venue-info
+  fetch returns `null` on failure, so a default parameter would have fired on
+  exactly the outage path and re-published fabricated prices. Groups whose
+  `hourlyRate` is zero are dropped (the column is `notNull().default("0")`, so an
+  unpriced group would otherwise advertise "₱0 / hr").
+- **`specs` and `games` are now `defaultEnabled: false`.** Both render
+  hardcoded, non-tenant-specific content ("Ryzen 7 class CPU", a fixed 8-title
+  game list), which a venue's own site must not claim. They remain in
+  `TENANT_SECTION_CHOICES`, so a tenant can still switch them on. The real fix
+  is a tenant-editable `venue` block on `landingConfigSchema`; defaulting them
+  off is the same honest stopgap `testimonials`/`events` already use.
+
+### `GET /public/venue-info`
+
+The one backend read behind the sections above
+(`apps/chrono-api/src/modules/branch/routes.ts`, mounted in `app.ts` alongside
+the other `/public/*` routes). It exists so `/public/stations` — a focused,
+already-audited route — did not have to grow, matching this app's existing
+one-small-route-per-concern convention (`/public/tenant`, `/public/branding`,
+`/public/stations`, `/public/landing-page`).
+
+It returns the tenant's **first active branch** (oldest by `createdAt`) contact /
+social / maps fields, plus that branch's station groups' `hourlyRate` /
+`memberRate`. Multi-branch public data is not modelled yet.
+
+It follows the "Unauthenticated routes" conventions above exactly: rate-limited
+`createRateLimiter(20, 60 * 1000, "public-venue-info")` — the same numbers as
+`publicStationsLimiter`, a marketing page rather than a money-moving route;
+tenant resolved server-side via `resolveOrgFromRequest` and never from client
+input; terminal lifecycle statuses refused with a 404; and an explicit column
+allowlist, never a raw row.
+
+**Isolation model:** it serves exactly one host-resolved tenant, so it reads
+through `withTenant` (RLS-enforced) — **not** `withAdmin`, unlike
+`readPublishedLandingPage`. A tenant with no active branch yet is a normal 200
+carrying `{ branch: null, rateGroups: [] }`; a public page must not dead-end on
+an unfinished setup. Browser-level proof lives in
+`apps/chrono-web/e2e/tests/venue-info/cross-tenant-isolation.spec.ts`.
 
 ### Theme presets
 

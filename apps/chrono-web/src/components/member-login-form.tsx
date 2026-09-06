@@ -22,6 +22,7 @@ import {
 } from "agora/ui";
 import { safeNextPath, describeMemberAuthError } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
+import { track } from "@/lib/analytics";
 import { TenantBrandHeader } from "@/components/tenant-brand-header";
 
 /**
@@ -54,6 +55,7 @@ export function MemberLoginForm() {
       setLoading(false);
       return;
     }
+    track("PLAYER_LOGIN_FROM_TENANT", {});
     location.href = next;
   }
 
