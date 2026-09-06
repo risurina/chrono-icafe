@@ -696,21 +696,22 @@ read it fully, then create the new module folder mirroring its shape.
      reset the form. On `429`: a distinct `toast.error` explaining the throttle,
      not a generic failure.
      **[audit-fix round 2 — RISK 1: the copy was "Thanks — we'll let them know
-     you're waiting", which the MVP cannot honour. There is no lead-read
-     surface (assumption 12), no triage console (assumption 3) and no
-     notification (Out of Scope), so nobody at Chrono ever sees a lead — it
-     surfaces only as a bare count, and only if that business later signs up on
-     its own. Promising outreach would be exactly the kind of unbacked claim
-     Phase 5 forbids elsewhere ("every claim traces to a confirmed-real
-     capability", and `liveAvailability` is deliberately `null` rather than a
-     fake "0 of 0"). The copy is softened to something true.
-     **Recommended follow-up, deliberately NOT built here:** mirror
-     `modules/company-inquiry/public-routes.ts` and send one lead
-     notification to `SUPPORT_INBOX_EMAIL` via `getEmailSender` — the infra is
-     already shipped. That would make the original promise honest AND make
-     leads actionable. It is left out because it creates a new outbound flow
-     carrying lead content, which is a product + privacy decision for the
-     developer, not an implementer's call.]**
+     you're waiting", which the MVP could not honour at the time. There was no
+     lead-read surface (assumption 12), no triage console (assumption 3) and
+     no notification, so nobody at Chrono ever saw a lead. The copy was
+     softened to something true, and the recommended follow-up below is now
+     **RESOLVED — implemented as a follow-up commit:]** a best-effort
+     notification is sent to `SUPPORT_INBOX_EMAIL` via `getEmailSender`,
+     mirroring `modules/company-inquiry/public-routes.ts`'s send exactly
+     (branded-email helper, `escapeHtml`, no tenant branding). It carries the
+     business name/city/message and, when a global customer happens to be
+     signed in, their name/email as "contact info" — otherwise the email says
+     the submission was anonymous. The send never blocks or fails the
+     request: `ChronoBusinessLeads` remains the durable record (it still backs
+     the demand count), and a send failure or missing env var is logged via
+     `logger.warn` and swallowed, never thrown back at the (often anonymous)
+     submitter. The in-app copy stays as-is ("we've recorded your request") —
+     it was already honest and does not claim outreach.
 6. **Surface the existing apply-flow, don't rebuild it.**
    **[audit-fix — CONDITION, three path corrections:]**
    `apply-for-tenant-prompt.tsx` is at
@@ -1319,7 +1320,7 @@ fixing separately if Chrono's gates are meant to be enforced.
 ### Follow-up decisions (resolved, implemented as separate commits)
 
 Both open questions this handoff originally flagged have been decided by the
-developer, to be implemented on this same branch after the nine phases above:
+developer and implemented on this same branch, after the nine phases above:
 
 1. **Anonymous lead submission** (assumption 1). `POST
    /public/discover/business-leads` no longer requires a signed-in global
@@ -1328,7 +1329,11 @@ developer, to be implemented on this same branch after the nine phases above:
    nullable; a session is captured opportunistically when one exists, never
    required. `drizzle/0024_*.sql` makes the column nullable (generated, not
    applied — same `.env`-less constraint as the rest of this plan).
+2. **A real staff notification.** Submitting a lead now sends a best-effort
+   email to `SUPPORT_INBOX_EMAIL` via `getEmailSender()`, mirroring
+   `company-inquiry`'s send exactly. The row remains the durable record; the
+   email never blocks or fails the request.
 
-This change needs the same unapplied-migration + not-yet-run-e2e caveats as
+Both changes need the same unapplied-migration + not-yet-run-e2e caveats as
 the rest of this plan — see "What is left to run" above, now also covering
 `0024_*.sql`.

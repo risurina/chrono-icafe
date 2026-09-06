@@ -21,6 +21,10 @@ import {
   createRateLimiter,
   clientIp,
   TERMINAL_TENANT_STATUSES,
+  getEmailSender,
+  renderBrandedEmail,
+  escapeHtml,
+  logger,
 } from "agora/server";
 import { getCustomerContext, type CustomerContext } from "agora/customer-auth";
 import { requirePermission } from "../../auth/require-permission";
@@ -58,8 +62,9 @@ const leadWriteCustomerLimiter = createRateLimiter(
 /**
  * Best-effort, non-throwing session read. Submission never requires a global
  * customer account (see the handler below); when one happens to be signed in,
- * its id is captured on the lead. Any auth failure (missing/expired session)
- * is treated as a plain anonymous submission, never a 401.
+ * its id/email are captured on the lead and used as the "contact info" in the
+ * staff notification. Any auth failure (missing/expired session) is treated as
+ * a plain anonymous submission, never a 401.
  */
 async function tryGetCustomerContext(
   c: Parameters<typeof getCustomerContext>[0],
@@ -68,6 +73,70 @@ async function tryGetCustomerContext(
     return await getCustomerContext(c);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Notifies `SUPPORT_INBOX_EMAIL` that a business-lead came in — the same
+ * inbox and email path `modules/company-inquiry/public-routes.ts` uses, per
+ * `.ai/rules/providers.md`'s `EmailSender`/`getEmailSender()`. Best-effort:
+ * the `ChronoBusinessLeads` row is already durably recorded by the caller, so
+ * a missing config or a provider failure here is logged and swallowed, never
+ * thrown back at the (anonymous) submitter.
+ */
+async function notifyBusinessLeadSubmitted(input: {
+  businessName: string;
+  city: string | undefined;
+  message: string | undefined;
+  customer: CustomerContext | null;
+}): Promise<void> {
+  const { businessName, city, message, customer } = input;
+  try {
+    const inboxEmail = process.env.SUPPORT_INBOX_EMAIL;
+    if (!inboxEmail) {
+      logger.warn({ msg: "SUPPORT_INBOX_EMAIL is not configured; business-lead notification skipped" });
+      return;
+    }
+
+    // Platform-authored email, no tenant branding — same stance
+    // `company-inquiry`'s public route takes for IZUR's own inbox.
+    const branding = {
+      displayName: null,
+      emailFromName: null,
+      emailReplyTo: null,
+      emailLogoUrl: null,
+      primaryColor: null,
+      supportEmail: null,
+    };
+
+    const bodyHtml = [
+      `<p><strong>Business name:</strong> ${escapeHtml(businessName)}</p>`,
+      city ? `<p><strong>City:</strong> ${escapeHtml(city)}</p>` : "",
+      message
+        ? `<p><strong>Message:</strong><br/>${escapeHtml(message).replace(/\n/g, "<br/>")}</p>`
+        : "",
+      customer
+        ? `<p><strong>Contact:</strong> ${escapeHtml(customer.name)} &lt;${escapeHtml(customer.email)}&gt;</p>`
+        : `<p><strong>Contact:</strong> anonymous submission (no signed-in player)</p>`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const emailParts = renderBrandedEmail(branding, {
+      subject: `New business-lead invite: ${businessName}`,
+      bodyHtml,
+    });
+
+    const sender = getEmailSender();
+    await sender.send({
+      to: inboxEmail,
+      from: emailParts.from,
+      ...(customer ? { replyTo: customer.email } : {}),
+      subject: emailParts.subject,
+      html: emailParts.html,
+    });
+  } catch (err) {
+    logger.warn({ err, msg: "Failed to send business-lead notification email" });
   }
 }
 
@@ -231,10 +300,11 @@ export function businessLeadPublicRoutes() {
      * Anonymous — no session required, matching
      * `modules/company-inquiry/public-routes.ts`'s pattern. When a global
      * customer happens to be signed in, their id is captured on the row (an
-     * extra, additive per-customer throttle applies in that case); otherwise
-     * the lead is recorded with no requester identity at all. Nothing about
-     * the submitted lead is echoed back — the response is the new row's id
-     * and nothing else.
+     * extra, additive per-customer throttle applies in that case) and their
+     * email is used as "contact info" on the staff notification below;
+     * otherwise the lead is recorded with no requester identity at all.
+     * Nothing about the submitted lead is echoed back — the response is the
+     * new row's id and nothing else.
      */
     .post("/business-leads", zValidator("json", createBusinessLeadSchema), async (c) => {
       const ip = clientIp(c);
@@ -276,6 +346,14 @@ export function businessLeadPublicRoutes() {
 
       await leadWriteIpLimiter.record(ip);
       if (customer) await leadWriteCustomerLimiter.record(customer.customerId);
+
+      // Best-effort staff notification — mirrors
+      // `modules/company-inquiry/public-routes.ts`'s send, but never blocks or
+      // fails the submission: the row above is the durable record (it backs
+      // the demand count), the email is only an FYI so a person actually sees
+      // it land. A missing SUPPORT_INBOX_EMAIL or a send failure is logged,
+      // never thrown back at the caller.
+      void notifyBusinessLeadSubmitted({ businessName, city, message, customer });
 
       return c.json({ id: row.id }, 201);
     });
