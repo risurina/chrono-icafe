@@ -5,8 +5,8 @@ Owner: Chrono's email call sites (`apps/chrono-api`)
 
 **Sessions:**
 - Planning: consolidate-customers-members-page [7ffb50]
-- Audit: plan-auditor subagent (ae51a9e4338840971) — NEEDS REVISION. 2
-  BLOCKERs (a third `renderBrandedEmail` call site,
+- Audit (1st pass): plan-auditor subagent (ae51a9e4338840971) — NEEDS
+  REVISION. 2 BLOCKERs (a third `renderBrandedEmail` call site,
   `apps/chrono-api/src/routes/rpc.ts`'s `POST /rpc/integrations/email/test`,
   was never listed; the owl-logo URL used an `http://` scheme in
   non-production, which the renderer's `https://`-only guard silently drops,
@@ -19,7 +19,21 @@ Owner: Chrono's email call sites (`apps/chrono-api`)
   existing theme-preset e2e coverage; a hardcoded `displayName: "Chrono"`
   would silently override the deployed `APP_NAME`; a new client-bundle value
   import from `chrono-api` wasn't checked against `next.config.ts`'s
-  `transpilePackages`) — all resolved in this revision below.
+  `transpilePackages`) — all resolved in that revision.
+- Audit (2nd pass, after `email-design-system` landed): plan-auditor subagent
+  (a3f2cecd9aad64adb) — NEEDS REVISION. All 1st-round claims re-verified
+  correct against the now-landed foundation API. 1 new BLOCKER (a **fourth**
+  `renderBrandedEmail` call site, `apps/chrono-api/src/modules/business-lead/
+  routes.ts:125`'s `notifyBusinessLeadSubmitted`, was still missing — same
+  "IZUR-internal, unbranded, same inbox" class as `company-inquiry`, per that
+  file's own comment "the same inbox and email path
+  `modules/company-inquiry/public-routes.ts` uses") + 1 CONDITION (the owl-
+  logo URL was still an unconfirmed placeholder with no evidence it was the
+  real production host). Both resolved below: developer confirmed
+  `https://chrono.izur.com.ph/brand/chrono-owl.png` is the real, live, always-
+  https production host serving this asset, and confirmed `business-lead`'s
+  notification should get the identical owl-logo treatment as
+  `company-inquiry`. Phase 3 updated accordingly.
 
 ## Depends on
 
@@ -180,7 +194,7 @@ But the stored **values** are not all in the 6-digit-hex form the foundation's
 color guard accepts (`/^#[0-9a-fA-F]{6}$/`, `render.ts`): `border`/`input` are
 8-digit hex with an alpha channel (e.g. `"#b8860b26"`,
 `apps/chrono-web/src/lib/theme-presets.ts:41-42`; `"#22c55e26"`, `:119-120`),
-and `card` is 3-digit shorthand (`"#fff"`, `:28`, `:105`). Passed through
+and `card` is 3-digit shorthand (`"#fff"`, `:28`, `:106`). Passed through
 unvalidated, the foundation's guard would silently drop exactly the two tokens
 that carry the most visible difference between presets. `mapPresetTokens`
 (Phase 2) normalizes both before they ever reach `renderBrandedEmail`.
@@ -420,6 +434,10 @@ exactly as specified before starting this phase.
 
 **Files to Update**
 - `apps/chrono-api/src/modules/company-inquiry/public-routes.ts`
+- `apps/chrono-api/src/modules/business-lead/routes.ts` (added in the 2nd
+  audit pass — a fourth `renderBrandedEmail` call site the original pass
+  missed; same "IZUR-internal, unbranded, same `SUPPORT_INBOX_EMAIL` inbox"
+  class as `company-inquiry`, per this file's own comment at `:81-82`)
 - `apps/chrono-api/src/modules/member/routes.ts`
 - `apps/chrono-api/src/routes/rpc.ts` (`POST /rpc/integrations/email/test` —
   the third call site the original pass of this plan missed; Chrono's own
@@ -439,15 +457,13 @@ exactly as specified before starting this phase.
                          // deployment actually uses
      emailFromName: null,
      emailReplyTo: null,
-     emailLogoUrl: "https://izur.com.ph/brand/chrono-owl.png", // placeholder —
-                         // MUST be a real, always-https, always-reachable URL
-                         // at implementation time (not derived from
-                         // APP_DOMAIN + a dev-mode http:// scheme, which the
-                         // renderer's https://-only guard silently drops,
-                         // making this logo invisible in every non-production
-                         // environment); confirm the actual production host
-                         // that serves apps/chrono-web/public/brand/chrono-owl.png
-                         // before writing the literal URL
+     emailLogoUrl: "https://chrono.izur.com.ph/brand/chrono-owl.png", // confirmed
+                         // with the developer: this is the real, live,
+                         // always-https production host serving
+                         // apps/chrono-web/public/brand/chrono-owl.png —
+                         // NOT derived from APP_DOMAIN (dev's own host is
+                         // http://localtest.me:3000, which the renderer's
+                         // https://-only guard would silently drop)
      logoDarkUrl: null,
      primaryColor: null,
      supportEmail: null,
@@ -456,7 +472,15 @@ exactly as specified before starting this phase.
    Leave the rest of the handler (rate limiting, validation, the
    field-listing `bodyHtml`) unchanged; only the `branding` object gains a
    real logo instead of `null`.
-2. `member/routes.ts`'s `sendMemberOnboardingEmail` — add
+2. `business-lead/routes.ts`'s `notifyBusinessLeadSubmitted` (added in the
+   2nd audit pass) — identical treatment to step 1 above: its `branding`
+   object (currently all-`null`, `:102-110`) gets the same
+   `emailLogoUrl: "https://chrono.izur.com.ph/brand/chrono-owl.png"` literal,
+   `displayName` stays `null` for the same `APP_NAME`-fallback reason. Leave
+   `logoDarkUrl`/`primaryColor`/`supportEmail` as `null` and the rest of the
+   handler (rate limiting, the durable `ChronoBusinessLeads` row, the
+   best-effort try/catch) completely unchanged.
+3. `member/routes.ts`'s `sendMemberOnboardingEmail` — add
    `logoDarkUrl: b?.logoDarkUrl ?? null` to both the `select()` projection and
    the constructed branding object (mirrors the fix the foundation plan makes
    to every other tenant-branded call site), and add
@@ -464,17 +488,22 @@ exactly as specified before starting this phase.
    from `agora/server`) passed as the 3rd argument to `renderBrandedEmail`.
    Since Phase 2 already registered Chrono's resolver, this tenant now gets its
    real published theme automatically.
-3. `apps/chrono-api/src/routes/rpc.ts`'s `POST /rpc/integrations/email/test` —
-   same pattern as step 2 (it already does a full `.select()`, so
+4. `apps/chrono-api/src/routes/rpc.ts`'s `POST /rpc/integrations/email/test` —
+   same pattern as step 3 (it already does a full `.select()`, so
    `b.logoDarkUrl` is already available with no projection change): add
    `logoDarkUrl` to the branding object, resolve and pass `theme`.
+5. Re-run `grep -rn "renderBrandedEmail" apps/chrono-api/src` as an explicit
+   check (added in the 2nd audit pass) — must show exactly 4 call sites
+   (steps 1-4 above), none missed a 5th time.
 
 **Acceptance Criteria**
 - A test company-inquiry submission's resulting email (sent to
   `SUPPORT_INBOX_EMAIL`) shows the Chrono owl mark in its header instead of
-  plain brand-name text, **including when tested in local dev** (the https-only
-  URL fix makes this achievable, unlike the original scheme-conditional
-  construction).
+  plain brand-name text, **including when tested in local dev** (the
+  confirmed-real, always-https URL makes this achievable in every
+  environment, unlike the original placeholder).
+- A test business-lead submission's resulting email (sent to the same
+  `SUPPORT_INBOX_EMAIL`) shows the identical owl mark.
 - The email's "From" name reflects the deployment's actual `APP_NAME` (or the
   existing platform default), not a hardcoded `"Chrono"` — unchanged from
   today's behavior for that field.
@@ -484,17 +513,22 @@ exactly as specified before starting this phase.
 - A test email from `/dashboard/settings/integrations` (email category) on a
   themed tenant also renders in that tenant's theme colors.
 - No tenant-branded email anywhere in Chrono ever falls back to the owl mark —
-  confirmed by grep: `emailLogoUrl:.*chrono-owl` appears in exactly one file
-  (`company-inquiry/public-routes.ts`).
+  confirmed by grep: `emailLogoUrl:.*chrono-owl` appears in exactly **two**
+  files (`company-inquiry/public-routes.ts`, `business-lead/routes.ts`) — and
+  `grep -rn "renderBrandedEmail" apps/chrono-api/src` shows exactly 4 call
+  sites total, matching this phase's Files to Update list.
 
 **Verification Commands**
 - `pnpm --filter @agora/chrono-api typecheck`
+- `grep -rn "renderBrandedEmail" apps/chrono-api/src` — must show exactly 4
+  call sites.
 - Manual: submit a test company inquiry via `/support` or `/company/contact`
-  (dev), confirm the resulting console-logged (or real, if
-  `SUPPORT_INBOX_EMAIL` + a real provider is configured) email shows the owl
-  logo; approve/reject a test member application for a themed tenant and
-  confirm the email matches its theme; send a test integration email for a
-  themed tenant and confirm the same.
+  and a test business-lead submission via `/discover` (dev), confirm both
+  resulting console-logged (or real, if `SUPPORT_INBOX_EMAIL` + a real
+  provider is configured) emails show the owl logo; approve/reject a test
+  member application for a themed tenant and confirm the email matches its
+  theme; send a test integration email for a themed tenant and confirm the
+  same.
 
 **Out-of-Scope**: no change to `notifyMemberOfDecision`'s copy
 (`APPROVED_EMAIL_BODY`/`REJECTED_EMAIL_BODY`) beyond whatever markup migration
