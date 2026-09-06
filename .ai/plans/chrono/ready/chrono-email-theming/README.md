@@ -379,10 +379,22 @@ block before editing.
    }
    ```
    (Exact import paths/types to be confirmed against the foundation plan's
-   final `agora/server` export list at implementation time; `flattenAlphaOverSolid`
-   is a small standard alpha-compositing helper, implemented inline or
-   imported if the foundation already has an equivalent — check before
-   writing a second one.)
+   final `agora/server` export list at implementation time — resolved by the
+   2nd audit pass: no such helper exists anywhere in the repo today
+   (`packages/agora`, `apps/chrono-api`, `apps/chrono-web` all grepped clean
+   for `flattenAlpha`), so this is a genuinely new, small, local helper,
+   defined inline in this same file, not imported from anywhere.
+   `flattenAlphaOverSolid(hex8: string, underSurface: string): string` — the
+   standard "alpha over a solid background" compositing formula, applied
+   per-channel: given an 8-digit `#rrggbbaa` (the last 2 hex digits are the
+   0-255 alpha) and a 6-digit `underSurface` hex, decompose both into
+   `{r,g,b}` (0-255) plus `a` (0-1, `alpha255 / 255`), then for each channel
+   `result = round(fg * a + bg * (1 - a))`, clamped to `[0, 255]`, and
+   re-encode as a 2-digit hex byte. Return the composited 6-digit
+   `#rrggbb` string (no alpha channel in the output — the whole point is to
+   flatten it away). This is a pure, deterministic function with no
+   dependency on any theme/rendering code — write it directly above
+   `normalizeHex` in this same new file.)
 2. In `apps/chrono-api/src/index.ts`, import `registerEmailThemeResolver` from
    `agora/server` and `resolveChronoEmailTheme` from `./lib/email-theme`, and
    call `registerEmailThemeResolver(resolveChronoEmailTheme);` once at boot,
