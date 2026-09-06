@@ -1228,3 +1228,78 @@ statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8848`
 - [ ] `pnpm typecheck` (workspace-wide) passes.
 - [ ] `pnpm --filter @agora/chrono-api rls:proof` passes (regression check only
       — see the note above).
+
+---
+
+## Implementation status / handoff (branch `feature/two-sided-growth-loop`)
+
+**All nine phases are implemented and committed** (the eight planned, plus
+Phase 3b which the round-2 audit added). The plan stays in `in-progress/`
+rather than `archive/` for one reason: **three verification steps could not be
+run in the implementing worktree, which has no `.env`.** Nothing is known to be
+wrong; it is unverified, and the difference matters here.
+
+### What passed
+
+| Check | Result |
+|---|---|
+| `pnpm typecheck` (workspace) | PASS — 7/7 |
+| `pnpm --filter @agora/chrono-web build` | PASS — `/discover` registered |
+| `pnpm --filter @agora/chrono-api test:permissions` | PASS — 424 passed, 0 failed |
+| `pnpm --filter @agora/chrono-api test:e2e` | 710 passed / 73 failed — the 73 are PRE-EXISTING (see below) |
+| Gate tamper-check | Both gates FAIL when `growth:read` moves admin→staff, as required |
+
+### What is left to run (needs `.env` + a database)
+
+1. `pnpm --filter @agora/chrono-api db:migrate`
+   — applies `drizzle/0023_add_chrono_business_leads.sql`. The migration was
+   generated with the tracked generate-and-migrate flow and hand-reviewed (one
+   FK to `"Customers"` with `ON DELETE cascade`, both indexes,
+   `"businessNameNormalized"` NOT NULL, camelCase identifiers, no destructive
+   ops). It has **never been applied**. PGlite builds the same DDL from the
+   Drizzle schema in `test:e2e`, which is why that suite exercises the table.
+2. `pnpm --filter @agora/chrono-api rls:proof` — expect `RLS PROOF: PASS ✅`.
+   **This is a regression check only.** `rls-proof.ts` probes five FOUNDATION
+   tables and zero Chrono tables, and `ChronoBusinessLeads` is deliberately
+   outside RLS, so a green run says the migration did not break forced RLS —
+   it says nothing about this feature's isolation. That proof is item 3 plus
+   the `run.ts` block (already green).
+3. `pnpm dev:chrono`, then `pnpm --filter @agora/chrono-web e2e` for
+   `e2e/tests/growth/` and `e2e/tests/discover/` — headed, `workers: 1`, no
+   `webServer`, so the dev servers must already be running.
+
+Archive this plan once 1–3 are green.
+
+### Pre-existing red suite — NOT caused by this branch
+
+`test:e2e` was measured at **706 passed / 73 failed on the branch base**, before
+any of this work; it is 710/73 after (the same 73, plus this feature's 4). The
+whole cascade starts at one assertion: `resolveOrgFromRequest`
+(`packages/agora/src/core/server/host.ts:80`) returns `null` for any terminal
+status, and `suspended` is terminal — so once section U suspends the `acme`
+tenant, every later request 404s `Unknown tenant`, **including the resume call**,
+and acme never recovers within the run. Worth its own triage: it suggests a
+suspended tenant has no route back through the tested surface, which would be
+operationally significant on its own. Out of scope here.
+
+### Two pre-existing broken specs found while fixing our own
+
+The branch's own growth specs called `${base}/rpc/...` on the Next origin
+(:3000), where no `/rpc` rewrite exists — fixed in `f2b3cb36`. **Two other
+specs have the identical latent bug and were left alone** as out-of-scope:
+
+- `apps/chrono-web/e2e/tests/tenant-landing/edit-role-gate.spec.ts:92`
+- `apps/chrono-web/e2e/tests/reports/role-gate.spec.ts:95`
+
+Both assert `403` on a call that will actually return Next's `404`, so both are
+role-gate tests that cannot fail for the right reason. One-line fix each:
+swap `${base}` for the file's own `API_URL`.
+
+### CI does not run these suites
+
+`.github/workflows/ci.yml` runs `pnpm -r typecheck`, `pnpm build`, and
+`pnpm test:e2e` — and root `test:e2e` is hardcoded to `@agora/api`, the
+scaffold. There is no root `test:permissions`. So the growth permission gate and
+the demand isolation block are compile-checked but **never executed** by CI;
+they run only when someone types the filtered command. Pre-existing, and worth
+fixing separately if Chrono's gates are meant to be enforced.
