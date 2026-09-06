@@ -190,9 +190,13 @@ export default async function Home() {
         chrono: "Customer portal for balance, history, and booking",
       },
       {
-        label: "Data isolation model",
+        // Same fact, said the way an owner reads it. "Per-tenant row-level
+        // security enforced at the database" is how the engineers describe it;
+        // it is not why a café owner would choose Chrono. The precise wording
+        // survives in the FAQ, where someone asking that question wants it.
+        label: "Your business's data",
         legacy: "Shared local files, no real boundary",
-        chrono: "Per-tenant row-level security enforced at the database",
+        chrono: "Walled off from every other business, enforced by the database",
       },
     ];
 
@@ -317,18 +321,23 @@ export default async function Home() {
       },
     ];
 
+    // Gaming-only. The previous list (co-working spaces, study cafés) diluted
+    // the primary market this page is repositioning around.
     const trustCategories = [
-      { icon: Gamepad2, label: "Gaming Lounges" },
-      { icon: Building2, label: "Co-working Spaces" },
-      { icon: Coffee, label: "Study Cafés" },
-      { icon: Users, label: "Franchise Groups" },
+      { icon: Gamepad2, label: "iCafes" },
+      { icon: Building2, label: "Gaming Lounges" },
+      { icon: Coffee, label: "Esports Venues" },
+      { icon: Users, label: "Multi-Branch Chains" },
     ];
 
+    // "Tenant data isolation → Row-level" is gone: it is developer language, not
+    // a reason a player or a café owner picks Chrono. Every remaining stat is a
+    // real, checkable capability — nothing here claims network size.
     const trustStats = [
       { label: "Branches per account", value: "Unlimited" },
       { label: "Built-in workflows", value: "20+" },
       { label: "Realtime sync", value: "Built-in" },
-      { label: "Tenant data isolation", value: "Row-level" },
+      { label: "Live station availability", value: "Public" },
     ];
 
     return (
@@ -364,37 +373,64 @@ export default async function Home() {
               <Grid cols={2} gap={4} className="items-center">
                 <Stack gap={6}>
                   <Badge variant="secondary" className="w-fit uppercase tracking-widest">
-                    Chrono · Venue management platform
+                    The gaming network
                   </Badge>
                   <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                    One dashboard for every branch, every session, every shift.
+                    Where gamers and gaming businesses connect.
                   </h1>
                   <p className="max-w-xl text-balance text-lg text-muted-foreground">
-                    Chrono gives multi-branch venue operators real-time visibility into
-                    stations, wallets, staff shifts, and reservations — so nothing gets
-                    tracked on a whiteboard again.
+                    Find gaming cafés, connect with your favorite spots, and discover a
+                    better way to game. Business owners can manage their operations and
+                    put their venue in front of Chrono players.
                   </p>
-                  <Row wrap gap={3} className="pt-2">
+                  {/* Two audiences, one row: player primary, partner secondary,
+                      discovery tertiary. `id="join"` is the anchor the header CTA
+                      targets. */}
+                  <Row wrap gap={3} className="pt-2" id="join">
                     <Link
-                      href="/sign-up"
+                      href="/portal/sign-up"
                       className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
                     >
-                      Create a business
+                      Join as a Player
                     </Link>
                     <Link
-                      href="/contact"
+                      href="/sign-up"
                       className={cn(
                         buttonVariants({ variant: "outline", size: "lg" }),
                         "rounded-full px-6",
                       )}
                     >
-                      Talk to us
+                      Join as a Partner
+                    </Link>
+                    <Link
+                      href="/discover"
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "lg" }),
+                        "rounded-full px-6",
+                      )}
+                    >
+                      Find a Gaming Cafe
                     </Link>
                   </Row>
+                  {/* The returning player's way in. `/login` in the nav is the
+                      staff/partner entry, so without this the page would offer
+                      new players a door and returning ones none. */}
+                  <p className="text-sm text-muted-foreground">
+                    Already play on Chrono?{" "}
+                    <Link href="/portal/login" className="font-medium underline underline-offset-4">
+                      Sign in
+                    </Link>
+                    {" · "}
+                    <Link
+                      href="/discover?invite=1"
+                      className="font-medium underline underline-offset-4"
+                    >
+                      Can&apos;t find your cafe? Invite them
+                    </Link>
+                  </p>
                   <HeroChips items={HERO_CHIPS} className="max-w-2xl" />
                   <p className="max-w-xl text-sm text-muted-foreground/70">
-                    Free to start — no credit card required. Multi-tenant by
-                    design, with row-level isolation per business.
+                    Free to start — no credit card required.
                   </p>
                 </Stack>
 

@@ -59,10 +59,14 @@ test.describe("Auth page chrome", () => {
     // "Platform" column repeats "Features"/"Pricing", so scope to the header
     // landmark.
     const header = page.getByRole("banner");
-    await expect(header.getByRole("link", { name: "Features" })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Discover" })).toBeVisible();
     await expect(header.getByRole("link", { name: "Pricing" })).toBeVisible();
+    // The single primary nav CTA. It replaced "Request Private Demo" when the
+    // marketing surface was repositioned around two audiences — the nav no
+    // longer picks one, and the player/partner split lives in the hero it
+    // anchors to.
     await expect(
-      header.getByRole("link", { name: "Request Private Demo" }),
+      header.getByRole("link", { name: "Join Chrono" }),
     ).toBeVisible();
     // MarketingFooter's identifying content — nav columns plus its
     // "Powered by IZUR" bottom bar — not the old generic one-liner.

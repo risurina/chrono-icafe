@@ -48,12 +48,22 @@ const NAV_LINK = "font-medium transition-colors hover:text-foreground";
 const CTA_PILL =
   "h-9 shrink-0 rounded-full px-4 text-[9px] font-bold uppercase tracking-widest shadow-lg shadow-primary/20 sm:h-10 sm:px-6 sm:text-[10px]";
 
+// Two-audience nav. `For Players`/`For Businesses`/`How It Works` are
+// same-page anchors, not standalone routes — the homepage already carries both
+// pitches in full, and forking them into /players and /partners would duplicate
+// copy that has to stay in sync.
+//
+// `Support` and `Download` moved out of the nav to make room; both already
+// appear in the footer's own "Platform" column, so nothing became unreachable.
+// `Login` STAYS: it is the only sign-in entry in the marketing chrome, and it
+// is the staff/partner one — the returning PLAYER's entry (/portal/login) sits
+// beside the player CTA in the hero.
 const NAV = [
-  { label: "Features", href: "/#features" },
+  { label: "Discover", href: "/discover" },
+  { label: "For Players", href: "/#for-players" },
+  { label: "For Businesses", href: "/#for-businesses" },
+  { label: "How It Works", href: "/#how-it-works" },
   { label: "Pricing", href: "/pricing" },
-  { label: "About", href: "/company/about" },
-  { label: "Support", href: "/support" },
-  { label: "Download", href: "/download" },
   { label: "Login", href: "/login" },
 ];
 
@@ -87,13 +97,14 @@ export function MarketingHeader() {
           <Row className="hidden sm:flex">
             <ThemeToggle />
           </Row>
+          {/* One primary nav CTA; the player/partner split lives in the hero
+              it anchors to, so the nav does not have to pick an audience. */}
           <Link
-            href="/company/contact"
+            href="/#join"
             className={cn(buttonVariants(), CTA_PILL)}
             data-testid="marketing-cta"
           >
-            <span className="sm:hidden">Book demo</span>
-            <span className="hidden sm:inline">Request Private Demo</span>
+            Join Chrono
           </Link>
         </>
       }
@@ -308,8 +319,9 @@ export function MarketingFooter({ year }: { year: number }) {
           {/* Flat primary, not the gradient — matches the reference footer. */}
           <ChronoBrand gradient={false} />
           <span className="max-w-sm text-sm font-medium leading-relaxed text-muted-foreground">
-            A premium internet cafe management platform for station sessions,
-            wallets, and branch operations. Built by IZUR IT Solutions.
+            The gaming network connecting players and gaming businesses —
+            session management, wallets, and branch operations for partners;
+            discovery and connection for players. Built by IZUR IT Solutions.
           </span>
           <Row gap={4}>
             {SOCIAL_LINKS.map(({ href, label, Icon }) => (
