@@ -23,14 +23,20 @@ Owner: Chrono's email call sites (`apps/chrono-api`)
 
 ## Depends on
 
-`.ai/plans/agora/draft/email-design-system/README.md` **must land first** for
-its `registerEmailThemeResolver`/`EmailThemeTokens`/`resolveTenantEmailTheme`
-API to exist. Its own audit made `EmailBranding.logoDarkUrl` **optional**, so
-this plan's own call-site edits (Phase 3) no longer have a strict
-compile-order dependency on that specific field — but the resolver
-registration (Phase 2) is still unbuildable before that plan's Phase 1 is
-committed. Once that plan is archived, update this line to point at its
-archived path.
+**Landed.** `.ai/plans/agora/archive/email-design-system/README.md` is fully
+implemented and archived on `main` (commits `634b3703`, `6c2192b6`,
+`797d5bc2`, `04f577f6`, plus fix-review `44e9f50e`/`e880d2ff`/`8896614c`) —
+`registerEmailThemeResolver`/`EmailThemeTokens`/`resolveTenantEmailTheme`/
+`DEFAULT_EMAIL_THEME`/`EmailTheme`/`EmailThemeResolver` all resolve from
+`agora/server`. This plan is now unblocked and may proceed.
+
+Note when implementing Phase 2 (registering Chrono's own resolver): the
+foundation's `resolveTenantEmailTheme` validates every resolver-supplied
+token field against `/^#[0-9a-fA-F]{6}$/i` and silently drops an invalid one
+(falls back to the current value) rather than throwing — so Chrono's own
+resolver implementation should return well-formed 6-digit hex strings for
+every token it supplies, or the corresponding default will silently apply
+instead.
 
 ## Why this plan exists
 
