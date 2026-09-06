@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics";
 import {
   Button,
   Input,
@@ -33,6 +34,7 @@ export function GlobalSignUpForm() {
       setLoading(false);
       return;
     }
+    track("PLAYER_SIGNUP");
     location.href = "/portal";
   }
 

@@ -18,6 +18,7 @@ import {
   toast,
 } from "agora/ui";
 import { searchBusinesses } from "../../../lib/discover-client";
+import { track } from "../../../lib/analytics";
 import { BusinessResultCard } from "./business-result-card";
 import { InviteBusinessForm } from "./invite-business-form";
 
@@ -65,6 +66,13 @@ export function DiscoverSearch() {
       }
 
       setState({ status: "done", query: trimmed, results: result.businesses });
+      // One event per settled search — the form is submit-driven, so this
+      // never fires per keystroke. The query string itself is deliberately
+      // not sent; see lib/analytics.ts.
+      track("PLAYER_DISCOVERY_SEARCH", {
+        resultCount: result.businesses.length,
+        hadResults: result.businesses.length > 0,
+      });
       // A search that finds nothing is the loop's whole reason to exist — open
       // the invite form rather than leaving a dead end.
       if (result.businesses.length === 0) setInviteOpen(true);
@@ -134,7 +142,11 @@ export function DiscoverSearch() {
       {state.status === "done" && state.results.length > 0 ? (
         <Stack gap={4} data-testid="discover-results">
           {state.results.map((business) => (
-            <BusinessResultCard key={business.organizationId} business={business} />
+            <BusinessResultCard
+              key={business.organizationId}
+              business={business}
+              onVisit={(organizationId) => track("BUSINESS_VIEW", { organizationId })}
+            />
           ))}
         </Stack>
       ) : null}
@@ -154,6 +166,7 @@ export function DiscoverSearch() {
         <InviteBusinessForm
           // Pre-fill with whatever was searched, so the player never retypes it.
           initialBusinessName={state.status === "done" ? state.query : query.trim()}
+          onSubmitted={(meta) => track("BUSINESS_INVITE_REQUEST", meta)}
         />
       ) : null}
     </Stack>
