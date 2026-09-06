@@ -1,11 +1,24 @@
 import { Hono } from "hono";
 import { withTenant, eq, and, asc, desc, count, ilike } from "agora/db";
 import { requirePermission } from "../../auth/require-permission";
-import { type TenantVars, HttpError, zValidator } from "agora/server";
+import {
+  type TenantVars,
+  HttpError,
+  zValidator,
+  resolveOrgFromRequest,
+  createRateLimiter,
+  clientIp,
+} from "agora/server";
 import { createId, listQuerySchema } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../../db/schema";
-import { createBranchSchema, updateBranchSchema, toBranchDto } from "./contracts";
+import { chronoStationGroup } from "../station/schema";
+import {
+  createBranchSchema,
+  updateBranchSchema,
+  toBranchDto,
+  type PublicVenueInfoResponse,
+} from "./contracts";
 
 /** True if `err` is a Postgres unique-violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -177,5 +190,108 @@ export function branchRoutes() {
         targetLabel: updated.name,
       });
       return c.json({ branch: toBranchDto(updated) });
+    });
+}
+
+// IP rate limiter: same numbers and rationale as `publicStationsLimiter` — a
+// marketing-page read, not a money-moving route.
+const publicVenueInfoLimiter = createRateLimiter(20, 60 * 1000, "public-venue-info");
+
+/**
+ * `GET /public/venue-info` — the tenant's own public site's business-info and
+ * rates data. Unauthenticated, so it follows the `/public/*` convention in
+ * `apps/chrono-api/AGENTS.md`: IP rate limit, tenant resolved server-side from
+ * the host (never client input), terminal statuses refused, and an explicit
+ * column allowlist rather than a raw row.
+ *
+ * Serves exactly one tenant, resolved from the host, so the read goes through
+ * `withTenant` (RLS-enforced) — never `withAdmin`. MVP shows the tenant's FIRST
+ * active branch only (oldest by `createdAt`), mirroring `getTenantLanding()`'s
+ * own `branches[0]` precedent; a per-branch public page is future work.
+ */
+export function publicVenueInfoRoutes() {
+  return new Hono()
+    .use("*", async (c, next) => {
+      const ip = clientIp(c) || "unknown";
+      const retryAfter = await publicVenueInfoLimiter.blockedFor(ip);
+      if (retryAfter !== null) {
+        return c.json({ error: "Too many requests." }, 429, {
+          "Retry-After": String(retryAfter),
+        });
+      }
+      await publicVenueInfoLimiter.record(ip);
+      await next();
+    })
+    .get("/", async (c) => {
+      const org = await resolveOrgFromRequest(c);
+      if (!org) {
+        throw new HttpError(404, "Tenant not found.");
+      }
+
+      // Never serve public data for a tenant in a terminal lifecycle status.
+      const status = org.status;
+      if (
+        status === "suspended" ||
+        status === "cancelled" ||
+        status === "archived" ||
+        status === "deleting"
+      ) {
+        throw new HttpError(404, "Tenant not found.");
+      }
+
+      const data = await withTenant(org.id, async (tx): Promise<PublicVenueInfoResponse> => {
+        const [branch] = await tx
+          .select({
+            id: chronoBranch.id,
+            name: chronoBranch.name,
+            address: chronoBranch.address,
+            googleMapsUrl: chronoBranch.googleMapsUrl,
+            operatingHours: chronoBranch.operatingHours,
+            contactNumber: chronoBranch.contactNumber,
+            email: chronoBranch.email,
+            socialLinks: chronoBranch.socialLinks,
+          })
+          .from(chronoBranch)
+          .where(eq(chronoBranch.status, "active"))
+          .orderBy(asc(chronoBranch.createdAt))
+          .limit(1);
+
+        // A tenant with no active branch yet is a normal 200 with empty data —
+        // never a 404. A public page must not dead-end on an unfinished setup.
+        if (!branch) {
+          return { branch: null, rateGroups: [] };
+        }
+
+        const groups = await tx
+          .select({
+            id: chronoStationGroup.id,
+            name: chronoStationGroup.name,
+            hourlyRate: chronoStationGroup.hourlyRate,
+            memberRate: chronoStationGroup.memberRate,
+          })
+          .from(chronoStationGroup)
+          .where(eq(chronoStationGroup.branchId, branch.id))
+          .orderBy(asc(chronoStationGroup.name));
+
+        return {
+          branch: {
+            name: branch.name,
+            address: branch.address,
+            googleMapsUrl: branch.googleMapsUrl,
+            operatingHours: branch.operatingHours,
+            contactNumber: branch.contactNumber,
+            email: branch.email,
+            socialLinks: branch.socialLinks ?? null,
+          },
+          rateGroups: groups.map((g) => ({
+            id: g.id,
+            name: g.name,
+            hourlyRate: g.hourlyRate,
+            memberRate: g.memberRate,
+          })),
+        };
+      });
+
+      return c.json(data);
     });
 }

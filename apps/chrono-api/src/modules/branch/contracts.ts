@@ -93,3 +93,42 @@ export function toBranchDto(row: BranchRow): BranchDto {
     updatedAt: row.updatedAt.toISOString(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Public (unauthenticated) venue info — the tenant's own public site reads this
+// for its business-info and rates sections. Deliberately narrow: only
+// tenant-authored, already-public marketing fields, never a raw row
+// (`.ai/rules/dto.md`). One small single-purpose public route, matching the
+// convention `/public/tenant`, `/public/branding`, `/public/stations` already
+// follow — rather than widening `/public/stations`.
+// ---------------------------------------------------------------------------
+
+export const publicVenueBranchSchema = z.object({
+  name: z.string(),
+  address: z.string().nullable(),
+  googleMapsUrl: z.string().nullable(),
+  operatingHours: z.string().nullable(),
+  contactNumber: z.string().nullable(),
+  email: z.string().nullable(),
+  socialLinks: branchSocialLinksSchema.nullable(),
+});
+
+/**
+ * A published rate. `hourlyRate`/`memberRate` are Drizzle `numeric` columns and
+ * cross the wire as strings, like every other money field in this app.
+ */
+export const publicVenueRateGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  hourlyRate: z.string(),
+  memberRate: z.string().nullable(),
+});
+
+export const publicVenueInfoResponseSchema = z.object({
+  branch: publicVenueBranchSchema.nullable(),
+  rateGroups: z.array(publicVenueRateGroupSchema),
+});
+
+export type PublicVenueBranch = z.infer<typeof publicVenueBranchSchema>;
+export type PublicVenueRateGroup = z.infer<typeof publicVenueRateGroupSchema>;
+export type PublicVenueInfoResponse = z.infer<typeof publicVenueInfoResponseSchema>;

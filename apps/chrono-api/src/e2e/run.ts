@@ -955,6 +955,100 @@ async function main() {
     `status ${brPublic.status} ${JSON.stringify(brPublic.body?.branding)}`,
   );
 
+  // N2. Public venue info (tenant-white-label-site plan, Phase 1).
+  // This is the offline proof for the new /public/venue-info route: the
+  // browser-level Playwright spec cannot run without a live DB + dev server, so
+  // the isolation case in particular is proven here instead.
+  {
+    const { chronoBranch } = await import("../modules/branch/schema");
+    const { chronoStationGroup } = await import("../modules/station/schema");
+
+    // Give contoso its own branch + rate so the cross-tenant assertion below is
+    // NON-VACUOUS — comparing against an empty tenant would pass whether
+    // isolation worked or not.
+    const [contosoBranch] = await withTenant(contosoId, (tx) =>
+      tx
+        .insert(chronoBranch)
+        .values({
+          id: createId(),
+          tenantId: contosoId,
+          name: "Contoso Venue",
+          code: "CTSVENUE",
+          contactNumber: "+63 900 000 0002",
+          googleMapsUrl: "https://maps.example.com/contoso",
+        })
+        .returning(),
+    );
+    await withTenant(contosoId, (tx) =>
+      tx.insert(chronoStationGroup).values({
+        id: createId(),
+        tenantId: contosoId,
+        branchId: contosoBranch!.id,
+        name: "Contoso VIP",
+        code: "CTSVIP",
+        hourlyRate: "99.00",
+      }),
+    );
+
+    const acmeVenue = await req("GET", "/public/venue-info", { slug: "acme" });
+    check(
+      "public/venue-info returns acme's own branch (200, pre-auth)",
+      acmeVenue.status === 200 && typeof acmeVenue.body?.branch?.name === "string",
+      `status ${acmeVenue.status} ${JSON.stringify(acmeVenue.body?.branch)}`,
+    );
+
+    const contosoVenue = await req("GET", "/public/venue-info", { slug: "contoso" });
+    check(
+      "public/venue-info returns contoso's own branch + rate",
+      contosoVenue.status === 200 &&
+        contosoVenue.body?.branch?.name === "Contoso Venue" &&
+        contosoVenue.body?.rateGroups?.some(
+          (g: { name: string; hourlyRate: string }) =>
+            g.name === "Contoso VIP" && g.hourlyRate === "99.00",
+        ),
+      `status ${contosoVenue.status} ${JSON.stringify(contosoVenue.body)}`,
+    );
+
+    // THE isolation case: acme's response must carry nothing of contoso's.
+    const acmeSerialized = JSON.stringify(acmeVenue.body ?? {});
+    check(
+      "public/venue-info: acme never sees contoso's branch or rates (isolation)",
+      !acmeSerialized.includes("Contoso Venue") &&
+        !acmeSerialized.includes("Contoso VIP") &&
+        !acmeSerialized.includes("99.00"),
+      acmeSerialized,
+    );
+    const contosoSerialized = JSON.stringify(contosoVenue.body ?? {});
+    check(
+      "public/venue-info: contoso never sees acme's branch (isolation, both ways)",
+      !contosoSerialized.includes("Board Branch") && !contosoSerialized.includes("Main"),
+      contosoSerialized,
+    );
+
+    // Never a raw row — the response is exactly the contract's shape.
+    const venueKeys = Object.keys(acmeVenue.body ?? {}).sort().join(",");
+    check(
+      "public/venue-info returns only { branch, rateGroups } — no raw row",
+      venueKeys === "branch,rateGroups",
+      venueKeys,
+    );
+    const branchKeys = Object.keys(acmeVenue.body?.branch ?? {}).sort().join(",");
+    check(
+      "public/venue-info branch carries no id/tenantId/status/timestamps",
+      !branchKeys.includes("tenantId") &&
+        !branchKeys.includes("createdAt") &&
+        !/(^|,)id(,|$)/.test(branchKeys),
+      branchKeys,
+    );
+
+    const venueUnknown = await req("GET", "/public/venue-info", { slug: "no-such-tenant" });
+    check(
+      "public/venue-info 404s an unresolvable tenant",
+      venueUnknown.status === 404,
+      `status ${venueUnknown.status}`,
+    );
+  }
+
   // O. Role gate: a staff-role user cannot write branding.
   const brStaff = await req("PUT", "/rpc/branding", {
     slug: "acme",
