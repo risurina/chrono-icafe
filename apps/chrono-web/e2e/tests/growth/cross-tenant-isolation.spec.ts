@@ -36,18 +36,6 @@ async function signUpBusiness(
   });
 }
 
-/** Sign up a global (platform-wide) customer — the identity a lead requires. */
-async function signUpGlobalCustomer(page: Page, email: string) {
-  await page.goto("/portal/sign-up");
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(1000);
-  await page.getByLabel("Your name").fill("Growth Isolation Player");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-  await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(/\/portal$/, { timeout: 30_000 });
-}
-
 async function demandCount(
   request: import("@playwright/test").APIRequestContext,
   page: Page,
@@ -80,7 +68,6 @@ test.describe("Growth demand read — cross-tenant isolation", () => {
     const slugB = `e2egrowthisob${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });
     const emailB = faker.internet.email({ provider: "example.com" });
-    const playerEmail = faker.internet.email({ provider: "example.com" });
 
     // Both businesses are created with `slug` as their display name, so
     // business A's organization name is exactly `slugA`.
@@ -94,10 +81,10 @@ test.describe("Growth demand read — cross-tenant isolation", () => {
     expect(await demandCount(request, page, slugA)).toBe(0);
     expect(await demandCount(request, pageB, slugB)).toBe(0);
 
-    // ── A player asks for business A, by name, from the public apex form ──
+    // ── An anonymous visitor asks for business A, by name, from the public
+    //    apex form — no sign-in required. ──
     const ctxPlayer = await browser.newContext();
     const playerPage = await ctxPlayer.newPage();
-    await signUpGlobalCustomer(playerPage, playerEmail);
 
     const lead = await playerPage.evaluate(
       async ({ apiUrl, businessName }) => {

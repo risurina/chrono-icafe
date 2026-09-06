@@ -22,7 +22,7 @@ import {
   clientIp,
   TERMINAL_TENANT_STATUSES,
 } from "agora/server";
-import { getCustomerContext } from "agora/customer-auth";
+import { getCustomerContext, type CustomerContext } from "agora/customer-auth";
 import { requirePermission } from "../../auth/require-permission";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
@@ -42,10 +42,11 @@ import {
 const discoverReadLimiter = createRateLimiter(60, 60 * 1000, "discover-read-ip");
 
 /**
- * Lead-write throttles. 10/hour per IP matches the already-shipped anonymous
- * sibling (`modules/company-inquiry/public-routes.ts`); the second, per-customer
- * ceiling exists because this route requires a session, so an IP limit alone
- * would let one account submit from many addresses.
+ * Lead-write throttle. Anonymous submission (no auth required — see the
+ * handler below), so this mirrors `modules/company-inquiry/public-routes.ts`'s
+ * `companyInquiryPublicLimiter` exactly: 10/hour per IP, the only signal an
+ * anonymous caller carries. The per-customer limiter below is an *additional*
+ * ceiling that only applies when a global customer happens to be signed in.
  */
 const leadWriteIpLimiter = createRateLimiter(10, 60 * 60 * 1000, "business-lead-ip");
 const leadWriteCustomerLimiter = createRateLimiter(
@@ -53,6 +54,22 @@ const leadWriteCustomerLimiter = createRateLimiter(
   60 * 60 * 1000,
   "business-lead-customer",
 );
+
+/**
+ * Best-effort, non-throwing session read. Submission never requires a global
+ * customer account (see the handler below); when one happens to be signed in,
+ * its id is captured on the lead. Any auth failure (missing/expired session)
+ * is treated as a plain anonymous submission, never a 401.
+ */
+async function tryGetCustomerContext(
+  c: Parameters<typeof getCustomerContext>[0],
+): Promise<CustomerContext | null> {
+  try {
+    return await getCustomerContext(c);
+  } catch {
+    return null;
+  }
+}
 
 /** Short response cache, keyed on the normalized query — see the plan's assumption 13. */
 const discoverCache = new Map<string, { at: number; data: BusinessDirectoryResult[] }>();
@@ -211,8 +228,13 @@ export function businessLeadPublicRoutes() {
     /**
      * Cold-start lead capture: "this business isn't here, bring them in".
      *
-     * Requires a signed-in global customer. Nothing about the submitted lead is
-     * logged or echoed back — the response is the new row's id and nothing else.
+     * Anonymous — no session required, matching
+     * `modules/company-inquiry/public-routes.ts`'s pattern. When a global
+     * customer happens to be signed in, their id is captured on the row (an
+     * extra, additive per-customer throttle applies in that case); otherwise
+     * the lead is recorded with no requester identity at all. Nothing about
+     * the submitted lead is echoed back — the response is the new row's id
+     * and nothing else.
      */
     .post("/business-leads", zValidator("json", createBusinessLeadSchema), async (c) => {
       const ip = clientIp(c);
@@ -223,15 +245,17 @@ export function businessLeadPublicRoutes() {
         });
       }
 
-      // Throws HttpError(401) when there is no customer session. The stable
-      // signal for the web layer is the STATUS, not the message string.
-      const customer = await getCustomerContext(c);
+      // Never throws — a missing/expired session just means an anonymous
+      // submission, not a 401.
+      const customer = await tryGetCustomerContext(c);
 
-      const customerRetryAfter = await leadWriteCustomerLimiter.blockedFor(customer.customerId);
-      if (customerRetryAfter !== null) {
-        return c.json({ error: "Too many requests. Try again later." }, 429, {
-          "Retry-After": String(customerRetryAfter),
-        });
+      if (customer) {
+        const customerRetryAfter = await leadWriteCustomerLimiter.blockedFor(customer.customerId);
+        if (customerRetryAfter !== null) {
+          return c.json({ error: "Too many requests. Try again later." }, 429, {
+            "Retry-After": String(customerRetryAfter),
+          });
+        }
       }
 
       const { businessName, city, message } = c.req.valid("json");
@@ -244,14 +268,14 @@ export function businessLeadPublicRoutes() {
           businessNameNormalized: normalizeBusinessName(businessName),
           city: city ?? null,
           message: message ?? null,
-          requesterCustomerId: customer.customerId,
+          requesterCustomerId: customer?.customerId ?? null,
         })
         .returning({ id: chronoBusinessLead.id });
 
       if (!row) throw new HttpError(400, "Could not record the request.");
 
       await leadWriteIpLimiter.record(ip);
-      await leadWriteCustomerLimiter.record(customer.customerId);
+      if (customer) await leadWriteCustomerLimiter.record(customer.customerId);
 
       return c.json({ id: row.id }, 201);
     });

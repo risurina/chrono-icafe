@@ -44,12 +44,15 @@ export const chronoBusinessLead = pgTable(
     // (`ChronoBranches` has address/lat/long but no city column).
     city: text("city"),
     message: text("message"),
-    // The global customer who asked. The cascade is the erasure path: deleting
-    // a customer account removes their leads, which is the only deletion route
-    // this MVP has.
-    requesterCustomerId: text("requesterCustomerId")
-      .notNull()
-      .references(() => base.customer.id, { onDelete: "cascade" }),
+    // The global customer who asked, IF one was signed in at submit time.
+    // Submission is anonymous (matching `modules/company-inquiry`'s pattern) —
+    // a player is never required to have or create a global customer account
+    // just to invite a business. `null` means an anonymous submission; the
+    // cascade remains the erasure path when a linked customer account is
+    // deleted.
+    requesterCustomerId: text("requesterCustomerId").references(() => base.customer.id, {
+      onDelete: "cascade",
+    }),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [

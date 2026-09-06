@@ -161,7 +161,19 @@ the foundation).
 Each is a judgment call kept to the "smallest coherent version" per the brief's
 own section 17. Items 10–13 were **added or rewritten by the plan audit**.
 
-1. **Lead submission requires a signed-in global customer** (reuses the
+1. ~~**Lead submission requires a signed-in global customer**~~
+   **[RESOLVED — developer decision, implemented as a follow-up commit:]**
+   submission is now fully anonymous, matching
+   `modules/company-inquiry/public-routes.ts`'s pattern exactly (10/hour per
+   IP via the same `createRateLimiter` shape). `requesterCustomerId` on
+   `ChronoBusinessLeads` is now nullable — when a global customer happens to
+   already be signed in, the route still captures their id (and an
+   *additional* per-customer throttle applies), but a session is never
+   required. The sign-in prompt in `invite-business-form.tsx` (and its
+   `discover-invite-signin-prompt` test id) is removed; `discover-client.ts`'s
+   `SubmitLeadResult` no longer has an `"unauthenticated"` branch. See
+   `drizzle/0024_*.sql` for the generated (not yet applied) migration.
+   ~~(reuses the
    already-wired `agora/customer-auth` session), rather than fully anonymous
    submission. Reason: basic spam/abuse control with zero new infrastructure,
    and it ties into the brief's own story ("player signs up → invites
@@ -176,7 +188,7 @@ own section 17. Items 10–13 were **added or rewritten by the plan audit**.
    lead table that drives partner outreach, and because `/portal/sign-up` is
    itself zero-friction. **This is the plan's single most reversible product
    decision — flagged for the developer.** Dropping the requirement is a
-   one-line route change plus the Phase 3 sign-in prompt becoming dead code.
+   one-line route change plus the Phase 3 sign-in prompt becoming dead code.~~
 2. **No external business lookup/autocomplete.** The brief's section 6
    example implies knowing about real-world businesses Chrono has no data on —
    that needs a maps/places API integration, which does not exist in this repo.
@@ -326,7 +338,7 @@ own section 17. Items 10–13 were **added or rewritten by the plan audit**.
 
 | Op | Surface | Notes |
 |---|---|---|
-| Create | Public, gated on signed-in global customer | `POST /public/discover/business-leads` |
+| Create | Public, anonymous (RESOLVED — see assumption 1) | `POST /public/discover/business-leads` |
 | Read (own tenant's demand count) | Tenant-scoped, `growth:read` (admin+) | `GET /rpc/growth/demand` — **count only**, no lead field, no requester identity, ever |
 | Read (any lead's contents) | **Not built in MVP** | No surface returns a lead row (assumption 12) |
 | Update | **Not built in MVP** | Nothing mutates a lead after insert (assumption 10 removed the only writer) |
@@ -717,7 +729,7 @@ read it fully, then create the new module folder mirroring its shape.
 - Searching a real seeded published business returns it with a working link.
 - A nonsense query returns the empty state with a working pre-filled invite
   form — never a blank page or a dead end.
-- Submitting while signed out shows the sign-in prompt.
+- Submitting while signed out succeeds anonymously (RESOLVED — assumption 1).
 - Submitting while signed in creates a real row and shows a success toast.
 - No horizontal overflow at 375px / 640px / 1024px+, both themes.
 - `pnpm --filter @agora/chrono-web typecheck` passes.
@@ -1303,3 +1315,20 @@ scaffold. There is no root `test:permissions`. So the growth permission gate and
 the demand isolation block are compile-checked but **never executed** by CI;
 they run only when someone types the filtered command. Pre-existing, and worth
 fixing separately if Chrono's gates are meant to be enforced.
+
+### Follow-up decisions (resolved, implemented as separate commits)
+
+Both open questions this handoff originally flagged have been decided by the
+developer, to be implemented on this same branch after the nine phases above:
+
+1. **Anonymous lead submission** (assumption 1). `POST
+   /public/discover/business-leads` no longer requires a signed-in global
+   customer — it mirrors `modules/company-inquiry/public-routes.ts`'s
+   anonymous, IP-rate-limited pattern (10/hour). `requesterCustomerId` is now
+   nullable; a session is captured opportunistically when one exists, never
+   required. `drizzle/0024_*.sql` makes the column nullable (generated, not
+   applied — same `.env`-less constraint as the rest of this plan).
+
+This change needs the same unapplied-migration + not-yet-run-e2e caveats as
+the rest of this plan — see "What is left to run" above, now also covering
+`0024_*.sql`.

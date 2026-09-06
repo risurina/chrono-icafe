@@ -44,13 +44,13 @@ export async function searchBusinesses(
 }
 
 /**
- * `unauthenticated` is signalled by the HTTP STATUS (401), never by matching an
- * error message — `getCustomerContext` throws human messages
- * ("Not authenticated" / "Session expired"), not stable machine codes.
+ * Submission is anonymous — the route never returns 401. When a global
+ * customer happens to be signed in, `credentials: "include"` lets the API
+ * pick that session up server-side; the web client neither checks for nor
+ * requires it.
  */
 export type SubmitLeadResult =
   | { ok: true; id: string }
-  | { ok: false; reason: "unauthenticated" }
   | { ok: false; reason: "rate_limited"; error: string }
   | { ok: false; reason: "error"; error: string };
 
@@ -63,8 +63,6 @@ export async function submitBusinessLead(
     credentials: "include",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) return { ok: false, reason: "unauthenticated" };
 
   const body = (await res.json().catch(() => null)) as
     | { id?: string; error?: string }

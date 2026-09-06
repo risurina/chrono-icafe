@@ -12,8 +12,8 @@ import { faker } from "../../utils/faker";
  *     bug;
  *  2. a search that finds nothing never dead-ends — it opens the invite form
  *     with the typed name already filled in;
- *  3. a signed-out submit shows the inline prompt and keeps what was typed,
- *     rather than redirecting to a login that would discard it.
+ *  3. submitting the invite form works anonymously — no sign-in is required,
+ *     matching `modules/company-inquiry`'s public form.
  */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 const SEEDED_PASSWORD = "Password123!";
@@ -108,37 +108,27 @@ test.describe("Discover — search, empty state, and invite", () => {
     await expect(inviteForm).toBeVisible();
     await expect(anon.getByLabel("Café / business name")).toHaveValue(hiddenSlug);
 
-    // 4. Signed out, submitting shows the inline prompt — and keeps the typed
-    //    name. A redirect to /portal/login would discard it (that form ignores
-    //    ?next=), which is the dead end this design avoids.
+    // 4. Signed out, submitting just works — no sign-in is required.
     await anon.getByRole("button", { name: /invite this café/i }).click();
-    await expect(anon.getByTestId("discover-invite-signin-prompt")).toBeVisible();
-    await expect(anon.getByLabel("Café / business name")).toHaveValue(hiddenSlug);
+    await expect(anon.getByText(/we've recorded your request/i)).toBeVisible({
+      timeout: 15_000,
+    });
     expect(anon.url()).toContain("/discover");
 
     await ctxAnon.close();
   });
 
-  test("a signed-in player's invite creates a real lead", async ({ page, browser }) => {
+  test("an anonymous player's invite creates a real lead", async ({ page, browser }) => {
     const uniq = faker.string.alphanumeric(8).toLowerCase();
     const wantedName = `Neon Arcade ${uniq}`;
-    const playerEmail = faker.internet.email({ provider: "example.com" });
 
     // A business that will later claim this name, so the lead is verifiable
     // through the product's own read path rather than a direct DB peek.
     const claimSlug = `e2ediscoverclaim${uniq}`;
     const claimEmail = faker.internet.email({ provider: "example.com" });
 
-    // ── Player signs up and invites a business that does not exist yet ──
-    await page.goto("/portal/sign-up");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
-    await page.getByLabel("Your name").fill("Discover Player");
-    await page.getByLabel("Email").fill(playerEmail);
-    await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
-    await page.getByRole("button", { name: /create account/i }).click();
-    await page.waitForURL(/\/portal$/, { timeout: 30_000 });
-
+    // ── Anonymous visitor invites a business that does not exist yet — no
+    //    sign-in step at all. ──
     await page.goto("/discover?invite=1");
     await page.waitForLoadState("networkidle");
 
@@ -151,7 +141,6 @@ test.describe("Discover — search, empty state, and invite", () => {
     await expect(page.getByText(/we've recorded your request/i)).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("discover-invite-signin-prompt")).toHaveCount(0);
 
     // ── The lead is real: a business created under that exact name sees it ──
     const ctxBiz = await browser.newContext();
