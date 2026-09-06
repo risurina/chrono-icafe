@@ -182,7 +182,9 @@ export default function LandingPageSettingsPage() {
                 <CardTitle>Publishing</CardTitle>
                 <CardDescription>
                   Edits are saved as a draft. Your public page only changes when
-                  you publish.
+                  you publish. Publishing also lists your business on
+                  Chrono&apos;s public discovery page, where players can find
+                  you — unpublishing removes it again.
                 </CardDescription>
               </Stack>
               <Badge variant={isPublished ? "default" : "secondary"}>
