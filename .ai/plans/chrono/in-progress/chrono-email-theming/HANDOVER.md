@@ -38,5 +38,13 @@ total. One Jules session per phase.
 
 ## Phase 4 — Verification + docs
 
-- Status: dispatched to a fresh Claude subagent (not Jules — small,
-  docs-only phase, no plan-claim/push round-trip needed), 2026-09-06.
+- Status: **done**. Fixed `apps/chrono-api/AGENTS.md`'s stale theme-preset
+  location claim, added a note on email theming, `pnpm typecheck` re-verified
+  independently (7/7 tasks). Read (not executed, per plan's own note that
+  this suite is manual)
+  `apps/chrono-web/e2e/tests/platform-admin/notification-templates.spec.ts` —
+  no plausible regression (entirely independent of the theme-preset
+  resolver). Committed `d469b83a`.
+
+All 4 phases now landed. Next: `branch-reviewer` on the whole plan, then
+fix-review if needed, then wrap-up/archive.
