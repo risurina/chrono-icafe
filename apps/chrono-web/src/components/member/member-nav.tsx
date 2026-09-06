@@ -15,7 +15,9 @@ function toNavItems(pathname: string): NavTabItem[] {
   }));
 }
 
-/** Desktop tab bar — sticky under the header, horizontal-scroll for 10 items. */
+/** Desktop tab bar — sticky under the header, horizontal-scroll for however
+ * many items are placed in `tabs` (7 since member-portal-v2 phase 1's nav
+ * consolidation). */
 export function MemberNav() {
   const pathname = usePathname();
   return (
@@ -25,7 +27,8 @@ export function MemberNav() {
   );
 }
 
-/** Mobile bottom bar — 5 shortlabel items, `< md`. */
+/** Mobile bottom bar — shortlabel items placed in `bottomNav` (3 since
+ * member-portal-v2 phase 1's nav consolidation), `< md`. */
 export function MemberBottomNav() {
   const pathname = usePathname();
   const items: NavTabItem[] = MEMBER_BOTTOM_NAV_ITEMS.map((item) => ({

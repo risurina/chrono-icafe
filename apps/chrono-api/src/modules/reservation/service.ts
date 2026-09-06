@@ -2,6 +2,8 @@ import { and, eq, gt, inArray, isNull, sql, withTenant, type TenantTx } from "ag
 import { HttpError } from "agora/server";
 import { createId } from "agora";
 import { chronoStation } from "../station/schema";
+import { chronoBranch } from "../branch/schema";
+import type { DayKey, HoursConfig } from "../branch/hours";
 import { chronoReservation, type ChronoReservationRow } from "./schema";
 import { chronoReservationPolicy, type ChronoReservationPolicyRow } from "./policy-schema";
 import { chronoMemberReservationRestriction } from "./restriction-schema";
@@ -520,5 +522,175 @@ export async function promoteNextInQueue(tenantId: string, stationId: string): P
         updatedAt: now,
       })
       .where(eq(chronoReservation.id, next.id));
+  });
+}
+
+// --- member-portal-v2 Phase 4: slot-picker availability ---
+
+const AVAILABILITY_GRANULARITY_MINUTES = 30;
+const AVAILABILITY_MAX_SLOTS = 96; // safety cap; a single day at this granularity is 48
+
+/** "HH:MM" -> minutes since midnight. Mirrors `branch/hours.ts`'s identical,
+ * unexported helper — kept as a small local copy rather than exporting that
+ * module's internals just for this. */
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+/**
+ * The UTC instant corresponding to local midnight of `dateStr` (YYYY-MM-DD)
+ * in `timezone`. Same no-date-library, `Intl`-based approach as
+ * `branch/hours.ts`'s `localDayAndMinute` (this app has no timezone-math
+ * dependency yet) — computes the wall-clock reading of a UTC guess in
+ * `timezone`, then shifts the guess by the difference to land exactly on
+ * that timezone's local midnight.
+ */
+function localMidnightUtc(dateStr: string, timezone: string): Date {
+  const guess = new Date(`${dateStr}T00:00:00Z`);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(guess);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+  const wallAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return new Date(guess.getTime() - (wallAsUtc - guess.getTime()));
+}
+
+function localWeekday(localMidnight: Date, timezone: string): DayKey {
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "long" })
+    .format(localMidnight)
+    .toLowerCase();
+  return weekday as DayKey;
+}
+
+export type ReservationAvailabilitySlot = { startAt: string; available: boolean };
+
+/**
+ * Derives discrete, bookable start-time slots for `stationId` on the member's
+ * chosen local calendar `date`, from the branch's structured `hoursConfig` +
+ * the branch/tenant reservation policy's own advance-booking window, minus
+ * any existing active (confirmed/checked_in/hold) reservation on that
+ * station. Read-only — does NOT reserve anything and reuses the exact same
+ * bounds `createDirectReservation` enforces (advance window, maintenance/
+ * offline block, policy `enabled` flag) so a slot marked `available` here is
+ * guaranteed to still pass those checks at submit time (barring a race,
+ * which the EXCLUDE constraint + `assertOneActiveReservation` still catch).
+ *
+ * No new table or schema change: `hoursConfig` (branch/schema.ts) and
+ * `chronoReservation` are both already RLS-tracked tenant tables.
+ *
+ * Deliberately simplified vs. `computeOpenStatus` (branch/hours.ts): an
+ * overnight window (close <= open) only contributes its forward portion
+ * within `date` (open through midnight) — the wraparound portion technically
+ * belongs to the PREVIOUS calendar day's config. Acceptable for a slot
+ * picker (the reservation `startAt` a member picks always falls on the date
+ * they asked for); a future pass can special-case it if overnight venues
+ * need next-day slots surfaced too.
+ */
+export async function computeAvailabilitySlots(args: {
+  tenantId: string;
+  stationId: string;
+  date: string;
+  durationMinutes: number;
+}): Promise<{ slots: ReservationAvailabilitySlot[]; granularityMinutes: number }> {
+  const { tenantId, stationId, date, durationMinutes } = args;
+  const empty = { slots: [], granularityMinutes: AVAILABILITY_GRANULARITY_MINUTES };
+
+  return withTenant(tenantId, async (tx) => {
+    const [station] = await tx
+      .select({ id: chronoStation.id, branchId: chronoStation.branchId, status: chronoStation.status })
+      .from(chronoStation)
+      .where(and(eq(chronoStation.id, stationId), eq(chronoStation.tenantId, tenantId)))
+      .limit(1);
+    if (!station) throw new HttpError(404, "Station not found.");
+
+    // Not bookable right now / reservations off for this branch — a read
+    // endpoint must not error on this (unlike `requireBookableStation`,
+    // which the WRITE path uses); it simply has no slots to offer.
+    if (station.status === "maintenance" || station.status === "offline") return empty;
+
+    const policy = await resolveReservationPolicy(tx, tenantId, station.branchId);
+    if (!policy.enabled) return empty;
+
+    const [branch] = await tx
+      .select({ hoursConfig: chronoBranch.hoursConfig, timezone: chronoBranch.timezone })
+      .from(chronoBranch)
+      .where(and(eq(chronoBranch.id, station.branchId), eq(chronoBranch.tenantId, tenantId)))
+      .limit(1);
+    const hoursConfig = (branch?.hoursConfig as HoursConfig | null) ?? null;
+    const timezone = branch?.timezone ?? "Asia/Manila";
+
+    const dayStartUtc = localMidnightUtc(date, timezone);
+    const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 3_600_000);
+
+    let openStartUtc = dayStartUtc;
+    let openEndUtc = dayEndUtc;
+    if (hoursConfig) {
+      const today = hoursConfig[localWeekday(dayStartUtc, timezone)];
+      // Absent or "closed" -> closed all day, same convention as
+      // `HoursConfig`'s own "no entry means closed" rule.
+      if (!today || today === "closed") return empty;
+      if (today !== "24h") {
+        const openMin = toMinutes(today.open);
+        const closeMin = toMinutes(today.close);
+        openStartUtc = new Date(dayStartUtc.getTime() + openMin * 60_000);
+        openEndUtc =
+          closeMin > openMin ? new Date(dayStartUtc.getTime() + closeMin * 60_000) : dayEndUtc;
+      }
+    }
+    // hoursConfig absent entirely -> no structured hours configured yet;
+    // never fabricate a closed venue (same stance as `computeOpenStatus`) —
+    // fall back to the whole day, bounded only by the policy window below.
+
+    const now = new Date();
+    const policyMaxStartUtc = new Date(now.getTime() + policy.reservationAdvanceWindowMinutes * 60_000);
+    const earliestMs = Math.max(openStartUtc.getTime(), now.getTime());
+    const latestMs = Math.min(openEndUtc.getTime(), dayEndUtc.getTime(), policyMaxStartUtc.getTime());
+    if (earliestMs >= latestMs) return empty;
+
+    const active = await tx
+      .select({ startAt: chronoReservation.startAt, endAt: chronoReservation.endAt })
+      .from(chronoReservation)
+      .where(
+        and(
+          eq(chronoReservation.tenantId, tenantId),
+          eq(chronoReservation.stationId, stationId),
+          inArray(chronoReservation.status, [...ACTIVE_STATUSES]),
+          sql`${chronoReservation.startAt} is not null`,
+        ),
+      );
+
+    const stepMs = AVAILABILITY_GRANULARITY_MINUTES * 60_000;
+    const dayStartMs = dayStartUtc.getTime();
+    const durationMs = durationMinutes * 60_000;
+    const slots: ReservationAvailabilitySlot[] = [];
+    for (
+      let k = Math.ceil((earliestMs - dayStartMs) / stepMs);
+      slots.length < AVAILABILITY_MAX_SLOTS;
+      k++
+    ) {
+      const startMs = dayStartMs + k * stepMs;
+      if (startMs >= latestMs) break;
+      const start = new Date(startMs);
+      const end = new Date(startMs + durationMs);
+      const overlaps = active.some((r) => r.startAt && r.endAt && start < r.endAt && end > r.startAt);
+      slots.push({ startAt: start.toISOString(), available: !overlaps });
+    }
+
+    return { slots, granularityMinutes: AVAILABILITY_GRANULARITY_MINUTES };
   });
 }

@@ -68,6 +68,7 @@ import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
 import { businessLeadPublicRoutes } from "./modules/business-lead/routes";
 import { publicStationRoutes } from "./modules/station/routes";
+import { stationMembershipStatusRoutes } from "./modules/station/customer-portal-routes";
 import { publicVenueInfoRoutes } from "./modules/branch/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
 import { readPublishedLandingPage } from "agora/server/routes";
@@ -96,6 +97,7 @@ import { walletPortalRoutes } from "./modules/wallet/portal-routes";
 import { creditPortalRoutes } from "./modules/credit/portal-routes";
 import { sessionPortalRoutes } from "./modules/session/portal-routes";
 import { reservationPortalRoutes } from "./modules/reservation/portal-routes";
+import { activityPortalRoutes } from "./modules/activity/routes";
 import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
 import { paymentPortalRoutes } from "./modules/payment/portal-routes";
@@ -555,6 +557,12 @@ export const app = baseApp
   // Self-service "apply to become a customer of this tenant" for a signed-in
   // global customer — tenant-scoped (host-resolved), unlike /auth/customer.
   .route("/portal/customer", createCustomerApplyRoutes())
+  // Chrono: live open/closed + availability per venue for "My Gaming
+  // Spots" (member-portal-v2 Phase 7) — a second, additive, Chrono-owned
+  // read alongside the foundation's own /portal/customer/memberships above;
+  // gated by customerAuthMiddleware() inside stationMembershipStatusRoutes()
+  // itself, mirroring how /portal/customer is mounted directly above.
+  .route("/portal/customer/venues", stationMembershipStatusRoutes())
   // Chrono: customer-facing venue-membership self-service (apply / view own
   // status) — gated by memberMiddleware() inside memberPortalRoutes()
   // itself, mirroring how /portal/auth is mounted directly above.
@@ -574,6 +582,10 @@ export const app = baseApp
   // reservation self-service (reservations-queue-and-self-service plan) —
   // gated by memberMiddleware() inside reservationPortalRoutes() itself.
   .route("/portal/reservations", reservationPortalRoutes())
+  // Chrono: customer-facing unified activity feed (wallet + credit + session +
+  // reservation events, one paginated timeline) — gated by memberMiddleware()
+  // inside activityPortalRoutes() itself. member-portal-v2 Phase 8.
+  .route("/portal/activity", activityPortalRoutes())
   // Chrono: customer-facing loyalty read surface (level/history) — gated
   // by memberMiddleware() inside loyaltyPortalRoutes() itself.
   .route("/portal/loyalty", loyaltyPortalRoutes())

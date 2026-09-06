@@ -5,6 +5,12 @@ import { faker } from "../../utils/faker";
  * Member Promos (`/member/promos`, `/member/promos/[id]`) — chrono/
  * member-area, execution phase 7.
  *
+ * member-portal-v2 phase 1 merged Promos into History's nav entry (no more
+ * standalone `member-nav-promos` tab button) — `/member/promos` itself keeps
+ * its own page and its own approval gate unchanged, just reachable via a
+ * link on the History page's Promos tab instead of a top-level nav item, so
+ * these tests navigate to it directly.
+ *
  * Happy path: the catalog + detail page render (or a clean empty state when
  * no credit products exist yet, since a fresh tenant has none) and a
  * nonexistent product id doesn't crash; role check: Promos IS approval-gated
@@ -64,8 +70,7 @@ test.describe("Member promos", () => {
 
     await memberSignUp(page, base, { name: "Promo Member", email: memberEmail });
 
-    await page.getByTestId("member-nav-promos").click();
-    await expect(page).toHaveURL(`${base}/member/promos`);
+    await page.goto(`${base}/member/promos`);
     // A brand-new member has never applied, so applicationStatus defaults to
     // "pending" — Promos is the one tab flagged `requiresApproval`.
     await expect(page.getByText("Approval required")).toBeVisible();
@@ -90,8 +95,7 @@ test.describe("Member promos", () => {
     await page.waitForLoadState("networkidle");
 
     await memberSignUp(page, base, { name: "Promo OK Member", email: memberEmail });
-    await page.getByTestId("member-nav-promos").click();
-    await expect(page).toHaveURL(`${base}/member/promos`);
+    await page.goto(`${base}/member/promos`);
 
     // Whether approved or not depends on the tenant's autoApproveMembers
     // flag (default off), so assert on whichever real state renders rather
@@ -133,7 +137,7 @@ test.describe("Member promos", () => {
     // cross-tenant product/purchase data is ever reachable; confirmed by the
     // API-level e2e block (Phase H) and by the gate rendering identically
     // with zero data leakage for both.
-    await pageB.getByTestId("member-nav-promos").click();
+    await pageB.goto(`${baseB}/member/promos`);
     await expect(pageB.getByText("Member A")).toHaveCount(0);
     await contextB.close();
   });

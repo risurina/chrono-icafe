@@ -70,6 +70,35 @@ export function getReservationPolicy(stationId: string): Promise<Result<{ policy
     .then((res) => unwrap(res, (json) => json as { policy: ReservationPolicy }));
 }
 
+export type ReservationAvailabilitySlot = { startAt: string; available: boolean };
+
+export type ReservationAvailability = {
+  date: string;
+  stationId: string;
+  durationMinutes: number;
+  granularityMinutes: number;
+  slots: ReservationAvailabilitySlot[];
+};
+
+/** Discrete bookable start times for a station on a given local calendar
+ * date (`YYYY-MM-DD`) at the given duration — backs the reservation slot
+ * picker (member-portal-v2 Phase 4). */
+export function getReservationAvailability(input: {
+  stationId: string;
+  date: string;
+  durationMinutes: number;
+}): Promise<Result<ReservationAvailability>> {
+  return api.portal.reservations.availability
+    .$get({
+      query: {
+        stationId: input.stationId,
+        date: input.date,
+        durationMinutes: String(input.durationMinutes),
+      },
+    })
+    .then((res) => unwrap(res, (json) => json as ReservationAvailability));
+}
+
 export function getMyRestrictions(): Promise<Result<{ restrictions: MemberRestriction[] }>> {
   return api.portal.reservations.restrictions
     .$get()

@@ -184,3 +184,28 @@ export type StationBoardQuery = z.infer<typeof stationBoardQuerySchema>;
 export type StationBoardSession = z.infer<typeof stationBoardSessionSchema>;
 export type StationBoardStation = z.infer<typeof stationBoardStationSchema>;
 export type StationBoardResponse = z.infer<typeof stationBoardResponseSchema>;
+
+// "My Gaming Spots" venue-list live status (member-portal-v2 Phase 7) — one
+// row per tenant a global customer belongs to. `available`/`total` reuse the
+// exact bucket names `publicStationAggregateSchema` already established
+// (Phase 3's `loadBranchAvailability`), narrowed here to the whole tenant's
+// ACTIVE branches (mirroring `publicStationRoutes()`'s own active-branch
+// filter) instead of one QR-scanned branch. `status` is a venue-level
+// (not per-station) open/closed read: "open" when at least one station in an
+// active branch is reachable (`available` or `occupied`, i.e. not
+// `maintenance`/`offline`); "closed" otherwise (no active branch, or every
+// station unreachable). There is no business-hours model yet, so this is the
+// most honest signal available today — not a schedule-based open/closed.
+export const membershipVenueStatusSchema = z.object({
+  tenantSlug: z.string(),
+  status: z.enum(["open", "closed"]),
+  available: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+});
+
+export const membershipVenueStatusResponseSchema = z.object({
+  venues: z.array(membershipVenueStatusSchema),
+});
+
+export type MembershipVenueStatus = z.infer<typeof membershipVenueStatusSchema>;
+export type MembershipVenueStatusResponse = z.infer<typeof membershipVenueStatusResponseSchema>;

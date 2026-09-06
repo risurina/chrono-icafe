@@ -1,11 +1,9 @@
 import {
   LayoutDashboard,
   CalendarClock,
-  QrCode,
   Ticket,
   Wallet,
   History,
-  Trophy,
   UserCircle,
   Settings,
   MessageSquare,
@@ -15,7 +13,20 @@ import {
 /**
  * The member-area tab registry — data, not JSX, so a future app can flag a
  * different set of tabs without touching `member-nav.tsx`/`member-shell.tsx`.
- * Mirrors the reference's 10-tab bar (Leaderboard stays disabled, no page).
+ *
+ * member-portal-v2 phase 1 (nav consolidation): Session absorbed Connect's
+ * QR-scan explainer (folded directly into `/member/session`'s page content —
+ * `/member/connect` now just redirects there); History absorbed Promos as a
+ * "reachable from within it" link tab (`/member/promos` keeps its own page +
+ * approval gate, it's just no longer a separate top-level nav entry); the
+ * dead, page-less Leaderboard entry is removed entirely (was `disabled`, not
+ * `requiresApproval` — no near-term plan to build it).
+ *
+ * The `promos` entry below is intentionally kept in this array with
+ * `placements: []` — invisible in every nav surface, but still present so
+ * `RouteGate` (`member-gate.tsx`) keeps matching `/member/promos*` by href
+ * prefix and gating it on `applicationStatus === "approved"` exactly as
+ * before. Removing the entry outright would silently un-gate that route.
  */
 export type MemberNavEntry = {
   key: string;
@@ -51,14 +62,6 @@ export const MEMBER_NAV: MemberNavEntry[] = [
     placements: ["tabs", "bottomNav"],
   },
   {
-    key: "connect",
-    label: "Connect",
-    shortLabel: "Connect",
-    href: "/member/connect",
-    icon: QrCode,
-    placements: ["tabs", "bottomNav"],
-  },
-  {
     key: "reservations",
     label: "Reservations",
     shortLabel: "Book",
@@ -73,7 +76,9 @@ export const MEMBER_NAV: MemberNavEntry[] = [
     href: "/member/promos",
     icon: Ticket,
     requiresApproval: true,
-    placements: ["tabs", "bottomNav"],
+    // Merged into History (phase 1) — kept unplaced so RouteGate still
+    // gates /member/promos*; reachable via the History page's Promos tab.
+    placements: [],
   },
   {
     key: "wallet",
@@ -90,15 +95,6 @@ export const MEMBER_NAV: MemberNavEntry[] = [
     href: "/member/history",
     icon: History,
     placements: ["tabs", "menu"],
-  },
-  {
-    key: "leaderboard",
-    label: "Leaderboard",
-    shortLabel: "Ranks",
-    href: "/member/leaderboard",
-    icon: Trophy,
-    disabled: true,
-    placements: ["tabs"],
   },
   {
     key: "profile",

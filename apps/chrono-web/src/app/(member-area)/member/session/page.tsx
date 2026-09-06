@@ -16,6 +16,7 @@ import {
   type DataTableColumn,
   Stack,
   Row,
+  Grid,
   buttonVariants,
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
@@ -29,6 +30,59 @@ const STATUS_VARIANT: Record<PortalSessionSummary["status"], "default" | "second
   paused: "secondary",
   ended: "outline",
 };
+
+/**
+ * Connect's QR "scan to start" explainer, folded directly into this page
+ * (member-portal-v2 phase 1 — Session absorbed Connect). Static, no data —
+ * `/member/connect` now redirects here. Camera-based scanning inside the
+ * member area itself stays deliberately out of scope (no cross-browser
+ * dependency-free path) — the phone's native camera app is the real path.
+ */
+const CONNECT_STEPS = [
+  {
+    step: 1,
+    title: "Find the QR code",
+    description: "Every station has a QR code printed on its stand or displayed on its screen.",
+  },
+  {
+    step: 2,
+    title: "Scan it with your phone's camera",
+    description:
+      "Open your phone's native camera app (no app install needed) and point it at the code — no in-app scanner is required.",
+  },
+  {
+    step: 3,
+    title: "Confirm and start",
+    description:
+      "The link opens your account here. Sign in if asked, then tap Start to begin your session on that station.",
+  },
+] as const;
+
+function StartSessionSection() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Start a session</CardTitle>
+        <CardDescription>Start a session at any station by scanning its QR code.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Grid cols={3} gap={4}>
+          {CONNECT_STEPS.map((s) => (
+            <Card key={s.step} data-testid={`connect-step-${s.step}`}>
+              <CardHeader>
+                <Row items="center" className="gap-2">
+                  <Badge>{s.step}</Badge>
+                  <CardTitle className="text-base">{s.title}</CardTitle>
+                </Row>
+                <CardDescription>{s.description}</CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MemberSessionPage() {
   const query = useListQuery([]);
@@ -96,9 +150,11 @@ export default function MemberSessionPage() {
     <Stack gap={6}>
       <MemberPageHeader
         title="Session"
-        description="Your active session and session history."
+        description="Start a session, and view your active session and history."
         actions={<RefreshButton onRefresh={load} />}
       />
+
+      <StartSessionSection />
 
       <Card data-testid="active-session-card">
         <CardHeader>

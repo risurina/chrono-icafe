@@ -30,7 +30,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export default function MemberProfilePage() {
-  const { member, profile, onboarding, refreshProfile } = useMemberArea();
+  const { member, profile, onboarding, approved, refreshProfile } = useMemberArea();
   const [name, setName] = useState(member?.name ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [memberSince, setMemberSince] = useState<string | null>(null);
@@ -138,7 +138,9 @@ export default function MemberProfilePage() {
             </Row>
             <Row items="center" className="justify-between">
               <span className="text-sm text-muted-foreground">Member since</span>
-              <span className="font-medium">{memberSince ? formatDate(memberSince) : "—"}</span>
+              <span className="font-medium">
+                {approved && memberSince ? formatDate(memberSince) : "—"}
+              </span>
             </Row>
             <Row items="center" className="justify-between">
               <span className="text-sm text-muted-foreground">Member ID</span>

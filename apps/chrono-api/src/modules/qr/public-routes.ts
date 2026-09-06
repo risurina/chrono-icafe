@@ -5,8 +5,9 @@ import { HttpError, createRateLimiter, clientIp } from "agora/server";
 import { createId } from "agora";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import * as base from "agora/db/schema";
-import { chronoStation } from "../station/schema";
+import { chronoStation, chronoStationGroup } from "../station/schema";
 import { chronoBranch } from "../branch/schema";
+import { toPublicStationStatus } from "../station/routes";
 import { chronoQrTokenUse } from "./schema";
 import { verifyStationQrToken } from "./token";
 import { startSession, publishSessionTransition } from "../session/service";
@@ -69,11 +70,24 @@ type ResolvedStation = {
   tenantSlug: string;
   stationId: string;
   stationName: string;
+  stationStatus: string;
+  branchId: string;
   branchName: string;
   qrSecret: string | null;
   qrSecretVersion: number;
+  hourlyRate: string | null;
+  memberRate: string | null;
 };
 
+/**
+ * Resolves the station a QR token points at, PLUS its rate (via a left join
+ * to `chronoStationGroup` — a station need not have a group yet) — extends
+ * the existing pre-tenant-context `withAdmin` lookup rather than adding a
+ * second query (member-portal-v2 plan Phase 3: reuse over new logic).
+ * `/public/stations` itself does not join rate at all, so there was nothing
+ * to reuse there directly; this mirrors its own station+group join pattern
+ * (`stationRoutes()`'s `stationBoard` query) instead.
+ */
 async function loadStationForQr(stationId: string): Promise<ResolvedStation | null> {
   const [row] = await withAdmin((tx) =>
     tx
@@ -82,17 +96,41 @@ async function loadStationForQr(stationId: string): Promise<ResolvedStation | nu
         tenantSlug: base.organization.slug,
         stationId: chronoStation.id,
         stationName: chronoStation.name,
+        stationStatus: chronoStation.status,
+        branchId: chronoStation.branchId,
         branchName: chronoBranch.name,
         qrSecret: chronoStation.qrSecret,
         qrSecretVersion: chronoStation.qrSecretVersion,
+        hourlyRate: chronoStationGroup.hourlyRate,
+        memberRate: chronoStationGroup.memberRate,
       })
       .from(chronoStation)
       .innerJoin(base.organization, eq(chronoStation.tenantId, base.organization.id))
       .innerJoin(chronoBranch, eq(chronoStation.branchId, chronoBranch.id))
+      .leftJoin(chronoStationGroup, eq(chronoStation.stationGroupId, chronoStationGroup.id))
       .where(eq(chronoStation.id, stationId))
       .limit(1),
   );
   return row ?? null;
+}
+
+/**
+ * `{ available, total }` for every station under one branch — the same
+ * bucket `/public/stations` computes per-branch, narrowed to a single
+ * `branchId` (this route already knows which branch the scanned station
+ * belongs to, so there is no need to fetch every branch). Read via
+ * `withAdmin`, matching this route's own pre-tenant-context posture.
+ */
+async function loadBranchAvailability(
+  branchId: string,
+): Promise<{ available: number; total: number }> {
+  const rows = await withAdmin((tx) =>
+    tx.select({ status: chronoStation.status }).from(chronoStation).where(
+      eq(chronoStation.branchId, branchId),
+    ),
+  );
+  const available = rows.filter((r) => toPublicStationStatus(r.status) === "available").length;
+  return { available, total: rows.length };
 }
 
 // Read-only and replayable within its TTL (a customer may re-scan or the
@@ -169,6 +207,8 @@ export function qrPublicRoutes() {
           throw new HttpError(400, GENERIC_QR_ERROR);
         }
 
+        const branchAvailability = await loadBranchAvailability(station.branchId);
+
         const result: QrResolveResult = {
           tenantSlug: station.tenantSlug,
           tenantHost: tenantHostFor(station.tenantSlug),
@@ -179,6 +219,13 @@ export function qrPublicRoutes() {
           // landing page owns that) — a client always treats a resolved scan
           // as requiring its own session check.
           requiresLogin: true,
+          hourlyRate: station.hourlyRate,
+          memberRate: station.memberRate,
+          availability: {
+            status: toPublicStationStatus(station.stationStatus),
+            branchAvailable: branchAvailability.available,
+            branchTotal: branchAvailability.total,
+          },
         };
         return c.json(result);
       })

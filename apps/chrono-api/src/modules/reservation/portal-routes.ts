@@ -10,6 +10,8 @@ import {
   createDirectReservationSchema,
   joinQueueSchema,
   cancelReservationSchema,
+  reservationAvailabilityQuerySchema,
+  type ReservationAvailabilityResponse,
 } from "./contracts";
 import {
   resolveReservationPolicy,
@@ -17,6 +19,7 @@ import {
   joinQueue,
   confirmHold,
   cancelReservation,
+  computeAvailabilitySlots,
 } from "./service";
 
 /**
@@ -113,6 +116,33 @@ export function reservationPortalRoutes() {
       );
       return c.json({ restrictions: rows });
     })
+
+    // Phase 4 (member-portal-v2) — discrete start-time slots for the
+    // station+date the member is looking at, so the picker can render real
+    // bookable times instead of a free-text datetime input. Read-only; never
+    // reserves anything.
+    .get(
+      "/availability",
+      zValidator("query", reservationAvailabilityQuerySchema),
+      async (c) => {
+        const { tenantId } = c.var.member;
+        const { stationId, date, durationMinutes } = c.req.valid("query");
+        const { slots, granularityMinutes } = await computeAvailabilitySlots({
+          tenantId,
+          stationId,
+          date,
+          durationMinutes,
+        });
+        const result: ReservationAvailabilityResponse = {
+          date,
+          stationId,
+          durationMinutes,
+          granularityMinutes,
+          slots,
+        };
+        return c.json(result);
+      },
+    )
 
     // Flow 1 — direct reservation.
     .post("/", zValidator("json", createDirectReservationSchema), async (c) => {
