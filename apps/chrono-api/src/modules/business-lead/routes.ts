@@ -7,6 +7,7 @@ import {
   and,
   or,
   asc,
+  desc,
   count,
   ilike,
   inArray,
@@ -26,6 +27,7 @@ import {
   escapeHtml,
   logger,
 } from "agora/server";
+import { listQuerySchema, buildPaginationMeta } from "agora";
 import { getCustomerContext, type CustomerContext } from "agora/customer-auth";
 import { requirePermission } from "../../auth/require-permission";
 import { chronoBranch } from "../branch/schema";
@@ -374,30 +376,82 @@ export function businessLeadPublicRoutes() {
  * Returns a bare count. It never returns a lead field or a requester identity,
  * so it cannot become a back-door lead read.
  */
+/**
+ * Resolve the caller's own normalized organization name — the ONE predicate
+ * both `/demand` and `/leads` match leads against. `organization` is not
+ * RLS-scoped (it is not in `BASE_TENANT_TABLES`), so it is read via `adminDb`
+ * with an explicit id filter — the same treatment `member`/`invitation` get.
+ * `tenantId` always comes from `c.var.tenant`, never client input.
+ */
+async function resolveCallerNormalizedBusinessName(tenantId: string): Promise<string> {
+  const [org] = await adminDb
+    .select({ name: base.organization.name })
+    .from(base.organization)
+    .where(eq(base.organization.id, tenantId))
+    .limit(1);
+
+  if (!org) throw new HttpError(404, "Tenant not found.");
+  return normalizeBusinessName(org.name);
+}
+
 export function growthRoutes() {
-  return new Hono<{ Variables: TenantVars }>().get("/demand", async (c) => {
-    requirePermission(c.var.tenant.permissions, { growth: ["read"] });
+  return new Hono<{ Variables: TenantVars }>()
+    .get("/demand", async (c) => {
+      requirePermission(c.var.tenant.permissions, { growth: ["read"] });
 
-    const { tenantId } = c.var.tenant;
+      const { tenantId } = c.var.tenant;
+      const normalized = await resolveCallerNormalizedBusinessName(tenantId);
 
-    // `organization` is not RLS-scoped (it is not in BASE_TENANT_TABLES), so it
-    // is read via adminDb with an explicit id filter — the same treatment
-    // `member`/`invitation` get.
-    const [org] = await adminDb
-      .select({ name: base.organization.name })
-      .from(base.organization)
-      .where(eq(base.organization.id, tenantId))
-      .limit(1);
+      const [row] = await adminDb
+        .select({ value: count() })
+        .from(chronoBusinessLead)
+        .where(eq(chronoBusinessLead.businessNameNormalized, normalized));
 
-    if (!org) throw new HttpError(404, "Tenant not found.");
+      return c.json({ count: Number(row?.value ?? 0) });
+    })
+    /**
+     * Lead-detail console: the actual business-name variant, city, and
+     * message a player typed — never `requesterCustomerId` or any derivable
+     * PII, matching `/demand`'s no-PII precedent. Admin+ `growth:read`,
+     * paginated per `.ai/rules/pagination.md`. `ChronoBusinessLeads` is not
+     * RLS-scoped, so the normalized-name predicate above is the only
+     * isolation here too — the same stance `/demand` already documents.
+     */
+    .get("/leads", zValidator("query", listQuerySchema(["createdAt"])), async (c) => {
+      requirePermission(c.var.tenant.permissions, { growth: ["read"] });
 
-    const [row] = await adminDb
-      .select({ value: count() })
-      .from(chronoBusinessLead)
-      .where(
-        eq(chronoBusinessLead.businessNameNormalized, normalizeBusinessName(org.name)),
-      );
+      const { tenantId } = c.var.tenant;
+      const normalized = await resolveCallerNormalizedBusinessName(tenantId);
+      const { page, pageSize } = c.req.valid("query");
+      const where = eq(chronoBusinessLead.businessNameNormalized, normalized);
 
-    return c.json({ count: Number(row?.value ?? 0) });
-  });
+      const [totalRow] = await adminDb
+        .select({ value: count() })
+        .from(chronoBusinessLead)
+        .where(where);
+      const totalItems = Number(totalRow?.value ?? 0);
+
+      const rows = await adminDb
+        .select({
+          businessName: chronoBusinessLead.businessName,
+          city: chronoBusinessLead.city,
+          message: chronoBusinessLead.message,
+          createdAt: chronoBusinessLead.createdAt,
+        })
+        .from(chronoBusinessLead)
+        .where(where)
+        .orderBy(desc(chronoBusinessLead.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize);
+
+      return c.json({
+        items: rows.map((r) => ({
+          businessName: r.businessName,
+          city: r.city,
+          message: r.message,
+          createdAt: r.createdAt.toISOString(),
+        })),
+        meta: buildPaginationMeta(page, pageSize, totalItems, "createdAt", "desc"),
+      });
+    });
 }

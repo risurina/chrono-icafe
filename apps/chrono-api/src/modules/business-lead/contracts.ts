@@ -67,5 +67,21 @@ export const growthDemandResponseSchema = z.object({
 });
 export type GrowthDemandResponse = z.infer<typeof growthDemandResponseSchema>;
 
+/**
+ * One row of `GET /rpc/growth/leads` (the lead-detail console, admin+
+ * `growth:read`). Deliberately still carries NO requester identity —
+ * `requesterCustomerId` is never selected here, matching the no-PII
+ * precedent `GET /rpc/growth/demand` already set. `businessName`/`city`/
+ * `message` are exactly what a player typed; there is no other identifying
+ * field on `chronoBusinessLead` to leak.
+ */
+export const businessLeadListItemSchema = z.object({
+  businessName: z.string(),
+  city: z.string().nullable(),
+  message: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type BusinessLeadListItem = z.infer<typeof businessLeadListItemSchema>;
+
 /** Hard cap on the public directory read — see the plan's assumption 13. */
 export const DISCOVER_RESULT_LIMIT = 20;

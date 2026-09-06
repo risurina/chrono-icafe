@@ -97,6 +97,9 @@ export function DemandBanner({
           >
             Set up your public page
           </Link>
+          <Link href="/admin/growth" className={buttonVariants({ variant: "outline" })}>
+            View details
+          </Link>
           <Button variant="ghost" onClick={acknowledge}>
             Dismiss
           </Button>

@@ -3364,6 +3364,55 @@ async function main() {
         JSON.stringify(Object.keys(demandOwner.body ?? {}).sort()) === JSON.stringify(["count"]),
       JSON.stringify(Object.keys(demandOwner.body ?? {})),
     );
+
+    // ── GET /rpc/growth/leads (Phase 5, lead-detail console) — same gate,
+    //    same isolation predicate, plus its own no-PII shape assertion. ──
+    const leadsStaff = await req("GET", "/rpc/growth/leads", {
+      slug: "acme",
+      cookie: staffCk,
+    });
+    check(
+      "growth: staff denied GET /rpc/growth/leads (403) — admin+ only",
+      leadsStaff.status === 403,
+      `status ${leadsStaff.status}`,
+    );
+
+    const leadsOwner = await req("GET", "/rpc/growth/leads", {
+      slug: "acme",
+      cookie: ownerCk,
+    });
+    check(
+      "growth: acme owner sees exactly its own 1 lead row",
+      leadsOwner.status === 200 &&
+        leadsOwner.body?.items?.length === 1 &&
+        leadsOwner.body?.meta?.totalItems === 1,
+      JSON.stringify(leadsOwner.body),
+    );
+    check(
+      "growth: leads row carries the typed fields, normalized-name matched",
+      leadsOwner.body?.items?.[0]?.businessName === "  Acme   CORP  ",
+      JSON.stringify(leadsOwner.body?.items),
+    );
+    check(
+      "growth: leads row exposes NO requester identity field",
+      leadsOwner.status === 200 &&
+        JSON.stringify(Object.keys(leadsOwner.body?.items?.[0] ?? {}).sort()) ===
+          JSON.stringify(["businessName", "city", "createdAt", "message"]),
+      JSON.stringify(Object.keys(leadsOwner.body?.items?.[0] ?? {})),
+    );
+
+    // Cross-tenant isolation, mirroring /demand's own proof.
+    const leadsContoso = await req("GET", "/rpc/growth/leads", {
+      slug: "contoso",
+      cookie: contosoOwnerCk,
+    });
+    check(
+      "growth: contoso NEVER sees acme's lead rows (200, empty)",
+      leadsContoso.status === 200 &&
+        leadsContoso.body?.items?.length === 0 &&
+        leadsContoso.body?.meta?.totalItems === 0,
+      JSON.stringify(leadsContoso.body),
+    );
   }
 
   // ── U. Tenant lifecycle: suspend blocks non-owner staff + customers; owner

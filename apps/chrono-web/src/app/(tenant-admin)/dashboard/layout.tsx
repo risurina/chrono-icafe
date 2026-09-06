@@ -24,6 +24,7 @@ import {
   CreditCard,
   Scale,
   AppWindow,
+  TrendingUp,
 } from "lucide-react";
 import { Fragment } from "react";
 import {
@@ -74,6 +75,9 @@ const BASE_NAV: NavItem[] = [
   // Permission-gated below (appUsage:read) — filtered out of NAV, not listed
   // as always-visible, since a custom tenant role may not hold it.
   { type: "item", name: "App Usage", href: "/app-usage", icon: AppWindow },
+  // Permission-gated below (growth:read, admin+ only) — no CHRONO_STAFF_GRANTS
+  // entry, so a staff viewer never sees this even before load resolves.
+  { type: "item", name: "Growth", href: "/growth", icon: TrendingUp },
 
   // Branch-scoped, staff-facing floor operations (what a shift worker touches
   // day to day at a single branch) — grouped separately from Business/Money.
@@ -130,6 +134,7 @@ const TITLES: Record<string, string> = {
   "/admin/stations": "Stations",
   "/admin/devices": "Devices",
   "/admin/app-usage": "App Usage",
+  "/admin/growth": "Growth",
   "/admin/shifts": "Shifts",
   "/admin/sessions": "Sessions",
   "/admin/members": "Members",
@@ -232,12 +237,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // (.ai/rules/rbac.md). Every system role holds appUsage:read, so this only
   // matters for a custom tenant role that doesn't grant it.
   const appUsageVisible = permissions === null || (permissions.appUsage ?? []).includes("read");
+  // Unlike appUsage, growth:read is admin+ ONLY (no CHRONO_STAFF_GRANTS entry)
+  // — defaulting to visible-until-loaded would flash this commercial-intel
+  // entry to every staff viewer on first render. Default to hidden instead;
+  // the one-render delay for an admin is the safer direction here.
+  const growthVisible = permissions !== null && (permissions.growth ?? []).includes("read");
 
   const NAV = (
     projectsEnabled
       ? BASE_NAV
       : BASE_NAV.filter((item) => item.type !== "item" || item.href !== "/projects")
-  ).filter((item) => appUsageVisible || item.type !== "item" || item.href !== "/app-usage");
+  )
+    .filter((item) => appUsageVisible || item.type !== "item" || item.href !== "/app-usage")
+    .filter((item) => growthVisible || item.type !== "item" || item.href !== "/growth");
 
   useEffect(() => {
     if (!isPending && !session) window.location.href = "/admin/login";
