@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "agora/ui";
-import { Badge } from "agora/ui";
+import Link from "next/link";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Badge,
+  Stack,
+  Row,
+  Grid,
+  buttonVariants,
+} from "agora/ui";
+import { cn } from "agora/ui/cn";
 import { STATION_TONE, stationTone } from "@/components/landing/station-tone";
 
 /**
@@ -80,9 +91,11 @@ export function StationAvailabilityPoller({
     return () => clearInterval(interval);
   }, []);
 
+  const isEmpty = data.branches.every((branch) => branch.stations.length === 0);
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <Stack gap={8}>
+      <Grid cols={3} gap={4} className="md:grid-cols-5">
         {summary.map((card) => (
           <Card key={card.label}>
             <CardHeader className="pb-2">
@@ -91,71 +104,126 @@ export function StationAvailabilityPoller({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${card.tone}`}>{card.value}</div>
+              <span className={cn("text-3xl font-bold", card.tone)}>
+                {card.value}
+              </span>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </Grid>
 
-      {data.branches.every((branch) => branch.stations.length === 0) ? (
-        <div className="py-12 text-center text-muted-foreground">
-          {`No stations listed for ${venueName} yet.`}
-        </div>
+      {isEmpty ? (
+        <Stack gap={4} className="py-12 text-center">
+          <span className="text-muted-foreground">
+            {`No stations listed for ${venueName} yet.`}
+          </span>
+          {/* Never dead-end: an empty floor is still a reason to sign up. */}
+          <Row justify="center" gap={3} wrap>
+            <Link
+              href="/portal/sign-up"
+              className={cn(buttonVariants(), "rounded-full px-6")}
+              data-testid="stations-join-cta"
+            >
+              {`Join ${venueName}`}
+            </Link>
+            <Link
+              href="/"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "rounded-full px-6",
+              )}
+              data-testid="stations-back-home"
+            >
+              {`Back to ${venueName}`}
+            </Link>
+          </Row>
+        </Stack>
       ) : (
-        <div className="space-y-10">
+        <Stack gap={8}>
           {data.branches.map((branch) => (
-            <div key={branch.id} className="space-y-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="text-xl font-semibold">
-                  {branch.name} <span className="text-sm font-normal text-muted-foreground">({branch.code})</span>
-                </h2>
-                <span className="text-sm text-muted-foreground">
-                  {branch.aggregate.available} of {branch.aggregate.total} available
+            <Stack key={branch.id} gap={4}>
+              <Row items="baseline" justify="between" gap={2}>
+                <span className="text-xl font-semibold">
+                  {branch.name}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({branch.code})
+                  </span>
                 </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <span className="text-sm text-muted-foreground">
+                  {`${branch.aggregate.available} of ${branch.aggregate.total} available`}
+                </span>
+              </Row>
+              <Grid cols={3} gap={4} className="grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
                 {branch.stations.map((station) => (
                   <Card key={station.id} className="overflow-hidden">
-                    <div
-                      className={`h-2 w-full ${
-                        station.status === "available"
-                          ? "bg-green-500"
-                          : station.status === "maintenance"
-                          ? "bg-orange-500"
-                          : "bg-red-500"
-                      }`}
-                    />
-                    <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
-                      <div className="text-2xl font-bold">{station.stationNumber}</div>
-                      <div className="text-xs text-muted-foreground truncate w-full">{station.name}</div>
-                      <Badge
-                        variant={station.status === "available" ? "default" : "secondary"}
-                        className={
-                          station.status === "available"
-                            ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100"
-                            : station.status === "maintenance"
-                            ? "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900 dark:text-orange-100"
-                            : "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100"
-                        }
-                      >
-                        {stationTone(station.status).label}
-                      </Badge>
-                      {station.stationType && (
-                        <div className="text-xs text-muted-foreground">{station.stationType}</div>
+                    {/* Status stripe — semantic token, so it follows the
+                        tenant's own theme instead of a fixed green/orange/red. */}
+                    <span
+                      className={cn(
+                        "block h-2 w-full",
+                        stationTone(station.status).dot,
                       )}
+                      aria-hidden
+                    />
+                    <CardContent className="p-4">
+                      <Stack gap={2} className="text-center">
+                        <span className="text-2xl font-bold">
+                          {station.stationNumber}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {station.name}
+                        </span>
+                        <Row justify="center">
+                          <Badge
+                            variant={
+                              station.status === "available"
+                                ? "default"
+                                : "secondary"
+                            }
+                            className={cn(stationTone(station.status).text)}
+                          >
+                            {stationTone(station.status).label}
+                          </Badge>
+                        </Row>
+                        {station.stationType ? (
+                          <span className="block text-xs text-muted-foreground">
+                            {station.stationType}
+                          </span>
+                        ) : null}
+                      </Stack>
                     </CardContent>
                   </Card>
                 ))}
-                {branch.stations.length === 0 && (
-                  <div className="col-span-full py-6 text-center text-sm text-muted-foreground">
+                {branch.stations.length === 0 ? (
+                  <span className="col-span-full py-6 text-center text-sm text-muted-foreground">
                     No stations at this branch.
-                  </div>
-                )}
-              </div>
-            </div>
+                  </span>
+                ) : null}
+              </Grid>
+            </Stack>
           ))}
-        </div>
+
+          <Row justify="center" gap={3} wrap className="pt-4">
+            <Link
+              href="/portal/sign-up"
+              className={cn(buttonVariants(), "rounded-full px-6")}
+              data-testid="stations-join-cta"
+            >
+              {`Join ${venueName}`}
+            </Link>
+            <Link
+              href="/"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "rounded-full px-6",
+              )}
+              data-testid="stations-back-home"
+            >
+              {`Back to ${venueName}`}
+            </Link>
+          </Row>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }
