@@ -10,7 +10,9 @@
   (was prose, and a bare Badge sibling in `DialogHeader` would have stacked below
   the title, not next to it); the preset-buttons `Row` now has `wrap` to avoid
   horizontal overflow on narrow viewports (this file's own `admin/staff/page.tsx`
-  precedent uses `wrap` for the same reason).
+  precedent uses `wrap` for the same reason) — full detail below.
+- Implementation: (this session) implementing via Jules, per developer's "use jules
+  for now" instruction; single-file, UI-only, Jules-eligible per the jules skill.
 
 ## Context / why
 
