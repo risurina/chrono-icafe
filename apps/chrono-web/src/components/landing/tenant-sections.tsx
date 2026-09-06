@@ -34,6 +34,7 @@ import {
 import { cn } from "agora/ui/cn";
 import { StationRefresh } from "./station-refresh";
 import { ShareButton } from "./share-button";
+import { PlayerCtaActions } from "./player-cta-actions";
 import { STATION_TONE, type StationStatus } from "./station-tone";
 
 /**
@@ -1295,10 +1296,11 @@ export function TenantExperience({ stationTypes }: TenantExperienceProps) {
 export type TenantPlayerCtaProps = { tenantName: string };
 
 /**
- * The join / sign-in moment. Server-rendered links only — no session check, so
- * it costs a public marketing page nothing and can never bounce an anonymous
- * visitor. Both destinations are real, working, unauthenticated-reachable
- * routes: `/portal/sign-up` (tenant-scoped member signup) and `/login`.
+ * The join / sign-in moment. The section itself is server-rendered; only the
+ * actions are a client island, so they can branch on who is looking (anonymous
+ * / signed-in global customer / existing member) without turning the whole
+ * page into a client tree. See `PlayerCtaActions` for why `MemberGate` is not
+ * reused here.
  */
 export function TenantPlayerCta({ tenantName }: TenantPlayerCtaProps) {
   return (
@@ -1315,22 +1317,7 @@ export function TenantPlayerCta({ tenantName }: TenantPlayerCtaProps) {
             title={`Stay connected to ${tenantName}.`}
             lead="Create a player account to track your time, top up, and book ahead."
           />
-          <Row wrap gap={4} justify="center">
-            <Link
-              href="/portal/sign-up"
-              className={cn(buttonVariants(), PILL_CTA, "shadow-lg shadow-primary/20")}
-              data-testid="landing-playercta-join"
-            >
-              {`Join ${tenantName}`}
-            </Link>
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "outline" }), PILL_CTA)}
-              data-testid="landing-playercta-signin"
-            >
-              Already a member? Sign in
-            </Link>
-          </Row>
+          <PlayerCtaActions tenantName={tenantName} />
         </Stack>
       </Stack>
     </Section>
