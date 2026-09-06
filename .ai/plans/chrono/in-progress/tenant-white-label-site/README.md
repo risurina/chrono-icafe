@@ -3,6 +3,83 @@
 **Sessions:**
 - Planning: `planner` subagent (a981c0cbe786d80d1), launched by
   consolidate-customers-members-page [7ffb50]
+- Audit: `plan-auditor` subagent (a1cd017430b75681a), launched by the
+  `/feature` pipeline run in worktree `.ai/worktree/tenant-white-label-site`.
+  Verdict **NEEDS REVISION** — 2 BLOCKERs, 7 CONDITIONs, 3 RISKs. Every
+  BLOCKER and CONDITION is resolved in the revisions below.
+- Implementation: `/feature` pipeline session, worktree
+  `.ai/worktree/tenant-white-label-site`, branch `feature/tenant-white-label-site`.
+
+## Audit resolution (2026-09-06)
+
+The audit verified ~30 of this plan's `file:line` citations against real source.
+Most were exact; the load-bearing exception is **assumption 11, which was
+factually wrong** and is corrected below. Summary of what changed:
+
+| Finding | Resolution |
+|---|---|
+| BLOCKER 1 — `occupied` IS a live station status | **Assumption 11 rewritten; new Phase 1A added.** See below. |
+| BLOCKER 2 — `DEFAULT_RATES` re-fabricates prices on the failure path | Phase 2 now deletes `DEFAULT_RATES` and the default parameter. |
+| CONDITION 3 — wrong `rls:proof` app | All four occurrences → `pnpm --filter @agora/chrono-api rls:proof`. |
+| CONDITION 4 — rate→card mapping undefined | Phase 2 now pins the exact mapping. |
+| CONDITION 5 — `hourlyRate` defaults to `'0'` | Phase 2 now filters zero-rate groups. |
+| CONDITION 6 — Phase 3's 404 would fire on a transient API blip | Phase 3 now bases the 404 on `getTenantLanding()`, not `fetchTenant()`. |
+| CONDITION 7 — Phase 6 premise wrong + no falsifiable done-state | Phase 6 rewritten around the two session hooks; de-scope escape hatch removed. |
+| CONDITION 8 — analytics collision with the sibling plan | Phase 7 now says "extend, never redefine"; overlap documented. |
+| CONDITION 9 — no-`.env` verification gap | New "Verification deferred to a live session" section; gates plan closure. |
+| RISK 10 — duplicate directions CTA | Phase 2 step 8 dropped; `TenantContact`'s existing button is the single source. |
+| RISK 11 — metadata gap overstated | Phase 3 corrected: the real gap is OpenGraph only. |
+| RISK 12 — Phase 4 oversized | Split into 4A (branding + honest labels) and 4B (token cleanup). |
+
+### BLOCKER 1 — the corrected station-status finding
+
+Assumption 11 claimed `occupied` was "reserved for later, once sessions
+exist." **Sessions exist and are mounted, and production code writes
+`occupied` today.** Verified in this worktree:
+
+- `apps/chrono-api/src/modules/session/service.ts:249-251` —
+  `.update(chronoStation).set({ status: "occupied", … })` on session start;
+  `:370-371` sets it back to `"available"` on end.
+- `apps/chrono-api/src/routes/rpc.ts:1398` — `.route("/", sessionRoutes())`,
+  so that path is live.
+- `apps/chrono-api/src/modules/realtime/contracts.ts:33-38` —
+  `chronoStationStatusSchema` is the real 4-value vocabulary.
+- `apps/chrono-api/src/modules/station/contracts.ts:5` —
+  `stationStatusSchema` is only 3 values, and `publicStationSchema.status`
+  uses it.
+- `apps/chrono-api/src/modules/station/routes.ts:348` —
+  `status: s.status as StationStatus`, an unsafe cast that hides the mismatch
+  from the compiler.
+- `apps/chrono-web/src/lib/stations.ts:40-41` — `safeParse` → `null` on
+  failure.
+
+**Consequence (a live production bug, not a plan defect):** the moment any one
+station is occupied, `/public/stations`' payload fails re-validation, so
+`getTenantStations()` returns `null` and the hero gauges, the `stations`
+section, and this plan's new `experience` chips **all render as "no data" —
+exactly when the venue is busiest.**
+
+**Consequence (b):** `toAggregate` (`station/routes.ts:330-334`) computes
+`inUse` as `maintenance + offline` with the comment "Will be refined when
+sessions exist" — while the web **already labels that number "In session"**
+(`apps/chrono-web/src/components/landing/tenant-sections.tsx:710`) and
+"In Use / Offline" (`stations/client.tsx:74`). The API and the UI contradict
+each other today: a machine under maintenance is advertised as "in session,"
+and a genuinely-occupied one is counted nowhere.
+
+**Resolution — new Phase 1A, landing before Phases 2 and 4.** This
+deliberately reopens the "`/public/stations` is out of scope" boundary
+(previously stated at three points in this plan). The reopening is minimal
+and is required for this plan's *own* deliverables to function: the
+`experience` chips read `getTenantStations()`, which is `null` on any busy
+venue until this is fixed. The scope statements in Phase 1, Phase 4 and
+"Out of scope (whole plan)" are amended accordingly.
+
+**Assumption 11 (rewritten).** The live-availability breakdown **must** use
+the real four-state vocabulary (`available`/`occupied`/`maintenance`/
+`offline`). An "In Use" count is **correct and required** — it is backed by
+`status === "occupied"`, which sessions write today. The previous version of
+this assumption forbade exactly the right thing on a false premise.
 
 ## Context / why
 
@@ -28,6 +105,26 @@ and does not touch the apex `(saas-landing)/page.tsx`'s `!tenant` branch. The
 sibling plan's `/discover` is treated here purely as an external dependency —
 an upstream source of traffic this plan's pages must convert well, nothing
 more.
+
+**Sibling-overlap findings (audit-verified, 2026-09-06).** The boundary claim
+above **holds**, but the two plans do share files:
+
+- `(saas-landing)/page.tsx` — the apex `!tenant` branch is lines 102-717 and
+  belongs to the sibling (its Phases 4/5). This plan touches only
+  `fetchTenant()` (78-94), the branch split (~96-102), and the tenant branch
+  (719-759). **Semantically clean; git-conflict risk only.**
+- `marketing-chrome.tsx` — the sibling edits `NAV`, the header CTA and
+  `MarketingFooter` (its `:311-313`). This plan edits **`TenantFooter`**
+  (`:341-411`), which the sibling explicitly puts out of its own scope
+  (its `:673-674`), as it does `registry.ts`. **Different functions, one
+  file.**
+- `apps/chrono-web/src/lib/analytics.ts` — **a real collision.** Both plans
+  create it with a *closed* event union. See Phase 7 step 1: this plan must
+  **extend**, never redefine.
+- `apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx` — in
+  **both** plans' instrumentation lists, and the sibling's own Phase 3 may
+  also surface it on the tenant landing page, which is this plan's Phase 6.
+  **Coordinate before Phase 6 or 7 is merged.**
 
 **This plan was written after four parallel research passes across the
 actual codebase** (not memory, not the brief's assumptions) — the single most
@@ -317,9 +414,15 @@ if it proves too heavy for a first pass (see Assumption 6).
     "react-share"-style library, or a `ShareButton` component anywhere in the
     repo — the brief's own "do not build platform-specific integrations
     unless already supported" is satisfied by construction, not by choice.
-11. **The live-availability station-status breakdown must use the real
+11. **~~SUPERSEDED BY THE AUDIT — this assumption was factually wrong.~~**
+    See "BLOCKER 1 — the corrected station-status finding" above for the
+    replacement. `occupied` is a live status written by
+    `session/service.ts:249-251` today; an "In Use" count is correct and
+    required, not forbidden. The original text is retained below only so the
+    correction is legible.
+    ~~The live-availability station-status breakdown must use the real
     three-state enum (`available`/`maintenance`/`offline`), never a fourth
-    "in use" state.** `ChronoStations.status`
+    "in use" state.~~ `ChronoStations.status`
     (`station/schema.ts:51-54`) supports only those three values today —
     `"occupied"` is explicitly reserved for later, once sessions exist
     (`apps/chrono-api/AGENTS.md`: "`session` — contracts + money helpers in
@@ -414,11 +517,11 @@ unchanged by this plan.
 - No raw DB row is returned — response matches
   `publicVenueInfoResponseSchema` exactly, no extra columns.
 - `pnpm --filter @agora/chrono-api typecheck` passes.
-- `pnpm --filter @agora/api rls:proof` still prints `RLS PROOF: PASS ✅`.
+- `pnpm --filter @agora/chrono-api rls:proof` still prints `RLS PROOF: PASS ✅`.
 
 **Verification commands:**
 - `pnpm --filter @agora/chrono-api typecheck`
-- `pnpm --filter @agora/api rls:proof`
+- `pnpm --filter @agora/chrono-api rls:proof`
 - Manual: `pnpm --filter @agora/chrono-api dev`, curl the new route for a
   seeded tenant with data, a seeded tenant with no branch, a suspended
   tenant, and an unknown subdomain — confirm all four behaviors above before
@@ -432,6 +535,63 @@ unchanged by this plan.
 **Execution start point:** `apps/chrono-api/src/modules/station/routes.ts`,
 `publicStationRoutes()` (lines 268-370) — read in full before writing the new
 route.
+
+---
+
+## Phase 1A — Backend: honest station status vocabulary (audit BLOCKER 1)
+
+**Must land before Phases 2 and 4.** Fixes the live production bug where the
+public stations payload fails validation — and the whole live-availability
+surface blanks out — as soon as one station is occupied.
+
+**Files to update:**
+- `apps/chrono-api/src/modules/station/contracts.ts`
+- `apps/chrono-api/src/modules/station/routes.ts`
+
+**Step-by-step tasks:**
+1. `contracts.ts`: point `publicStationSchema.status` at the real vocabulary,
+   `chronoStationStatusSchema` (already imported at `contracts.ts:3`), instead
+   of the 3-value `stationStatusSchema`. Leave `stationStatusSchema` itself
+   alone — it still correctly describes the **admin-settable** subset used by
+   the staff create/update routes; only the *public read* was wrong.
+2. `contracts.ts`: extend `publicStationAggregateSchema` with
+   `occupied` and `unavailable` (both `z.number().int().nonnegative()`),
+   keeping `total`/`available`/`inUse` so no existing consumer breaks.
+3. `routes.ts`: rewrite `toAggregate` so the buckets are honest and reconcile
+   (`total === available + inUse + unavailable`):
+   - `available` — `status === "available"` (unchanged)
+   - `inUse` — `status === "occupied"` (**changed**: was `maintenance +
+     offline`). This makes the API match the label the web already renders,
+     "In session" (`tenant-sections.tsx:710`).
+   - `occupied` — same count as `inUse`, the unambiguous name for new callers
+   - `unavailable` — `maintenance + offline`
+   Delete the stale `// Will be refined when sessions exist` comment.
+4. `routes.ts:348`: delete the `as StationStatus` cast; the value is now
+   representable, so the cast is no longer needed. Remove the
+   `type StationStatus` import if it becomes unused.
+
+**Acceptance criteria:**
+- A tenant with an occupied station returns a 200 whose payload **passes**
+  `publicStationsResponseSchema` — `getTenantStations()` no longer returns
+  `null` for a busy venue.
+- `total === available + inUse + unavailable` for every branch aggregate and
+  for the top-level aggregate.
+- No `as StationStatus` cast remains in `routes.ts`.
+- `stationStatusSchema` is unchanged, so the staff-facing create/update routes
+  still refuse to set `occupied` by hand.
+- `pnpm --filter @agora/chrono-api typecheck` passes.
+- The offline harness (`pnpm --filter @agora/chrono-api test:e2e`) shows no
+  new failures versus the recorded baseline.
+
+**Verification commands:**
+- `pnpm --filter @agora/chrono-api typecheck`
+- `pnpm --filter @agora/chrono-api test:e2e` (delta against baseline)
+
+**Out of scope:** the session module itself; the staff station routes; any
+web-side rendering of the new buckets (that is Phase 4A).
+
+**Execution start point:** `apps/chrono-api/src/modules/station/contracts.ts`
+lines 1-10 and `routes.ts` lines 325-355.
 
 ---
 
@@ -452,13 +612,28 @@ route.
    consuming Phase 1's `publicVenueInfoResponseSchema`.
 2. Extend `ChronoLandingData` (registry.ts:28-33) with `venue?:
    PublicVenueInfoResponse | null`.
-3. `rates` section (registry.ts:123-131): change `propsFrom` to read
-   `chronoData(ctx).venue?.rateGroups`, mapping each `{name, hourlyRate,
-   memberRate}` into `TenantRates`'s existing card shape — replaces
-   `DEFAULT_RATES` entirely. If `rateGroups` is empty, render the section's
-   existing graceful "no rates configured yet" path if one exists, or hide
-   the section for that render (confirm `TenantRates`'s current behavior on
-   empty input before deciding which).
+3. `rates` section (registry.ts:123-131) — **audit BLOCKER 2 + CONDITIONs 4
+   and 5.** `TenantRates` currently defaults its `rates` prop to
+   `DEFAULT_RATES` (three invented prices, `tenant-sections.tsx:349-377`,
+   defaulted at `:381`). Because `getTenantVenueInfo()` returns `null` on any
+   failure, `venue?.rateGroups` is `undefined` on the outage path and the
+   default parameter would fire — **re-fabricating exactly the prices this
+   plan exists to remove.** So:
+   - **Delete `DEFAULT_RATES` and the default parameter.** Make `rates` a
+     required `readonly Rate[]`. The existing `if (rates.length === 0) return
+     null;` (`:382`) then covers every empty case, outage included.
+   - **Pin the mapping** (previously undefined): one card per rate group —
+     `title: group.name`, `price` formatted from `hourlyRate`,
+     `period: "/ hr"`, `features: []`. When `memberRate` is non-null and
+     differs from `hourlyRate`, render it as a sub-line on the same card
+     ("Members ₱X / hr"), **never** as a second card and never as an invented
+     feature bullet.
+   - `TenantRates` must not render its "Includes" block (`:431`) when
+     `features` is empty — otherwise every card shows an empty label.
+   - **Filter zero-rate groups.** `hourlyRate` is `numeric(...).notNull()
+     .default("0")` (`station/schema.ts:21`), so an unpriced group would
+     publish "₱0 / hr" to the world. Drop any group whose `hourlyRate`
+     parses to 0; if none remain, the section renders nothing.
 4. New `experience` section (registry key `experience`, `defaultOrder: 35`
    — between `specs`=30 and `games`=40, both being disabled this phase):
    - New `TenantExperience` component in `tenant-sections.tsx`: a chip row
@@ -484,11 +659,15 @@ route.
    "Stay connected to {tenant}.", primary CTA "Join {tenant}" →
    `/portal/sign-up`, secondary "Already a member? Sign in" → `/login`. Pure
    server-rendered links, no session check (assumption 8, tier 1).
-8. Enhance the existing closing `cta` section (registry.ts:202-213,
-   `TenantCta`): add a "Get Directions" secondary CTA using
-   `chronoData(ctx).venue?.branch?.googleMapsUrl` when present (satisfies
-   the brief's "Location / Visit CTA" section — "Ready to play? / Check
-   Availability / Get Directions").
+8. **DROPPED — audit RISK 10.** The original step added a "Get Directions"
+   CTA to `TenantCta` sourced from `venue.branch.googleMapsUrl`. But
+   `TenantContact` **already** renders a Google Maps embed *and* an "Open in
+   Google Maps" button, derived from the tenant's `address`
+   (`tenant-sections.tsx:1064-1090`). Two directions affordances fed by two
+   different fields can disagree with each other. `TenantContact`'s existing
+   button stays the single source of truth; no directions CTA is added to
+   `TenantCta`. (`DIRECTIONS_CLICK` in Phase 7 therefore instruments that
+   existing button, not a new one.)
 9. Wire `getTenantVenueInfo()` into both `page.tsx` (tenant branch) and
    `about/page.tsx`'s existing `Promise.all([getTenantLanding(),
    getTenantStations()])` calls (add the new fetch alongside them, same
@@ -509,8 +688,12 @@ route.
   non-null field; render nothing extra when it's null.
 - "Join {tenant}" links to `/portal/sign-up`; "Already a member? Sign in"
   links to `/login`; both real, working, unauthenticated-reachable routes.
-- "Get Directions" appears only when the tenant's first branch has a
-  `googleMapsUrl`.
+- A tenant whose venue-info fetch **fails** renders **no** rates section —
+  never `DEFAULT_RATES`. `DEFAULT_RATES` no longer exists in the codebase.
+- A rate group whose `hourlyRate` is zero is not published; if every group is
+  zero-rated the section renders nothing.
+- No second "Get Directions" CTA is added — `TenantContact`'s existing
+  "Open in Google Maps" button remains the only directions affordance.
 - Every new/changed section composes only from `agora/ui` primitives
   (`.ai/rules/component-first-ui.md`) — no raw `div`/`span` chrome beyond
   what `tenant-sections.tsx` already establishes as its own convention.
@@ -547,15 +730,35 @@ registry.ts` in full, then `apps/chrono-web/src/lib/stations.ts` in full.
 1. Re-read `fetchTenant()` (page.tsx:78-94) and the branch split (line ~96
    onward) in full — confirm current line numbers before editing (this file
    has moved across multiple prior plans).
-2. Distinguish the two `null` causes: `getRequestTenant()`'s `kind` field
-   already tells apex (`"apex"`) apart from a resolved-but-unmatched
-   subdomain (`kind !== "apex"` but the `/public/tenant` fetch 404s). Change
-   the tenant branch's entry so that a subdomain `kind` with a failed
-   tenant fetch calls `notFound()` (matching `/about`'s existing behavior,
-   `about/page.tsx:41-43`), while a true apex `kind` still falls through to
-   the existing generic marketing branch unchanged.
-3. Add `export async function generateMetadata()` to the tenant branch of
-   `page.tsx` (it has none today — confirmed by reading the full file) —
+2. **Base the 404 on `getTenantLanding()`, not `fetchTenant()` — audit
+   CONDITION 6.** The original step said "subdomain `kind` + null ⇒
+   `notFound()`". But `fetchTenant()` returns `null` for **two** different
+   causes — a non-OK response *and* a thrown fetch (`page.tsx:89`, `:91-93`)
+   — so that rule would 404 a **live** tenant's homepage on a transient API
+   blip. This repo already learned that lesson and wrote it down:
+   `apps/chrono-web/src/lib/landing.ts:78-82` — *"A landing-page fetch
+   failure is NOT null. … Collapsing that into `null` used to 404 a live
+   public host on a transient API error — the failure mode this split exists
+   to prevent."*
+   So use `getTenantLanding()`, which already separates "this tenant does not
+   exist" (`landing.ts:104`, `if (!tenantInfo?.tenant) return null`) from
+   "content temporarily unreachable". `notFound()` fires only on the former.
+   The `getRequestTenant()` `kind` discriminator is still used to keep a true
+   apex host on the marketing branch — `kind` is real and returns
+   `"subdomain" | "apex" | "custom"`
+   (`packages/agora/src/presentation/next/index.ts:23-37`) — but it gates
+   *which* branch runs, not *whether* to 404.
+3. **Metadata — audit RISK 11 correction.** The earlier claim that "the root
+   page emits no metadata at all" **overstated the gap**:
+   `apps/chrono-web/src/app/layout.tsx:44-52` already emits tenant-aware
+   `title` (`branding.displayName`), `description` (`branding.tagline`) and a
+   favicon. The genuine gaps are (a) **OpenGraph, absent everywhere**, and
+   (b) not preferring `resolved.seo.title` over `branding.displayName`.
+   Also note `generateMetadata` is a **file-level export** — there is no
+   "tenant branch" of it — so it must return `{}` for an apex host, letting
+   the root layout's metadata stand, mirroring `about/page.tsx:27`.
+   Accordingly, add `export async function generateMetadata()` to
+   `page.tsx` (it has none today) —
    mirror `about/page.tsx:24-33` exactly (`resolved.seo.title ?? venueName`,
    `resolved.seo.description ?? resolved.hero.subtitle`), plus add
    `openGraph: { title, description, images: branding?.logoUrl ? [{ url:
@@ -575,8 +778,11 @@ registry.ts` in full, then `apps/chrono-web/src/lib/stations.ts` in full.
   page unchanged.
 - `curl`/view-source on a seeded tenant's `/` and `/about` show a tenant-
   specific `<title>`, `<meta name="description">`, and `og:title`/
-  `og:description`/`og:url` (plus `og:image` when a logo exists) — never the
-  root layout's generic fallback title.
+  `og:description`/`og:url` (plus `og:image` when a logo exists).
+- On a true apex host, `generateMetadata()` returns `{}` and the root
+  layout's own metadata (`layout.tsx:44-52`) still applies — unchanged.
+- A live tenant whose landing-content fetch fails transiently still renders
+  (degraded), and does **not** 404.
 - `pnpm --filter @agora/chrono-web typecheck` passes; `pnpm --filter
   @agora/chrono-web build` succeeds.
 
@@ -613,7 +819,18 @@ lines 78-102 and `about/page.tsx` lines 24-46 — read both fully first.
    headline `"{tenant name} — Live PC Availability"` and subheading
    naming what the counts mean. Add `generateMetadata()` (none exists
    today) with tenant-specific title/description, same pattern as Phase 3.
-3. `client.tsx`: replace the hardcoded Tailwind color classes
+2A. **Honest status labels — depends on Phase 1A.** `client.tsx:74` today
+   reads **`"In Use / Offline"`** (not `"In Use"`, as this plan originally
+   cited) over `aggregate.inUse`, which the API computed as
+   `maintenance + offline` — so a machine under maintenance was advertised as
+   "in use" while genuinely-occupied ones vanished into "Offline"
+   (`client.tsx:121`'s fallback ternary). After Phase 1A the payload carries
+   honest `available` / `inUse` (= occupied) / `unavailable` counts, so this
+   page must render **four** real states: Available, In Use, Maintenance,
+   Offline. "In Use" is now correct and required — it is backed by
+   `status === "occupied"`, which sessions write today.
+
+3. `client.tsx` (**Phase 4B**): replace the hardcoded Tailwind color classes
    (`bg-green-500`, `text-orange-600 dark:text-orange-500`, etc. — lines
    69, 77, 99-106, 114-119) with semantic tokens, per `.ai/rules/
    styling.md`/`.ai/rules/component-first-ui.md` (both violated today —
@@ -634,8 +851,9 @@ lines 78-102 and `about/page.tsx` lines 24-46 — read both fully first.
 **Acceptance criteria:**
 - `/stations` shows the tenant's logo/name via the same `TenantHeader` used
   elsewhere — no bespoke header markup.
-- Status labels read Available/Maintenance/Offline everywhere on this page
-  — no "In Use" anywhere.
+- Status labels read Available / In Use / Maintenance / Offline — four real
+  states, each backed by a real `status` value (audit BLOCKER 1). The old
+  conflated `"In Use / Offline"` bucket is gone.
 - No hardcoded Tailwind color class remains in `client.tsx` — semantic
   tokens only.
 - A "Back to {tenant}" link and a "Join {tenant}" CTA both exist and work.
@@ -725,35 +943,51 @@ marketing-chrome.tsx`, `TenantFooter` (lines 341-411) — read in full first.
 - Possibly a new small client component, depending on what Phase 6's
   research finds `MemberGate` doing.
 
-**Step-by-step tasks:**
-1. Read `apps/chrono-web/src/components/member/member-gate.tsx` in full —
-   this research pass did not open it; confirm exactly what session-state
-   read(s) it performs to distinguish "anonymous," "signed-in global
-   customer, not yet this tenant's member," and "already this tenant's
-   member."
-2. If those reads are cheap enough to run from a public marketing page's
-   first paint (e.g. a single lightweight client-side "who am I" fetch,
-   not a heavier bootstrap sequence): extend `TenantPlayerCta` to a small
-   client component that, for a signed-in-but-not-yet-member global
-   customer, renders `ApplyForTenantPrompt`
-   (`apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx`,
-   reused as-is, not duplicated) instead of the static "Join" link; for an
-   already-member visitor, renders a "Continue to your account" link to
-   `/member` instead.
-3. If step 1's reads turn out to require a heavier session bootstrap than
-   is reasonable for this page: stop here, leave Phase 2's static CTA as
-   the shipped behavior, and record that explicitly as this phase's
-   outcome — a deliberate, reasoned de-scope per assumption 8, not a
-   silent gap.
+**Step-by-step tasks — rewritten per audit CONDITION 7.** The original
+premise ("reuse `MemberGate`'s session resolution; it may be too heavy to
+justify, so allow a de-scope") was **wrong, in a way that makes this phase
+easier**. `member-gate.tsx` is a `"use client"` component that calls
+`useMemberSession()` + `useGlobalCustomerSession()` from `agora/client/react`
+(lines 105-106) and then **hard-redirects anonymous visitors to `/login`**
+(lines 111-116). Reusing `MemberGate` on a public marketing page would not be
+"heavy" — it would be **wrong**, bouncing all anonymous traffic off the
+landing page. Meanwhile `ApplyForTenantPrompt` takes **zero props**
+(`apply-for-tenant-prompt.tsx:13`) and calls `applyForTenantMembership()`
+standalone. So the correct shape is to call the two hooks directly and never
+touch `MemberGate` at all — and there is no longer a reason to de-scope.
+
+1. Add a small `"use client"` component beside `TenantPlayerCta` that calls
+   `useMemberSession()` and `useGlobalCustomerSession()` from
+   `agora/client/react` directly. **Do not import `MemberGate`.**
+2. Render by branch, defaulting to the anonymous case while either hook is
+   still loading (so the marketing page never flashes a redirect or a
+   member-only control):
+   - **anonymous** → Phase 2's static "Join {tenant}" / "Already a member?
+     Sign in" links, unchanged;
+   - **signed-in global customer, not yet this tenant's member** →
+     `ApplyForTenantPrompt`, imported and reused as-is;
+   - **already this tenant's member** → a "Continue to your account" link to
+     `/member`.
+3. Check `apps/chrono-web/e2e/tests/global-customers/apply-for-tenant.spec.ts`
+   before rendering `ApplyForTenantPrompt` in this second location — its
+   source carries the warning *"Copy is asserted verbatim by an existing e2e
+   spec — do not reword"* (`apply-for-tenant-prompt.tsx:9-11`), and a second
+   render site can create locator ambiguity for that spec. Do not reword the
+   component; if the spec's locators would become ambiguous, scope them
+   rather than changing the copy.
 
 **Acceptance criteria:**
-- Either: a signed-in global customer viewing a tenant they haven't joined
-  sees the real `ApplyForTenantPrompt` UI directly on the landing page and
-  successfully applies (verified via the same `POST /portal/customer/apply`
-  call `ApplyForTenantPrompt` already makes) — **or** — this phase's
-  acceptance criterion is explicitly "de-scoped, Phase 2's static CTA
-  stands," recorded in this plan's Verification checklist with the reason
-  from step 3.
+- A signed-in global customer viewing a tenant they haven't joined sees the
+  real `ApplyForTenantPrompt` on the landing page and can apply (same
+  `POST /portal/customer/apply` call it already makes). **The previous
+  "either it works or it's de-scoped" wording is removed — it had no
+  falsifiable done-state and failed the Concreteness Gate (audit
+  CONDITION 7).**
+- An anonymous visitor is **never** redirected away from the landing page —
+  the regression `MemberGate` reuse would have caused.
+- `MemberGate` is not imported by any landing-page component.
+- `apply-for-tenant.spec.ts`'s locators remain unambiguous, and
+  `ApplyForTenantPrompt`'s copy is unchanged.
 - No regression to the existing `/member`-gated `MemberGate` flow itself —
   this phase only adds a second place the same components can render from.
 - `pnpm --filter @agora/chrono-web typecheck` passes (whichever branch is
@@ -788,7 +1022,14 @@ applies.
 **Step-by-step tasks:**
 1. Check whether `apps/chrono-web/src/lib/analytics.ts` already exists (the
    sibling `two-sided-growth-loop` plan may have shipped it by
-   implementation time). If yes, reuse it as-is. If not, define it fresh:
+   implementation time). **If yes, EXTEND its existing event union with these
+   eight events and their prop types — never redefine or replace the module
+   (audit CONDITION 8).** The original wording, "reuse it as-is," is a
+   compile error: the sibling declares a *closed* union of its own seven
+   event names (`PLAYER_SIGNUP`, `PLAYER_DISCOVERY_SEARCH`, `BUSINESS_VIEW`,
+   `BUSINESS_INVITE_REQUEST`, `PARTNER_SIGNUP`, `PARTNER_CLAIM`,
+   `PLAYER_CONNECTS_TO_BUSINESS`), none of which are this plan's eight.
+   If not, define it fresh:
    a closed union type for the brief's eight named events with a typed
    props shape per event, and `track(event, props?)`: `console.log` in dev
    only, no-op otherwise — structured so a future real vendor call is a
@@ -920,6 +1161,43 @@ section.
 
 ---
 
+## Verification deferred to a live session (audit CONDITION 9)
+
+This plan was implemented in a git worktree with **no `.env`**, so no live
+database and no dev server were available. The following checks were
+**not run** and must be completed before this plan is considered closed.
+They are not failures — they are unrun.
+
+**Un-runnable without `.env`:**
+- Every "Manual:" step in Phases 1, 1A, 2, 3, 4, 5, 6, 7 (all need
+  `pnpm dev` + a live DB).
+- `pnpm --filter @agora/chrono-api rls:proof` (needs `DATABASE_URL_ADMIN`).
+  Note this plan makes **no schema/RLS/tenancy change**, so
+  `.ai/rules/database.md`'s trigger for it does not strictly fire; it is a
+  cheap regression check, **not** the isolation proof for
+  `/public/venue-info`.
+- **All of Phase 8** (Playwright). `apps/chrono-web/playwright.config.ts`
+  declares no `webServer`, runs `headless: false` with `slowMo: 350`, and
+  `availability.spec.ts` seeds by driving the real `/sign-up` UI — it needs a
+  live DB and permanently creates tenants.
+
+**Runnable, and run:** `turbo run typecheck`,
+`pnpm --filter @agora/chrono-web build`,
+`pnpm --filter @agora/chrono-api test:e2e` (the offline PGlite harness),
+and static review.
+
+**Phases whose correctness cannot be established statically:**
+- **Phase 1** — the terminal-status guard, the `{branch: null,
+  rateGroups: []}` 200, and tenant scoping are all behavioural. Typecheck
+  proves none of them. *Mitigated* by adding the new route's assertions to
+  the offline PGlite harness, which does exercise them for real.
+- **Phase 8** — cannot run at all, including its own "break it, watch it
+  fail, restore it" check. **This is the only browser-level cross-tenant
+  proof for `/public/venue-info`**, so plan closure is gated on it.
+
+**Gate:** do not move this plan to `archive/` until the Phase 8 specs have
+been run green on a machine with `.env` present.
+
 ## Out of scope (whole plan)
 
 - `/discover`, the cross-tenant business directory, and the apex marketing
@@ -938,9 +1216,16 @@ section.
 - Any Messenger/Facebook/Discord-specific share SDK integration
   (assumption 10).
 - A real analytics vendor integration (assumption 9).
-- Any change to `/public/stations`'s response shape or the underlying
-  `publicStationRoutes()` query logic — Phase 4 changes only that route's
-  web-side presentation.
+- ~~Any change to `/public/stations`'s response shape or the underlying
+  `publicStationRoutes()` query logic~~ — **AMENDED by audit BLOCKER 1.**
+  Phase 1A now makes a deliberately minimal change to that route: it widens
+  the public `status` enum to the 4 values the database actually holds,
+  removes an unsafe cast, and makes the aggregate buckets honest and
+  reconcilable. This reopening is required for *this plan's own*
+  deliverables — the `experience` chips read `getTenantStations()`, which
+  returns `null` for any venue with an occupied station until this is fixed.
+  Everything else about the route (its query logic, rate limit, caching,
+  tenant resolution, terminal-status guard) is untouched.
 - Any change to `MemberGate`, `applyForTenantMembership()`, or the
   `/member` gate cascade itself (Phase 6 only adds a second render site for
   the same existing components, best-effort).
@@ -949,8 +1234,12 @@ section.
 
 ## Verification (overall — check off during implementation, not now)
 
-- [ ] Phase 1: `rls:proof` passes; new route rejects suspended/unknown
-      tenants; no raw row leakage; manual curl checks pass.
+- [ ] Phase 1: new route rejects suspended/unknown tenants; no raw row
+      leakage; manual curl checks pass. (`rls:proof` — see "Verification
+      deferred to a live session".)
+- [ ] Phase 1A: public station payload validates with an occupied station
+      present; `total === available + inUse + unavailable`; no
+      `as StationStatus` cast remains.
 - [ ] Phase 2: real rates/experience/social-links/directions render for a
       seeded tenant; `specs`/`games` off by default but still togglable;
       Join/Sign-in CTAs work; verified at three widths, both themes.
@@ -970,5 +1259,5 @@ section.
       isolation spec's fail-when-broken check.
 - [ ] Phase 9: `apps/chrono-api/AGENTS.md` updated; plan archived.
 - [ ] `pnpm typecheck` (workspace-wide) passes.
-- [ ] `pnpm --filter @agora/api rls:proof` passes.
+- [ ] `pnpm --filter @agora/chrono-api rls:proof` passes.
 - [ ] `turbo run build` passes.
