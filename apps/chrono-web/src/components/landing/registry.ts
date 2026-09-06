@@ -63,8 +63,13 @@ function toRateCards(venue: PublicVenueInfoResponse | null | undefined): readonl
       price: formatPeso(g.hourlyRate),
       period: "/ hr",
       features: [] as readonly string[],
+      // Both rates are Drizzle `numeric`, i.e. STRINGS — comparing them raw
+      // would treat "60.00" and "60" as different and print a member price
+      // identical to the headline one. Compare the values, not the encodings.
       note:
-        g.memberRate && Number(g.memberRate) > 0 && g.memberRate !== g.hourlyRate
+        g.memberRate &&
+        Number(g.memberRate) > 0 &&
+        Number(g.memberRate) !== Number(g.hourlyRate)
           ? `Members ${formatPeso(g.memberRate)} / hr`
           : undefined,
     }));
@@ -188,8 +193,8 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     label: "Gaming experience",
     surface: "tenant",
     defaultEnabled: true,
-    // Between stations (15) and rates (20)... but after the join CTA at 18,
-    // so: what's free -> how to join -> what you can play on -> what it costs.
+    // Between specs (30) and games (40): what's free -> how to join (18) ->
+    // what it costs (20) -> the hardware -> what you can play on -> the titles.
     defaultOrder: 35,
     Component: TenantExperience,
     // Derived from the ALREADY-FETCHED station payload — no extra API call.
