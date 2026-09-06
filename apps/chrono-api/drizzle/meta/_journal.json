@@ -211,6 +211,13 @@
       "when": 1788707158904,
       "tag": "0029_add-business-lead-notified-at",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788707573469,
+      "tag": "0030_add-company-inquiry-table",
+      "breakpoints": true
     }
   ]
 }

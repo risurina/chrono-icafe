@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { adminDb } from "agora/db";
 import {
   HttpError,
   createRateLimiter,
@@ -8,6 +9,7 @@ import {
   escapeHtml,
 } from "agora/server";
 import { submitCompanyInquirySchema } from "./contracts";
+import { chronoCompanyInquiry } from "./schema";
 
 // Per-IP throttle on the anonymous public form — same 10/hour ceiling as
 // `apps/chrono-api/src/modules/inquiry/public-routes.ts`'s `publicInquiryLimiter`.
@@ -46,6 +48,23 @@ export function companyInquiryPublicRoutes() {
     }
     const { name, email, businessName, requestType, message, numberOfPcs, numberOfBranches, source } =
       parsed.data;
+
+    // Persisted FIRST, unconditionally — before the inbox-config check or the
+    // send attempt below, both of which can still throw exactly as they did
+    // before. This is the actual gap this phase closes: a successful send
+    // previously left no queryable record at all. The caller-visible
+    // failure behavior on a missing inbox / failed send is UNCHANGED — this
+    // is an audit-trail fix, not a "swallow the error" change.
+    await adminDb.insert(chronoCompanyInquiry).values({
+      source,
+      name,
+      email,
+      businessName: businessName ?? null,
+      requestType,
+      message,
+      numberOfPcs: numberOfPcs ?? null,
+      numberOfBranches: numberOfBranches ?? null,
+    });
 
     const inboxEmail = process.env.SUPPORT_INBOX_EMAIL;
     if (!inboxEmail) {

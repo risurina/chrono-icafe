@@ -33,6 +33,7 @@ import { chronoInquiry, chronoInquiryMessage } from "../modules/inquiry/schema";
 import { chronoLandingPage } from "../modules/landing-page/schema";
 import { chronoAppUsageEvent } from "../modules/app-usage/schema";
 import { chronoBusinessLead } from "../modules/business-lead/schema";
+import { chronoCompanyInquiry } from "../modules/company-inquiry/schema";
 
 export {
   chronoBranch,
@@ -72,6 +73,9 @@ export {
   // Platform-global, NOT tenant-scoped — deliberately absent from
   // APP_TENANT_TABLES below. See modules/business-lead/schema.ts.
   chronoBusinessLead,
+  // Platform-global, NOT tenant-scoped — same treatment as chronoBusinessLead.
+  // See modules/company-inquiry/schema.ts.
+  chronoCompanyInquiry,
 };
 
 /**

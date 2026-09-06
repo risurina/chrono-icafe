@@ -261,6 +261,7 @@ async function main() {
     paymentTransaction,
     storedFile,
     chronoBusinessLead,
+    chronoCompanyInquiry,
   } = await import("../db/schema");
   const { createId, WORKSPACE_SUSPENDED } = await import("agora");
   const { verifyWebhookSignature, registerEmailQueueJob } = await import("agora/server");
@@ -3509,6 +3510,57 @@ async function main() {
       checklistStaff.status === 200 &&
         !Object.keys(checklistStaff.body ?? {}).some((k) => /demand/i.test(k)),
       JSON.stringify(Object.keys(checklistStaff.body ?? {})),
+    );
+  }
+
+  // ── Company inquiry (Phase 8, growth-loop-hardening): the row persists
+  //    FIRST, even when the email send subsequently fails. A real send
+  //    failure is simulated — not just the pre-existing missing-
+  //    SUPPORT_INBOX_EMAIL config throw — by monkey-patching the process-
+  //    wide cached sender's own `.send` (getEmailSender() memoizes a single
+  //    instance for the process, so EMAIL_PROVIDER alone can't be swapped
+  //    this late — every earlier test in this run already forced it to
+  //    "console"). The caller-visible failure behavior (a 5xx) must stay
+  //    exactly what it was before this phase. ──
+  {
+    const { getEmailSender } = await import("agora/server");
+    const prevInbox = process.env.SUPPORT_INBOX_EMAIL;
+    process.env.SUPPORT_INBOX_EMAIL = "support@example.com";
+
+    const sender = getEmailSender();
+    const originalSend = sender.send.bind(sender);
+    sender.send = async () => {
+      throw new Error("simulated email-provider failure");
+    };
+
+    const inquiryEmail = `inquiry-${createId()}@example.com`;
+    const failedInquiry = await req("POST", "/public/company-inquiries", {
+      json: {
+        name: "Provider Failure Tester",
+        email: inquiryEmail,
+        requestType: "Demo",
+        message: "Testing provider failure persistence.",
+        source: "support",
+      },
+    });
+
+    sender.send = originalSend;
+    process.env.SUPPORT_INBOX_EMAIL = prevInbox;
+
+    check(
+      "company-inquiry: a real email-provider failure still surfaces as an error to the caller (unchanged behavior)",
+      failedInquiry.status >= 500,
+      `status ${failedInquiry.status}`,
+    );
+
+    const [persistedInquiry] = await adminDb
+      .select({ email: chronoCompanyInquiry.email })
+      .from(chronoCompanyInquiry)
+      .where(eq(chronoCompanyInquiry.email, inquiryEmail));
+    check(
+      "company-inquiry: the row still exists despite the email send failure",
+      persistedInquiry?.email === inquiryEmail,
+      JSON.stringify(persistedInquiry),
     );
   }
 
