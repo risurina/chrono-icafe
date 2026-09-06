@@ -23,8 +23,11 @@ total. One Jules session per phase.
 
 ## Phase 2 — `resolveChronoEmailTheme` + boot-time registration
 
-- Status: fired 2026-09-06, awaiting completion.
-- Session id: `13227066584702928790` — https://jules.google.com/session/13227066584702928790
+- Status: **done**. Session `13227066584702928790` completed, pulled and
+  applied. Diff matches spec exactly; manually traced the alpha-compositing
+  math for a real neon-green 8-digit border value and confirmed a sane
+  6-digit result. `pnpm --filter @agora/chrono-api typecheck` passes.
+  Committed `95d08d05`.
 
 ## Phase 3 — Migrate Chrono's own ad hoc email call sites (4 sites, incl. business-lead)
 
