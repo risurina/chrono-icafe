@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { Section } from "agora/ui";
 import { DiscoverSearch } from "./discover-search";
 
@@ -14,8 +15,21 @@ import { DiscoverSearch } from "./discover-search";
  * copy. The player-value and partner-value pitches stay on the homepage as
  * anchors.
  *
- * `metadata` is added in Phase 5 alongside the homepage's own SEO pass.
+ * This route is apex-only (it lives in `(apex-marketing)`), so unlike the
+ * host-branching homepage it can carry static metadata safely.
  */
+
+export const metadata: Metadata = {
+  title: "Discover gaming cafés and iCafes — Chrono",
+  description:
+    "Search gaming cafés and iCafes on Chrono, see live station availability, and ask us to bring your local spot onto the network.",
+  openGraph: {
+    title: "Discover gaming cafés and iCafes — Chrono",
+    description:
+      "Search gaming cafés and iCafes on Chrono, see live station availability, and ask us to bring your local spot onto the network.",
+    type: "website",
+  },
+};
 
 const EYEBROW = "text-[10px] font-black uppercase tracking-[0.3em] text-primary";
 

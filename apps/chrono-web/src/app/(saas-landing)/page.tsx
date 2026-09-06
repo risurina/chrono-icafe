@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -91,6 +92,43 @@ async function fetchTenant(): Promise<{ name: string; slug: string } | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Host-aware metadata.
+ *
+ * This file serves BOTH the apex marketing page and every tenant's own public
+ * landing page, so a static `export const metadata` would stamp Chrono's
+ * marketing copy onto every tenant's page too. Only the apex branch gets the
+ * marketing metadata; a tenant host falls through to the root layout's default,
+ * exactly as it did before.
+ *
+ * No `openGraph.images` — the repo has no marketing OG image asset, and
+ * pointing at one that doesn't exist is worse than omitting the field.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getRequestTenant();
+  if (t.kind !== "apex") return {};
+
+  const title = "Chrono — Find gaming cafés, or run one";
+  const description =
+    "Discover gaming cafés and iCafes near you, connect with your favorite spots, and see live station availability. Gaming businesses run stations, sessions, wallets, and branches on Chrono.";
+
+  return {
+    title,
+    description,
+    keywords: [
+      "gaming café",
+      "gaming cafe",
+      "iCafe",
+      "internet cafe",
+      "gaming lounge",
+      "esports venue",
+      "discover gaming cafes",
+      "gaming business management",
+    ],
+    openGraph: { title, description, type: "website" },
+  };
 }
 
 export default async function Home() {
@@ -330,6 +368,107 @@ export default async function Home() {
       { icon: Users, label: "Multi-Branch Chains" },
     ];
 
+    /**
+     * Player-facing value. Every entry maps to something that exists today:
+     * session history, wallet + top-up, loyalty/credit packs, reservations
+     * against live per-branch station status, and the foundation's global
+     * customer pool. Deliberately ABSENT: favorites/following and
+     * notifications — neither is built, so neither is claimed.
+     */
+    const playerValue = [
+      {
+        title: "One account, every business",
+        description:
+          "Sign up once and use the same account at every gaming business you join on Chrono.",
+      },
+      {
+        title: "See what's free before you go",
+        description:
+          "Listed businesses publish live station availability, so you know what's open before you travel.",
+      },
+      {
+        title: "Book a station",
+        description:
+          "Reserve against real per-branch station status instead of hoping something is free.",
+      },
+      {
+        title: "Your wallet and credits",
+        description:
+          "Check your balance, top up, and buy credit packs without queueing at the counter.",
+      },
+      {
+        title: "Your session history",
+        description:
+          "Every session you've played, with the time and spend attached — not a paper log.",
+      },
+      {
+        title: "Loyalty that follows you",
+        description:
+          "Earn and redeem at the businesses you play at, tracked against your own account.",
+      },
+    ];
+
+    /** The cold-start mechanic, in the order a player actually experiences it. */
+    const coldStartLoop = [
+      {
+        title: "Search for your café",
+        description: "Look for the gaming spot you already play at on Chrono's discovery page.",
+      },
+      {
+        title: "Not there? Invite them",
+        description:
+          "Tell us which business you want to see here. It takes one form and a player account.",
+      },
+      {
+        title: "They join",
+        description:
+          "When that business signs up, it sees how many players had already asked for it.",
+      },
+      {
+        title: "You connect",
+        description:
+          "Join them from your existing account — no second signup, no second password.",
+      },
+    ];
+
+    /**
+     * Partner-facing value. Trimmed to the strongest six so the business pitch
+     * supports the page rather than dominating it; the full operational depth
+     * lives in the sections further down.
+     */
+    const businessValue = [
+      {
+        title: "Run your floor live",
+        description:
+          "Manage gaming stations and sessions as they happen, across every branch.",
+      },
+      {
+        title: "Wallets and payments",
+        description:
+          "Take counter payments and online top-ups, with the ledger kept straight for you.",
+      },
+      {
+        title: "Staff access that fits your team",
+        description:
+          "Give each person exactly the access their job needs, using roles you control.",
+      },
+      {
+        title: "Every branch, one account",
+        description:
+          "Branches carry their own hours, maps, and social links — and roll up to one view.",
+      },
+      {
+        title: "Be discoverable",
+        description:
+          "Publish your page and players can find you on Chrono's public discovery page.",
+      },
+      {
+        title: "See who's asking for you",
+        description:
+          "Players can request businesses that aren't here yet. If they asked for you, you'll know.",
+      },
+    ];
+
     // "Tenant data isolation → Row-level" is gone: it is developer language, not
     // a reason a player or a café owner picks Chrono. Every remaining stat is a
     // real, checkable capability — nothing here claims network size.
@@ -445,6 +584,110 @@ export default async function Home() {
                   />
                 </Row>
               </Grid>
+            </div>
+          </Section>
+
+          {/* ── For players ─────────────────────────────────────────────
+              Every bullet below is a capability that exists today. No
+              favorites/following and no notifications: both are confirmed
+              absent, and this page does not advertise what it cannot do. */}
+          <Section id="for-players" maxWidth="full" border="bottom" className="scroll-mt-16">
+            <div className="py-20">
+              <SectionHeading
+                eyebrow="For players"
+                title="Your favorite gaming spots. One place."
+                className="mb-12 max-w-prose"
+              />
+              <Grid cols={3} gap={4}>
+                {playerValue.map(({ title, description }) => (
+                  <Card key={title}>
+                    <CardHeader>
+                      <CardTitle className="text-base">{title}</CardTitle>
+                      <CardDescription>{description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </Grid>
+            </div>
+          </Section>
+
+          {/* ── The cold-start loop ─────────────────────────────────────
+              Plain primitives, no charting dependency — the same visual
+              language as the "How it works" strip below. */}
+          <Section maxWidth="full" border="bottom" tone="muted">
+            <div className="py-20">
+              <SectionHeading
+                eyebrow="The loop"
+                title="Can't find your café? Bring them here."
+                className="mb-12 max-w-prose"
+              />
+              <Grid cols={4} gap={4}>
+                {coldStartLoop.map(({ title, description }, i) => (
+                  <Stack key={title} gap={3}>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                      {i + 1}
+                    </span>
+                    <h3 className="font-semibold">{title}</h3>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                  </Stack>
+                ))}
+              </Grid>
+              <Row className="pt-10">
+                <Link
+                  href="/discover"
+                  className={cn(buttonVariants({ variant: "outline" }), "rounded-full px-6")}
+                >
+                  Start with a search
+                </Link>
+              </Row>
+            </div>
+          </Section>
+
+          {/* ── For businesses ──────────────────────────────────────────── */}
+          <Section
+            id="for-businesses"
+            maxWidth="full"
+            border="bottom"
+            className="scroll-mt-16"
+          >
+            <div className="py-20">
+              <SectionHeading
+                eyebrow="For businesses"
+                title="Your gaming business should be where your players are."
+                className="mb-12 max-w-prose"
+              />
+              <Grid cols={3} gap={4}>
+                {businessValue.map(({ title, description }) => (
+                  <Card key={title}>
+                    <CardHeader>
+                      <CardTitle className="text-base">{title}</CardTitle>
+                      <CardDescription>{description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </Grid>
+            </div>
+          </Section>
+
+          {/* ── Live availability ───────────────────────────────────────
+              Demonstrable rather than mocked: the CTA goes to the real
+              /discover surface, which reads the same live station counts. */}
+          <Section maxWidth="full" border="bottom" tone="muted">
+            <div className="py-20">
+              <SectionHeading
+                eyebrow="Live availability"
+                title="Know what's available before you go."
+                description="Listed businesses show how many stations are free right now, straight from the floor — not a guess, and not a screenshot."
+                className="mb-8 max-w-prose"
+              />
+              <Row wrap gap={3}>
+                <Link
+                  href="/discover"
+                  className={cn(buttonVariants(), "rounded-full px-6")}
+                >
+                  Check availability now
+                </Link>
+              </Row>
             </div>
           </Section>
 
@@ -626,7 +869,13 @@ export default async function Home() {
             </div>
           </Section>
 
-          <Section maxWidth="full" border="bottom" tone="muted">
+          <Section
+            id="how-it-works"
+            maxWidth="full"
+            border="bottom"
+            tone="muted"
+            className="scroll-mt-16"
+          >
             <div className="py-20">
               <SectionHeading
                 eyebrow="How it works"
@@ -731,18 +980,29 @@ export default async function Home() {
           <Section maxWidth="full">
             <Stack gap={4} className="items-center py-24 text-center">
               <h2 className="text-heading-md font-semibold tracking-tight sm:text-heading-lg">
-                Ready to run your business on one dashboard?
+                Two ways in.
               </h2>
               <p className="max-w-prose text-balance text-muted-foreground">
-                Create your business in seconds — set up branches and stations, invite
-                your staff, and open the floor.
+                Players: find your café and connect to it. Businesses: set up branches
+                and stations, invite your staff, and get in front of Chrono players.
               </p>
-              <Link
-                href="/sign-up"
-                className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
-              >
-                Create a business
-              </Link>
+              <Row wrap gap={3} justify="center">
+                <Link
+                  href="/portal/sign-up"
+                  className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
+                >
+                  Join Chrono Free
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "rounded-full px-6",
+                  )}
+                >
+                  Become a Chrono Partner
+                </Link>
+              </Row>
             </Stack>
           </Section>
         </Main>
