@@ -19,6 +19,9 @@ import {
   Sparkles,
   BarChart3,
   Rocket,
+  Gamepad2,
+  Building2,
+  Coffee,
 } from "lucide-react";
 import {
   cn,
@@ -326,6 +329,20 @@ export default async function Home() {
       },
     ];
 
+    const trustCategories = [
+      { icon: Gamepad2, label: "Gaming Lounges" },
+      { icon: Building2, label: "Co-working Spaces" },
+      { icon: Coffee, label: "Study Cafés" },
+      { icon: Users, label: "Franchise Groups" },
+    ];
+
+    const trustStats = [
+      { label: "Branches per account", value: "Unlimited" },
+      { label: "Built-in modules", value: "20+" },
+      { label: "Realtime sync", value: "Built-in" },
+      { label: "Tenant data isolation", value: "Row-level" },
+    ];
+
     return (
       <PageShell data-density="comfortable">
         <MarketingHeader />
@@ -463,6 +480,34 @@ export default async function Home() {
                     </Grid>
                   </CardContent>
                 </Card>
+              </Grid>
+            </div>
+          </Section>
+
+          <Section maxWidth="full" border="bottom">
+            <div className="py-20">
+              <SectionHeading
+                eyebrow="By design"
+                title="Built for every kind of floor — and the scale to back it up."
+                align="center"
+                className="mx-auto mb-10 max-w-prose"
+              />
+              <Row wrap items="center" justify="center" gap={3}>
+                {trustCategories.map(({ icon: Icon, label }) => (
+                  <Badge
+                    key={label}
+                    variant="outline"
+                    className="gap-2 py-2 px-3 text-sm font-normal text-muted-foreground"
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                    {label}
+                  </Badge>
+                ))}
+              </Row>
+              <Grid cols={2} gap={4} className="mt-10 lg:grid-cols-4">
+                {trustStats.map(({ label, value }) => (
+                  <StatTile key={label} label={label} value={value} />
+                ))}
               </Grid>
             </div>
           </Section>
