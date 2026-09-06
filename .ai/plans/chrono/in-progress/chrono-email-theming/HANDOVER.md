@@ -13,8 +13,8 @@ total. One Jules session per phase.
 
 ## Phase 1 — Share `CHRONO_THEME_PRESETS` with `chrono-api`
 
-- Status: not yet fired.
-- Session id: (fill in once fired)
+- Status: fired 2026-09-06, awaiting completion.
+- Session id: `16758341622786987464` — https://jules.google.com/session/16758341622786987464
 
 ## Phase 2 — `resolveChronoEmailTheme` + boot-time registration
 
