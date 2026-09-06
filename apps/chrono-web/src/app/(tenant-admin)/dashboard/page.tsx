@@ -17,6 +17,7 @@ import {
   type OnboardingChecklistState,
 } from "@/components/dashboard/onboarding/onboarding-checklist-card";
 import { provisionDefaultsIfNeeded } from "@/lib/onboarding-defaults";
+import { DemandBanner } from "@/components/dashboard/growth/demand-banner";
 
 type Me = { tenantSlug: string; role: string };
 
@@ -89,6 +90,10 @@ export default function OverviewPage() {
       {onboarding && !onboarding.dismissed ? (
         <OnboardingChecklistCard state={onboarding} onDismiss={dismissOnboarding} />
       ) : null}
+
+      {/* Renders nothing unless this viewer holds growth:read AND players
+          actually asked for this business. */}
+      <DemandBanner />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
