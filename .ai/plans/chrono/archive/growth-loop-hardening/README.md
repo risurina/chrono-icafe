@@ -5,7 +5,8 @@
 - Audit: wallet-topup-presets-branding [6a865f] (coordinating a fresh, independently-invoked
   `plan-auditor` subagent, 2026-09-06 — not self-audited by the planning session's own
   context; verdict: needs revision, fixes applied below)
-- Implementation: email-theme-fixes-session (dispatched subagent, 2026-09-06)
+- Implementation: email-theme-fixes-session (dispatched subagent, 2026-09-06) — complete,
+  all 9 real phases landed (Phase 4 skipped, merged into tenant-experience-v2's Phase 1a).
 
 ## Source
 
