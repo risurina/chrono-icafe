@@ -3481,6 +3481,35 @@ async function main() {
       sentToOnRepublish.length === 0,
       JSON.stringify(sentToOnRepublish),
     );
+
+    // ── Phase 7 (growth-loop-hardening): the onboarding checklist response
+    //    itself must NEVER carry a demand-count-shaped field — the whole
+    //    point of fetching it via a SEPARATE `GET /rpc/growth/demand` call
+    //    instead of threading it through `resolveOnboardingState()`'s
+    //    non-strict Zod parse (which would otherwise silently strip an
+    //    unrecognized key, masking a regression). Proven for both roles: a
+    //    non-admin staff viewer must never see it, and neither should an
+    //    admin — this response shape carries no such field at all.
+    const checklistOwner = await req("GET", "/rpc/onboarding/checklist", {
+      slug: "acme",
+      cookie: ownerCk,
+    });
+    const checklistStaff = await req("GET", "/rpc/onboarding/checklist", {
+      slug: "acme",
+      cookie: staffCk,
+    });
+    check(
+      "onboarding: checklist response (owner) carries no demandCount-shaped field",
+      checklistOwner.status === 200 &&
+        !Object.keys(checklistOwner.body ?? {}).some((k) => /demand/i.test(k)),
+      JSON.stringify(Object.keys(checklistOwner.body ?? {})),
+    );
+    check(
+      "onboarding: checklist response (staff) carries no demandCount-shaped field",
+      checklistStaff.status === 200 &&
+        !Object.keys(checklistStaff.body ?? {}).some((k) => /demand/i.test(k)),
+      JSON.stringify(Object.keys(checklistStaff.body ?? {})),
+    );
   }
 
   // ── U. Tenant lifecycle: suspend blocks non-owner staff + customers; owner

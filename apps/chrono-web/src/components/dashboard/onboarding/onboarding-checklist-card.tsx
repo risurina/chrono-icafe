@@ -33,12 +33,35 @@ export type OnboardingChecklistState = {
   dismissed: boolean;
 };
 
+/**
+ * The growth-demand signal for the onboarding card (growth-loop-hardening
+ * Phase 7) — resolved separately from `state` (see the doc comment on the
+ * `demand` prop below). `null` = not yet resolved, so nothing renders until
+ * it settles one way or the other (no flash).
+ */
+export type OnboardingDemandSignal = { allowed: boolean; count: number };
+
 export function OnboardingChecklistCard({
   state,
   onDismiss,
+  demand,
 }: {
   state: OnboardingChecklistState;
   onDismiss: () => void;
+  /**
+   * `allowed: false` — this viewer lacks `growth:read` (a staff role) — shows
+   * generic encouragement copy with no number, never the count. `allowed:
+   * true, count: 0` also shows the generic copy (nothing notable to
+   * surface). Only `allowed: true, count > 0` shows the actual number.
+   *
+   * Deliberately NOT threaded through `resolveOnboardingState()`'s own
+   * response: that parse is a plain (non-strict) Zod schema, so an
+   * unrecognized field would be silently stripped. This is fetched
+   * separately, client-side, from the already-existing `GET
+   * /rpc/growth/demand` — see
+   * `apps/chrono-web/src/app/(tenant-admin)/dashboard/page.tsx`.
+   */
+  demand?: OnboardingDemandSignal | null;
 }) {
   const stages = Array.from(new Set(state.items.map((i) => i.stage)));
 
@@ -51,6 +74,15 @@ export function OnboardingChecklistCard({
             <CardDescription>
               {state.completedCount} of {state.total} steps complete
             </CardDescription>
+            {demand ? (
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                {demand.allowed && demand.count > 0
+                  ? demand.count === 1
+                    ? "1 player has already asked for your business — finish setup and publish your page so they can find you."
+                    : `${demand.count} players have already asked for your business — finish setup and publish your page so they can find you.`
+                  : "Finish setup and publish your page so players can find your business."}
+              </p>
+            ) : null}
           </div>
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             Dismiss

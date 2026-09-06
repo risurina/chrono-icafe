@@ -15,6 +15,7 @@ import { api } from "@/lib/rpc";
 import {
   OnboardingChecklistCard,
   type OnboardingChecklistState,
+  type OnboardingDemandSignal,
 } from "@/components/dashboard/onboarding/onboarding-checklist-card";
 import { provisionDefaultsIfNeeded } from "@/lib/onboarding-defaults";
 import { DemandBanner } from "@/components/dashboard/growth/demand-banner";
@@ -28,6 +29,7 @@ export default function OverviewPage() {
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingChecklistState | null>(null);
+  const [demand, setDemand] = useState<OnboardingDemandSignal | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -41,17 +43,23 @@ export default function OverviewPage() {
       if (meJson.role === "owner" || meJson.role === "admin") {
         void provisionDefaultsIfNeeded();
       }
-      const [p, m, b, o] = await Promise.all([
+      const [p, m, b, o, g] = await Promise.all([
         api.rpc.projects.$get({ query: { pageSize: "1" } }),
         api.rpc.members.$get({ query: { pageSize: "1" } }),
         api.rpc.billing.$get(),
         api.rpc.onboarding.checklist.$get(),
+        // Separate call, deliberately NOT folded into the checklist response
+        // (see OnboardingChecklistCard's demandCount doc comment) — a 403
+        // here just means this viewer lacks growth:read, same silent
+        // swallow DemandBanner already does.
+        api.rpc.growth.demand.$get(),
       ]);
       if (p.ok) setProjectCount((await p.json()).meta.totalItems);
       if (m.ok) setMemberCount((await m.json()).meta.totalItems);
       // Billing is admin-gated; a staff-role user simply sees no plan badge.
       if (b.ok) setPlan((await b.json()).subscription.plan);
       if (o.ok) setOnboarding(await o.json());
+      setDemand(g.ok ? { allowed: true, count: (await g.json()).count } : { allowed: false, count: 0 });
     })();
   }, []);
 
@@ -89,7 +97,11 @@ export default function OverviewPage() {
       </div>
 
       {onboarding && !onboarding.dismissed ? (
-        <OnboardingChecklistCard state={onboarding} onDismiss={dismissOnboarding} />
+        <OnboardingChecklistCard
+          state={onboarding}
+          onDismiss={dismissOnboarding}
+          demand={demand}
+        />
       ) : null}
 
       {/* Renders nothing unless this viewer holds growth:read AND players
