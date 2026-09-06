@@ -1735,6 +1735,38 @@ check(
   JSON.stringify(CHRONO_PERMISSION_STATEMENTS.appUsage),
 );
 
+console.log("\n── chrono growth permissions (two-sided-growth-loop Phase 2) ──");
+// Read-only like appUsage in SHAPE, but admin+ only in REACH. Aggregate
+// acquisition-demand data is commercial/marketing intelligence — the same
+// family as report:readFinancial / promo:manage / landingPage:manage, all
+// admin+ — not front-desk operational data.
+//
+// The staff denial below is the load-bearing assertion. If growth:read were
+// copied from appUsage's staff+admin grant there would be no boundary at all,
+// and the route-level gate test in run.ts would be asserting deny-by-default
+// plumbing rather than a real gate — which .ai/rules/rbac.md rejects outright.
+check(
+  "staff may NOT growth:read (the boundary this resource exists to draw)",
+  hasChronoPermission("staff", { growth: ["read"] }) === false,
+);
+check(
+  "admin may growth:read",
+  hasChronoPermission("admin", { growth: ["read"] }),
+);
+check(
+  "owner may growth:read",
+  hasChronoPermission("owner", { growth: ["read"] }),
+);
+check(
+  "member (unrecognized role) may NOT growth:read (deny-by-default)",
+  hasChronoPermission("member", { growth: ["read"] }) === false,
+);
+check(
+  "no write action exists for growth (read-only resource, resource-coverage drift guard)",
+  JSON.stringify(CHRONO_PERMISSION_STATEMENTS.growth) === JSON.stringify(["read"]),
+  JSON.stringify(CHRONO_PERMISSION_STATEMENTS.growth),
+);
+
 console.log("\n── platform system-health permissions (spec #17) ──");
 check(
   "every platform role holds systemHealth:read (observational, read-only)",

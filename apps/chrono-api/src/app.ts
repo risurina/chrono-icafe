@@ -66,6 +66,7 @@ import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
+import { businessLeadPublicRoutes } from "./modules/business-lead/routes";
 import { publicStationRoutes } from "./modules/station/routes";
 import { publicVenueInfoRoutes } from "./modules/branch/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
@@ -1173,6 +1174,11 @@ export const app = baseApp
   // Public venue info (business contact/social + published rates) for the
   // tenant's own public site — same /public/* convention as the mounts above.
   .route("/public/venue-info", publicVenueInfoRoutes())
+  // Cross-tenant business directory + cold-start lead capture. Mounted outside
+  // /rpc: this reads across every listed tenant at once, so there is no single
+  // tenant to resolve, and /rpc would 401 an anonymous caller. Both handlers
+  // rate-limit themselves; see modules/business-lead/routes.ts.
+  .route("/public/discover", businessLeadPublicRoutes())
   // Platform Maintenance / global read-only enforcement (System Settings, spec
   // #14) for TENANT traffic only. The `/rpc-admin/*` surface is a separate
   // mount and never passes through here, so an admin can always turn the flags

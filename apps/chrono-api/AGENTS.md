@@ -114,7 +114,10 @@ of the rest of this list — archived at `.ai/plans/chrono/archive/public-statio
 `.ai/plans/chrono/archive/tenant-landing/README.md`, and
 `.ai/plans/chrono/archive/app-usage/README.md`. `app-usage` (per-station app/game
 telemetry: device-ingest, staff read routes, retention/stale-run sweep, web UI) landed
-schema/routes/permissions/UI/e2e in full.
+schema/routes/permissions/UI/e2e in full. `business-lead` (the two-sided growth loop —
+public cross-tenant discovery, cold-start lead capture, and the tenant demand read)
+landed schema/routes/permissions/UI/e2e in full; see "The growth loop" below and
+`.ai/plans/chrono/archive/two-sided-growth-loop/README.md`.
 
 **Out of scope for this pass** — `apps/chrono-mobile`, `apps/chrono-pc-client` (+
 `-service`, `-tauri`), `apps/chrono-docs` from the source implementation. This pass is
@@ -157,9 +160,15 @@ form on a tenant host, the staff form on the apex — the same "renders everywhe
 branches internally" pattern the app uses everywhere instead of middleware. The two
 forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
 
-- **`APP_DOMAIN/customer/*`** — apex-level sign-up/sign-in for the foundation's
+- **`APP_DOMAIN/discover`** — public, unauthenticated cross-tenant business
+  directory plus the cold-start "invite a business" form (`business-lead`
+  module). Apex-only; see "The growth loop" below.
+- **`APP_DOMAIN/portal/{sign-up,login}`** — apex sign-up/sign-in for the
+  foundation's
   platform-wide global customer identity (`agora/customer-auth`, `customer` table,
-  cookie `agora_customer`). Distinct from `{tenantSlug}.APP_DOMAIN/portal/*`'s
+  cookie `agora_customer`). (An earlier revision of this file listed these as
+  `APP_DOMAIN/customer/*`; no `customer/` route group exists — the real paths are
+  under `(member-portal)/portal/`.) Distinct from `{tenantSlug}.APP_DOMAIN/portal/*`'s
   tenant-only customer signup (`agora/member-auth`, `tenantMember`) — a global customer
   signs up once here, then self-service "applies" from a given tenant's `/portal`
   (`POST /portal/customer/apply`) to become a customer of that tenant. See
@@ -316,6 +325,66 @@ MFA/step-up auth, broader member-portal session/lockout hardening, and a
 daily/rolling online-payment velocity ceiling — considered and declined by
 the developer; the per-transaction ₱20–₱10,000 bound and the 10/15min
 checkout throttle remain the only volume limits.
+
+## The growth loop (`business-lead` module)
+
+Chrono's two-sided acquisition mechanic: a player looks for their gaming café on
+the public apex directory, and when it isn't there, asks for it. If that business
+later joins, it sees how many players had already asked.
+
+**Do not confuse this module with the two other lookalikes.** All three capture
+"someone wants something", and they are otherwise unrelated:
+
+| Module | Who submits | Scope | Where it goes |
+|---|---|---|---|
+| `business-lead` | a signed-in GLOBAL customer (player) | platform-wide, pre-tenant | `ChronoBusinessLeads`, surfaced only as a per-tenant count |
+| `company-inquiry` | anyone, anonymously | platform-wide (IZUR itself) | emailed to `SUPPORT_INBOX_EMAIL`, no row |
+| `inquiry` | a tenant's own customer | one tenant | `ChronoInquiries`, a staff-facing queue |
+
+**`ChronoBusinessLeads` is platform-global and NOT RLS-scoped**, and must never
+enter `APP_TENANT_TABLES`: at capture time the business being asked for has no
+tenant, so there is no `tenantId` to carry. It follows `supportTicket`'s shape.
+
+- **Matching is lazy, at read time.** `GET /rpc/growth/demand` normalizes the
+  caller's own organization name and counts leads whose stored
+  `businessNameNormalized` equals it. There is deliberately no signup-time hook
+  and no `matchedTenantId` column — the only place such a hook could live is the
+  foundation's `organizationHooks.afterCreateOrganization`, which is out of
+  bounds for a business app (`.ai/rules/business-app.md`, "Extension seams";
+  there is no seam for org-creation callbacks). Read-time matching also
+  self-heals on rename. `normalizeBusinessName()` is exported once from the
+  module's contracts and shared by the insert and the read so the two cannot
+  drift.
+- **`growth: ["read"]` is admin+ only** — no `CHRONO_STAFF_GRANTS` entry. Demand
+  data is commercial/acquisition intelligence, the tier of
+  `report:readFinancial` / `landingPage:manage`, not front-desk work. Granting it
+  to staff would also collapse the role gate into deny-by-default plumbing.
+- **`rls:proof` does NOT cover this feature.** The table is outside RLS by
+  design, so the server-derived normalized-name predicate on
+  `GET /rpc/growth/demand` is its only isolation. The proof is the cross-tenant
+  case in `src/e2e/run.ts` plus
+  `apps/chrono-web/e2e/tests/growth/cross-tenant-isolation.spec.ts` — the same
+  stance the foundation takes for `readPublishedLandingPage`.
+- **Publishing a landing page IS consent to be listed** in the public directory.
+  `GET /public/discover/businesses` lists a tenant only when its foundation
+  `tenantLandingPage.published IS NOT NULL`; Chrono's legacy `ChronoLandingPages`
+  content columns deliberately do NOT qualify, since they predate this surface
+  and were never a decision to appear platform-wide. Unpublishing is an
+  immediate, complete opt-out.
+- The directory read runs in ONE `withAdmin` transaction covering all five
+  RLS-forced tables it touches (`Organizations`, `TenantLandingPages`,
+  `TenantBrandings`, `ChronoBranches`, `ChronoStations`) — a bare `adminDb` read
+  of any of them returns zero rows silently. It is bounded (`LIMIT 20`, one
+  grouped aggregate, ~15s cache) and excludes only TERMINAL tenant statuses, so
+  `trial`/`pending` businesses stay visible.
+- **No lead field is ever returned or logged.** The demand read is a bare
+  `{ count }`; there is no lead-read surface, no admin triage console, and no
+  notification in this version — so the submit toast says the request was
+  recorded, never that anyone will be contacted. Erasure rides the
+  `requesterCustomerId` cascade.
+- **Foundation-promotion candidate**: if a second business app ever needs the
+  same mechanic, this table and its routes belong in `packages/agora` per
+  `.ai/rules/architecture.md`'s "if a second business app would need it too" rule.
 
 ## Landing pages
 

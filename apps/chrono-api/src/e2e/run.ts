@@ -260,6 +260,7 @@ async function main() {
     billingEvent,
     paymentTransaction,
     storedFile,
+    chronoBusinessLead,
   } = await import("../db/schema");
   const { createId, WORKSPACE_SUSPENDED } = await import("agora");
   const { verifyWebhookSignature, registerEmailQueueJob } = await import("agora/server");
@@ -3275,6 +3276,95 @@ async function main() {
     !(contosoCustList.body?.items ?? []).some((m: any) => m.email === "managed@acme.test"),
     JSON.stringify(contosoCustList.body?.items),
   );
+
+  // ── Chrono growth loop: demand read gate + cross-tenant isolation ──
+  //
+  // Placed BEFORE section U on purpose: U suspends acme, and a suspended
+  // tenant stops resolving at all (resolveOrgFromRequest returns null for a
+  // terminal status), so anything sited after it cannot read acme.
+  //
+  // ChronoBusinessLeads is deliberately NOT under RLS (a lead is captured
+  // before the business it names has any tenant), so `rls:proof` cannot and
+  // does not cover GET /rpc/growth/demand. The ONLY isolation on that route is
+  // the server-derived normalized-name predicate — which makes the
+  // cross-tenant case below this feature's real isolation proof, exactly as
+  // the foundation documents for readPublishedLandingPage.
+  {
+    // A lead's requesterCustomerId is a real FK into the global customer pool,
+    // so the requester has to exist before the leads do.
+    const [growthCustomer] = await adminDb
+      .insert(schema.customer)
+      .values({
+        name: "Growth Lead Requester",
+        email: `growth-${createId()}@example.com`,
+        // Never signs in — the row only has to exist to satisfy the lead's FK.
+        passwordHash: "e2e-not-a-real-hash",
+      })
+      .returning({ id: schema.customer.id });
+
+    // One lead naming acme ("Acme Corp" → "acme corp"), one naming a business
+    // neither tenant owns.
+    await adminDb.insert(chronoBusinessLead).values([
+      // Deliberately messy casing/whitespace: the normalizer is what makes
+      // this match, and a regression there is exactly what this catches.
+      {
+        businessName: "  Acme   CORP  ",
+        businessNameNormalized: "acme corp",
+        requesterCustomerId: growthCustomer!.id,
+      },
+      // A lead for a business nobody in this harness owns — it must never be
+      // counted by either tenant.
+      {
+        businessName: "Some Other Cafe",
+        businessNameNormalized: "some other cafe",
+        requesterCustomerId: growthCustomer!.id,
+      },
+    ]);
+
+    // Role gate. growth:read is admin+ ONLY, so acme's staff member — who
+    // holds a real staff role, not a stripped custom one — must be refused.
+    // This assertion FAILS if growth:read is ever added to CHRONO_STAFF_GRANTS,
+    // which is the whole point: it tests the boundary, not deny-by-default.
+    const demandStaff = await req("GET", "/rpc/growth/demand", {
+      slug: "acme",
+      cookie: staffCk,
+    });
+    check(
+      "growth: staff denied GET /rpc/growth/demand (403) — admin+ only",
+      demandStaff.status === 403,
+      `status ${demandStaff.status}`,
+    );
+
+    const demandOwner = await req("GET", "/rpc/growth/demand", {
+      slug: "acme",
+      cookie: ownerCk,
+    });
+    check(
+      "growth: acme owner sees its own demand count (200, exactly 1)",
+      demandOwner.status === 200 && demandOwner.body?.count === 1,
+      JSON.stringify(demandOwner.body),
+    );
+
+    // Cross-tenant isolation — the real proof for this feature.
+    const demandContoso = await req("GET", "/rpc/growth/demand", {
+      slug: "contoso",
+      cookie: contosoOwnerCk,
+    });
+    check(
+      "growth: contoso NEVER sees acme's lead (200, count 0)",
+      demandContoso.status === 200 && demandContoso.body?.count === 0,
+      JSON.stringify(demandContoso.body),
+    );
+
+    // The response is a bare count — it must never carry a lead field or the
+    // requester's identity, or this route becomes a back-door lead read.
+    check(
+      "growth: demand response exposes ONLY a count (no lead fields, no requester)",
+      demandOwner.status === 200 &&
+        JSON.stringify(Object.keys(demandOwner.body ?? {}).sort()) === JSON.stringify(["count"]),
+      JSON.stringify(Object.keys(demandOwner.body ?? {})),
+    );
+  }
 
   // ── U. Tenant lifecycle: suspend blocks non-owner staff + customers; owner
   //     retains access; resume restores everyone. ──

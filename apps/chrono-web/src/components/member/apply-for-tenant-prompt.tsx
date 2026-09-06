@@ -23,6 +23,10 @@ export function ApplyForTenantPrompt() {
       return;
     }
     track("PLAYER_SIGNUP_FROM_TENANT", { method: "customer_apply" });
+    // The literal "player connects to business" moment of the loop.
+    track("PLAYER_CONNECTS_TO_BUSINESS", {
+      tenantSlug: location.host.split(".")[0] ?? "",
+    });
     location.reload();
   }
 

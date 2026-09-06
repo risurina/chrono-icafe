@@ -1,0 +1,1 @@
+ALTER TABLE "ChronoBusinessLeads" ALTER COLUMN "requesterCustomerId" DROP NOT NULL;

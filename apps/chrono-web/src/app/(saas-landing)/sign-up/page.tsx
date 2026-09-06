@@ -18,6 +18,7 @@ import {
 } from "agora/ui";
 import { slugSchema } from "agora";
 import { authClient } from "@/lib/auth-client";
+import { track } from "@/lib/analytics";
 import { SocialSignIn, useAuthProviders } from "@/components/social-sign-in";
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
@@ -75,6 +76,7 @@ export default function SignUpPage() {
       return;
     }
 
+    track("PARTNER_SIGNUP");
     const proto = location.protocol;
     location.href = `${proto}//${parsed.data}.${APP_DOMAIN}/admin`;
   }

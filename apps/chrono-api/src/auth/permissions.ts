@@ -142,6 +142,21 @@ export const CHRONO_PERMISSION_STATEMENTS = {
   // outlier: a hardware-trust list with no read action defined at all). See
   // .ai/plans/chrono/in-progress/app-usage/README.md, "Permissions".
   appUsage: ["read"],
+  // How many players asked for this business on the public /discover page
+  // before it joined — aggregate acquisition-demand data, and the reason the
+  // grant is admin+ ONLY (no staff entry below).
+  //
+  // The shape precedent is appUsage:read (a read-only Chrono resource), but
+  // copying its staff+admin grant would leave no boundary at all, and the role
+  // gate would then be asserting deny-by-default plumbing rather than a real
+  // gate — which .ai/rules/rbac.md explicitly rejects. The SENSITIVITY
+  // precedents are report:readFinancial / promo:manage / landingPage:manage,
+  // all admin+: this is commercial/marketing intelligence in the same family as
+  // landingPage (whose publish action is literally what lists the business in
+  // the directory these leads come from), not front-desk operational data.
+  // See .ai/plans/chrono/in-progress/two-sided-growth-loop/README.md,
+  // assumption 9.
+  growth: ["read"],
 } satisfies Record<string, string[]>;
 
 export const CHRONO_STAFF_GRANTS = {
@@ -185,6 +200,7 @@ export const CHRONO_ADMIN_GRANTS = {
   payment: ["read", "create", "pay", "void", "refund"],
   reconciliation: ["read"],
   appUsage: ["read"],
+  growth: ["read"],
 } satisfies Record<string, string[]>;
 
 /** Called once, from `../auth-bootstrap.ts`, before anything imports `agora/auth`. */
