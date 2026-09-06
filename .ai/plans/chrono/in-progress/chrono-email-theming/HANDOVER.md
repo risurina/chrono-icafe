@@ -13,8 +13,13 @@ total. One Jules session per phase.
 
 ## Phase 1 — Share `CHRONO_THEME_PRESETS` with `chrono-api`
 
-- Status: fired 2026-09-06, awaiting completion.
-- Session id: `16758341622786987464` — https://jules.google.com/session/16758341622786987464
+- Status: **done**. Session `16758341622786987464` completed, pulled and
+  applied. Content moved byte-identical (diffed against the original), both
+  real importers (`layout.tsx`, `theme-picker.tsx`) confirmed named-export
+  only. `pnpm --filter @agora/chrono-api typecheck`, `pnpm --filter
+  @agora/chrono-web typecheck`, and `pnpm --filter @agora/chrono-web build`
+  (the real bundler-resolution check for the new client-bundle value import)
+  all pass. Committed `adffa133`.
 
 ## Phase 2 — `resolveChronoEmailTheme` + boot-time registration
 
