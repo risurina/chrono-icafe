@@ -1277,3 +1277,63 @@ been run green on a machine with `.env` present.
       unchanged after. Those 73 are pre-existing on the branch base
       (wallet/credits, files/storage, org read/rename/export, suspend/resume,
       feature-flags, api-keys/webhooks, app-usage) and are not this plan's.
+
+---
+
+## Follow-ups from branch review
+
+A `branch-reviewer` pass over the finished branch returned **REQUEST CHANGES**
+with no Critical findings — tenant isolation, the fabricated-content removal,
+and the audit resolutions all verified correct. Its Warnings were fixed in a
+follow-up session (summary-card locators, an apex strict-mode violation, the
+`/public/venue-info` rate-limit bucket + cache, two registry correctness nits,
+and a terminal-status e2e case).
+
+The items below were raised in that same review and **deliberately not fixed**
+here — each is either pre-existing, out of this plan's scope, or needs its own
+scoped change. Recorded so they are not lost.
+
+### 1. `getTenantLanding()` still conflates two null causes
+
+`apps/chrono-web/src/lib/landing.ts:135-140` — `readJson()` collapses a
+rejected fetch and a non-ok response into the same `null` this code also uses
+for "no such tenant", so a `/public/tenant` outage 404s a live tenant at `/`.
+
+This plan's literal acceptance criterion IS met, and the behaviour matches
+`/about`'s long-standing one, so it is **not a regression from this branch** —
+but it is the audit's named failure mode still reachable through the other
+fetch. Fixing it changes shared behaviour for `/about` too, so it belongs in
+its own scoped change rather than a review fix-up.
+
+### 2. Two session round trips per anonymous landing view
+
+`apps/chrono-web/src/components/landing/player-cta-actions.tsx:29-30` fires
+both `/auth/member/me` and `/auth/customer/me` on **every** public view of a
+cold-traffic conversion page — two authenticated round trips for a visitor who
+almost never has a session. Consider gating them behind a user interaction or a
+cookie-presence check.
+
+### 3. Unvalidated `any` payload on `/stations`
+
+`apps/chrono-web/src/app/(tenant-landing)/stations/page.tsx:44` — `await
+res.json()` is typed `any` and flows straight into typed props with no Zod
+re-validation, unlike `getTenantStations()` / `getTenantVenueInfo()`, which both
+re-parse against the API's own contract. Pre-existing, but Phase 1A widened this
+exact payload's shape, so the gap now matters more than it did.
+
+### 4. Station-type vocabulary drift
+
+`/stations` prints the raw `stationType` value (`"pc"`, `"vip"`) at
+`apps/chrono-web/src/app/(tenant-landing)/stations/client.tsx:198-202`, while
+the landing page maps the same values through `STATION_TYPE_LABELS`
+(`apps/chrono-web/src/components/landing/tenant-sections.tsx:1245-1251`). Two
+public surfaces of the same tenant therefore name the same hardware differently.
+
+### 5. Process note — a Phase 9 confirmation step was skipped
+
+Phase 9 step 3 asked to **confirm with the developer** before editing the
+unrelated `promo`/`voucher`/`loyalty` "Deferred" line in
+`apps/chrono-api/AGENTS.md`. Commit `9acdc8be` made that edit with no recorded
+confirmation. The correction itself is accurate and is being kept — it is the
+confirmation that was skipped, noted so the step is not silently normalised
+away next time.
