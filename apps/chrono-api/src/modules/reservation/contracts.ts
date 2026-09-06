@@ -132,6 +132,38 @@ export const memberRestrictionDtoSchema = z.object({
   expiresAt: z.string().datetime().nullable(),
 });
 
+/**
+ * Phase 4 (member-portal-v2) — discrete start-time slot picker. `date` is the
+ * member's own local calendar date (YYYY-MM-DD, no timezone) for the
+ * requested station's branch; `durationMinutes` defaults to 60 and must match
+ * `createDirectReservationSchema`'s own bounds so a slot the picker marks
+ * `available` is guaranteed bookable at that exact duration (mirrored, not
+ * imported, from `service.ts`'s own advance-window/overlap checks — see
+ * `service.ts`'s `createDirectReservation`).
+ */
+export const reservationAvailabilityQuerySchema = z.object({
+  stationId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  durationMinutes: z.coerce.number().int().min(15).max(MAX_WINDOW_HOURS * 60).default(60),
+});
+
+export const reservationAvailabilitySlotSchema = z.object({
+  startAt: z.string().datetime(),
+  available: z.boolean(),
+});
+
+export const reservationAvailabilityResponseSchema = z.object({
+  date: z.string(),
+  stationId: z.string(),
+  durationMinutes: z.number().int(),
+  granularityMinutes: z.number().int(),
+  slots: z.array(reservationAvailabilitySlotSchema),
+});
+
+export type ReservationAvailabilityQuery = z.infer<typeof reservationAvailabilityQuerySchema>;
+export type ReservationAvailabilitySlot = z.infer<typeof reservationAvailabilitySlotSchema>;
+export type ReservationAvailabilityResponse = z.infer<typeof reservationAvailabilityResponseSchema>;
+
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type UpdateReservationInput = z.infer<typeof updateReservationSchema>;
 export type CancelReservationInput = z.infer<typeof cancelReservationSchema>;

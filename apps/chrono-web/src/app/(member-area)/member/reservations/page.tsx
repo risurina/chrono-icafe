@@ -33,15 +33,31 @@ import {
   confirmHold,
   cancelReservation,
   getPublicStations,
+  getReservationAvailability,
   type PortalReservation,
   type ReservationPolicy,
   type MemberRestriction,
   type PublicBranch,
+  type ReservationAvailabilitySlot,
 } from "@/lib/member/reservations";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
 
 const DURATION_OPTIONS = [60, 120, 180, 240, 300, 360];
+
+/** The member's own local calendar date as `YYYY-MM-DD` — matches what the
+ * `/portal/reservations/availability` endpoint expects. */
+function todayLocalDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatSlotTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
 function formatUnbanDate(iso: string | null): string {
   if (!iso) return "soon";
@@ -86,7 +102,10 @@ export default function PortalReservationsPage() {
   );
   const [policy, setPolicy] = useState<ReservationPolicy | null>(null);
   const [duration, setDuration] = useState(60);
-  const [startAt, setStartAt] = useState("");
+  const [slotDate, setSlotDate] = useState(todayLocalDate());
+  const [slots, setSlots] = useState<ReservationAvailabilitySlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [cancelTarget, setCancelTarget] = useState<PortalReservation | null>(null);
@@ -131,23 +150,47 @@ export default function PortalReservationsPage() {
 
   async function openReserveDialog(station: { id: string; name: string; status: string }) {
     setPickedStation(station);
+    setSlotDate(todayLocalDate());
+    setSelectedSlot(null);
     const res = await getReservationPolicy(station.id);
     if (res.data) setPolicy(res.data.policy);
-    const now = new Date(Date.now() + 5 * 60_000);
-    setStartAt(now.toISOString().slice(0, 16));
   }
 
-  async function submitReserve() {
+  const loadSlots = useCallback(async () => {
     if (!pickedStation) return;
+    setLoadingSlots(true);
+    setSelectedSlot(null);
+    const res = await getReservationAvailability({
+      stationId: pickedStation.id,
+      date: slotDate,
+      durationMinutes: duration,
+    });
+    setLoadingSlots(false);
+    if (res.data) setSlots(res.data.slots);
+    else setSlots([]);
+  }, [pickedStation, slotDate, duration]);
+
+  useEffect(() => {
+    if (pickedStation) loadSlots();
+  }, [pickedStation, loadSlots]);
+
+  async function submitReserve() {
+    if (!pickedStation || !selectedSlot) return;
     setSubmitting(true);
     const res = await reserveStation({
       stationId: pickedStation.id,
-      startAt: new Date(startAt).toISOString(),
+      startAt: selectedSlot,
       durationMinutes: duration,
     });
     setSubmitting(false);
     if (res.error) {
       toast.error(res.error);
+      // The slot may have just been taken by someone else (race) — the
+      // existing 409 RESERVATION_ALREADY_ACTIVE / overlap handling from
+      // `reserveStation` still applies unchanged; refresh the picker so the
+      // member sees an up-to-date slot list instead of a stale "available"
+      // button.
+      loadSlots();
       return;
     }
     toast.success("Reservation confirmed.");
@@ -333,7 +376,7 @@ export default function PortalReservationsPage() {
           <DialogHeader>
             <DialogTitle>Reserve {pickedStation?.name}</DialogTitle>
             <DialogDescription>
-              Holding the PC is FREE. Pick a start time and duration.
+              Holding the PC is FREE. Pick a date, duration, and an available start time.
               {policy && (
                 <>
                   {" "}You can schedule up to {policy.reservationAdvanceWindowMinutes} minutes from now.
@@ -342,16 +385,17 @@ export default function PortalReservationsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="startAt">Start time</Label>
+            <div className="space-y-2">
+              <Label htmlFor="slotDate">Date</Label>
               <Input
-                id="startAt"
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
+                id="slotDate"
+                type="date"
+                value={slotDate}
+                min={todayLocalDate()}
+                onChange={(e) => setSlotDate(e.target.value)}
               />
             </div>
-            <div className="col-span-2 space-y-2">
+            <div className="space-y-2">
               <Label>Duration</Label>
               <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
                 <SelectTrigger>
@@ -366,12 +410,37 @@ export default function PortalReservationsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Start time</Label>
+              {loadingSlots ? (
+                <p className="text-sm text-muted-foreground">Loading available times…</p>
+              ) : slots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No available start times for this date. Try another date.
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {slots.map((slot) => (
+                    <Button
+                      key={slot.startAt}
+                      type="button"
+                      size="sm"
+                      variant={selectedSlot === slot.startAt ? "default" : "outline"}
+                      disabled={!slot.available}
+                      onClick={() => setSelectedSlot(slot.startAt)}
+                    >
+                      {formatSlotTime(slot.startAt)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPickedStation(null)}>
               Cancel
             </Button>
-            <Button onClick={submitReserve} disabled={submitting}>
+            <Button onClick={submitReserve} disabled={submitting || !selectedSlot}>
               Reserve
             </Button>
           </DialogFooter>

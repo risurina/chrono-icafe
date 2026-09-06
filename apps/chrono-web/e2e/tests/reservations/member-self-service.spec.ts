@@ -211,3 +211,125 @@ test.describe("Member reservations", () => {
     await ctxMemberB.close();
   });
 });
+
+/**
+ * Coverage for `GET /portal/reservations/availability` — the discrete
+ * start-time slot picker (member-portal-v2 Phase 4). Uses the station's own
+ * default timezone ("Asia/Manila", `chronoBranch.timezone`'s default — no
+ * `hoursConfig` is set by `seedStation`, so slots are bounded only by the
+ * reservation policy's advance window + existing reservations, matching the
+ * "never fabricate a closed venue" fallback in `service.ts`'s
+ * `computeAvailabilitySlots`).
+ */
+function manilaDateToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+}
+
+test.describe("Reservation availability (slot picker)", () => {
+  test("happy path: a member books a slot returned by the availability endpoint, and it becomes unavailable afterward", async ({
+    page,
+    browser,
+  }) => {
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const slug = `e2eavail${uniq}`;
+    const base = `http://${slug}.localtest.me:3000`;
+
+    await signUp(page, {
+      name: "Owner",
+      email: faker.internet.email({ provider: "example.com" }),
+      slug,
+    });
+    const { stationId } = await seedStation(page, `Station-${uniq}`);
+
+    const ctxMember = await browser.newContext();
+    const pageMember = await ctxMember.newPage();
+    await portalSignUp(pageMember, base, {
+      name: faker.person.fullName(),
+      email: faker.internet.email({ provider: "example.com" }),
+    });
+
+    const date = manilaDateToday();
+    const availRes = await pageMember.request.get(
+      `${apiUrl}/portal/reservations/availability`,
+      {
+        headers: { "x-tenant-slug": slug },
+        params: { stationId, date, durationMinutes: "60" },
+      },
+    );
+    expect(availRes.ok(), await availRes.text()).toBeTruthy();
+    const availability = (await availRes.json()) as {
+      slots: { startAt: string; available: boolean }[];
+    };
+    const openSlot = availability.slots.find((s) => s.available);
+    expect(openSlot, JSON.stringify(availability.slots)).toBeTruthy();
+
+    const reserveRes = await pageMember.request.post(`${apiUrl}/portal/reservations`, {
+      headers: { "x-tenant-slug": slug, "Content-Type": "application/json" },
+      data: { stationId, startAt: openSlot!.startAt, durationMinutes: 60 },
+    });
+    expect(reserveRes.ok(), await reserveRes.text()).toBeTruthy();
+    const created = (await reserveRes.json()) as { reservation: { status: string } };
+    expect(created.reservation.status).toBe("confirmed");
+
+    // The same slot must no longer be offered as available — it now overlaps
+    // the reservation just created (the existing 409
+    // RESERVATION_ALREADY_ACTIVE / overlap guard in `service.ts` is untouched
+    // by this endpoint; this proves the READ side reflects it too).
+    const availAfterRes = await pageMember.request.get(
+      `${apiUrl}/portal/reservations/availability`,
+      {
+        headers: { "x-tenant-slug": slug },
+        params: { stationId, date, durationMinutes: "60" },
+      },
+    );
+    expect(availAfterRes.ok()).toBeTruthy();
+    const availabilityAfter = (await availAfterRes.json()) as {
+      slots: { startAt: string; available: boolean }[];
+    };
+    const sameSlot = availabilityAfter.slots.find((s) => s.startAt === openSlot!.startAt);
+    expect(sameSlot?.available).toBe(false);
+
+    await ctxMember.close();
+  });
+
+  test("tenant isolation: a member cannot read availability for another tenant's station", async ({
+    page,
+    browser,
+  }) => {
+    const uniqA = faker.string.alphanumeric(8).toLowerCase();
+    const uniqB = faker.string.alphanumeric(8).toLowerCase();
+    const slugA = `e2eavaila${uniqA}`;
+    const slugB = `e2eavailb${uniqB}`;
+    const baseB = `http://${slugB}.localtest.me:3000`;
+
+    await signUp(page, {
+      name: "Owner A",
+      email: faker.internet.email({ provider: "example.com" }),
+      slug: slugA,
+    });
+    const { stationId: stationIdA } = await seedStation(page, `Station-${uniqA}`);
+
+    const ctxB = await browser.newContext();
+    const pageB = await ctxB.newPage();
+    await signUp(pageB, {
+      name: "Owner B",
+      email: faker.internet.email({ provider: "example.com" }),
+      slug: slugB,
+    });
+    const ctxMemberB = await browser.newContext();
+    const pageMemberB = await ctxMemberB.newPage();
+    await portalSignUp(pageMemberB, baseB, {
+      name: faker.person.fullName(),
+      email: faker.internet.email({ provider: "example.com" }),
+    });
+
+    const res = await pageMemberB.request.get(`${apiUrl}/portal/reservations/availability`, {
+      headers: { "x-tenant-slug": slugB },
+      params: { stationId: stationIdA, date: manilaDateToday(), durationMinutes: "60" },
+    });
+    expect(res.status()).toBe(404);
+
+    await ctxB.close();
+    await ctxMemberB.close();
+  });
+});
