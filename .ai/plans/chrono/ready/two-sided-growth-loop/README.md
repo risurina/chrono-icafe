@@ -80,9 +80,16 @@ Pass 2 and each phase below.
   - A player submitting an "invite this business" lead — must be a signed-in
     global customer (see Pass 2 assumption 1), landing back on `/discover`
     with a success toast.
-  - A prospective partner signing up at `/sign-up` — unchanged flow, but now
-    additionally sees (if any prior leads match their business name) a
-    dismissible "players have been asking for you" acknowledgment.
+  - A prospective partner signing up at `/sign-up` — unchanged flow. After the
+    existing post-signup redirect lands them on their **tenant dashboard**,
+    they see (if any prior leads match their business name) a dismissible
+    "players have been asking for you" acknowledgment.
+    **[audit-fix round 2 — CONDITION 1: this was previously described as living
+    on the apex `/sign-up` page. It cannot. `GET /rpc/growth/demand` sits under
+    `tenantMiddleware()`, and the apex host has no tenant, so an apex caller
+    401s before the handler runs (`apps/chrono-api/AGENTS.md`, "Unauthenticated
+    routes"). The banner's only possible surface is the tenant dashboard, and
+    it is built in Phase 3b.]**
   - A tenant admin/owner checking "how much demand exists for us" via a new
     small dashboard read (`GET /rpc/growth/demand`).
 - **Workflow enabled:** the growth loop itself — player discovers →
@@ -329,10 +336,25 @@ own section 17. Items 10–13 were **added or rewritten by the plan audit**.
 let them know you're waiting")` on success, `toast.error(...)` on validation/
 auth/rate-limit failure (via `agora/ui`'s `sonner` re-export, per
 `.ai/rules/ui.md`). The "players have been asking for you" acknowledgment is a
-dismissible inline banner, not a toast (it must persist until acknowledged);
-its dismissal is stored in `localStorage`, per-browser — deliberately not a new
-table or a foundation `tenantOnboardingDismissal` key, both of which would be
-schema/registry scope this plan doesn't justify for a marketing banner.
+dismissible inline banner on the **tenant dashboard** (Phase 3b), not a toast
+(it must persist until acknowledged); its dismissal is stored in
+`localStorage`, per-browser — deliberately not a new table and not a foundation
+`tenantOnboardingDismissal` key. **[audit-fix round 2: the audit verified this
+reasoning rather than taking it on trust — `tenantOnboardingDismissal`
+(`packages/agora/src/core/db/schema/tenant.ts:111-127`) has **no `key`
+column**; it is single-purpose, keyed `(tenantId, userId)`, its row's mere
+presence being the entire state. A second dismissal type would genuinely
+require a foundation schema change, a migration, and a change to
+`apps/chrono-api/src/modules/onboarding/service.ts`.]** Two consequences,
+recorded here so neither is later filed as a bug:
+- The banner **reappears in every new browser, device and incognito window,
+  indefinitely** — the demand count never decreases, so nothing else retires
+  it. Tolerable for a marketing acknowledgment; not tolerable if this ever
+  becomes an actionable task, at which point it needs real persistence.
+- `PARTNER_CLAIM` therefore fires per browser. It is wired to the banner's
+  explicit **dismiss/CTA action**, not to its impression, so the event means
+  "a partner acknowledged the demand" as its name implies — not "a banner was
+  rendered".
 **Audit linkage:** none, and this is now correct by construction rather than by
 exception — see Pass 1.
 
@@ -416,9 +438,9 @@ exception — see Pass 1.
 - `pnpm --filter @agora/chrono-api typecheck` passes.
 - `pnpm --filter @agora/chrono-api rls:proof` still prints `RLS PROOF: PASS ✅`.
   **[audit-fix — BLOCKER 2, claim corrected:]** note precisely what this does
-  and does not prove. `apps/chrono-api/src/rls-proof.ts:15-20` probes only
-  `project`, `tenantSubscriptionEvent`, `paymentTransaction` and
-  `tenantMemberOAuthAccount` — **zero Chrono tables**. A green run proves the
+  and does not prove. `apps/chrono-api/src/rls-proof.ts:15-20` probes only foundation tables
+  (`project`, `tenantSubscriptionEvent`, `paymentTransaction`,
+  `tenantMemberOAuthAccount`, `tenantMember`) — **zero Chrono tables**. A green run proves the
   app role still cannot bypass RLS and that this migration did not break the
   forced-RLS setup; it proves **nothing** about this feature's own isolation.
   That proof is Phase 7's cross-tenant e2e case. See "Verification" below.
@@ -478,15 +500,32 @@ read it fully, then create the new module folder mirroring its shape.
      rate-limit helper" — the exact phrasing `apps/chrono-api/AGENTS.md`
      forbids. It does exist and is used ~8 times in this file.]**
    - Validate the query with `discoverBusinessesQuerySchema` via `zValidator`.
-   - **One `withAdmin` transaction covers the entire query** — org select,
-     branch join and station aggregate alike (assumption 13). `adminDb` is
-     never used here.
+   - **One `withAdmin` transaction covers the entire query.** Five tables are
+     read inside it: `Organizations`, `TenantLandingPages` (the `published`
+     eligibility predicate), `TenantBrandings` (`logoUrl`), `ChronoBranches`
+     (`locationText`) and `ChronoStations` (`liveAvailability`).
+     **[audit-fix round 2 — CONDITION 4: the previous enumeration named only
+     three and omitted `TenantLandingPages` and `TenantBrandings`. Both are in
+     `BASE_TENANT_TABLES` (`packages/agora/src/core/db/rls.ts:26-27`) and so are
+     RLS-forced; a bare `adminDb` read of either returns zero rows *silently* —
+     in practice a null `logoUrl` on every card, or a silently empty
+     directory.]** `adminDb` is never used in this route.
    - Tenant eligibility predicate, all three conditions:
-     a. **Not** in a terminal lifecycle status. Exclude
-        `suspended`/`cancelled`/`archived`/`deleting` — reuse the existing
-        helper rather than re-listing them (`isTerminalStatus`,
-        `packages/agora/src/core/server/host.ts:80`; the same stance as
-        `apps/chrono-api/src/modules/station/routes.ts:297-304`).
+     a. **Not** in a terminal lifecycle status — expressed **in SQL**, as
+        `notInArray(organization.status, TERMINAL_TENANT_STATUSES)` inside the
+        `where`, **before** the `LIMIT`.
+        **[audit-fix round 2 — CONDITION 2: the previous wording said to reuse
+        `isTerminalStatus`. That helper is module-private
+        (`packages/agora/src/core/server/host.ts:37`, no `export`, not in the
+        `agora/server` barrel — `:80` is a call site, not the definition), and
+        it is a TS predicate over a status string, so it could only be applied
+        in JS *after* the `LIMIT 20`. That would silently under-return, and
+        could return zero matches while eligible tenants sat past the limit —
+        exactly the silent-wrong-result this phase's bounding exists to
+        prevent. `TERMINAL_TENANT_STATUSES` **is** exported (`host.ts:30`,
+        barrel `packages/agora/src/core/server/index.ts:11`) and is already
+        consumed this way by
+        `apps/chrono-api/src/modules/landing-page/host-status-filter.test.ts:133`.]**
         **[audit-fix — BLOCKER 5: the pre-audit plan matched
         `status = 'active'`, which would have hidden every `trial` and
         `pending` tenant — including a business that just signed up *because a
@@ -517,7 +556,7 @@ read it fully, then create the new module folder mirroring its shape.
 4. Implement `POST /public/discover/business-leads` (same standalone router):
    - Rate limit **10/hour per IP** *and* **10/hour per authenticated
      `customerId`**, both via `createRateLimiter` (arbitrary keys are supported
-     — `packages/agora/src/identity/customer-auth/index.ts:203` uses
+     — `packages/agora/src/identity/customer-auth/index.ts:204` uses
      `signup:ip:${clientIp(c)}`). The per-IP number matches the already-shipped
      anonymous sibling, `modules/company-inquiry/public-routes.ts:14`.
      **[audit-fix — BLOCKER 6.]**
@@ -533,6 +572,11 @@ read it fully, then create the new module folder mirroring its shape.
      the resolved session, never the body.
    - Respond `201` with `{ id }` **only** — no echo of the submitted fields
      (assumption 12). Log nothing but the row id on success or failure.
+   - **The 401's stable signal is the HTTP status, not a code string.**
+     **[audit-fix round 2 — SUGGESTION:]** `getCustomerContext` throws
+     `HttpError(401, "Not authenticated")` / `"Session expired"` — human
+     messages, not machine codes. The web layer branches on `res.status === 401`
+     and must never string-match the message.
 5. Implement `GET /rpc/growth/demand` inside a normal tenant-scoped Hono chain
    (typed on `TenantVars`, composed into `routes/rpc.ts` per the `project`
    pattern):
@@ -619,11 +663,42 @@ read it fully, then create the new module folder mirroring its shape.
    Phase 4's hero text link uses).
 5. Invite form: `businessName` (pre-filled, editable), `city` (optional),
    `message` (optional). On submit:
-   - If not signed in as a global customer, show an inline prompt "Sign in to
-     invite a business" linking to `/portal/sign-in?next=/discover` — never a
+   - If not signed in as a global customer: **keep the invite form mounted and
+     show the prompt inline**, preserving everything already typed. Link to
+     `/portal/login` (open in a new tab) rather than navigating away. Never a
      silent failure and never a fabricated success toast.
-   - On success: `toast.success(...)` and reset the form. On `429`: a distinct
-     `toast.error` explaining the throttle, not a generic failure.
+     **[audit-fix round 2 — CONDITION 3: the previous wording pinned
+     `/portal/sign-in?next=/discover`, and both halves were wrong. There is no
+     `/portal/sign-in` — the global-customer sign-in is `/portal/login`
+     (`apps/chrono-web/src/app/(member-portal)/portal/login/page.tsx`). And that
+     form ignores `next` entirely: `global-login-form.tsx:35` hardcodes
+     `location.href = "/portal"`. So a player who typed a café name, was told
+     to sign in, and signed in would land on `/portal` with the typed name
+     lost — a dead end at the exact cold-start moment this feature exists to
+     remove, contradicting Pass 1. Of the audit's two options, (b) is chosen:
+     don't navigate away at all. It is strictly smaller than adding `?next=`
+     support to `global-login-form.tsx` (which would be a new deliverable in a
+     shared auth file, and is NOT in scope for this plan), and it preserves the
+     typed name by construction rather than by round-tripping it.]**
+   - On success: `toast.success("Thanks — we've recorded your request.")` and
+     reset the form. On `429`: a distinct `toast.error` explaining the throttle,
+     not a generic failure.
+     **[audit-fix round 2 — RISK 1: the copy was "Thanks — we'll let them know
+     you're waiting", which the MVP cannot honour. There is no lead-read
+     surface (assumption 12), no triage console (assumption 3) and no
+     notification (Out of Scope), so nobody at Chrono ever sees a lead — it
+     surfaces only as a bare count, and only if that business later signs up on
+     its own. Promising outreach would be exactly the kind of unbacked claim
+     Phase 5 forbids elsewhere ("every claim traces to a confirmed-real
+     capability", and `liveAvailability` is deliberately `null` rather than a
+     fake "0 of 0"). The copy is softened to something true.
+     **Recommended follow-up, deliberately NOT built here:** mirror
+     `modules/company-inquiry/public-routes.ts` and send one lead
+     notification to `SUPPORT_INBOX_EMAIL` via `getEmailSender` — the infra is
+     already shipped. That would make the original promise honest AND make
+     leads actionable. It is left out because it creates a new outbound flow
+     carrying lead content, which is a product + privacy decision for the
+     developer, not an implementer's call.]**
 6. **Surface the existing apply-flow, don't rebuild it.**
    **[audit-fix — CONDITION, three path corrections:]**
    `apply-for-tenant-prompt.tsx` is at
@@ -663,6 +738,62 @@ read it fully, then create the new module folder mirroring its shape.
 
 ---
 
+## Phase 3b — Web: tenant-dashboard demand banner
+
+**[audit-fix round 2 — CONDITION 1: this deliverable was named four times in
+the pre-audit plan (Pass 1, the feedback contract, Phase 6's call-site list)
+but no phase had it in Files to Update, no step created it, and no acceptance
+criterion covered it — a Concreteness Gate failure. It also had the wrong
+surface. It gets its own phase here.]**
+
+**Files to update:**
+- `apps/chrono-web/src/components/dashboard/growth/demand-banner.tsx` (new)
+- the tenant dashboard home page that will render it — read
+  `apps/chrono-web/src/app/(tenant-admin)/dashboard/page.tsx` first and mount
+  it there, following whatever card/section composition that page already uses
+- `apps/chrono-web/src/lib/discover-client.ts` (extend with the typed
+  `GET /rpc/growth/demand` call, or use the existing dashboard rpc client if
+  that page already has one — read the page first and reuse, don't add a
+  second client)
+
+**Step-by-step tasks:**
+1. Read the dashboard home page in full and identify how it already composes
+   cards/sections, and which client it uses for `/rpc/*` reads. Reuse both.
+2. Fetch `GET /rpc/growth/demand`. **A `403` is a normal, expected response
+   here**, not an error state: `growth:read` is admin-only (assumption 9), so a
+   `staff` viewer simply sees no banner. Render nothing on `403`, and render
+   nothing on `count === 0`.
+3. On `count > 0`, render a dismissible banner built from `agora/ui`
+   primitives: "{count} player{s} asked for your business on Chrono" plus a
+   short line explaining it came from the public discovery page. Its CTA links
+   to the tenant's own public landing-page settings (the surface that controls
+   whether they are listed — assumption 11).
+4. Dismissal writes a `localStorage` key; the banner stays hidden in that
+   browser afterwards. Fire Phase 6's `PARTNER_CLAIM` on that explicit
+   dismiss/CTA action, never on render.
+
+**Acceptance criteria:**
+- An `admin`/`owner` with matching leads sees the banner; dismissing hides it
+  and it stays hidden on reload in that browser.
+- A `staff` user sees no banner and no error (the `403` is swallowed by design).
+- `count === 0` renders nothing at all — no empty-state card.
+- The banner never displays any lead field, only the count (assumption 12).
+- `pnpm --filter @agora/chrono-web typecheck` passes.
+
+**Verification commands:**
+- `pnpm --filter @agora/chrono-web typecheck`
+- Manual: sign in as admin on a tenant host with a seeded matching lead *(needs
+  `.env` + a dev server)*
+
+**Out of scope:** server-side persistence of the dismissal; any lead detail on
+this surface; a notification.
+
+**Execution start point:**
+`apps/chrono-web/src/app/(tenant-admin)/dashboard/page.tsx` — read it fully
+before creating the component.
+
+---
+
 ## Phase 4 — Web: hero + navigation repositioning
 
 **Files to update:**
@@ -685,8 +816,17 @@ editing) **[audit-fix — CONDITION]**:
   **`:311-312`** (two lines, not three). **There is a second nav, `TENANT_NAV`,
   at `:105`**, which the pre-audit plan never mentioned — it serves the tenant
   host and is **out of scope**; confirm it is untouched.
-- `apps/chrono-web/src/app/layout.tsx` — the description literal is at `:28`
-  (`:26` is the title constant).
+- `apps/chrono-web/src/app/layout.tsx` — the title constant is at `:25` and the
+  description literal at `:27`. **[audit-fix round 2 — SUGGESTION: previously
+  given as `:26`/`:28`.]**
+- `FOOTER_COLUMNS`' "Platform" column already carries **both** `Support` and
+  `Download` (`marketing-chrome.tsx:232-233`), so task 9's move is safe —
+  confirmed, not assumed. Note only `MarketingFooter` carries them;
+  `TenantFooter`'s columns (`:361-376`) do not, which is correct since
+  `TENANT_NAV` is out of scope.
+- Grepping `apps/chrono-web/e2e/` for `marketing-cta` returns **zero** matches,
+  so task 10's precautionary grep will come back empty and the attribute is
+  free to keep or change.
 
 **Step-by-step tasks:**
 1. Re-read `page.tsx` `:1-120` and `:320-420` and `marketing-chrome.tsx` in
@@ -702,6 +842,16 @@ editing) **[audit-fix — CONDITION]**:
    text link `"Can't find your cafe? Invite them"` → `/discover?invite=1`
    (the deep link Phase 3 step 4 implements). Give the CTA row `id="join"` so
    the nav CTA in task 9 has a real anchor.
+   Also add, directly under the player CTA, a small "Already play on Chrono?
+   Sign in" link → `/portal/login`.
+   **[audit-fix round 2 — RISK 2: `/login` is the STAFF/partner sign-in
+   (`(saas-landing)/login/page.tsx`). After this phase the nav offers "Join as
+   a Player" for new players and "Login" for partners, and **nothing for a
+   returning player** — `/portal/login` appears nowhere in the marketing
+   chrome. In a page whose whole thesis is two equal audiences, that is a
+   visible asymmetry. Putting the player sign-in beside the player CTA fixes it
+   without a nav dropdown, and keeps `Login` unambiguously the partner/staff
+   entry.]**
 6. Remove the wrapped `:396-397` isolation sentence (edit both lines, per the
    hazard note above) and the `:195` comparison-table row. Keep the *fact* only
    if it lands naturally in Phase 5's business-operations section — not as
@@ -854,7 +1004,9 @@ registry.
    - `BUSINESS_INVITE_REQUEST: { hadCity: boolean; hadMessage: boolean }` —
      never the business name, city, message, email or customer id.
    - `PARTNER_SIGNUP: {}`
-   - `PARTNER_CLAIM: { demandCount: number }`
+   - `PARTNER_CLAIM: { demandCount: number }` — fired on the Phase 3b banner's
+     explicit dismiss/CTA action, **never** on render, so the name matches what
+     it measures.
    - `PLAYER_CONNECTS_TO_BUSINESS: { organizationId: string }`
 2. Implement `track(event, props?)`: `console.log` in dev only (guarded so it
    cannot run in production without a real destination wired — this is the one
@@ -890,8 +1042,8 @@ permission change must also be unit-tested in `permissions.test.ts` and
 gate-tested in the enforced `e2e/run.ts` suite — `.ai/rules/rbac.md`,
 `.ai/rules/testing.md`, `.ai/rules/business-app.md`. The exact precedent is
 `appUsage`, also a read-only Chrono resource:
-`apps/chrono-api/src/e2e/permissions.test.ts:1717-1735` (including a
-statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8845`
+`apps/chrono-api/src/e2e/permissions.test.ts:1716-1736` (including a
+statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8848`
 (three 403 assertions).]**
 
 **Files to update:**
@@ -906,8 +1058,8 @@ statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8845`
 - `apps/chrono-web/e2e/tests/discover/search-and-invite.spec.ts` (new)
 
 **Step-by-step tasks:**
-1. Read `apps/chrono-api/src/e2e/permissions.test.ts:1717-1735` and
-   `apps/chrono-api/src/e2e/run.ts:8809-8845` (the `appUsage` blocks) in full,
+1. Read `apps/chrono-api/src/e2e/permissions.test.ts:1716-1736` and
+   `apps/chrono-api/src/e2e/run.ts:8809-8848` (the `appUsage` blocks) in full,
    and mirror them.
 2. **Server-side gate** (`run.ts`): `staff` → 403 on `GET /rpc/growth/demand`;
    `admin` → 200. This must fail if `growth:read` is removed from
@@ -954,7 +1106,7 @@ statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8845`
 **Out of scope:** e2e coverage for the unchanged player/partner signup flows.
 
 **Execution start point:** `apps/chrono-api/src/e2e/permissions.test.ts`
-`:1717-1735`.
+`:1716-1736`.
 
 ---
 
@@ -1034,12 +1186,29 @@ statement-shape drift guard) and `apps/chrono-api/src/e2e/run.ts:8809-8845`
 > `readPublishedLandingPage` (`landing.ts:164-175`). **Do not read a green
 > `rls:proof` as isolation coverage of this feature.**
 
+> **Pre-existing red suite — measured on this branch's base, before any code.**
+> `pnpm --filter @agora/chrono-api test:e2e` reports **706 passed, 73 failed**
+> on the unmodified base commit. The cascade starts at one assertion:
+> `resolveOrgFromRequest` (`packages/agora/src/core/server/host.ts:80`) returns
+> `null` for any terminal status and `suspended` is terminal, so once the suite
+> suspends the `acme` tenant every later request 404s `Unknown tenant` —
+> including the **resume** call — and ~70 downstream assertions collapse with
+> it. This is unrelated to this feature and **out of scope to fix here**; it
+> needs its own triage (a suspended tenant appears to have no route back
+> through the tested surface, which is operationally significant on its own).
+> Consequence for this plan: a fully-green `test:e2e` cannot be this feature's
+> gate. Phase 7 asserts on **its own new lines** within that run, and
+> `pnpm --filter @agora/chrono-api test:permissions` (green on base: 419
+> passed, 0 failed) is the hard gate for the permission change.
+
 - [ ] Phase 1: migration generated + reviewed + applied; `ChronoBusinessLeads`
       **not** in `APP_TENANT_TABLES`; `chrono-api rls:proof` still green.
 - [ ] Phase 2: all three route behaviours verified; `growth:read` on
       `CHRONO_ADMIN_GRANTS` only.
 - [ ] Phase 3: `/discover` happy path + empty state + invite flow at three
-      widths, both themes.
+      widths, both themes; the signed-out prompt keeps the typed name.
+- [ ] Phase 3b: demand banner shows for admin with leads, is absent for staff
+      (403 swallowed) and absent at `count === 0`; dismissal persists in-browser.
 - [ ] Phase 4: hero/nav copy audit — both wrapped isolation fragments gone;
       `Login` retained in nav; `TENANT_NAV` untouched.
 - [ ] Phase 5: every claim traces to a real capability; `build` succeeds;
