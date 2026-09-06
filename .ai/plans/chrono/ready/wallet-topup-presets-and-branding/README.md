@@ -4,6 +4,13 @@
 
 **Sessions:**
 - Planning: `plan-folder-taxonomy-refactor [6a865f]`
+- Audit: `plan-auditor` subagent — APPROVED WITH CONDITIONS. All factual claims
+  (line numbers, imports, bounds, e2e specs, no-logo-asset claim) verified correct.
+  2 conditions applied below: the Badge/DialogTitle placement is now literal JSX
+  (was prose, and a bare Badge sibling in `DialogHeader` would have stacked below
+  the title, not next to it); the preset-buttons `Row` now has `wrap` to avoid
+  horizontal overflow on narrow viewports (this file's own `admin/staff/page.tsx`
+  precedent uses `wrap` for the same reason).
 
 ## Context / why
 
@@ -74,7 +81,7 @@ Single phase, one file: `apps/chrono-web/src/app/(member-area)/member/wallet/pag
    `agora/ui` primitive — per `.ai/rules/component-first-ui.md`, reuse over
    invention):
    ```tsx
-   <Row gap={2}>
+   <Row gap={2} wrap>
      {PRESET_TOPUP_AMOUNTS.map((amt) => (
        <Button
          key={amt}
@@ -101,9 +108,20 @@ Single phase, one file: `apps/chrono-web/src/app/(member-area)/member/wallet/pag
      You'll be redirected to a secure payment page." to name PayMongo explicitly,
      e.g. "Pay online with GCash or a card via PayMongo. You'll be redirected to a
      secure PayMongo payment page."
-   - Add a small `Badge variant="outline"` reading `Secured by PayMongo` inside the
-     `DialogHeader` (next to `DialogTitle`, reusing the `Badge` import already in
-     this file) so it's visible before the user commits to an amount.
+   - `DialogTitle` (~line 381) currently reads `<DialogTitle>Top up your wallet</DialogTitle>`
+     as the sole child of `DialogHeader` — a `<div className="mb-4 space-y-1.5">`
+     (vertically stacked, not a flex row: `packages/agora/src/presentation/ui/components/dialog.tsx:52-57`).
+     A bare `Badge` sibling here would stack *below* the title, not sit next to it.
+     Wrap title + badge in a `Row` instead (`Row`/`Badge` both already imported in
+     this file), replacing that one line:
+     ```tsx
+     <Row items="center" gap={2}>
+       <DialogTitle>Top up your wallet</DialogTitle>
+       <Badge variant="outline">Secured by PayMongo</Badge>
+     </Row>
+     ```
+     This keeps `DialogHeader`'s existing `DialogDescription` as the next sibling,
+     unchanged in position — only its own copy changes per the bullet above.
 
 ## Files to update
 
