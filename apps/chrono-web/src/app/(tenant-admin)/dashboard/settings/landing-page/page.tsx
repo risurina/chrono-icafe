@@ -43,6 +43,7 @@ type LandingPageForm = {
   aboutBody: string;
   ctaLabel: string;
   ctaHref: string;
+  seoDescription: string;
 };
 
 const EMPTY: LandingPageForm = {
@@ -52,7 +53,12 @@ const EMPTY: LandingPageForm = {
   aboutBody: "",
   ctaLabel: "",
   ctaHref: "",
+  seoDescription: "",
 };
+
+/** Conventional OpenGraph/meta-description length — matches the Zod cap on
+ * `landingConfigSchema.seo.description` (`packages/agora/src/core/contracts/landing.ts`). */
+const SEO_DESCRIPTION_MAX_LENGTH = 300;
 
 type Permissions = Record<string, string[]>;
 
@@ -71,6 +77,7 @@ function toConfig(f: LandingPageForm): LandingSnapshot["config"] {
       primaryCta: cta,
     },
     about: { title: nn(f.aboutTitle), body: nn(f.aboutBody) },
+    seo: { description: nn(f.seoDescription) },
   };
 }
 
@@ -82,6 +89,7 @@ function fromConfig(config: LandingSnapshot["config"]): LandingPageForm {
     aboutBody: config?.about?.body ?? "",
     ctaLabel: config?.hero?.primaryCta?.label ?? "",
     ctaHref: config?.hero?.primaryCta?.href ?? "",
+    seoDescription: config?.seo?.description ?? "",
   };
 }
 
@@ -294,6 +302,22 @@ export default function LandingPageSettingsPage() {
                 value={form.ctaHref}
                 onChange={(e) => set("ctaHref", e.target.value)}
               />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="seoDescription">SEO description</Label>
+              <Textarea
+                id="seoDescription"
+                rows={3}
+                maxLength={SEO_DESCRIPTION_MAX_LENGTH}
+                placeholder="A sentence or two describing your business for search results and shared links."
+                value={form.seoDescription}
+                onChange={(e) => set("seoDescription", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown in search results and link previews (e.g. when shared on
+                social media). Falls back to the hero subtitle if left blank.{" "}
+                {form.seoDescription.length}/{SEO_DESCRIPTION_MAX_LENGTH}
+              </p>
             </div>
           </CardContent>
           <CardFooter>

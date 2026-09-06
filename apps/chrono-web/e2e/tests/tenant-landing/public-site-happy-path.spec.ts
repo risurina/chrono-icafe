@@ -254,13 +254,51 @@ test.describe("Tenant white-label site — public happy path", () => {
       const ogTitle = page.locator('meta[property="og:title"]');
       await expect(ogTitle).toHaveCount(1);
       await expect(ogTitle).toHaveAttribute("content", new RegExp(slug, "i"));
-      // NOTE: `og:description` is deliberately NOT asserted. It is emitted only
-      // when the tenant has set an SEO description or a hero subtitle, and this
-      // tenant has configured neither — a fabricated fallback is exactly what
-      // this plan removed elsewhere, so its absence here is correct.
+      // NOTE: `og:description` is deliberately NOT asserted here. It is emitted
+      // only when the tenant has set an SEO description or a hero subtitle,
+      // and this tenant has configured neither — a fabricated fallback is
+      // exactly what this plan removed elsewhere, so its absence here is
+      // correct. The next test covers the field once it IS set.
       await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
         "content",
         new RegExp(`${slug}\\.localtest\\.me`),
+      );
+    }
+  });
+
+  test("a saved SEO description reaches og:description on / and /about", async ({
+    page,
+  }) => {
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const slug = `e2eogdesc${uniq}`;
+    const email = faker.internet.email({ provider: "example.com" });
+    const base = `http://${slug}.localtest.me:3000`;
+    const description = `Real search & social preview text ${uniq}.`;
+
+    await signUp(page, { name: slug, email, slug });
+
+    // Drive the settings-page editor (the field this plan added), not the API
+    // directly, so the UI wiring is covered too.
+    await page.goto(`${base}/admin/settings/landing-page`);
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("SEO description").fill(description);
+    await page.getByTestId("landing-save").click();
+    await expect(page.getByText("Landing page updated.")).toBeVisible();
+    await page.getByTestId("landing-publish").click();
+    await expect(page.getByText("Landing page published.")).toBeVisible();
+
+    await page.context().clearCookies();
+
+    for (const path of ["/", "/about"]) {
+      await page.goto(`${base}${path}`);
+      await page.waitForLoadState("networkidle");
+
+      const ogDescription = page.locator('meta[property="og:description"]');
+      await expect(ogDescription).toHaveCount(1);
+      await expect(ogDescription).toHaveAttribute("content", description);
+      await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+        "content",
+        description,
       );
     }
   });
