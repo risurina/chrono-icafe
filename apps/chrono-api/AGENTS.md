@@ -490,10 +490,17 @@ an unfinished setup. Browser-level proof lives in
 
 ### Theme presets
 
-`apps/chrono-web/src/lib/theme-presets.ts` registers Chrono's palettes through
-the foundation's `buildThemePresetRegistry`. `elegant-gold` is the default and
-its values already ship in `app/globals.css`, so `themePresetCss()` emits
-nothing for it and the stylesheet stays the real fallback.
+`apps/chrono-api/src/contracts/theme-presets.ts` is the actual home of Chrono's
+palette data, registered through the foundation's `buildThemePresetRegistry` —
+it lives in `chrono-api` (not `chrono-web`) because `chrono-web` cannot be
+imported from `chrono-api` and `packages/agora` must stay business-domain-
+neutral, so the data has to sit somewhere both sides can reach.
+`apps/chrono-web/src/lib/theme-presets.ts` is now just a one-line re-export
+shim (`export { CHRONO_THEME_PRESETS, presetSwatch } from
+"@agora/chrono-api/theme-presets";`) — `ThemePicker` and the root `layout.tsx`
+still import from it unchanged. `elegant-gold` is the default and its values
+already ship in `app/globals.css`, so `themePresetCss()` emits nothing for it
+and the stylesheet stays the real fallback.
 
 **Every new palette must clear WCAG AA before merging**: 4.5:1 for text pairs,
 and 3:1 for any non-text role that carries meaning — `ring` above all, since it
@@ -505,6 +512,14 @@ A tenant's own `primaryColor`/`accentColor` (branding settings) **beat** their
 preset, because `brandingCss()` is injected after the preset `<style>`. Note it
 emits no `.dark` variant, so a brand colour applies identically in both modes
 rather than resolving per-mode.
+
+The same preset now also drives transactional email: a tenant's published
+theme preset is resolved via `apps/chrono-api/src/lib/email-theme.ts`'s
+`resolveChronoEmailTheme`, registered at boot as the app's `EmailThemeResolver`
+(`packages/agora`'s `registerEmailThemeResolver`), so every themed email
+(member onboarding-decision, the integration test-send route) picks up the
+tenant's actual published colors — not just the web app's `/about` page and
+root layout.
 
 ### The brand lockup
 
