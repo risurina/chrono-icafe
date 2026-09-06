@@ -36,6 +36,8 @@ export const chronoStationStatusSchema = z.enum([
   "offline",
 ]);
 
+export type ChronoStationStatus = z.infer<typeof chronoStationStatusSchema>;
+
 /** Session status — see session/schema.ts's own column comment. */
 export const chronoSessionStatusSchema = z.enum(["active", "paused", "ended"]);
 

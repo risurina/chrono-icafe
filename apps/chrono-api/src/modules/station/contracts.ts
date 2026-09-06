@@ -96,10 +96,20 @@ export type StationDto = z.infer<typeof stationDtoSchema>;
 // Public (unauthenticated) station-availability view — grouped by branch.
 // Deliberately narrow: no `tenantId`/`stationGroupId`/`locationZone`/`specs`, nothing an
 // anonymous visitor doesn't need to see (`.ai/rules/dto.md`).
+// Buckets reconcile: total === available + inUse + unavailable.
+//
+// `inUse` means what its name (and the web's own "In session" label) says:
+// stations with an active session, i.e. `status === "occupied"`. It used to be
+// computed as maintenance+offline, which advertised a machine under
+// maintenance as "in session" and counted genuinely-occupied ones nowhere.
+// `occupied` is the unambiguous alias new callers should prefer; `inUse` is
+// kept so existing consumers keep compiling.
 export const publicStationAggregateSchema = z.object({
   total: z.number().int().nonnegative(),
   available: z.number().int().nonnegative(),
   inUse: z.number().int().nonnegative(),
+  occupied: z.number().int().nonnegative(),
+  unavailable: z.number().int().nonnegative(),
 });
 
 export const publicStationSchema = z.object({
@@ -107,7 +117,13 @@ export const publicStationSchema = z.object({
   name: z.string(),
   stationNumber: z.string(),
   stationType: z.string(),
-  status: stationStatusSchema,
+  // The FULL four-value vocabulary, not the admin-settable subset
+  // (`stationStatusSchema`). Sessions write "occupied" today
+  // (session/service.ts), so a three-value schema here rejected the payload of
+  // any venue with a station in use — and because the web re-validates and
+  // falls back to null (chrono-web/src/lib/stations.ts), the whole live
+  // availability surface blanked out exactly when the venue was busiest.
+  status: chronoStationStatusSchema,
 });
 
 export const publicBranchStationsSchema = z.object({

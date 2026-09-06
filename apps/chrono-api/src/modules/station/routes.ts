@@ -9,7 +9,11 @@ import { chronoStation, chronoStationGroup } from "./schema";
 import { chronoSession } from "../session/schema";
 import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { computeBranchSummary } from "../realtime/service";
-import { chronoStationStatusSchema, type StationStatusEvent } from "../realtime/contracts";
+import {
+  chronoStationStatusSchema,
+  type ChronoStationStatus,
+  type StationStatusEvent,
+} from "../realtime/contracts";
 import {
   createStationSchema,
   updateStationSchema,
@@ -21,7 +25,6 @@ import {
   type StationDto,
   type StationGroupDto,
   type PublicStationsResponse,
-  type StationStatus,
   type StationBoardStation,
 } from "./contracts";
 
@@ -264,6 +267,16 @@ async function requireOwnGroupInBranch(
   }
 }
 
+/**
+ * `ChronoStations.status` is a free-text column, so the public read parses it
+ * rather than casting. An unrecognised value degrades to "offline": a station we
+ * cannot interpret must never be advertised as playable.
+ */
+function toPublicStationStatus(status: string): ChronoStationStatus {
+  const parsed = chronoStationStatusSchema.safeParse(status);
+  return parsed.success ? parsed.data : "offline";
+}
+
 // IP rate limiter: generous enough for polling (approx 1 req/3s) but bounded
 const publicStationsLimiter = createRateLimiter(20, 60 * 1000, "public-stations");
 
@@ -327,11 +340,26 @@ export function publicStationRoutes() {
           .from(chronoStation)
           .orderBy(asc(chronoStation.stationNumber));
 
-        const toAggregate = (rows: typeof stations) => ({
-          total: rows.length,
-          available: rows.filter((s) => s.status === "available").length,
-          inUse: rows.filter((s) => s.status === "maintenance" || s.status === "offline").length, // Will be refined when sessions exist
-        });
+        // Buckets reconcile: total === available + inUse + unavailable.
+        // `inUse` counts stations with a live session ("occupied"), which is
+        // what the web has always labelled it ("In session"). It previously
+        // counted maintenance+offline instead, so a machine under maintenance
+        // was advertised as in use and an actually-occupied one was counted
+        // nowhere. Counting goes through the same normaliser the station list
+        // uses, so the buckets can never disagree with the rows.
+        const toAggregate = (rows: typeof stations) => {
+          const normalised = rows.map((s) => toPublicStationStatus(s.status));
+          const count = (v: ChronoStationStatus) =>
+            normalised.filter((s) => s === v).length;
+          const occupied = count("occupied");
+          return {
+            total: normalised.length,
+            available: count("available"),
+            inUse: occupied,
+            occupied,
+            unavailable: count("maintenance") + count("offline"),
+          };
+        };
 
         const branchesWithStations = branches.map((branch) => {
           const branchStations = stations.filter((s) => s.branchId === branch.id);
@@ -345,7 +373,11 @@ export function publicStationRoutes() {
               name: s.name,
               stationNumber: s.stationNumber,
               stationType: s.stationType,
-              status: s.status as StationStatus,
+              // `status` is a free-text column, so it is parsed rather than
+              // cast (the same discipline as publishStationTransition above).
+              // An unrecognised value degrades to "offline": never advertise a
+              // station as playable on a value we cannot interpret.
+              status: toPublicStationStatus(s.status),
             })),
           };
         });

@@ -663,8 +663,12 @@ export function TenantTestimonials({
  * A status the server adds later renders through the `offline` fallback below
  * rather than crashing on a missing key.
  */
+// All four real values of `ChronoStations.status`. "occupied" is written by the
+// session module when a station is in use — it is a genuine floor state, not a
+// derived figure, so it belongs here alongside the other three.
 const STATION_TONE = {
   available: { dot: "bg-chart-2", text: "text-chart-2", label: "Available" },
+  occupied: { dot: "bg-primary", text: "text-primary", label: "In use" },
   maintenance: { dot: "bg-chart-4", text: "text-chart-4", label: "Maintenance" },
   offline: { dot: "bg-muted-foreground", text: "text-muted-foreground", label: "Offline" },
 } as const;
@@ -682,7 +686,13 @@ export type TenantStationsProps = {
       status: StationStatus;
     }[];
   }[];
-  aggregate: { total: number; available: number; inUse: number } | null;
+  aggregate: {
+    total: number;
+    available: number;
+    inUse: number;
+    occupied?: number;
+    unavailable?: number;
+  } | null;
   isOpen?: boolean;
 };
 
@@ -703,11 +713,17 @@ export function TenantStations({
   const free = stations.filter((s) => s.status === "available").length;
   const anyFree = free > 0;
 
-  // `dot` is carried directly rather than as a STATION_TONE key: "in session"
-  // is a server-derived figure, not a station status, so it has no tone entry.
+  // Every bucket is now a real station status, so each carries its own tone.
+  // `inUse` counts stations whose status is "occupied"; falling back to the
+  // rows keeps the figure honest if an older payload omits the aggregate.
   const counts = [
     { label: "Available", value: free, dot: STATION_TONE.available.dot },
-    { label: "In session", value: aggregate?.inUse ?? 0, dot: "bg-primary" },
+    {
+      label: "In use",
+      value:
+        aggregate?.inUse ?? stations.filter((s) => s.status === "occupied").length,
+      dot: STATION_TONE.occupied.dot,
+    },
     {
       label: "Maintenance",
       value: stations.filter((s) => s.status === "maintenance").length,
