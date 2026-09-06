@@ -7,6 +7,7 @@ import {
   registerEmailQueueJob,
   registerSmsQueueJob,
   startRetentionWorker,
+  registerEmailThemeResolver,
 } from "agora/server";
 import { getRealtimeProvider, closeAllConnections } from "agora/realtime";
 import { app, injectWebSocket } from "./app";
@@ -16,6 +17,7 @@ import { startSessionExpiryWorker } from "./modules/session/expiry";
 import { startCreditExpiryWorker } from "./modules/credit/expiry";
 import { startReservationSweepWorker } from "./modules/reservation/sweep";
 import { startAppUsageSweepWorker } from "./modules/app-usage/retention";
+import { resolveChronoEmailTheme } from "./lib/email-theme";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -35,6 +37,7 @@ injectWebSocket(server);
 
 // Register every job type before its queue worker starts polling for it.
 registerEmailQueueJob();
+registerEmailThemeResolver(resolveChronoEmailTheme);
 registerSmsQueueJob();
 registerWebhookQueueJob();
 
