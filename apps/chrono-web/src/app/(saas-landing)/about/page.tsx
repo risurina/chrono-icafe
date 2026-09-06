@@ -5,6 +5,7 @@ import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
 import { getTenantVenueInfo } from "@/lib/venue";
+import { tenantPageMetadata } from "@/lib/seo";
 import { LandingSections } from "@/components/landing/render";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
@@ -23,14 +24,8 @@ import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrom
  */
 
 export async function generateMetadata(): Promise<Metadata> {
-  // Shares one request with the page body via the cache()d resolver.
-  const landing = await getTenantLanding();
-  if (!landing) return {};
-  const { resolved, venueName } = landing;
-  return {
-    title: resolved.seo.title ?? venueName,
-    description: resolved.seo.description ?? resolved.hero.subtitle ?? undefined,
-  };
+  // Shares one request with the page body via the cache()d resolvers.
+  return tenantPageMetadata("/about");
 }
 
 export default async function AboutPage() {

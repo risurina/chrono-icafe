@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import {
   Check,
   Wallet,
@@ -48,12 +50,12 @@ import {
   TableHead,
   TableCell,
 } from "agora/ui";
-import { resolveLandingConfig } from "agora";
 import { getRequestTenant } from "@/lib/tenant";
 import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
 import { getTenantVenueInfo } from "@/lib/venue";
+import { tenantPageMetadata } from "@/lib/seo";
 import { LandingSections } from "@/components/landing/render";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import {
@@ -65,7 +67,14 @@ import {
 import { HeroChips } from "@/components/landing/hero-chips";
 import { FaqAccordion } from "@/components/landing/faq-accordion";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+/**
+ * `generateMetadata` is a file-level export shared by both branches below, so
+ * it opts out (returns `{}`) on an apex host and lets the root layout's own
+ * metadata stand. See `@/lib/seo`.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return tenantPageMetadata("/");
+}
 
 /** The hero capability strip — the reference's five, in its own wording. */
 const HERO_CHIPS = [
@@ -76,31 +85,18 @@ const HERO_CHIPS = [
   "Audit Trail Ready",
 ] as const;
 
-async function fetchTenant(): Promise<{ name: string; slug: string } | null> {
-  const t = await getRequestTenant();
-  if (t.kind === "apex") return null;
-  const headers: Record<string, string> = {};
-  if (t.slug) headers["x-tenant-slug"] = t.slug;
-  else if (t.host) headers["x-tenant-host"] = t.host;
-  try {
-    const res = await fetch(`${API_URL}/public/tenant`, {
-      headers,
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return (await res.json()).tenant;
-  } catch {
-    return null;
-  }
-}
-
 export default async function Home() {
-  const tenant = await fetchTenant();
+  // Which branch renders is decided by the HOST alone, never by whether a fetch
+  // succeeded. The page used to derive it from a `/public/tenant` fetch that
+  // returned `null` for both "no such tenant" AND "the API call failed", so an
+  // unresolvable subdomain silently served the generic Chrono marketing page at
+  // that tenant's URL — while `/about` correctly 404'd the same case.
+  const t = await getRequestTenant();
   const branding = await getPublicBranding();
   const currentYear = new Date().getFullYear();
 
   // Apex → generic marketing page.
-  if (!tenant) {
+  if (t.kind === "apex") {
     const problems = [
       {
         title: "Manual tracking gets messy",
@@ -723,12 +719,19 @@ export default async function Home() {
   // config resolved against `CHRONO_LANDING_SECTIONS` — so re-ordering or
   // hiding one is a settings change, not a code change. This replaces a
   // hardcoded three-card placeholder that never read the tenant's config at all.
-  const heading = branding?.displayName?.trim() || tenant.name;
   const [landing, stations, venue] = await Promise.all([
     getTenantLanding(),
     getTenantStations(),
     getTenantVenueInfo(),
   ]);
+
+  // Parity with `/about` (`about/page.tsx`): only "no such tenant" is a 404.
+  // `getTenantLanding()` degrades a missing/unpublished/unreachable landing
+  // config to defaults and returns non-null, so a live tenant still renders
+  // through a content blip instead of 404ing.
+  if (!landing) notFound();
+
+  const heading = branding?.displayName?.trim() || landing.venueName;
 
   return (
     <PageShell>
@@ -742,11 +745,11 @@ export default async function Home() {
       <Main>
         <LandingSections
           surface="tenant"
-          sections={landing?.sections ?? null}
-          resolved={landing?.resolved ?? resolveLandingConfig([])}
+          sections={landing.sections}
+          resolved={landing.resolved}
           context={{
             tenantName: heading,
-            tenantSlug: landing?.tenantSlug ?? null,
+            tenantSlug: landing.tenantSlug,
             data: { stations, venue } satisfies ChronoLandingData,
           }}
         />
