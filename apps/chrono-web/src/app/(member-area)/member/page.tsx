@@ -32,6 +32,7 @@ import {
   type PortalReservation,
   type PublicBranch,
 } from "@/lib/member/reservations";
+import { NeedHelpLinks } from "@/components/member/need-help-links";
 
 function TierBadge({ tier }: { tier: string }) {
   return <Badge className="capitalize">{tier}</Badge>;
@@ -105,9 +106,12 @@ export default function MemberDashboardPage() {
             <CardDescription>
               {onboarding.applicationStatus === "pending"
                 ? "Your application is pending approval."
-                : "Your application was not approved. Contact the business for help."}
+                : "Your application was not approved."}
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <NeedHelpLinks />
+          </CardContent>
         </Card>
       ) : null}
 

@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CenteredMessage, Card, CardHeader, CardTitle, CardDescription } from "agora/ui";
+import { CenteredMessage, Card, CardHeader, CardTitle, CardDescription, CardContent } from "agora/ui";
+import { NeedHelpLinks } from "./need-help-links";
 import { useMemberSession } from "@/lib/member-client";
 import { useGlobalCustomerSession } from "@/lib/customer-client";
 import { MemberAreaProvider, useMemberArea } from "./member-area-context";
@@ -15,7 +16,7 @@ import { TenantFooter } from "@/components/landing/marketing-chrome";
 function ApprovalRequiredCard({ status }: { status: string | undefined }) {
   const copy =
     status === "rejected"
-      ? "Your membership application was not approved. Contact the business for help."
+      ? "Your membership application was not approved."
       : "Your membership application is still pending approval. Check back soon.";
   return (
     <CenteredMessage>
@@ -24,6 +25,9 @@ function ApprovalRequiredCard({ status }: { status: string | undefined }) {
           <CardTitle>Approval required</CardTitle>
           <CardDescription>{copy}</CardDescription>
         </CardHeader>
+        <CardContent>
+          <NeedHelpLinks />
+        </CardContent>
       </Card>
     </CenteredMessage>
   );

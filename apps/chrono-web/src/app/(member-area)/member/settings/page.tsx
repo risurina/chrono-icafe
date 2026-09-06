@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   Card,
   CardHeader,
@@ -19,6 +18,7 @@ import {
 } from "agora/ui";
 import { memberAuth } from "@/lib/member-client";
 import { MemberPageHeader } from "@/components/member/member-page-header";
+import { NeedHelpLinks } from "@/components/member/need-help-links";
 
 export default function MemberSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -107,13 +107,10 @@ export default function MemberSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
+          <CardDescription>Need help?</CardDescription>
         </CardHeader>
         <CardContent>
-          <Stack gap={3}>
-            <Link href="/member/inquiries" className="text-sm underline underline-offset-2">
-              Need help? Contact the business
-            </Link>
-          </Stack>
+          <NeedHelpLinks />
         </CardContent>
         <CardFooter>
           <Button variant="outline" onClick={onSignOut} disabled={signingOut}>
