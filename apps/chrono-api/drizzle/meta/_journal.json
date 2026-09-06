@@ -162,6 +162,13 @@
       "when": 1788616932049,
       "tag": "0022_add_chrono_app_usage_events",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788664008078,
+      "tag": "0023_add_chrono_business_leads",
+      "breakpoints": true
     }
   ]
 }
