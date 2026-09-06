@@ -2,14 +2,18 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
- * Member Session + Connect (`/member/session`, `/member/session/[id]`,
- * `/member/connect`) — chrono/member-area, execution phase 5.
+ * Member Session + Connect (`/member/session`, `/member/session/[id]`) —
+ * chrono/member-area, execution phase 5.
  *
- * Happy path: no-active-session zero state and history render; Connect's
- * three-step explainer renders; a foreign/nonexistent session id 404s
- * without leaking existence; role check: neither page is approval-gated;
- * cross-tenant isolation: tenant B's member cannot view tenant A's session
- * by id (404, not a leaked row).
+ * member-portal-v2 phase 1 folded Connect's QR-scan explainer directly into
+ * `/member/session` (nav consolidation: Session absorbed Connect, no more
+ * separate `/member/connect` nav entry — the route now just redirects here).
+ *
+ * Happy path: no-active-session zero state and history render; the folded
+ * Connect three-step explainer renders on the same page; a foreign/
+ * nonexistent session id 404s without leaking existence; role check: neither
+ * page is approval-gated; cross-tenant isolation: tenant B's member cannot
+ * view tenant A's session by id (404, not a leaked row).
  */
 const PASSWORD = "Password123!";
 
@@ -68,12 +72,14 @@ test.describe("Member session + connect", () => {
     await expect(page.getByTestId("active-session-card")).toBeVisible();
     await expect(page.getByText("No active session right now.")).toBeVisible();
     await expect(page.getByText("No sessions yet.")).toBeVisible();
-
-    await page.getByTestId("member-nav-connect").click();
-    await expect(page).toHaveURL(`${base}/member/connect`);
+    // Connect's explainer is now folded into this same page.
     await expect(page.getByTestId("connect-step-1")).toBeVisible();
     await expect(page.getByTestId("connect-step-2")).toBeVisible();
     await expect(page.getByTestId("connect-step-3")).toBeVisible();
+
+    // `/member/connect` is no longer a nav entry — it redirects here.
+    await page.goto(`${base}/member/connect`);
+    await expect(page).toHaveURL(`${base}/member/session`);
 
     // A nonexistent session id must 404, never leak existence.
     await page.goto(`${base}/member/session/does-not-exist`);

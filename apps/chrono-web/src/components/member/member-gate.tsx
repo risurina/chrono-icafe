@@ -30,8 +30,11 @@ function ApprovalRequiredCard({ status }: { status: string | undefined }) {
 }
 
 /** Route flagged `requiresApproval` and the member isn't approved yet →
- * `ApprovalRequiredCard`, else render. Only Promos/Leaderboard are flagged
- * (the plan's decision — `applicationStatus` enforces nothing elsewhere). */
+ * `ApprovalRequiredCard`, else render. Only Promos is flagged (the plan's
+ * decision — `applicationStatus` enforces nothing elsewhere). Promos has no
+ * standalone nav entry since member-portal-v2 phase 1 (merged into History),
+ * but stays in `MEMBER_NAV` with `placements: []` so this match still fires
+ * for `/member/promos*`. */
 function RouteGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { approved, onboarding, loaded } = useMemberArea();

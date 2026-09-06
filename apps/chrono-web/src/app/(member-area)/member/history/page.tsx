@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
+  CardFooter,
   Badge,
   Tabs,
   TabsList,
@@ -16,7 +19,9 @@ import {
   useListQuery,
   type DataTableColumn,
   Stack,
+  buttonVariants,
 } from "agora/ui";
+import { cn } from "agora/ui/cn";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
 import { formatCurrency, formatDateTime, type PaginationMeta } from "@/lib/member/format";
@@ -28,6 +33,12 @@ import { getMySessions, type PortalSessionSummary } from "@/lib/member/session";
  * Tabbed history: Wallet / Credits / Sessions, each independently
  * paginated (client-side per-tab, no cross-tab merge — a true unified feed
  * needs a new `GET /portal/activity` endpoint, out of scope per the plan).
+ *
+ * A fourth "Promos" tab (member-portal-v2 phase 1 — History absorbed Promos)
+ * is a link-out card, not inlined content: `/member/promos` keeps its own
+ * page and its own approval gate (`requiresApproval`, `member-gate.tsx`), so
+ * inlining its catalog here would silently bypass that gate for a pending
+ * applicant. It's simply no longer a separate top-level nav entry.
  */
 function WalletTab() {
   const query = useListQuery([]);
@@ -180,6 +191,24 @@ function SessionsTab() {
   );
 }
 
+function PromosTab() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Credit packs & promotions</CardTitle>
+        <CardDescription>
+          Buy credit packs and see current promotions on the Promos page.
+        </CardDescription>
+      </CardHeader>
+      <CardFooter>
+        <Link href="/member/promos" className={cn(buttonVariants({ variant: "outline" }))}>
+          View promos
+        </Link>
+      </CardFooter>
+    </Card>
+  );
+}
+
 export default function MemberHistoryPage() {
   const [tab, setTab] = useState("wallet");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -188,7 +217,7 @@ export default function MemberHistoryPage() {
     <Stack gap={6}>
       <MemberPageHeader
         title="History"
-        description="Your wallet, credit, and session activity."
+        description="Your wallet, credit, and session activity, plus promos and credit packs."
         actions={<RefreshButton onRefresh={() => setRefreshKey((k) => k + 1)} />}
       />
       <Card>
@@ -201,6 +230,7 @@ export default function MemberHistoryPage() {
               <TabsTrigger value="wallet">Wallet</TabsTrigger>
               <TabsTrigger value="credits">Credits</TabsTrigger>
               <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="promos">Promos</TabsTrigger>
             </TabsList>
             <TabsContent value="wallet">
               <WalletTab key={`wallet-${refreshKey}`} />
@@ -210,6 +240,9 @@ export default function MemberHistoryPage() {
             </TabsContent>
             <TabsContent value="sessions">
               <SessionsTab key={`sessions-${refreshKey}`} />
+            </TabsContent>
+            <TabsContent value="promos">
+              <PromosTab />
             </TabsContent>
           </Tabs>
         </CardContent>

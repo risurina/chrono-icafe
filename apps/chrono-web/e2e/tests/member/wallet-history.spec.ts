@@ -8,9 +8,8 @@ import { faker } from "../../utils/faker";
  * Happy path: wallet balance renders and the history table (server-side
  * paginated, `.ai/rules/data-listing.md`) shows a real wallet-funded credit
  * purchase's debit row; role check: neither page is approval-gated (only
- * Promos/Leaderboard are, per the plan) so a pending applicant sees both;
- * cross-tenant isolation: tenant B's member never sees tenant A's wallet
- * transactions.
+ * Promos is, per the plan) so a pending applicant sees both; cross-tenant
+ * isolation: tenant B's member never sees tenant A's wallet transactions.
  */
 const PASSWORD = "Password123!";
 
