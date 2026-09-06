@@ -82,6 +82,7 @@ export default async function PublicStationsPage() {
         year={currentYear}
         tenantName={venueName}
         tagline={branding?.tagline}
+        hidePlatformBranding={branding?.hidePlatformBranding}
       />
     </PageShell>
   );

@@ -1,0 +1,1 @@
+ALTER TABLE "TenantBrandings" ADD COLUMN "hidePlatformBranding" boolean DEFAULT false NOT NULL;

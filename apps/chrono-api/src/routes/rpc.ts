@@ -126,6 +126,8 @@ import {
   type ConfirmUploadInput,
 } from "agora/contracts";
 import { memberProfileRoutes } from "../modules/member/routes";
+import { z } from "zod";
+import { requirePermission as requireChronoPermission } from "../auth/require-permission";
 
 // The app owns its table list, so it binds the foundation lifecycle ops to it.
 // Exported so app.ts can reuse this exact instance when wiring the
@@ -1423,6 +1425,59 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   // foundation's injected-gate seam; the default (branding:manage) is the
   // scaffold's, and using it here would desync the API from the editor's <Can>.
   .route("/", landingRoutes({ permission: { landingPage: ["manage"] } }))
+
+  // ── Chrono: platform-branding visibility toggle (admin+ landingPage:manage) ──
+  // `TenantBrandings.hidePlatformBranding` is a foundation column (see
+  // packages/agora/src/core/db/schema/tenant.ts) — the foundation's own
+  // `brandingRoutes()` above (GET/PUT /branding) reads/writes every OTHER
+  // field on that row, but its Zod contracts (`updateBrandingSchema`/
+  // `brandingSchema`, `packages/agora/src/core/contracts/branding.ts`) are
+  // foundation-owned and gated on `branding:manage` — not this app's own
+  // `landingPage:manage`, which is what "hide platform branding on my
+  // white-label site" actually belongs under here. Rather than widen the
+  // foundation's shared contract for one app's gate choice, this is a thin,
+  // Chrono-local pair reading/writing the same row directly via `withTenant`.
+  .get("/branding/platform-visibility", async (c) => {
+    const { tenantId } = c.var.tenant;
+    requireChronoPermission(c.var.tenant.permissions, { landingPage: ["manage"] });
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx
+        .select({ hidePlatformBranding: tenantBranding.hidePlatformBranding })
+        .from(tenantBranding)
+        .where(eq(tenantBranding.tenantId, tenantId))
+        .limit(1),
+    );
+    return c.json({ hidePlatformBranding: row?.hidePlatformBranding ?? false });
+  })
+  .patch(
+    "/branding/platform-visibility",
+    zValidator("json", z.object({ hidePlatformBranding: z.boolean() })),
+    async (c) => {
+      const { tenantId } = c.var.tenant;
+      requireChronoPermission(c.var.tenant.permissions, { landingPage: ["manage"] });
+      const { hidePlatformBranding } = c.req.valid("json");
+      await withTenant(tenantId, (tx) =>
+        tx
+          .insert(tenantBranding)
+          .values({
+            id: createId(),
+            tenantId,
+            hidePlatformBranding,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: tenantBranding.tenantId,
+            set: { hidePlatformBranding, updatedAt: new Date() },
+          }),
+      );
+      await recordStaffAudit(c, {
+        action: "branding.platform_visibility_updated",
+        targetType: "branding",
+        targetId: tenantId,
+      });
+      return c.json({ hidePlatformBranding });
+    },
+  )
 
   // ── Custom domains (RLS-protected) — foundation factory (agora/domains) ──
   .route("/", domainRoutes())

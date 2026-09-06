@@ -1052,6 +1052,7 @@ export default async function Home() {
         year={currentYear}
         tenantName={heading}
         tagline={branding?.tagline}
+        hidePlatformBranding={branding?.hidePlatformBranding}
       />
     </PageShell>
   );

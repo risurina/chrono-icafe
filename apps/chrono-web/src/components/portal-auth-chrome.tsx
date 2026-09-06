@@ -1,5 +1,6 @@
 import { AuthPageChrome, Stack } from "agora/ui";
 import { resolveAuthChromeContext } from "@/lib/auth-chrome";
+import type { ChronoPublicBranding } from "@/lib/branding";
 import { ChronoBrand } from "@/components/landing/chrono-brand";
 import {
   MarketingHeader,
@@ -51,6 +52,9 @@ export async function PortalAuthChrome({
             year={currentYear}
             tenantName={context.tenantName}
             tagline={context.branding?.tagline}
+            hidePlatformBranding={
+              (context.branding as ChronoPublicBranding | null)?.hidePlatformBranding
+            }
           />
         )
       }

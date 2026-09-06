@@ -20,6 +20,7 @@ import {
   Stack,
   Row,
   Dropzone,
+  Switch,
 } from "agora/ui";
 import { tenantFetch } from "agora/client";
 import { api } from "@/lib/rpc";
@@ -83,6 +84,8 @@ export default function BrandingPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailPreview, setEmailPreview] = useState<string | null>(null);
+  const [hidePlatformBranding, setHidePlatformBranding] = useState(false);
+  const [platformVisibilitySaving, setPlatformVisibilitySaving] = useState(false);
 
   const set = <K extends keyof BrandingForm>(k: K, v: BrandingForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -94,9 +97,35 @@ export default function BrandingPage() {
     setForm({ ...EMPTY, ...cleanNulls(b) });
   }
 
+  async function loadPlatformVisibility() {
+    const res = await api.rpc.branding["platform-visibility"].$get();
+    if (!res.ok) return;
+    setHidePlatformBranding((await res.json()).hidePlatformBranding);
+  }
+
   useEffect(() => {
     load();
+    loadPlatformVisibility();
   }, []);
+
+  // Applies immediately — no publish/save step, unlike the form above (matches
+  // every other TenantBrandings field's own "write now, live now" behavior).
+  async function togglePlatformVisibility(next: boolean) {
+    setPlatformVisibilitySaving(true);
+    setHidePlatformBranding(next);
+    const res = await api.rpc.branding["platform-visibility"].$patch({
+      json: { hidePlatformBranding: next },
+    });
+    setPlatformVisibilitySaving(false);
+    if (!res.ok) {
+      setHidePlatformBranding(!next);
+      setMsg(
+        (res.status as number) === 403
+          ? "Only admins can change this."
+          : "Could not save — try again.",
+      );
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -274,6 +303,36 @@ export default function BrandingPage() {
               <Button type="button" variant="outline" onClick={previewEmail}>
                 Preview email
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Applies immediately on toggle — no publish/save step, unlike every
+              other field on this page (which saves on form submit below). */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Platform visibility</CardTitle>
+              <CardDescription>
+                Control whether Chrono&apos;s own branding shows on your public pages.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Row className="items-center justify-between">
+                <Stack gap={1}>
+                  <Label htmlFor="hide-platform-branding">
+                    Hide &quot;Powered by Chrono&quot;
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Applies immediately across your public site, login, and member
+                    pages.
+                  </p>
+                </Stack>
+                <Switch
+                  id="hide-platform-branding"
+                  checked={hidePlatformBranding}
+                  disabled={platformVisibilitySaving}
+                  onCheckedChange={togglePlatformVisibility}
+                />
+              </Row>
             </CardContent>
           </Card>
 

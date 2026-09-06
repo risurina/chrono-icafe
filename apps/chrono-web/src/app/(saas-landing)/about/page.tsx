@@ -73,6 +73,7 @@ export default async function AboutPage() {
         year={currentYear}
         tenantName={venueName}
         tagline={branding?.tagline}
+        hidePlatformBranding={branding?.hidePlatformBranding}
       />
     </PageShell>
   );

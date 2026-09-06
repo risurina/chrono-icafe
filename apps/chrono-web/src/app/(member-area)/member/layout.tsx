@@ -34,6 +34,7 @@ export default async function MemberLayout({ children }: { children: React.React
       logoUrl={branding?.logoUrl}
       logoDarkUrl={branding?.logoDarkUrl}
       tagline={branding?.tagline}
+      hidePlatformBranding={branding?.hidePlatformBranding}
     >
       {children}
     </MemberGate>

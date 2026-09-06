@@ -616,6 +616,11 @@ export const app = baseApp
         tagline: row?.tagline ?? null,
         supportEmail: row?.supportEmail ?? null,
         customCss: row?.customCss ?? null,
+        // Chrono's own extension of the foundation's TenantBrandings row —
+        // not part of the foundation's PublicBranding transport type, but
+        // present on the wire for `apps/chrono-web/src/lib/branding.ts`'s
+        // typed wrapper to read (see growth-loop-hardening Phase 3).
+        hidePlatformBranding: row?.hidePlatformBranding ?? false,
       },
     });
   })

@@ -49,6 +49,7 @@ function Chrome({
   logoUrl,
   logoDarkUrl,
   tagline,
+  hidePlatformBranding,
   children,
 }: {
   tenantName: string;
@@ -56,6 +57,7 @@ function Chrome({
   logoUrl?: string | null;
   logoDarkUrl?: string | null;
   tagline?: string | null;
+  hidePlatformBranding?: boolean;
   children: React.ReactNode;
 }) {
   const { member } = useMemberArea();
@@ -72,7 +74,12 @@ function Chrome({
       <main className="flex-1 p-4 md:p-6">
         <RouteGate>{children}</RouteGate>
       </main>
-      <TenantFooter year={new Date().getFullYear()} tenantName={displayName ?? tenantName} tagline={tagline} />
+      <TenantFooter
+        year={new Date().getFullYear()}
+        tenantName={displayName ?? tenantName}
+        tagline={tagline}
+        hidePlatformBranding={hidePlatformBranding}
+      />
       <MemberBottomNav />
     </div>
   );
@@ -91,6 +98,7 @@ export function MemberGate({
   logoUrl,
   logoDarkUrl,
   tagline,
+  hidePlatformBranding,
   children,
 }: {
   tenantName: string;
@@ -98,6 +106,7 @@ export function MemberGate({
   logoUrl?: string | null;
   logoDarkUrl?: string | null;
   tagline?: string | null;
+  hidePlatformBranding?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -135,6 +144,7 @@ export function MemberGate({
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
         tagline={tagline}
+        hidePlatformBranding={hidePlatformBranding}
       >
         {children}
       </Chrome>
