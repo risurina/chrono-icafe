@@ -7,6 +7,7 @@ import { getTenantStations } from "@/lib/stations";
 import { getTenantVenueInfo } from "@/lib/venue";
 import { tenantPageMetadata } from "@/lib/seo";
 import { LandingSections } from "@/components/landing/render";
+import { TrackOnMount } from "@/components/landing/analytics-bindings";
 import type { ChronoLandingData } from "@/components/landing/registry";
 import { TenantHeader, TenantFooter } from "@/components/landing/marketing-chrome";
 
@@ -52,6 +53,10 @@ export default async function AboutPage() {
       />
 
       <Main>
+        <TrackOnMount
+          event="TENANT_PAGE_VIEW"
+          props={{ tenantName: venueName, path: "/about" }}
+        />
         <LandingSections
           surface="tenant"
           sections={sections}

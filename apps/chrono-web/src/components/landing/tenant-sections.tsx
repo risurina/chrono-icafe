@@ -35,6 +35,7 @@ import { cn } from "agora/ui/cn";
 import { StationRefresh } from "./station-refresh";
 import { ShareButton } from "./share-button";
 import { PlayerCtaActions } from "./player-cta-actions";
+import { TrackedLink } from "./analytics-bindings";
 import { STATION_TONE, type StationStatus } from "./station-tone";
 
 /**
@@ -815,12 +816,14 @@ export function TenantStations({
 
             {/* A live board with no next step is a dead end, so the state
                 itself picks the action. */}
-            <Link
+            <TrackedLink
+              event="STATION_AVAILABILITY_INTERACTION"
+              props={{ action: anyFree ? "get_directions" : "reserve_a_seat" }}
               href={anyFree ? "#location" : "/login"}
               className={cn(buttonVariants(), PILL_CTA, "w-full")}
             >
               {anyFree ? "Get directions" : "Reserve a seat"}
-            </Link>
+            </TrackedLink>
           </Col>
 
           {/* Station grid, grouped by branch */}
@@ -1073,9 +1076,14 @@ export function TenantContact({
                   </Row>
                   <CardTitle className="text-sm font-bold leading-relaxed">
                     {href ? (
-                      <Link href={href} className="text-primary hover:underline">
+                      <TrackedLink
+                        event="CONTACT_CLICK"
+                        props={{ channel: label.toLowerCase() }}
+                        href={href}
+                        className="text-primary hover:underline"
+                      >
                         {value}
-                      </Link>
+                      </TrackedLink>
                     ) : (
                       value
                     )}
@@ -1089,8 +1097,10 @@ export function TenantContact({
                   <CardDescription className={LABEL}>Follow us</CardDescription>
                   <Row wrap gap={3}>
                     {socials.map((s) => (
-                      <Link
+                      <TrackedLink
                         key={s.key}
+                        event="CONTACT_CLICK"
+                        props={{ channel: s.key }}
                         href={s.href}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -1101,7 +1111,7 @@ export function TenantContact({
                         data-testid={`landing-social-${s.key}`}
                       >
                         {s.label}
-                      </Link>
+                      </TrackedLink>
                     ))}
                   </Row>
                 </CardHeader>
@@ -1122,7 +1132,12 @@ export function TenantContact({
                 referrerPolicy="no-referrer-when-downgrade"
               />
               <Row justify="center" className="absolute inset-x-8 bottom-8">
-                <Link
+                {/* The ONLY directions affordance on this page — deliberately
+                    not duplicated in the closing CTA, where a second one fed by
+                    a different field could disagree with this one. */}
+                <TrackedLink
+                  event="DIRECTIONS_CLICK"
+                  props={{ source: "contact_map" }}
                   href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1132,7 +1147,7 @@ export function TenantContact({
                   )}
                 >
                   Open in Google Maps
-                </Link>
+                </TrackedLink>
               </Row>
             </Stack>
           ) : null}

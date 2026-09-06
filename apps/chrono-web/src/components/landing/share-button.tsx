@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Share2 } from "lucide-react";
 import { Button, toast } from "agora/ui";
+import { track } from "@/lib/analytics";
 
 /**
  * Share this venue's public page.
@@ -37,11 +38,13 @@ export function ShareButton({
       if (typeof navigator.share === "function") {
         // The OS sheet is its own confirmation — no toast on this path.
         await navigator.share({ title: tenantName, url });
+        track("TENANT_SHARE", { tenantName, method: "native" });
         return;
       }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied");
+        track("TENANT_SHARE", { tenantName, method: "clipboard" });
         return;
       }
       toast.error("Sharing is not supported on this browser");

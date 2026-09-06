@@ -15,6 +15,7 @@ import {
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { STATION_TONE, stationTone } from "@/components/landing/station-tone";
+import { track } from "@/lib/analytics";
 
 /**
  * `inUse` counts stations whose status is "occupied" and `unavailable` counts
@@ -74,6 +75,15 @@ export function StationAvailabilityPoller({
     { label: "Maintenance", value: countOf("maintenance"), tone: STATION_TONE.maintenance.text },
     { label: "Offline", value: countOf("offline"), tone: STATION_TONE.offline.text },
   ];
+
+  useEffect(() => {
+    track("TENANT_STATIONS_VIEW", {
+      tenantName: venueName,
+      totalStations: initialData.aggregate.total,
+    });
+    // Mount-only: one view per page load, not one per poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(async () => {
