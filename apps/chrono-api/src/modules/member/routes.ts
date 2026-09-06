@@ -8,6 +8,7 @@ import {
   renderBrandedEmail,
   sendTransactionalEmail,
   escapeHtml,
+  resolveTenantEmailTheme,
 } from "agora/server";
 import { listQuerySchema, createId, type PaginationMeta } from "agora";
 import { recordStaffAudit } from "agora/audit";
@@ -40,6 +41,7 @@ async function sendMemberOnboardingEmail(
         emailFromName: base.tenantBranding.emailFromName,
         emailReplyTo: base.tenantBranding.emailReplyTo,
         emailLogoUrl: base.tenantBranding.emailLogoUrl,
+        logoDarkUrl: base.tenantBranding.logoDarkUrl,
         primaryColor: base.tenantBranding.primaryColor,
         supportEmail: base.tenantBranding.supportEmail,
       })
@@ -47,17 +49,17 @@ async function sendMemberOnboardingEmail(
       .where(eq(base.tenantBranding.tenantId, tenantId))
       .limit(1),
   );
-  const email = renderBrandedEmail(
-    {
-      displayName: b?.displayName ?? null,
-      emailFromName: b?.emailFromName ?? null,
-      emailReplyTo: b?.emailReplyTo ?? null,
-      emailLogoUrl: b?.emailLogoUrl ?? null,
-      primaryColor: b?.primaryColor ?? null,
-      supportEmail: b?.supportEmail ?? null,
-    },
-    { subject, bodyHtml },
-  );
+  const branding = {
+    displayName: b?.displayName ?? null,
+    emailFromName: b?.emailFromName ?? null,
+    emailReplyTo: b?.emailReplyTo ?? null,
+    emailLogoUrl: b?.emailLogoUrl ?? null,
+    logoDarkUrl: b?.logoDarkUrl ?? null,
+    primaryColor: b?.primaryColor ?? null,
+    supportEmail: b?.supportEmail ?? null,
+  };
+  const theme = await resolveTenantEmailTheme(tenantId, branding);
+  const email = renderBrandedEmail(branding, { subject, bodyHtml }, theme);
   await sendTransactionalEmail({ ...email, to }, { tenantId });
 }
 

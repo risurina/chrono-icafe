@@ -104,7 +104,8 @@ async function notifyBusinessLeadSubmitted(input: {
       displayName: null,
       emailFromName: null,
       emailReplyTo: null,
-      emailLogoUrl: null,
+      emailLogoUrl: "https://chrono.izur.com.ph/brand/chrono-owl.png",
+      logoDarkUrl: null,
       primaryColor: null,
       supportEmail: null,
     };

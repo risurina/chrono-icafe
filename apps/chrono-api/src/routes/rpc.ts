@@ -33,6 +33,7 @@ import {
   encryptSecret,
   hasEncryptionKey,
   zValidator,
+  resolveTenantEmailTheme,
 } from "agora/server";
 import { usageMeteringMiddleware } from "agora/server";
 import {
@@ -1574,20 +1575,24 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
         .where(eq(tenantBranding.tenantId, tenantId))
         .limit(1),
     );
+    const branding = {
+      displayName: b?.displayName ?? null,
+      emailFromName: b?.emailFromName ?? null,
+      emailReplyTo: b?.emailReplyTo ?? null,
+      emailLogoUrl: b?.emailLogoUrl ?? null,
+      logoDarkUrl: b?.logoDarkUrl ?? null,
+      primaryColor: b?.primaryColor ?? null,
+      supportEmail: b?.supportEmail ?? null,
+    };
+    const theme = await resolveTenantEmailTheme(tenantId, branding);
     const email = renderBrandedEmail(
-      {
-        displayName: b?.displayName ?? null,
-        emailFromName: b?.emailFromName ?? null,
-        emailReplyTo: b?.emailReplyTo ?? null,
-        emailLogoUrl: b?.emailLogoUrl ?? null,
-        primaryColor: b?.primaryColor ?? null,
-        supportEmail: b?.supportEmail ?? null,
-      },
+      branding,
       {
         subject: "Test email from your business",
         bodyHtml:
           "<p>This is a test message confirming your email integration is configured correctly.</p>",
       },
+      theme
     );
     const sender = await resolveEmailSender(tenantId);
     await sender.send({ ...email, to: u.email });
