@@ -32,7 +32,7 @@ function TierBadge({ tier }: { tier: string }) {
 }
 
 export default function MemberDashboardPage() {
-  const { member, onboarding } = useMemberArea();
+  const { member, onboarding, approved } = useMemberArea();
 
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
@@ -129,7 +129,7 @@ export default function MemberDashboardPage() {
           <CardContent>
             {loading ? (
               <Skeleton className="h-10 w-2/3" />
-            ) : (
+            ) : approved ? (
               <Stack gap={1}>
                 <span className="text-2xl font-bold">
                   {wallet ? formatCurrency(wallet.balance, wallet.currency) : "—"}
@@ -140,6 +140,10 @@ export default function MemberDashboardPage() {
                     : "No top-ups yet"}
                 </span>
               </Stack>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Your wallet unlocks once your application is approved.
+              </p>
             )}
           </CardContent>
           <CardFooter>
@@ -154,16 +158,16 @@ export default function MemberDashboardPage() {
           <CardHeader>
             <Row items="center" className="justify-between">
               <CardTitle>Membership</CardTitle>
-              {loyalty ? <TierBadge tier={loyalty.level.tier} /> : null}
+              {approved && loyalty ? <TierBadge tier={loyalty.level.tier} /> : null}
             </Row>
             <CardDescription>
-              {loyalty?.memberSince ? `Member since ${formatDate(loyalty.memberSince)}` : ""}
+              {approved && loyalty?.memberSince ? `Member since ${formatDate(loyalty.memberSince)}` : ""}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <Skeleton className="h-10 w-full" />
-            ) : loyalty ? (
+            ) : approved && loyalty ? (
               <Stack gap={2}>
                 <Progress value={loyalty.level.progressPercent} />
                 <span className="text-xs text-muted-foreground">
@@ -172,6 +176,10 @@ export default function MemberDashboardPage() {
                     : "Top tier reached"}
                 </span>
               </Stack>
+            ) : !approved ? (
+              <p className="text-sm text-muted-foreground">
+                Wallet and rewards unlock once your application is approved.
+              </p>
             ) : null}
           </CardContent>
         </Card>
