@@ -97,6 +97,7 @@ import { walletPortalRoutes } from "./modules/wallet/portal-routes";
 import { creditPortalRoutes } from "./modules/credit/portal-routes";
 import { sessionPortalRoutes } from "./modules/session/portal-routes";
 import { reservationPortalRoutes } from "./modules/reservation/portal-routes";
+import { activityPortalRoutes } from "./modules/activity/routes";
 import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
 import { paymentPortalRoutes } from "./modules/payment/portal-routes";
@@ -581,6 +582,10 @@ export const app = baseApp
   // reservation self-service (reservations-queue-and-self-service plan) —
   // gated by memberMiddleware() inside reservationPortalRoutes() itself.
   .route("/portal/reservations", reservationPortalRoutes())
+  // Chrono: customer-facing unified activity feed (wallet + credit + session +
+  // reservation events, one paginated timeline) — gated by memberMiddleware()
+  // inside activityPortalRoutes() itself. member-portal-v2 Phase 8.
+  .route("/portal/activity", activityPortalRoutes())
   // Chrono: customer-facing loyalty read surface (level/history) — gated
   // by memberMiddleware() inside loyaltyPortalRoutes() itself.
   .route("/portal/loyalty", loyaltyPortalRoutes())
