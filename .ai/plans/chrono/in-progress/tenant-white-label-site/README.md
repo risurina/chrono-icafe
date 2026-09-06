@@ -1253,11 +1253,27 @@ been run green on a machine with `.env` present.
       both attribution lines with correct destinations.
 - [ ] Phase 6: either the session-aware enhancement works end-to-end, or
       this phase's explicit de-scope is recorded here with its reason.
-- [ ] Phase 7: all eight analytics events verified firing; no stray
-      `console.log`.
-- [ ] Phase 8: all four e2e specs pass, including the cross-tenant-
-      isolation spec's fail-when-broken check.
-- [ ] Phase 9: `apps/chrono-api/AGENTS.md` updated; plan archived.
-- [ ] `pnpm typecheck` (workspace-wide) passes.
-- [ ] `pnpm --filter @agora/chrono-api rls:proof` passes.
-- [ ] `turbo run build` passes.
+- [~] Phase 7: implemented and committed. All eight events have a call site
+      and `analytics.ts` holds the only `console.log` in `apps/chrono-web`
+      (grep-verified). **Watching them fire in a browser console is a live-
+      session step** — see "Verification deferred to a live session".
+- [~] Phase 8: all four specs written and committed, plus a repair to
+      `availability.spec.ts`, whose summary-card assertions Phase 4
+      invalidated. **UNRUN** — Playwright needs `pnpm dev` and a live DB.
+      The cross-tenant-isolation spec's fail-when-broken check is unrun too.
+      This gates plan closure.
+- [x] Phase 9: `apps/chrono-api/AGENTS.md` updated (Surfaces, Landing pages,
+      plus the two pre-existing doc-drift corrections in Modules). **Plan
+      NOT archived** — closure is the coordinating session's call, and the
+      Phase 8 gate above is still open.
+- [x] `pnpm typecheck` (workspace-wide) passes.
+- [ ] `pnpm --filter @agora/chrono-api rls:proof` passes. **Not run** — needs
+      `DATABASE_URL_ADMIN`. This plan makes no schema/RLS change, so its
+      trigger does not strictly fire.
+- [x] `pnpm --filter @agora/chrono-web build` passes. (`turbo run build`
+      across the workspace is still the closing check.)
+- [x] Offline harness (`pnpm --filter @agora/chrono-api test:e2e`): baseline
+      measured at 713 passed / 73 failed before this session's changes, and
+      unchanged after. Those 73 are pre-existing on the branch base
+      (wallet/credits, files/storage, org read/rename/export, suspend/resume,
+      feature-flags, api-keys/webhooks, app-usage) and are not this plan's.
