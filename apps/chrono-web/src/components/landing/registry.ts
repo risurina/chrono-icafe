@@ -18,6 +18,7 @@ import {
   TenantCta,
   TenantExperience,
   TenantPlayerCta,
+  TenantShare,
   type TenantStationsProps,
   type Rate,
 } from "./tenant-sections";
@@ -289,6 +290,19 @@ export const CHRONO_LANDING_SECTIONS = buildLandingSectionRegistry({
     defaultOrder: 90,
     Component: TenantFaq,
     propsFrom: (r: ResolvedLandingConfig) => ({ faqs: r.faqs }),
+  }),
+  share: defineLandingSection({
+    key: "share",
+    label: "Share this venue",
+    surface: "tenant",
+    defaultEnabled: true,
+    // Late on the page, just before the closing CTA — a visitor shares once
+    // they have already decided they like the place.
+    defaultOrder: 95,
+    Component: TenantShare,
+    propsFrom: (_r: ResolvedLandingConfig, ctx: LandingSectionContext) => ({
+      tenantName: ctx.tenantName,
+    }),
   }),
   cta: defineLandingSection({
     key: "cta",

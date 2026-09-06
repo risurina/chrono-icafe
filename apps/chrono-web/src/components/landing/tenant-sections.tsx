@@ -33,6 +33,7 @@ import {
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { StationRefresh } from "./station-refresh";
+import { ShareButton } from "./share-button";
 import { STATION_TONE, type StationStatus } from "./station-tone";
 
 /**
@@ -1330,6 +1331,37 @@ export function TenantPlayerCta({ tenantName }: TenantPlayerCtaProps) {
               Already a member? Sign in
             </Link>
           </Row>
+        </Stack>
+      </Stack>
+    </Section>
+  );
+}
+
+/* ─────────────────────────────── share ───────────────────────────────── */
+
+export type TenantShareProps = { tenantName: string };
+
+/**
+ * "Tell a friend." Word of mouth is how a local gaming cafe actually grows, and
+ * a shared link is the highest-intent traffic this page receives. The button
+ * itself is a small client island; everything around it stays server-rendered.
+ */
+export function TenantShare({ tenantName }: TenantShareProps) {
+  return (
+    <Section
+      id="share"
+      maxWidth="full"
+      border="bottom"
+      data-testid="landing-section-share"
+    >
+      <Stack gap={0} className="py-24">
+        <Stack gap={8} className="mx-auto flex max-w-2xl flex-col items-center text-center">
+          <SectionIntro
+            eyebrow="Bring the squad"
+            title="Playing better with friends."
+            lead={`Send ${tenantName} to whoever you game with — they will see the same live availability you just did.`}
+          />
+          <ShareButton tenantName={tenantName} />
         </Stack>
       </Stack>
     </Section>
