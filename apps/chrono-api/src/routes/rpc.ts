@@ -89,6 +89,7 @@ import { promoRoutes } from "../modules/promo/routes";
 import { staffDeviceRoutes } from "../modules/device/routes";
 import { chronoAppUsageRoutes } from "../modules/app-usage/routes";
 import { growthRoutes } from "../modules/business-lead/routes";
+import { notifyMatchedLeadsOnPublish } from "../modules/business-lead/service";
 import { stationQrRoutes } from "../modules/qr/routes";
 import { CHRONO_FEATURE_FLAGS, CHRONO_MODULES } from "../contracts/extensions";
 import { emitTenantEvent, webhookRoutes } from "agora/webhooks";
@@ -1424,7 +1425,16 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   // brandingRoutes(). `permission` carries chrono's own resource through the
   // foundation's injected-gate seam; the default (branding:manage) is the
   // scaffold's, and using it here would desync the API from the editor's <Can>.
-  .route("/", landingRoutes({ permission: { landingPage: ["manage"] } }))
+  .route(
+    "/",
+    landingRoutes({
+      permission: { landingPage: ["manage"] },
+      // Post-lead "we'll notify you" follow-up (growth-loop-hardening Phase
+      // 6) — Chrono's own implementation of the foundation's additive
+      // onPublish extension seam.
+      onPublish: notifyMatchedLeadsOnPublish,
+    }),
+  )
 
   // ── Chrono: platform-branding visibility toggle (admin+ landingPage:manage) ──
   // `TenantBrandings.hidePlatformBranding` is a foundation column (see

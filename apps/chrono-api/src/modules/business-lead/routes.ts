@@ -383,7 +383,7 @@ export function businessLeadPublicRoutes() {
  * with an explicit id filter — the same treatment `member`/`invitation` get.
  * `tenantId` always comes from `c.var.tenant`, never client input.
  */
-async function resolveCallerNormalizedBusinessName(tenantId: string): Promise<string> {
+export async function resolveCallerNormalizedBusinessName(tenantId: string): Promise<string> {
   const [org] = await adminDb
     .select({ name: base.organization.name })
     .from(base.organization)

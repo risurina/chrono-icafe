@@ -1,0 +1,1 @@
+ALTER TABLE "ChronoBusinessLeads" ADD COLUMN "notifiedAt" timestamp;

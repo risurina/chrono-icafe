@@ -53,6 +53,12 @@ export const chronoBusinessLead = pgTable(
     requesterCustomerId: text("requesterCustomerId").references(() => base.customer.id, {
       onDelete: "cascade",
     }),
+    // Set once this lead's requester has been emailed that the business they
+    // asked for has published its landing page (the "we'll notify you"
+    // follow-up). Null for an anonymous lead (nothing to notify) and for any
+    // lead not yet matched to a published business. Guards a republish from
+    // re-emailing the same player twice.
+    notifiedAt: timestamp("notifiedAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [

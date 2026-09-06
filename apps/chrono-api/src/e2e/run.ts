@@ -480,6 +480,33 @@ async function main() {
     }
   }
 
+  // Same console-log interception as captureEmailLinks, but recovers the
+  // `to=` recipient of every console-provider send — for asserting an
+  // exact-count email fan-out (e.g. growth-loop-hardening's onPublish hook)
+  // rather than recovering a single-use token. `settleMs` gives a
+  // fire-and-forget hook (called with `void hook().catch(...)`, never
+  // awaited by the route itself) time to finish before the interception is
+  // torn down.
+  async function captureEmailSends<T>(
+    fn: () => Promise<T>,
+    settleMs = 500,
+  ): Promise<{ result: T; sentTo: string[] }> {
+    const orig = console.log;
+    const sentTo: string[] = [];
+    console.log = (...args: unknown[]) => {
+      const line = args.map(String).join(" ");
+      const m = line.match(/^\[email:console\] to=(\S+)/);
+      if (m) sentTo.push(m[1]!);
+    };
+    try {
+      const result = await fn();
+      await new Promise((r) => setTimeout(r, settleMs));
+      return { result, sentTo };
+    } finally {
+      console.log = orig;
+    }
+  }
+
   // ── the checks ──
   console.log("\nRunning e2e checks:\n");
 
@@ -3300,7 +3327,7 @@ async function main() {
         // Never signs in — the row only has to exist to satisfy the lead's FK.
         passwordHash: "e2e-not-a-real-hash",
       })
-      .returning({ id: schema.customer.id });
+      .returning({ id: schema.customer.id, email: schema.customer.email });
 
     // One lead naming acme ("Acme Corp" → "acme corp"), one naming a business
     // neither tenant owns.
@@ -3412,6 +3439,47 @@ async function main() {
         leadsContoso.body?.items?.length === 0 &&
         leadsContoso.body?.meta?.totalItems === 0,
       JSON.stringify(leadsContoso.body),
+    );
+
+    // ── Phase 6 (growth-loop-hardening): post-lead "we'll notify you"
+    //    follow-up. Publishing acme's landing page must email the ONE
+    //    non-anonymous matched lead's requester exactly once, and mark that
+    //    lead's notifiedAt — never touching the anonymous "Some Other Cafe"
+    //    lead, which names a business nobody owns. onPublish is fire-and-
+    //    forget (`void onPublish(...).catch(...)`), so captureEmailSends
+    //    waits briefly after the response for it to actually run.
+    const { result: publishRes, sentTo } = await captureEmailSends(() =>
+      req("POST", "/rpc/landing-page/publish", { slug: "acme", cookie: ownerCk }),
+    );
+    check(
+      "growth: owner publishes acme's landing page (200)",
+      publishRes.status === 200,
+      `status ${publishRes.status}`,
+    );
+    check(
+      "growth: publishing notifies the matched lead's requester exactly once",
+      sentTo.length === 1 && sentTo[0] === growthCustomer!.email,
+      JSON.stringify(sentTo),
+    );
+
+    const [notifiedLead] = await adminDb
+      .select({ notifiedAt: chronoBusinessLead.notifiedAt })
+      .from(chronoBusinessLead)
+      .where(eq(chronoBusinessLead.businessNameNormalized, "acme corp"));
+    check(
+      "growth: the matched lead's notifiedAt is now set",
+      notifiedLead?.notifiedAt instanceof Date,
+      JSON.stringify(notifiedLead),
+    );
+
+    // Republishing must NOT send a second email — the notifiedAt guard.
+    const { sentTo: sentToOnRepublish } = await captureEmailSends(() =>
+      req("POST", "/rpc/landing-page/publish", { slug: "acme", cookie: ownerCk }),
+    );
+    check(
+      "growth: republishing sends NO second email to the already-notified lead",
+      sentToOnRepublish.length === 0,
+      JSON.stringify(sentToOnRepublish),
     );
   }
 
