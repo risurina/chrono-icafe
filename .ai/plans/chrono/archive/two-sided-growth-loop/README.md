@@ -1283,6 +1283,26 @@ wrong; it is unverified, and the difference matters here.
 
 Archive this plan once 1–3 are green.
 
+**Archived anyway, 2026-09-06, per explicit developer instruction** to close
+out the in-progress plans now. Items 1–3 above are **still unrun** — code is
+merged to `main` (commit `6186d64b`, including the anonymous-lead and
+staff-notification follow-ups) and `pnpm typecheck` passes across all 7
+workspace tasks, but the migration has never been applied and neither
+`rls:proof` nor the live growth/discover e2e specs have executed. Outstanding
+before this can be trusted as fully verified, in order:
+
+1. `pnpm --filter @agora/chrono-api db:migrate` — applies
+   `drizzle/0023_add_chrono_business_leads.sql` **and**
+   `drizzle/0024_business_lead_requester_nullable.sql` (both generated, never
+   applied — same `.env`-less constraint throughout this plan).
+2. `pnpm --filter @agora/chrono-api rls:proof` — regression check only, see
+   above for why it isn't this feature's isolation proof.
+3. `pnpm dev:chrono`, then `pnpm --filter @agora/chrono-web e2e` for
+   `e2e/tests/growth/` and `e2e/tests/discover/`.
+
+If any of these fail, treat it as a bug against this already-archived plan
+rather than silently patching and re-closing without recording what broke.
+
 ### Pre-existing red suite — NOT caused by this branch
 
 `test:e2e` was measured at **706 passed / 73 failed on the branch base**, before

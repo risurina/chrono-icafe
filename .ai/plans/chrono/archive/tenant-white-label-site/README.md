@@ -1198,6 +1198,18 @@ and static review.
 **Gate:** do not move this plan to `archive/` until the Phase 8 specs have
 been run green on a machine with `.env` present.
 
+**Archived anyway, 2026-09-06, per explicit developer instruction** to close
+out the in-progress plans now. This gate was **not** met — Phase 8 has still
+never run. Code is merged to `main` (commit `143082eb`) and every "Runnable"
+check above passed. Outstanding before this can be trusted as fully verified:
+
+- Place `.env` in a worktree/checkout with a live DB, `pnpm dev`, then run
+  Phase 8's Playwright specs from `apps/chrono-web` (see Phase 8 in this
+  plan for the exact spec paths) — this is the only browser-level
+  cross-tenant proof that `/public/venue-info` isolates tenants correctly.
+- If Phase 8 fails, treat it as a bug against this already-archived plan
+  (do not silently patch and re-close without recording what broke).
+
 ## Out of scope (whole plan)
 
 - `/discover`, the cross-tenant business directory, and the apex marketing
