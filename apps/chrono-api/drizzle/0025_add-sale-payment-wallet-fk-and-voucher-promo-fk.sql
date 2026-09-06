@@ -1,0 +1,2 @@
+ALTER TABLE "ChronoSalePayments" ADD CONSTRAINT "ChronoSalePayments_walletTransactionId_ChronoWalletTransactions_id_fk" FOREIGN KEY ("walletTransactionId") REFERENCES "public"."ChronoWalletTransactions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ChronoVouchers" ADD CONSTRAINT "ChronoVouchers_promoId_ChronoPromos_id_fk" FOREIGN KEY ("promoId") REFERENCES "public"."ChronoPromos"("id") ON DELETE restrict ON UPDATE no action;

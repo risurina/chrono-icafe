@@ -12,6 +12,7 @@ import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoBranch } from "../branch/schema";
 import { chronoShift } from "../shift/schema";
+import { chronoWalletTransaction } from "../wallet/schema";
 
 export const chronoProduct = pgTable(
   "ChronoProducts",
@@ -144,13 +145,12 @@ export const chronoSalePayment = pgTable(
     referenceNumber: text("referenceNumber"),
     // Set only for method: "wallet" — the ledger row debitWallet() produced,
     // so a refund can be traced back to the exact wallet mutation it
-    // reverses. Bare text, no FK yet — apps/chrono-api/src/modules/wallet/schema.ts
-    // does not exist on disk as of this writing (wallet's Phase 1 hasn't
-    // landed). set null (not restrict) is the intended semantics once the FK
-    // is added: the sale-payment record must survive even if the wallet
-    // transaction row it points at is ever hard-deleted.
-    // TODO: FK once wallet/schema.ts lands — .references(() => chronoWalletTransaction.id, { onDelete: "set null" })
-    walletTransactionId: text("walletTransactionId"),
+    // reverses. set null (not restrict): the sale-payment record must survive
+    // even if the wallet transaction row it points at is ever hard-deleted.
+    walletTransactionId: text("walletTransactionId").references(
+      () => chronoWalletTransaction.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => [

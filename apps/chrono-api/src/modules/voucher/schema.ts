@@ -2,6 +2,7 @@ import { pgTable, text, numeric, timestamp, index, uniqueIndex } from "drizzle-o
 import { createId } from "agora";
 import * as base from "agora/db/schema";
 import { chronoSale } from "../pos/schema";
+import { chronoPromo } from "../promo/schema";
 
 export const chronoVoucher = pgTable(
   "ChronoVouchers",
@@ -12,13 +13,10 @@ export const chronoVoucher = pgTable(
       .references(() => base.organization.id, { onDelete: "cascade" }),
     // Nullable — set only when this voucher was minted as part of a promos
     // campaign (see the sibling `promos` plan). A staff-issued one-off gift
-    // voucher has no promo behind it. Deliberately a bare `text` column with
-    // no FK constraint yet — mirrors `pos/schema.ts`'s own forward-reference
-    // precedent (`walletTransactionId`): `promos/schema.ts` may not exist on
-    // disk yet depending on landing order. Add the real
-    // `.references(() => chronoPromo.id, { onDelete: "restrict" })` once it
-    // does — a one-line follow-up migration, not a redesign.
-    promoId: text("promoId"),
+    // voucher has no promo behind it. restrict: a promo's issued vouchers
+    // must survive even if the campaign is later archived (mirrors
+    // ChronoPromoRedemptions.promoId's own restrict reasoning).
+    promoId: text("promoId").references(() => chronoPromo.id, { onDelete: "restrict" }),
     code: text("code").notNull(),
     // "percentage" | "fixed_amount" — see the vouchers plan's "diverges from
     // oikos" #2.
