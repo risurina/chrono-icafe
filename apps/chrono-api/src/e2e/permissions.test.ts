@@ -847,6 +847,7 @@ const enabledButUnconfigured = resolveFromFlags({
   email: true,
   google: true,
   facebook: true,
+  passkey: true,
 });
 check(
   "an enabled but unconfigured provider is NOT available",
@@ -857,7 +858,12 @@ check(
 );
 // The floor: the environment is not gated by any handler, so credentials can
 // vanish on a deploy. The resolver must never report zero usable methods.
-const allOff = resolveFromFlags({ email: false, google: false, facebook: false });
+const allOff = resolveFromFlags({
+  email: false,
+  google: false,
+  facebook: false,
+  passkey: false,
+});
 check(
   "the empty-set floor forces email available when nothing else is",
   allOff.email.available === true && allOff.email.enabled === false,
