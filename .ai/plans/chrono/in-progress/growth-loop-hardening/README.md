@@ -431,6 +431,77 @@ fields are dead vs. live, with a recommendation.
 **Execution start point:** read `landing-page/routes.ts` and `business-lead/routes.ts:150-200`
 in full.
 
+#### Phase 9 findings (2026-09-06 audit pass)
+
+**Call-site trace, complete.** Every reference to `chronoLandingPage` (the `ChronoLandingPages`
+table) traced:
+
+- `landingPageRoutes()` (`landing-page/routes.ts:26`, GET/PATCH `/landing-page`, the staff
+  content editor) — **confirmed 100% dead/unreachable code**, not just "unused" but
+  *unreachable by construction*: `apps/chrono-api/src/routes/rpc.ts:1418-1425`'s own comment
+  explains the foundation's `landingRoutes()` is mounted at the exact same path
+  (`/rpc/landing-page`) and would silently shadow Chrono's own factory if both were mounted —
+  so `landingPageRoutes()` was deliberately never wired in. This was a considered decision when
+  the foundation's editor landed, not an oversight later. Confirmed via the web side too: the
+  live editor page (`apps/chrono-web/src/app/(tenant-admin)/dashboard/settings/landing-page/page.tsx`)
+  calls `api.rpc["landing-page"].$get()`/`.$patch()`/`.publish.$post()`/`.unpublish.$post()` —
+  every one of those resolves to the **foundation's** route, never Chrono's own. No web caller
+  of the dead factory exists anywhere.
+- `getPublicLandingPageContent()` (`landing-page/routes.ts:75`, read-only, mounted at
+  `GET /public/landing-page` via `app.ts:652`) — **live**, the only surviving consumer of the
+  table. Its return value is merged client-side (`apps/chrono-web/src/lib/landing.ts`'s
+  `legacyLayer()`) as the **lower-precedence** layer under the foundation's published snapshot.
+- `business-lead/routes.ts:172`'s mention of `ChronoLandingPages` — **doc comment only, not a
+  code reference**. It explains why the public discovery directory checks the foundation's
+  `tenantLandingPage.published` instead of this legacy table (publishing the NEW editor is the
+  consent signal; the legacy table predates that decision and was never such a signal). No
+  actual query touches `chronoLandingPage` from that module.
+
+**Field-by-field, of `ChronoLandingPages`' six own columns** (traced through
+`getPublicLandingPageContent()` → `apps/chrono-api/src/app.ts:652` → `apps/chrono-web/src/lib/landing.ts`'s
+`legacyLayer()` → the two page components that destructure `getTenantLanding()`'s result):
+
+| Column | Status | Where it's actually read |
+|---|---|---|
+| `heroTagline` | **Live** | `legacyLayer()` → `hero.title` |
+| `aboutBody` | **Live** | `legacyLayer()` → `about.body` |
+| `ctaLabel` / `ctaHref` | **Live** (paired) | `legacyLayer()` → `hero.primaryCta` |
+| `contactOverride` | **Live** | `legacyLayer()` → `contact.phone` fallback |
+| `amenitiesBody` | **Dead** | Present in the `LegacyContent` TS type and round-trips over the wire in `content.amenitiesBody`, but `legacyLayer()` never reads it and no component references it anywhere in `apps/chrono-web`. Confirmed via grep: the only match for `amenitiesBody`/`amenities` in `apps/chrono-web/src` is the type declaration itself. |
+
+**One more dead field found, NOT a `ChronoLandingPages` column but computed by the same
+function**: `getPublicLandingPageContent()`'s `hasStations` (a separate `ChronoStations` query,
+folded into the same response) is threaded all the way through
+`apps/chrono-web/src/lib/landing.ts`'s `TenantLanding.hasStations` — but neither
+`(saas-landing)/page.tsx` nor `(saas-landing)/about/page.tsx` ever destructures it. Dead at the
+consuming end, though the underlying query is cheap.
+
+**Also dead by extension**: `updateLandingPageSchema`/`UpdateLandingPageInput`
+(`landing-page/contracts.ts`) exist only to validate the dead `landingPageRoutes()` PATCH body —
+no other caller.
+
+**Recommendation:** consolidate, not leave-as-is — but as a separate, later phase (per this
+phase's own out-of-scope line), not bundled into this one:
+
+1. Migrate the five live columns' *behavior*, not necessarily the storage, into the
+   foundation's `landingConfigSchema` cascade as first-class fields (or keep the legacy-layer
+   merge indefinitely if a real migration of existing tenant data is judged not worth it — a
+   developer call, not an engineering constraint).
+2. Drop `amenitiesBody` immediately whenever that migration lands — zero consumers, zero risk,
+   no data-migration question (nothing reads it, so nothing needs to keep reading it).
+3. Delete `landingPageRoutes()`, its route mount comment, and `updateLandingPageSchema`/
+   `UpdateLandingPageInput` — dead code with a zero-risk removal (never mounted, so removing it
+   changes no runtime behavior).
+4. Drop `hasStations` from `getPublicLandingPageContent()`'s return and `TenantLanding` — dead
+   at every consumer.
+5. Only once 1–4 are decided and (if applicable) existing tenant data is migrated, drop the
+   `ChronoLandingPages` table itself and its schema file.
+
+This finding does not change the recommendation to keep `ChronoLandingPages`' live columns
+functioning today — nothing here is broken, and the legacy/new-editor precedence order
+(`apps/chrono-web/src/lib/landing.ts`'s own doc comment) is correct as documented. The
+consolidation is a cleanup opportunity, not a bug fix.
+
 ### Phase 10 — Discovery ranking by demand signal (Gap 10)
 
 **Files to update:** `apps/chrono-api/src/modules/business-lead/routes.ts` (`GET
