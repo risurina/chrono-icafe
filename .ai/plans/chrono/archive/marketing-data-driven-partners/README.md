@@ -266,22 +266,15 @@ and lines 329-470 (hero + start of "Operational reality") before editing.
       at any of the four widths (the 640-768px band was the audit's
       CONDITION 5 risk band, specifically re-checked); light and dark theme
       both correct.
-- [ ] `apps/chrono-web/e2e/tests/marketing/data-driven-partners.spec.ts`
-      passes. **Not run this session** — the spec's `baseURL` is hardcoded to
-      `http://localtest.me:3000` (`playwright.config.ts`), and port 3000 was
-      occupied by the main checkout's own running dev server (serving
-      pre-change content) for the whole session. Asked the developer whether
-      to reclaim that port; they chose to run the real spec themselves later
-      rather than have this session stop their server. Needs: `pnpm dev` (or
-      just chrono-web) running from this branch, then
-      `pnpm --filter @agora/chrono-web e2e -- e2e/tests/marketing/data-driven-partners.spec.ts`.
+- [x] `apps/chrono-web/e2e/tests/marketing/data-driven-partners.spec.ts`
+      passes. Ran against the developer's own already-running `pnpm dev`
+      chrono-web server on port 3000 (confirmed it was already serving the
+      post-change content), so no server was started or stopped for this:
+      `pnpm exec playwright test e2e/tests/marketing/data-driven-partners.spec.ts`
+      (from `apps/chrono-web`) — both tests passed (heading + 4 badges + 4
+      stat tiles render; no horizontal overflow in the 640-768px risk band).
 
 ## Plan Closure
 
-**Not yet archived** — the one outstanding verification command (the real
-Playwright run above) is deferred to the developer per their own choice, the
-same honest-bookkeeping precedent as
-`.ai/plans/chrono/in-progress/mailtrap-e2e-verification/README.md`. Once that
-spec passes, move this plan to
-`.ai/plans/chrono/archive/marketing-data-driven-partners/`, check the box
-above, and this plan is closed.
+Fully implemented and verified — archived to
+`.ai/plans/chrono/archive/marketing-data-driven-partners/`.
