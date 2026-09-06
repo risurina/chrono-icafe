@@ -102,6 +102,7 @@ export const {
   tenantMemberSession,
   tenantMemberToken,
   tenantMemberOAuthAccount,
+  tenantMemberPasskey,
   customer,
   customerSession,
   customerToken,
