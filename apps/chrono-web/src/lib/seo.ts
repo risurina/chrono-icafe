@@ -16,7 +16,15 @@ import { getTenantCanonicalUrl } from "@/lib/tenant";
  * own logo when it has one and is omitted entirely otherwise — no hero/OG image
  * field exists, and a placeholder would be a fabricated brand asset.
  */
-export async function tenantPageMetadata(path = "/"): Promise<Metadata> {
+export async function tenantPageMetadata(
+  path = "/",
+  /**
+   * Copy for a tenant surface that is not the landing page itself (e.g.
+   * `/stations`), where the tenant's own SEO title would describe the wrong
+   * page. Omit it and the landing config's SEO fields are used.
+   */
+  copy?: (venueName: string) => { title: string; description: string },
+): Promise<Metadata> {
   const [landing, branding, url] = await Promise.all([
     getTenantLanding(),
     getPublicBranding(),
@@ -25,9 +33,14 @@ export async function tenantPageMetadata(path = "/"): Promise<Metadata> {
   if (!landing) return {};
 
   const { resolved, venueName } = landing;
-  const title = resolved.seo.title ?? venueName;
+  const displayName = branding?.displayName?.trim() || venueName;
+  const override = copy?.(displayName);
+  const title = override?.title ?? resolved.seo.title ?? venueName;
   const description =
-    resolved.seo.description ?? resolved.hero.subtitle ?? undefined;
+    override?.description ??
+    resolved.seo.description ??
+    resolved.hero.subtitle ??
+    undefined;
 
   return {
     title,

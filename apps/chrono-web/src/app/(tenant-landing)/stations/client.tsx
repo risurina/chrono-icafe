@@ -3,11 +3,20 @@
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "agora/ui";
 import { Badge } from "agora/ui";
+import { STATION_TONE, stationTone } from "@/components/landing/station-tone";
 
+/**
+ * `inUse` counts stations whose status is "occupied" and `unavailable` counts
+ * maintenance + offline — the honest split. Both are optional so a payload
+ * cached before that change still renders; the per-status counts below are
+ * derived from the rows themselves, which are always authoritative.
+ */
 type StationAggregate = {
   total: number;
   available: number;
   inUse: number;
+  occupied?: number;
+  unavailable?: number;
 };
 
 type PublicStation = {
@@ -31,8 +40,29 @@ type PublicStationData = {
   branches: PublicBranchStations[];
 };
 
-export function StationAvailabilityPoller({ initialData }: { initialData: PublicStationData }) {
+export function StationAvailabilityPoller({
+  initialData,
+  venueName,
+}: {
+  initialData: PublicStationData;
+  venueName: string;
+}) {
   const [data, setData] = useState<PublicStationData>(initialData);
+  const allStations = data.branches.flatMap((b) => b.stations);
+  const countOf = (status: string) =>
+    allStations.filter((s) => s.status === status).length;
+
+  // Four REAL states, each backed by a real `status` value. This card row used
+  // to read "In Use / Offline" over a number the API computed as
+  // maintenance + offline — so a machine under maintenance was advertised as in
+  // use, and a genuinely-occupied one was counted nowhere.
+  const summary = [
+    { label: "Total stations", value: data.aggregate.total, tone: "text-foreground" },
+    { label: "Available", value: countOf("available"), tone: STATION_TONE.available.text },
+    { label: "In use", value: countOf("occupied"), tone: STATION_TONE.occupied.text },
+    { label: "Maintenance", value: countOf("maintenance"), tone: STATION_TONE.maintenance.text },
+    { label: "Offline", value: countOf("offline"), tone: STATION_TONE.offline.text },
+  ];
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -52,35 +82,25 @@ export function StationAvailabilityPoller({ initialData }: { initialData: Public
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Stations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{data.aggregate.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600 dark:text-green-500">{data.aggregate.available}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">In Use / Offline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600 dark:text-orange-500">{data.aggregate.inUse}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {summary.map((card) => (
+          <Card key={card.label}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {card.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${card.tone}`}>{card.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {data.branches.every((branch) => branch.stations.length === 0) ? (
-        <div className="py-12 text-center text-muted-foreground">No stations available.</div>
+        <div className="py-12 text-center text-muted-foreground">
+          {`No stations listed for ${venueName} yet.`}
+        </div>
       ) : (
         <div className="space-y-10">
           {data.branches.map((branch) => (
@@ -118,7 +138,7 @@ export function StationAvailabilityPoller({ initialData }: { initialData: Public
                             : "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100"
                         }
                       >
-                        {station.status === "available" ? "Available" : station.status === "maintenance" ? "Maintenance" : "Offline"}
+                        {stationTone(station.status).label}
                       </Badge>
                       {station.stationType && (
                         <div className="text-xs text-muted-foreground">{station.stationType}</div>

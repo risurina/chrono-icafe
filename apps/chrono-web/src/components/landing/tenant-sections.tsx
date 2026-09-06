@@ -33,6 +33,7 @@ import {
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { StationRefresh } from "./station-refresh";
+import { STATION_TONE, type StationStatus } from "./station-tone";
 
 /**
  * Chrono's tenant landing sections.
@@ -650,24 +651,7 @@ export function TenantTestimonials({
 
 /* ───────────────────────────── station matrix ────────────────────────── */
 
-/**
- * Semantic tone per station status — no raw colour literals.
- *
- * Keyed to the API's `stationStatusSchema`, which today is exactly these three.
- * A status the server adds later renders through the `offline` fallback below
- * rather than crashing on a missing key.
- */
-// All four real values of `ChronoStations.status`. "occupied" is written by the
-// session module when a station is in use — it is a genuine floor state, not a
-// derived figure, so it belongs here alongside the other three.
-const STATION_TONE = {
-  available: { dot: "bg-chart-2", text: "text-chart-2", label: "Available" },
-  occupied: { dot: "bg-primary", text: "text-primary", label: "In use" },
-  maintenance: { dot: "bg-chart-4", text: "text-chart-4", label: "Maintenance" },
-  offline: { dot: "bg-muted-foreground", text: "text-muted-foreground", label: "Offline" },
-} as const;
-
-export type StationStatus = keyof typeof STATION_TONE;
+export type { StationStatus };
 
 export type TenantStationsProps = {
   branches: readonly {
