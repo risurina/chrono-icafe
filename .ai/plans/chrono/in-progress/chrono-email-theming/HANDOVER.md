@@ -23,7 +23,8 @@ total. One Jules session per phase.
 
 ## Phase 2 — `resolveChronoEmailTheme` + boot-time registration
 
-- Status: not yet fired.
+- Status: fired 2026-09-06, awaiting completion.
+- Session id: `13227066584702928790` — https://jules.google.com/session/13227066584702928790
 
 ## Phase 3 — Migrate Chrono's own ad hoc email call sites (4 sites, incl. business-lead)
 
