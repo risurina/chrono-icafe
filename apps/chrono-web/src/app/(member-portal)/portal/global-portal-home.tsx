@@ -12,7 +12,9 @@ import {
 import {
   useGlobalCustomerSession,
   getMyTenantMemberships,
+  getMyVenueStatus,
   type GlobalCustomerMembership,
+  type MembershipVenueStatus,
 } from "@/lib/customer-client";
 
 function tenantPortalUrl(slug: string): string {
@@ -25,11 +27,29 @@ function tenantPortalUrl(slug: string): string {
  * (`assertTenantActive`), so it renders as a badge instead of a live link. */
 const REACHABLE_STATUSES = new Set(["active", "trial", "pending"]);
 
-function MembershipRow({ membership }: { membership: GlobalCustomerMembership }) {
+function MembershipRow({
+  membership,
+  venueStatus,
+}: {
+  membership: GlobalCustomerMembership;
+  venueStatus: MembershipVenueStatus | undefined;
+}) {
   const reachable = REACHABLE_STATUSES.has(membership.tenantStatus);
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-sm font-medium">{membership.tenantName}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">{membership.tenantName}</span>
+        {reachable && venueStatus ? (
+          <>
+            <Badge variant={venueStatus.status === "open" ? "default" : "secondary"}>
+              {venueStatus.status === "open" ? "Open" : "Closed"}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {venueStatus.available}/{venueStatus.total} available
+            </span>
+          </>
+        ) : null}
+      </div>
       {reachable ? (
         <a
           href={tenantPortalUrl(membership.tenantSlug)}
@@ -52,11 +72,21 @@ function MembershipRow({ membership }: { membership: GlobalCustomerMembership })
 export function GlobalPortalHome() {
   const { customer } = useGlobalCustomerSession();
   const [memberships, setMemberships] = useState<GlobalCustomerMembership[] | null>(null);
+  const [venueStatusBySlug, setVenueStatusBySlug] = useState<
+    Record<string, MembershipVenueStatus>
+  >({});
 
   useEffect(() => {
     let active = true;
     getMyTenantMemberships().then(({ data }) => {
       if (active) setMemberships(data ?? []);
+    });
+    // Fetched separately (own Chrono-owned route) and merged by
+    // `tenantSlug` — a failure here must never block the membership list
+    // itself from rendering, so it's silently absorbed to "no status".
+    getMyVenueStatus().then(({ data }) => {
+      if (!active || !data) return;
+      setVenueStatusBySlug(Object.fromEntries(data.map((v) => [v.tenantSlug, v])));
     });
     return () => {
       active = false;
@@ -107,7 +137,11 @@ export function GlobalPortalHome() {
           ) : (
             <div className="divide-y">
               {memberships.map((m) => (
-                <MembershipRow key={m.tenantSlug} membership={m} />
+                <MembershipRow
+                  key={m.tenantSlug}
+                  membership={m}
+                  venueStatus={venueStatusBySlug[m.tenantSlug]}
+                />
               ))}
             </div>
           )}

@@ -68,6 +68,7 @@ import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
 import { businessLeadPublicRoutes } from "./modules/business-lead/routes";
 import { publicStationRoutes } from "./modules/station/routes";
+import { stationMembershipStatusRoutes } from "./modules/station/customer-portal-routes";
 import { publicVenueInfoRoutes } from "./modules/branch/routes";
 import { getPublicLandingPageContent } from "./modules/landing-page/routes";
 import { readPublishedLandingPage } from "agora/server/routes";
@@ -555,6 +556,12 @@ export const app = baseApp
   // Self-service "apply to become a customer of this tenant" for a signed-in
   // global customer — tenant-scoped (host-resolved), unlike /auth/customer.
   .route("/portal/customer", createCustomerApplyRoutes())
+  // Chrono: live open/closed + availability per venue for "My Gaming
+  // Spots" (member-portal-v2 Phase 7) — a second, additive, Chrono-owned
+  // read alongside the foundation's own /portal/customer/memberships above;
+  // gated by customerAuthMiddleware() inside stationMembershipStatusRoutes()
+  // itself, mirroring how /portal/customer is mounted directly above.
+  .route("/portal/customer/venues", stationMembershipStatusRoutes())
   // Chrono: customer-facing venue-membership self-service (apply / view own
   // status) — gated by memberMiddleware() inside memberPortalRoutes()
   // itself, mirroring how /portal/auth is mounted directly above.
