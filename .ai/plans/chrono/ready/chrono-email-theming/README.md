@@ -34,6 +34,9 @@ Owner: Chrono's email call sites (`apps/chrono-api`)
   https production host serving this asset, and confirmed `business-lead`'s
   notification should get the identical owl-logo treatment as
   `company-inquiry`. Phase 3 updated accordingly.
+- Implementation: (this session) implementing via Jules, per developer's "use
+  jules for now" instruction; no schema/RLS/tenant-isolation/permission-gate
+  design in any phase, all 4 phases Jules-eligible.
 
 ## Depends on
 
