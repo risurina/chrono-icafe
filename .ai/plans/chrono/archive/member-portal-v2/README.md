@@ -3,7 +3,17 @@
 **Sessions:**
 - Planning: consolidate-customers-members-page [7ffb50]
 - Audit: (unclaimed)
-- Implementation: email-theme-fixes-session (dispatched subagent, 2026-09-07)
+- Implementation: email-theme-fixes-session (dispatched subagent, 2026-09-07) — complete,
+  phases 0-4, 6-9 landed (merge `7300883b`); Phase 5 deferred pending a developer decision
+  on reversing "no realtime for members." Known follow-ups: (1) e2e specs for phases 4/7/8
+  were written but not executed live (port conflict with a concurrent worktree) — run them
+  against a fresh `pnpm dev`; (2) Phase 7 diverged from the plan's literal instruction to
+  extend the foundation's `GET /portal/customer/memberships` — added a new Chrono-owned
+  `GET /portal/customer/venues` route instead, merged client-side, per
+  `.ai/rules/business-app.md`'s extension-seam rule (the foundation route is business-neutral
+  and should not gain Chrono-specific fields); (3) two extra raw-ID-in-copy bugs beyond the
+  plan's own citation were found and fixed in Phase 6 (`payment/service.ts:100,128`,
+  `pos/service.ts:326`).
 
 ## Source
 
