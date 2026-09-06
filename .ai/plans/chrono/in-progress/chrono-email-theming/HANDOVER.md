@@ -31,7 +31,8 @@ total. One Jules session per phase.
 
 ## Phase 3 — Migrate Chrono's own ad hoc email call sites (4 sites, incl. business-lead)
 
-- Status: not yet fired.
+- Status: fired 2026-09-06, awaiting completion.
+- Session id: `9177594113553321491` — https://jules.google.com/session/9177594113553321491
 
 ## Phase 4 — Verification + docs
 
