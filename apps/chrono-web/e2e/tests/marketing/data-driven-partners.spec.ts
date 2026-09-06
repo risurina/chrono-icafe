@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Smoke coverage for the "By design" data-driven-partners section on the
- * apex marketing page (`.ai/plans/chrono/ready/marketing-data-driven-partners/`).
+ * apex marketing page (plan slug: marketing-data-driven-partners).
  *
  * Not a tenant-scoped-feature e2e spec in the `.ai/rules/e2e-testing.md`
  * sense (no new table/route/RLS surface, no tenant context) — static apex
@@ -31,14 +31,32 @@ test.describe("Apex marketing page — data-driven partners section", () => {
       await expect(page.getByText(label, { exact: true })).toBeVisible();
     }
 
+    // Every label/value pair here is unique text on the page, so a plain
+    // getByText assertion is enough — no need to scope into a specific tile
+    // element (which would have to guess at the DOM shape).
     for (const { label, value } of [
       { label: "Branches per account", value: "Unlimited" },
-      { label: "Built-in modules", value: "20+" },
+      { label: "Built-in workflows", value: "20+" },
       { label: "Realtime sync", value: "Built-in" },
       { label: "Tenant data isolation", value: "Row-level" },
     ]) {
-      const tile = page.locator("div").filter({ hasText: label }).last();
-      await expect(tile.getByText(value, { exact: true })).toBeVisible();
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+      await expect(page.getByText(value, { exact: true })).toBeVisible();
     }
+  });
+
+  test("stat grid has no horizontal overflow in the 640-768px risk band", async ({ page }) => {
+    // This band is exactly what CONDITION 5 (plan audit) fixed: Grid's
+    // cols={4} maps to sm:grid-cols-4 (a 640px jump straight to 4 columns),
+    // which would overflow StatTile's min-w-[160px] cards at this width —
+    // fixed with cols={2} + an explicit lg:grid-cols-4 override.
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto("/");
+    await expect(page.getByText("Built-in workflows", { exact: true })).toBeVisible();
+
+    const hasOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(hasOverflow).toBe(false);
   });
 });

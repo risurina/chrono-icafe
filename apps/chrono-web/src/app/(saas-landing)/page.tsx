@@ -338,7 +338,7 @@ export default async function Home() {
 
     const trustStats = [
       { label: "Branches per account", value: "Unlimited" },
-      { label: "Built-in modules", value: "20+" },
+      { label: "Built-in workflows", value: "20+" },
       { label: "Realtime sync", value: "Built-in" },
       { label: "Tenant data isolation", value: "Row-level" },
     ];
