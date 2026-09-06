@@ -197,6 +197,16 @@ export function branchRoutes() {
 // marketing-page read, not a money-moving route.
 const publicVenueInfoLimiter = createRateLimiter(20, 60 * 1000, "public-venue-info");
 
+// 10s in-memory cache keyed by tenantId, mirroring `publicStationsCache`: this
+// is server-rendered on every landing-page view and the payload (business info
+// + published rates) changes rarely, so an uncached read costs a 2-query DB
+// round trip per visitor.
+const PUBLIC_VENUE_INFO_TTL_MS = 10_000;
+const publicVenueInfoCache = new Map<
+  string,
+  { data: PublicVenueInfoResponse; at: number }
+>();
+
 /**
  * `GET /public/venue-info` — the tenant's own public site's business-info and
  * rates data. Unauthenticated, so it follows the `/public/*` convention in
@@ -237,6 +247,12 @@ export function publicVenueInfoRoutes() {
         status === "deleting"
       ) {
         throw new HttpError(404, "Tenant not found.");
+      }
+
+      const now = Date.now();
+      const cached = publicVenueInfoCache.get(org.id);
+      if (cached && now - cached.at < PUBLIC_VENUE_INFO_TTL_MS) {
+        return c.json(cached.data);
       }
 
       const data = await withTenant(org.id, async (tx): Promise<PublicVenueInfoResponse> => {
@@ -291,6 +307,8 @@ export function publicVenueInfoRoutes() {
           })),
         };
       });
+
+      publicVenueInfoCache.set(org.id, { data, at: now });
 
       return c.json(data);
     });

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import {
   publicVenueInfoResponseSchema,
   type PublicVenueInfoResponse,
@@ -29,13 +30,25 @@ export const getTenantVenueInfo = cache(
     const t = await getRequestTenant();
     if (!t.slug && !t.host) return null;
 
-    const headers: Record<string, string> = {};
-    if (t.slug) headers["x-tenant-slug"] = t.slug;
-    else if (t.host) headers["x-tenant-host"] = t.host;
+    const outbound: Record<string, string> = {};
+    if (t.slug) outbound["x-tenant-slug"] = t.slug;
+    else if (t.host) outbound["x-tenant-host"] = t.host;
+
+    // `/public/venue-info` is IP-rate-limited (20/min). Without forwarding the
+    // visitor's IP, `clientIp()` on the API falls back to the constant
+    // "unknown" and EVERY server-rendered landing page on the platform shares
+    // one bucket — past 20 renders/min the fetch 429s and the rates + social
+    // links silently vanish. Same forwarding the `/api/public-stations` route
+    // handler already does.
+    const inbound = await headers();
+    const xff = inbound.get("x-forwarded-for");
+    if (xff) outbound["x-forwarded-for"] = xff;
+    const realIp = inbound.get("x-real-ip");
+    if (realIp) outbound["x-real-ip"] = realIp;
 
     try {
       const res = await fetch(`${API_URL}/public/venue-info`, {
-        headers,
+        headers: outbound,
         cache: "no-store",
       });
       if (!res.ok) return null;

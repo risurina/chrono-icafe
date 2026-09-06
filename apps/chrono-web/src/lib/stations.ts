@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import {
   publicStationsResponseSchema,
   type PublicStationsResponse,
@@ -27,13 +28,24 @@ export const getTenantStations = cache(
     const t = await getRequestTenant();
     if (!t.slug && !t.host) return null;
 
-    const headers: Record<string, string> = {};
-    if (t.slug) headers["x-tenant-slug"] = t.slug;
-    else if (t.host) headers["x-tenant-host"] = t.host;
+    const outbound: Record<string, string> = {};
+    if (t.slug) outbound["x-tenant-slug"] = t.slug;
+    else if (t.host) outbound["x-tenant-host"] = t.host;
+
+    // Forward the visitor's IP so the API's 20/min limiter buckets per client
+    // instead of lumping every server-rendered page onto the "unknown" key —
+    // the same forwarding `/api/public-stations` already does for the browser
+    // poll. Phase 1A made this payload load-bearing for the hero gauges, so a
+    // shared-bucket 429 would blank real content.
+    const inbound = await headers();
+    const xff = inbound.get("x-forwarded-for");
+    if (xff) outbound["x-forwarded-for"] = xff;
+    const realIp = inbound.get("x-real-ip");
+    if (realIp) outbound["x-real-ip"] = realIp;
 
     try {
       const res = await fetch(`${API_URL}/public/stations`, {
-        headers,
+        headers: outbound,
         cache: "no-store",
       });
       if (!res.ok) return null;
