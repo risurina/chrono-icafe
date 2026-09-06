@@ -1047,6 +1047,44 @@ async function main() {
       venueUnknown.status === 404,
       `status ${venueUnknown.status}`,
     );
+
+    // Phase 1's third acceptance criterion: a tenant in a TERMINAL lifecycle
+    // status must 404, not merely an unknown one. Proven on a throwaway org
+    // (the `deleting-co` pattern further down) so no other block's tenant state
+    // is disturbed: the SAME host is read active first, then flipped, so a
+    // pass cannot come from the row simply not resolving.
+    //
+    // This also pins the gate ahead of the response cache — the active read
+    // populates it, so a cache lookup placed before the status check would
+    // serve the suspended tenant its own cached 200.
+    const terminalOrgId = createId();
+    const terminalSlug = `terminal-venue-${terminalOrgId.slice(0, 8)}`;
+    await adminDb.insert(schema.organization).values({
+      id: terminalOrgId,
+      name: "Terminal Venue Co",
+      slug: terminalSlug,
+    });
+    const terminalActive = await req("GET", "/public/venue-info", { slug: terminalSlug });
+    check(
+      "public/venue-info serves an ACTIVE tenant (control for the terminal case)",
+      terminalActive.status === 200,
+      `status ${terminalActive.status}`,
+    );
+    for (const status of ["suspended", "cancelled", "archived", "deleting"] as const) {
+      await adminDb
+        .update(schema.organization)
+        .set({ status })
+        .where(eq(schema.organization.id, terminalOrgId));
+      const terminalRes = await req("GET", "/public/venue-info", { slug: terminalSlug });
+      check(
+        `public/venue-info 404s a "${status}" tenant`,
+        terminalRes.status === 404,
+        `status ${terminalRes.status}`,
+      );
+    }
+    await adminDb
+      .delete(schema.organization)
+      .where(eq(schema.organization.id, terminalOrgId));
   }
 
   // O. Role gate: a staff-role user cannot write branding.
