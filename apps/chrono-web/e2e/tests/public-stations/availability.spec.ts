@@ -102,10 +102,20 @@ test.describe("Public Stations Availability", () => {
     // Ensure we are NOT redirected to login
     expect(page.url()).toContain(`${baseA}/stations`);
     
-    // Assert aggregate counts for Tenant A
-    await expect(page.locator("text=Total Stations").locator("..").locator("div.text-3xl")).toHaveText("3");
-    await expect(page.locator("text=Available").locator("..").locator("div.text-3xl")).toHaveText("2");
-    await expect(page.locator("text=In Use / Offline").locator("..").locator("div.text-3xl")).toHaveText("1");
+    // Assert aggregate counts for Tenant A.
+    // The summary was rebuilt into four honest buckets — the old conflated
+    // "In Use / Offline" card is gone, and the value is a `span`, not a `div`.
+    // See e2e/tests/public-stations/branded-availability.spec.ts.
+    const summaryValue = (label: string) =>
+      page
+        .locator("div")
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .last()
+        .locator("span.text-3xl");
+    await expect(summaryValue("Total stations")).toHaveText("3");
+    await expect(summaryValue("Available")).toHaveText("2");
+    await expect(summaryValue("Maintenance")).toHaveText("1");
+    await expect(summaryValue("Offline")).toHaveText("0");
 
     // Assert Tenant A's stations render
     await expect(page.getByText("PC-01")).toBeVisible();
