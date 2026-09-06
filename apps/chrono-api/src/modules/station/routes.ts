@@ -270,9 +270,12 @@ async function requireOwnGroupInBranch(
 /**
  * `ChronoStations.status` is a free-text column, so the public read parses it
  * rather than casting. An unrecognised value degrades to "offline": a station we
- * cannot interpret must never be advertised as playable.
+ * cannot interpret must never be advertised as playable. Exported so the `qr`
+ * module's `/public/qr/resolve` can normalise a station's status identically
+ * (reused rather than reimplemented — see qr plan Phase 3 / member-portal-v2
+ * plan Phase 3).
  */
-function toPublicStationStatus(status: string): ChronoStationStatus {
+export function toPublicStationStatus(status: string): ChronoStationStatus {
   const parsed = chronoStationStatusSchema.safeParse(status);
   return parsed.success ? parsed.data : "offline";
 }

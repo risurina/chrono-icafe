@@ -159,8 +159,15 @@ test.describe("QR", () => {
     await expect(page.getByText("Wallet topped up")).toBeVisible();
 
     // Scan as the now-funded, logged-in customer — Start opens a real session.
+    // The confirm screen now shows the station's rate + live availability
+    // (member-portal-v2 plan Phase 3) before Start: the group above was
+    // priced at ₱10.00/hr, and the station is the branch's only one, so it
+    // reads "1 of 1 available".
     await pageCust.goto(`${base}${qrBody.qrUrl}`);
     await expect(pageCust.getByText(stationName)).toBeVisible({ timeout: 10_000 });
+    await expect(pageCust.getByText("Available")).toBeVisible();
+    await expect(pageCust.getByText("1 of 1 available")).toBeVisible();
+    await expect(pageCust.getByText("₱10 / hr")).toBeVisible();
     await pageCust.getByRole("button", { name: "Start" }).click();
     await expect(pageCust.getByText("Session started")).toBeVisible({ timeout: 10_000 });
     await ctxCust.close();

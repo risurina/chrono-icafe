@@ -2,12 +2,28 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, buttonVariants, toast } from "agora/ui";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Button,
+  buttonVariants,
+  Badge,
+  toast,
+} from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { isTrustedHost, tenantFetch } from "agora/client";
 import { useMemberSession } from "@/lib/member-client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+
+type QrStationAvailability = {
+  status: "available" | "occupied" | "maintenance" | "offline";
+  branchAvailable: number;
+  branchTotal: number;
+};
 
 type QrResolveResult = {
   tenantSlug: string;
@@ -16,7 +32,32 @@ type QrResolveResult = {
   stationName: string;
   branchName: string;
   requiresLogin: boolean;
+  hourlyRate: string | null;
+  memberRate: string | null;
+  availability: QrStationAvailability;
 };
+
+const STATUS_LABEL: Record<QrStationAvailability["status"], string> = {
+  available: "Available",
+  occupied: "In use",
+  maintenance: "Maintenance",
+  offline: "Offline",
+};
+
+// Matches `formatPeso()` in `components/landing/registry.ts` exactly — same
+// "₱30" / "₱30.50" convention used everywhere else a rate is shown publicly.
+// A `null`/zero rate (no station group, or an unpriced one) renders nothing,
+// same as `toRateCards()` dropping a zero-priced group there.
+function formatPeso(amount: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `₱${amount}`;
+  return `₱${Number.isInteger(n) ? n.toString() : n.toFixed(2)}`;
+}
+
+function formatRate(rate: string | null): string | null {
+  if (rate === null || Number(rate) <= 0) return null;
+  return `${formatPeso(rate)} / hr`;
+}
 
 type QrConsumeResult = {
   resolved: boolean;
@@ -157,6 +198,18 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
   }
 
   const { station } = state;
+  const rate = formatRate(station.hourlyRate);
+  const memberRate = formatRate(station.memberRate);
+  const statusVariant =
+    station.availability.status === "available"
+      ? "default"
+      : station.availability.status === "occupied"
+        ? "secondary"
+        : station.availability.status === "maintenance"
+          ? "outline"
+          : "destructive";
+  const canStart = station.availability.status === "available";
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="max-w-sm">
@@ -164,9 +217,23 @@ export default function QrScanPage({ params }: { params: Promise<{ token: string
           <CardTitle>{station.stationName}</CardTitle>
           <CardDescription>{station.branchName}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button className="w-full" disabled={consuming} onClick={onStart}>
-            {consuming ? "Confirming…" : "Start"}
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Badge variant={statusVariant}>{STATUS_LABEL[station.availability.status]}</Badge>
+            <span className="text-sm text-muted-foreground">
+              {station.availability.branchAvailable} of {station.availability.branchTotal} available
+            </span>
+          </div>
+          {rate && (
+            <div className="text-sm">
+              <span className="font-medium">{rate}</span>
+              {memberRate && (
+                <span className="text-muted-foreground"> · Members {memberRate}</span>
+              )}
+            </div>
+          )}
+          <Button className="w-full" disabled={consuming || !canStart} onClick={onStart}>
+            {consuming ? "Confirming…" : canStart ? "Start" : "Unavailable"}
           </Button>
         </CardContent>
       </Card>
