@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   // Expose the app version to the client bundle so the sidebar can display it.
   env: { NEXT_PUBLIC_APP_VERSION: version },
   // Compile workspace packages from source (no prebuild step needed).
-  transpilePackages: ["agora"],
+  transpilePackages: ["agora", "@agora/chrono-api"],
   typescript: { ignoreBuildErrors: false },
   // Tenants are served on subdomains of the app domain (acme.localtest.me:3000),
   // not localhost. Next dev otherwise 403s /_next/* for those origins, breaking

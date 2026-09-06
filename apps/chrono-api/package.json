@@ -8,7 +8,8 @@
     "./realtime": "./src/modules/realtime/contracts.ts",
     "./station": "./src/modules/station/contracts.ts",
     "./branch": "./src/modules/branch/contracts.ts",
-    "./business-lead": "./src/modules/business-lead/contracts.ts"
+    "./business-lead": "./src/modules/business-lead/contracts.ts",
+    "./theme-presets": "./src/contracts/theme-presets.ts"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
