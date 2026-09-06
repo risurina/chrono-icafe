@@ -1,11 +1,8 @@
 # Chrono — white-label tenant site (player acquisition rebuild)
 
 **Sessions:**
-- Planning: tenant-white-label-site-planning [8c0127] (session id
-  `8c012759-8626-4281-b096-158dd99eb7b5`; `ListAgents` was not available as a
-  tool in this session to resolve a proper harness-assigned name/ref — replace
-  this line with the real one the moment a session with that tool picks the
-  plan up)
+- Planning: `planner` subagent (a981c0cbe786d80d1), launched by
+  consolidate-customers-members-page [7ffb50]
 
 ## Context / why
 
