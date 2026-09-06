@@ -52,6 +52,7 @@ const TYPE_VARIANT: Record<WalletTransaction["type"], "default" | "secondary" | 
 // constant (not imported cross-app) since the server re-validates regardless.
 const MIN_TOPUP_AMOUNT = "20.00";
 const MAX_TOPUP_AMOUNT = "10000.00";
+const PRESET_TOPUP_AMOUNTS = ["50.00", "100.00", "200.00", "500.00"] as const;
 
 // Bounded backoff for the return-from-checkout poll: never poll forever —
 // after the last interval the banner stops auto-polling and leaves a manual
@@ -378,12 +379,32 @@ export default function MemberWalletPage() {
       <Dialog open={topupOpen} onOpenChange={setTopupOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Top up your wallet</DialogTitle>
+            <Row items="center" gap={2}>
+              <DialogTitle>Top up your wallet</DialogTitle>
+              <Badge variant="outline">Secured by PayMongo</Badge>
+            </Row>
             <DialogDescription>
-              Pay online with GCash or a card. You&apos;ll be redirected to a secure payment page.
+              Pay online with GCash or a card via PayMongo. You&apos;ll be redirected to a secure PayMongo payment page.
             </DialogDescription>
           </DialogHeader>
           <Stack gap={2}>
+            <Row gap={2} wrap>
+              {PRESET_TOPUP_AMOUNTS.map((amt) => (
+                <Button
+                  key={amt}
+                  type="button"
+                  size="sm"
+                  variant={topupAmount === amt ? "default" : "outline"}
+                  onClick={() => {
+                    setTopupAmount(amt);
+                    setTopupError(null);
+                  }}
+                  data-testid={`topup-preset-${amt}`}
+                >
+                  {formatCurrency(amt, gateway?.currency)}
+                </Button>
+              ))}
+            </Row>
             <Label htmlFor="topup-amount">Amount ({gateway?.currency ?? "PHP"})</Label>
             <Input
               id="topup-amount"
