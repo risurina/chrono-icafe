@@ -38,4 +38,5 @@ total. One Jules session per phase.
 
 ## Phase 4 — Verification + docs
 
-- Status: not yet fired.
+- Status: dispatched to a fresh Claude subagent (not Jules — small,
+  docs-only phase, no plan-claim/push round-trip needed), 2026-09-06.
