@@ -55,7 +55,8 @@ import { getPublicBranding } from "@/lib/branding";
 import { getTenantLanding } from "@/lib/landing";
 import { getTenantStations } from "@/lib/stations";
 import { getTenantVenueInfo } from "@/lib/venue";
-import { tenantPageMetadata } from "@/lib/seo";
+import { tenantPageMetadata, tenantStructuredData } from "@/lib/seo";
+import { getTenantCanonicalUrl } from "@/lib/tenant";
 import { LandingSections } from "@/components/landing/render";
 import { TrackOnMount } from "@/components/landing/analytics-bindings";
 import type { ChronoLandingData } from "@/components/landing/registry";
@@ -1021,9 +1022,22 @@ export default async function Home() {
   if (!landing) notFound();
 
   const heading = branding?.displayName?.trim() || landing.venueName;
+  const canonicalUrl = await getTenantCanonicalUrl("/");
+  const structuredData = tenantStructuredData(venue, branding, {
+    name: heading,
+    url: canonicalUrl,
+    description: landing.resolved.seo.description ?? landing.resolved.hero.subtitle ?? null,
+  });
 
   return (
     <PageShell>
+      {structuredData ? (
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger -- server-rendered, server-controlled JSON-LD, not user HTML.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      ) : null}
       <TenantHeader
         tenantName={heading}
         displayName={branding?.displayName}
