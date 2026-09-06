@@ -887,6 +887,13 @@ editing) **[audit-fix — CONDITION]**:
 - No occurrence of "venue management platform", "multi-tenant", "row-level
   isolation"/"row-level security" as trust/hero copy (grep both wrapped
   fragments, not the full sentence).
+  **Explicit exemption:** the FAQ answer to "Is my data isolated from other
+  businesses on the platform?" keeps the phrase "row-level security enforced at
+  the database" verbatim. That is not trust/hero copy — it is the precise answer
+  to a question a technical buyer deliberately asked, and vaguening it there
+  would make the FAQ worse. The grep will hit it; that hit is expected and
+  approved, not a miss. The comparison-table row that DID carry it as trust copy
+  was rewritten.
 - Nav shows Discover / For Players / For Businesses / How It Works / Pricing /
   Login, with a single "Join Chrono" CTA. `TENANT_NAV` unchanged.
 - `pnpm --filter @agora/chrono-web typecheck` passes.

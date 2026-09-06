@@ -54,7 +54,10 @@ async function demandCount(
   slug: string,
 ): Promise<number> {
   const cookies = await page.context().cookies();
-  const res = await request.get(`http://${slug}.localtest.me:3000/rpc/growth/demand`, {
+  // The API is :8787, not the Next origin on :3000 — next.config.ts has no
+  // /rpc rewrite, so a :3000 call would hit Next and 404, and this spec is the
+  // isolation proof for a table that RLS does not cover. It must really run.
+  const res = await request.get(`${API_URL}/rpc/growth/demand`, {
     headers: {
       cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; "),
       "x-tenant-slug": slug,

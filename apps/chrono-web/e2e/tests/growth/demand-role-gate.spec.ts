@@ -20,6 +20,7 @@ import { faker } from "../../utils/faker";
  * Mirrors `tenant-landing/edit-role-gate.spec.ts`, the closest existing
  * admin-only gate spec, including its console-driver invite-link helper.
  */
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 const DEV_LOG_PATH = process.env.DEV_LOG_PATH ?? "/tmp/agora-dev.log";
 const SEEDED_PASSWORD = "Password123!";
 
@@ -76,7 +77,10 @@ test.describe("Growth demand read — role gate", () => {
       cookie: ownerCookies.map((c) => `${c.name}=${c.value}`).join("; "),
       "x-tenant-slug": slug,
     };
-    const asOwner = await request.get(`${base}/rpc/growth/demand`, {
+    // NB: the API is :8787, NOT the Next origin on :3000 — there is no /rpc
+    // rewrite in next.config.ts, so a `${base}/rpc/...` call would hit Next and
+    // 404. `base` stays correct for page.goto navigations below.
+    const asOwner = await request.get(`${API_URL}/rpc/growth/demand`, {
       headers: ownerHeaders,
     });
     expect(asOwner.status()).toBe(200);
@@ -109,7 +113,7 @@ test.describe("Growth demand read — role gate", () => {
 
     // ── Staff: refused. THE assertion this spec exists for. ──
     const staffCookies = await page.context().cookies();
-    const asStaff = await request.get(`${base}/rpc/growth/demand`, {
+    const asStaff = await request.get(`${API_URL}/rpc/growth/demand`, {
       headers: {
         cookie: staffCookies.map((c) => `${c.name}=${c.value}`).join("; "),
         "x-tenant-slug": slug,
