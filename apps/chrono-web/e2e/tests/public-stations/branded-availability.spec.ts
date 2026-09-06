@@ -56,13 +56,18 @@ async function createBranch(
   return branch!.id;
 }
 
-/** The value shown under one of the five summary cards. */
+/**
+ * The value shown under one of the five summary cards.
+ *
+ * Addressed by testid, not by structure: the label sits in a `CardTitle`
+ * (`h3`) and the value in a sibling `CardContent`, and the same status words
+ * reappear on every station badge further down the page — so any
+ * label-relative or class-based locator resolves to the wrong node or none.
+ */
 function summaryValue(page: import("@playwright/test").Page, label: string) {
-  return page
-    .locator("div")
-    .filter({ has: page.getByText(label, { exact: true }) })
-    .last()
-    .locator("span.text-3xl");
+  return page.getByTestId(
+    `stations-summary-${label.toLowerCase().replace(/\s+/g, "-")}`,
+  );
 }
 
 test.describe("Public stations — tenant-branded availability", () => {

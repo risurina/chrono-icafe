@@ -61,7 +61,12 @@ test.describe("Tenant landing — unresolvable tenant at the root", () => {
     expect(res?.status()).toBe(200);
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByText("Station Session Control")).toBeVisible();
+    // "Station Session Control" renders twice on the apex page (a hero chip and
+    // a highlights card title), so `getByText` resolves to two nodes and a bare
+    // `toBeVisible()` trips Playwright's strict mode. The `toHaveCount(0)`
+    // assertions on the same string elsewhere in this file are unaffected —
+    // count assertions do not enforce strictness.
+    await expect(page.getByText("Station Session Control").first()).toBeVisible();
     await expect(page.getByText("Manual tracking gets messy")).toBeVisible();
 
     // The apex is not a tenant, so none of the tenant-only sections render.

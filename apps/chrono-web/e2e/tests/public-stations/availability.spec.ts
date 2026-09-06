@@ -104,14 +104,13 @@ test.describe("Public Stations Availability", () => {
     
     // Assert aggregate counts for Tenant A.
     // The summary was rebuilt into four honest buckets — the old conflated
-    // "In Use / Offline" card is gone, and the value is a `span`, not a `div`.
-    // See e2e/tests/public-stations/branded-availability.spec.ts.
+    // "In Use / Offline" card is gone. Addressed by testid because the label
+    // lives in a sibling `CardTitle` and the same status words repeat on every
+    // station badge below. See e2e/tests/public-stations/branded-availability.spec.ts.
     const summaryValue = (label: string) =>
-      page
-        .locator("div")
-        .filter({ has: page.getByText(label, { exact: true }) })
-        .last()
-        .locator("span.text-3xl");
+      page.getByTestId(
+        `stations-summary-${label.toLowerCase().replace(/\s+/g, "-")}`,
+      );
     await expect(summaryValue("Total stations")).toHaveText("3");
     await expect(summaryValue("Available")).toHaveText("2");
     await expect(summaryValue("Maintenance")).toHaveText("1");

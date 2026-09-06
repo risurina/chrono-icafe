@@ -114,7 +114,15 @@ export function StationAvailabilityPoller({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <span className={cn("text-3xl font-bold", card.tone)}>
+              {/* Stable hook for the e2e specs: the label lives in a sibling
+                  `CardTitle` (an `h3`), so a locator that walks down from the
+                  label's own container can never reach this value. */}
+              <span
+                data-testid={`stations-summary-${card.label
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}`}
+                className={cn("text-3xl font-bold", card.tone)}
+              >
                 {card.value}
               </span>
             </CardContent>
