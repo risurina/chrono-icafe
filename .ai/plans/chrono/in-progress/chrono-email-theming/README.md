@@ -606,3 +606,40 @@ Not applicable — no new entity, table, or admin CRUD surface.
 
 Move this plan from `in-progress/` to `archive/` once all 4 phases are
 committed and verified.
+
+## Plan Closure
+
+All 4 phases implemented via Jules (Phases 1-3) and a Claude subagent (Phase
+4, docs-only), committed on `main`: `adffa133`, `95d08d05`, `e7e5449a`,
+`d469b83a`. `branch-reviewer`: **APPROVE** — no criticals or warnings. 1
+suggestion fixed (`50bcb98a`, a comment overstating an ordering dependency
+the code doesn't actually have). 1 suggestion left as accepted, non-blocking
+risk: no unit test for `flattenAlphaOverSolid`/`normalizeHex`/
+`mapPresetTokens` (the foundation's own `theme.ts` has one via
+`theme.test.ts`; this file doesn't — both real 8-digit alpha values were
+manually traced and confirmed sane during review, but a regression here
+would only surface visually, not via a test failure).
+
+`pnpm typecheck` passes (7/7 tasks, re-verified independently after every
+phase and after fix-review). No schema/RLS/permission surface — `rls:proof`
+correctly not applicable. No new Playwright spec — correctly out of scope
+per `.ai/rules/e2e-testing.md`'s trigger conditions (no new route, table, or
+dashboard flow).
+
+**Outstanding, developer-owed** (none automatable from this session):
+
+1. **Manual visual verification**: publish a `neon-green` landing page for a
+   test tenant, trigger a member approve/reject decision email
+   (`EMAIL_PROVIDER=console` logs the rendered HTML) and a test integration
+   email from `/dashboard/settings/integrations`, confirm both render in
+   that tenant's theme colors, not the generic default. Submit a test
+   company inquiry and a test business-lead via `/discover`, confirm both
+   show the Chrono owl mark.
+2. **`apps/chrono-web/e2e/tests/platform-admin/notification-templates.spec.ts`**
+   — read (not run) during Phase 4/review, found no plausible regression;
+   still needs an actual manual headed `pnpm dev` run per
+   `.ai/rules/rbac.md`'s note that this suite is manual.
+3. A future pass could add a small `email-theme.test.ts` mirroring the
+   foundation's `theme.test.ts` pattern, covering `flattenAlphaOverSolid`/
+   `normalizeHex`/`mapPresetTokens` directly — not required to close this
+   plan, flagged for whoever picks it up next.
