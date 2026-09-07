@@ -77,7 +77,8 @@ async function signUpGlobalCustomer(page: Page): Promise<{ email: string }> {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(SEEDED_PASSWORD);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(/\/portal$/, { timeout: 30_000 });
+  // The global sign-up form now lands on /member directly (member-player-route-rename).
+  await page.waitForURL(/\/member$/, { timeout: 30_000 });
   return { email };
 }
 
@@ -118,13 +119,13 @@ test.describe("My Gaming Spots — live venue status", () => {
     // its `justify-between` layout class) — the plain `div` role/text
     // locators below would otherwise match every ancestor wrapper too.
     const rowA = page
-      .locator(`a[href="http://${slugA}.localtest.me:3000/portal"]`)
+      .locator(`a[href="http://${slugA}.localtest.me:3000/member"]`)
       .locator("xpath=ancestor::div[contains(@class,'justify-between')][1]");
     await expect(rowA.getByText("Open", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(rowA.getByText("1/1 available")).toBeVisible();
 
     const rowB = page
-      .locator(`a[href="http://${slugB}.localtest.me:3000/portal"]`)
+      .locator(`a[href="http://${slugB}.localtest.me:3000/member"]`)
       .locator("xpath=ancestor::div[contains(@class,'justify-between')][1]");
     await expect(rowB.getByText("Closed", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(rowB.getByText("0/0 available")).toBeVisible();

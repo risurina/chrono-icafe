@@ -124,7 +124,7 @@ test.describe("Public stations — tenant-branded availability", () => {
     const join = page.getByTestId("stations-join-cta");
     await expect(join.first()).toBeVisible();
     await expect(join.first()).toHaveText(`Join ${slug}`);
-    await expect(join.first()).toHaveAttribute("href", "/portal/sign-up");
+    await expect(join.first()).toHaveAttribute("href", "/member/sign-up");
     const back = page.getByTestId("stations-back-home");
     await expect(back.first()).toBeVisible();
     await expect(back.first()).toHaveText(`Back to ${slug}`);
