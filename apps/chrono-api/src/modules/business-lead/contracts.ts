@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { listQuerySchema } from "agora";
 
 /**
  * The ONE normalizer for business-name matching.
@@ -56,6 +57,32 @@ export const businessDirectoryResultSchema = z.object({
     .nullable(),
 });
 export type BusinessDirectoryResult = z.infer<typeof businessDirectoryResultSchema>;
+
+/**
+ * Query of `GET /businesses/directory` — the plain, unranked directory
+ * listing behind the global portal home (Gaming Lounge Directory), NOT a
+ * search: no `q`. Reuses `listQuerySchema` for its `page`/`pageSize` shape
+ * only; the route ignores the (optional, unused) `q`/`sort`/`order` fields
+ * the factory still carries and always orders by `name` ascending.
+ */
+export const businessDirectoryListQuerySchema = listQuerySchema(["name"]);
+export type BusinessDirectoryListQuery = z.infer<typeof businessDirectoryListQuerySchema>;
+
+/**
+ * One row of `GET /businesses/directory`. An explicit allowlist — deliberately
+ * narrower than `BusinessDirectoryResult`: no ranking/demand fields, no
+ * location, no logo, no live availability. This route lists every reachable
+ * tenant (active/trial/pending), not a published-landing-page search result,
+ * so it must never carry more than a tenant's public identity + lifecycle
+ * status.
+ */
+export const businessDirectoryListItemSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  status: z.string(),
+});
+export type BusinessDirectoryListItem = z.infer<typeof businessDirectoryListItemSchema>;
 
 /**
  * Response of `GET /rpc/growth/demand`. A bare count — deliberately carries no

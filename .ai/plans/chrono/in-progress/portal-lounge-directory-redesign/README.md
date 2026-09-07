@@ -230,7 +230,32 @@ Once the route-rename plan's Phase 1 (+ ideally Phase 2) is committed: add
 
 ---
 
-### Phase 1 — Backend directory route + contracts
+### Phase 1 — Backend directory route + contracts — COMPLETE
+
+**Verification summary:** Implemented on `feature/portal-lounge-directory-redesign`
+(worktree `.ai/worktree/portal-lounge-directory-redesign`, branched from
+`feature/member-player-route-rename`, whose Phases 1-2 were already committed
+there). Added `businessDirectoryListQuerySchema` (`listQuerySchema(["name"])`) and
+`businessDirectoryListItemSchema`/`BusinessDirectoryListItem`
+(`{ id, slug, name, status }`) to `contracts.ts`; added
+`GET /businesses/directory` to `businessLeadPublicRoutes()` in `routes.ts`
+(mounted at `/public/discover/businesses/directory`), reading `organization` via
+`withAdmin`, filtered to `status IN ('active','trial','pending')`, ordered by
+`name` asc, paginated via `buildPaginationMeta`. No `requirePermission` (public
+read-only, matching `/businesses`).
+
+`pnpm typecheck` and `pnpm --filter @agora/chrono-api build` both pass. Manually
+verified by running `pnpm --filter @agora/chrono-api dev` and curling
+`GET http://localhost:8787/public/discover/businesses/directory`: response is
+`{ items, meta }`, each item has exactly the four allowlisted fields
+(`id`/`slug`/`name`/`status`), ordered alphabetically by name, paginated
+(`pageSize: 10` default, `totalItems: 557`, `sort: "name"`, `order: "asc"`).
+Confirmed the status filter against the live DB: `organization` holds 557
+`active` rows and 1 `archived` row; the directory's `totalItems` (557) matches
+exactly the active count, confirming the archived tenant is excluded (no
+suspended/cancelled/trial/pending rows existed in this dataset to exercise
+those branches directly, but the same `inArray` predicate covers them
+identically).
 
 **Files to update**
 - `apps/chrono-api/src/modules/business-lead/contracts.ts`
