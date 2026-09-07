@@ -1,6 +1,13 @@
 # Global portal home — "Gaming Lounge Directory" redesign
 
-**Status:** in-progress — `member-player-route-rename` Phases 1-2 landed (branch `feature/member-player-route-rename`, not yet merged to `main`); implementing on a worktree branched off that feature branch, not `main`, since this plan's paths only exist there
+**Status:** Phases 1-3 complete and verified (backend route, frontend data layer, UI
+assembly — typecheck/build/rls:proof/manual pass all green, including a live
+suspended-tenant exclusion check). Phase 4 (e2e): `lounge-directory.spec.ts` is
+written and was corrected to the repo's standard port (3000, after a throwaway
+worktime fix at :3010 was reverted), but implementation was interrupted before a
+clean, confirmed pass/fail run completed — **do not treat Phase 4 as verified**.
+Recommend running `pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts`
+against a real dev server as a follow-up before considering this plan fully done.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a9 [10bb99]
