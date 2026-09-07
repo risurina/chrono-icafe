@@ -34,7 +34,7 @@ export default async function Layout({
       context={context}
       surface={context.kind === "apex" ? "staff" : "portal"}
       staffLoginHref={context.kind === "apex" ? "/login" : "/admin/login"}
-      customerLoginHref={context.kind === "apex" ? "/portal/login" : "/login"}
+      customerLoginHref={context.kind === "apex" ? "/member/login" : "/login"}
       apexBrand={<ChronoBrand />}
       apexProductName="Chrono"
       header={

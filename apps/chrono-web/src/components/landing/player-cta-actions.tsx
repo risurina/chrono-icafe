@@ -53,7 +53,7 @@ export function PlayerCtaActions({ tenantName }: { tenantName: string }) {
   return (
     <Row wrap gap={4} justify="center">
       <Link
-        href="/portal/sign-up"
+        href="/member/sign-up"
         className={cn(buttonVariants(), PILL, "shadow-lg shadow-primary/20")}
         data-testid="landing-playercta-join"
       >

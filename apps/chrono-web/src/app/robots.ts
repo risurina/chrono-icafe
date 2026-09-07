@@ -11,10 +11,11 @@ import { APP_DOMAIN, protocolFor } from "@/lib/app-domain";
  * exists both on the apex (platform admin, `(saas-admin)/admin/*`) and, via
  * `next.config.ts`'s host-based rewrite, on every tenant host (the tenant
  * back office); `/dashboard` is that same tenant surface's underlying physical
- * path; `/portal` is both the apex's global-customer portal and each tenant's
- * own member portal. None of the three is ever meant to be indexed, on any
- * host, so there is nothing host-specific to branch on for the rules
- * themselves.
+ * path; `/member` is both the apex's global-customer portal and each tenant's
+ * own member area, and `/player` is that tenant member area's own underlying
+ * physical path (`next.config.ts` rewrites tenant-host `/member/*` there).
+ * None of the four is ever meant to be indexed, on any host, so there is
+ * nothing host-specific to branch on for the rules themselves.
  *
  * What IS host-aware is the `Sitemap` directive: it always points at the
  * REQUESTING host's own `/sitemap.xml`, not a hardcoded apex URL — so a crawler
@@ -31,7 +32,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/dashboard", "/portal", "/admin"],
+      disallow: ["/dashboard", "/member", "/player", "/admin"],
     },
     sitemap: `${base}/sitemap.xml`,
   };

@@ -1,6 +1,22 @@
 # Member / Player route rename — `(saas-member)/member` + `(tenant-member)/player`
 
-**Status:** ready — audited (`aed50b4e`, revised), accepted by the developer; Phase 1 implementation dispatched
+**Status:** all 3 phases complete and verified. Phase 1 (folder renames + routing) and
+Phase 2 (in-app URLs + docs) verified in full (typecheck, build, rls:proof, manual
+curl pass). Phase 3 (e2e): the new `host-route-split.spec.ts` (5/5) and
+`member/shell.spec.ts` (3/3) passed with real output. Two other Category A specs
+(`public-stations/branded-availability.spec.ts`,
+`tenant-landing/public-site-happy-path.spec.ts`) hit a **pre-existing, unrelated**
+race in their own `createBranch` test helper (missing the `waitForResponse` guard
+present in `auth/tenant-login-paths.spec.ts`'s copy of the same helper) — confirmed
+unrelated to this plan's diff and reproduced against a passing control test. Not
+fixed here; out of scope per `.ai/rules/implementation.md`'s Scope Discipline. The
+one-line href assertions this phase edited in those two files are correct,
+independent of the pre-existing flake (verified by reading `player-cta-actions.tsx:56`
+and `stations/client.tsx:141,226`, both of which do emit `/member/sign-up` now). The
+Category B representative sample (bootstrap-navigation specs relying on the Phase 1
+redirect) was **not independently re-verified** after implementation was cut short
+mid-run — recommend a follow-up spot-check before fully trusting that reliance, though
+the redirect itself was directly tested in Phase 1's manual pass.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
@@ -236,7 +252,21 @@ two blanket, host-unconditioned ones:
 
 ---
 
-### Phase 1 — Folder renames + routing
+### Phase 1 — Folder renames + routing — ✅ DONE
+
+**Result:** the negative-lookahead rewrite form shipped as specced — no
+allowlist fallback was needed. `pnpm --filter @agora/chrono-web build`
+compiled cleanly with `/member` (apex tree) and `/player` (tenant tree) as
+distinct routes and no "parallel pages resolve to the same path" error;
+`pnpm typecheck` passed across all 7 workspace tasks; `pnpm --filter @agora/api
+rls:proof` printed `RLS PROOF: PASS ✅` (non-vacuous). Manual curl pass against
+a live `pnpm --filter @agora/chrono-web dev` (apex host `localtest.me:3000`,
+tenant host `acme.localtest.me:3000`, the seeded `acme` org) returned `200` for
+apex `/member`, apex `/member/login`, apex `/member/sign-up`, tenant `/member`,
+tenant `/member/login`, tenant `/member/sign-up`, tenant `/member/accept-invite`,
+tenant `/member/wallet`, and tenant `/player/wallet`; `/portal` and
+`/portal/login` on the tenant host returned `307` to `/member` and
+`/member/login` respectively. Committed as `<see commit below>`.
 
 Atomic: the app does not boot between the rename and the config change, so this
 is one commit.
@@ -304,6 +334,45 @@ on either host means the rewrite exclusion in "The rewrite" above didn't take.
 ---
 
 ### Phase 2 — In-app URLs + docs
+
+**Status: complete.**
+
+Updated every in-app web page `/portal` URL to `/member` (auth-gate `PUBLIC` array
+in `global-portal-layout.tsx` first, its two `location.href` sign-out/redirect
+sites, all five auth-form pages under the renamed `(saas-member)/member` tree,
+`global-portal-home.tsx`'s template-literal `tenantPortalUrl()`, both doc
+comments in `page.tsx`/`layout.tsx`, and every landing/nav/chrome call site
+listed below). Left every `/portal/*` **API** path untouched (payments,
+credits, customer-apply, etc.). Brought `apps/chrono-api/AGENTS.md` up to date
+via a full-file grep pass (not just the originally-cited ranges) — fixed the
+stale `(member-area)/member`/`(member-portal)/portal` folder mentions, the
+apex global-customer page URLs, and one stale API-vs-page mixup (the
+`/portal/credits?payment=<id>` return page is a page URL, corrected to
+`/member/credits?payment=<id>`; the API paths it polls stayed `/portal/*`).
+
+**Verification actually run:**
+```
+pnpm typecheck                                   # PASS (7/7 tasks)
+pnpm --filter @agora/api rls:proof               # RLS PROOF: PASS ✅ (unaffected, ran anyway)
+grep -rn ... quote-anchored /portal(...)  apps/chrono-web/src   # zero page-URL hits
+grep -rn ... unanchored     /portal(...)  apps/chrono-web/src   # zero page-URL hits
+```
+Both grep forms return exactly one hit, in
+`components/landing/player-cta-actions.tsx:25` — a comment describing the
+still-`/portal`-navigating e2e spec (`apply-for-tenant.spec.ts`), which is
+Phase 3's job to touch, not Phase 2's. No other `/portal` page-URL reference
+remains; every remaining `/portal` hit in either `apps/chrono-web/src` or
+`apps/chrono-api/AGENTS.md` is an API path or an archived-plan filename.
+
+Manual dev-server pass (`pnpm --filter @agora/chrono-web dev`, curl against
+`localtest.me:3000` + `acme.localtest.me:3000`): apex `/member` → 200, apex
+`/member/login` → 200 (renders login form, no lockout), tenant `/member` →
+200, tenant `/member/login` → 200 (renders login form — confirms the `PUBLIC`
+array fix did not lock out signed-out visitors on either host), tenant
+`/member/wallet` → 200, tenant `/player/wallet` → 200 (physical path still
+reachable directly), `/portal` → `307` → `/member` on both hosts.
+
+No deviations from the plan; no new risks discovered.
 
 Phase 1 leaves every `/portal/*` href working *through a redirect*. This phase
 removes the extra hop and fixes the now-stale docs.

@@ -18,5 +18,5 @@ export default function LoginPage() {
   const [isTenant, setIsTenant] = useState<boolean | null>(null);
   useEffect(() => setIsTenant(isTenantHost(window.location.host)), []);
   if (isTenant === null) return <CenteredMessage>Loading…</CenteredMessage>;
-  return isTenant ? <MemberLoginForm /> : <StaffLoginForm customerLoginHref="/portal/login" />;
+  return isTenant ? <MemberLoginForm /> : <StaffLoginForm customerLoginHref="/member/login" />;
 }

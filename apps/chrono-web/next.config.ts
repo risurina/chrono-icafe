@@ -49,34 +49,45 @@ const nextConfig: NextConfig = {
           missing: notApex,
           destination: "/dashboard/:path*",
         },
+        // `/member` is the same apex-vs-tenant collision as `/admin` above,
+        // solved the same way: the apex owns `/member` at the file-tree level
+        // ((saas-member)/member, the global-customer portal), and the
+        // tenant-member tree is kept under a different physical folder name
+        // ((tenant-member)/player) so the two don't collide in Next's
+        // filesystem-keyed route table. `missing: notApex` aliases tenant-host
+        // `/member/*` to `/player/*`, mirroring the `/admin/*` -> `/dashboard/*`
+        // rule immediately above.
+        //
+        // The five shared auth pages (login, sign-up, forgot, reset,
+        // accept-invite) are excluded from the alias via a negative lookahead:
+        // foundation-emailed links and OAuth-callback redirects point at
+        // `/member/{login,...}` regardless of which host the recipient is on,
+        // so those paths must keep resolving to the apex's
+        // (saas-member)/member tree even on a tenant host, exactly like
+        // `/admin/login` is excluded above.
+        { source: "/member", missing: notApex, destination: "/player" },
+        {
+          source: "/member/:path((?!login|sign-up|forgot|reset|accept-invite).*)",
+          missing: notApex,
+          destination: "/player/:path",
+        },
       ],
     };
   },
-  // `/portal` (the tenant member area) moved to `/member` — the apex host's
-  // own `/portal` (global-customer home) is untouched, exactly like the
-  // `/admin` rewrite's own host-conditioned split above. `missing: notApex`
-  // means "on a tenant host" (a subdomain or verified custom domain), never
-  // the apex. Not a rewrite (the URL itself must change, per the plan), and
-  // not middleware — config-level only.
+  // `/portal` is the old URL for the member/portal surface, now split into
+  // `/member` on both hosts (apex: global-customer portal home; tenant:
+  // member dashboard, aliased to `/player` above). These two blanket,
+  // host-unconditioned redirects replace the old tenant-only `/portal` ->
+  // `/member` split so every existing bookmark and every hardcoded
+  // `/portal/*` link baked into `packages/agora` (password-reset and
+  // accept-invite emails, OAuth-callback `next` targets) keeps working with
+  // zero edits to the shared foundation. Query strings survive the redirect
+  // (`?token=`, `?error=`, `?next=`). Not a rewrite: the browser URL itself
+  // must change here, per the plan.
   async redirects() {
-    const notApex = [
-      { type: "host" as const, value: APP_HOSTNAME_PATTERN },
-      { type: "host" as const, value: `www\\.${APP_HOSTNAME_PATTERN}` },
-    ];
     return [
-      { source: "/portal", missing: notApex, destination: "/member", permanent: false },
-      {
-        source: "/portal/reservations",
-        missing: notApex,
-        destination: "/member/reservations",
-        permanent: false,
-      },
-      {
-        source: "/portal/inquiries",
-        missing: notApex,
-        destination: "/member/inquiries",
-        permanent: false,
-      },
+      { source: "/portal", destination: "/member", permanent: false },
+      { source: "/portal/:path*", destination: "/member/:path*", permanent: false },
     ];
   },
 };

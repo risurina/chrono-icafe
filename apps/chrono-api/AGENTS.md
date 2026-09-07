@@ -130,14 +130,17 @@ aren't being ported yet.
 Chrono's tenant-facing URLs match the reference site (`gaming.chrono.izur.com.ph`):
 
 - **`{slug}.APP_DOMAIN/login`** — customer (member) sign-in (`agora/member-auth`,
-  `tenantMember`) → `/member/*`, the member area (`(member-area)/member/**`;
-  the gold-on-black shell + tab bar re-skinned from the reference site — see
-  `.ai/plans/chrono/archive/member-area/README.md`). `/portal/{login, sign-up,
-  forgot, reset, accept-invite}` stay at `/portal/*` — foundation emails
-  hardcode those links — plus the apex `/portal/*` global-customer home
-  below; `/portal` and `/portal/{reservations,inquiries}` on a tenant host
-  redirect (`next.config.ts`, not middleware) to `/member`,
-  `/member/reservations`, `/member/inquiries`.
+  `tenantMember`) → `/member/*`, served from the physical tree
+  `(tenant-member)/player/**` via a `next.config.ts` host-based rewrite (the
+  gold-on-black shell + tab bar re-skinned from the reference site — see
+  `.ai/plans/chrono/archive/member-area/README.md`; the folder rename +
+  rewrite itself is `.ai/plans/chrono/archive/member-player-route-rename/README.md`).
+  `/member/{login,sign-up,forgot,reset,accept-invite}` are excluded from that
+  rewrite and served from the apex's `(saas-member)/member` tree on **either**
+  host — foundation emails hardcode these links, and `login`/`accept-invite`
+  must resolve on a tenant host too even though `login` renders apex-only and
+  `accept-invite` is host-agnostic. `/portal` and `/portal/*` blanket-redirect
+  (`next.config.ts`, not middleware) to `/member` and `/member/*` on every host.
 - **`{slug}.APP_DOMAIN/admin/login`** — staff sign-in (Better Auth) → `/admin/*`.
 - **`{slug}.APP_DOMAIN/admin/*`** — the tenant back office. This is a `next.config.ts`
   host-based rewrite (fires on any non-apex host — subdomain or verified custom
@@ -151,7 +154,7 @@ Chrono's tenant-facing URLs match the reference site (`gaming.chrono.izur.com.ph
   aliasing only — no middleware; tenant/auth enforcement is unchanged (layout
   session checks + API-side RLS).
 - **`APP_DOMAIN/login`** — apex staff sign-in with no tenant context yet (org
-  selection / creation). **`APP_DOMAIN/portal/login`** — the platform-wide global
+  selection / creation). **`APP_DOMAIN/member/login`** — the platform-wide global
   customer identity (below). **`APP_DOMAIN/admin/*`** — platform admin, inherited
   from the scaffold unchanged.
 
@@ -163,15 +166,16 @@ forms are `src/components/member-login-form.tsx` / `staff-login-form.tsx`.
 - **`APP_DOMAIN/discover`** — public, unauthenticated cross-tenant business
   directory plus the cold-start "invite a business" form (`business-lead`
   module). Apex-only; see "The growth loop" below.
-- **`APP_DOMAIN/portal/{sign-up,login}`** — apex sign-up/sign-in for the
+- **`APP_DOMAIN/member/{sign-up,login}`** — apex sign-up/sign-in for the
   foundation's
   platform-wide global customer identity (`agora/customer-auth`, `customer` table,
   cookie `agora_customer`). (An earlier revision of this file listed these as
   `APP_DOMAIN/customer/*`; no `customer/` route group exists — the real paths are
-  under `(member-portal)/portal/`.) Distinct from `{tenantSlug}.APP_DOMAIN/portal/*`'s
+  under `(saas-member)/member/`.) Distinct from `{tenantSlug}.APP_DOMAIN/member/*`'s
   tenant-only customer signup (`agora/member-auth`, `tenantMember`) — a global customer
-  signs up once here, then self-service "applies" from a given tenant's `/portal`
-  (`POST /portal/customer/apply`) to become a customer of that tenant. See
+  signs up once here, then self-service "applies" from a given tenant's `/member`
+  (`POST /portal/customer/apply` — the underlying API path, unchanged) to become
+  a customer of that tenant. See
   `.ai/rules/business-app.md`, "Global customers", and
   `.ai/plans/agora/archive/global-customers/README.md`.
 - **`{tenantSlug}.APP_DOMAIN/`** and **`{tenantSlug}.APP_DOMAIN/about`** — the
@@ -276,7 +280,7 @@ purchase at `/member/promos/[id]` uses `/portal/credits/purchase` instead — se
 
 **Fulfilment is webhook-only** — `modules/payment/fulfilment.ts`'s
 `fulfilCustomerPayment` is the ONLY place a payment row is ever marked
-`paid`. The `/portal/credits?payment=<id>` return page the customer's browser
+`paid`. The `/member/credits?payment=<id>` return page the customer's browser
 lands on must poll `GET /portal/payments/:id`, never assume success from the
 redirect itself. See `.ai/plans/chrono/archive/member-credit-purchase/README.md`
 for the full design (the two rollback traps around price drift and a
@@ -321,7 +325,7 @@ full design:
   `RATE_LIMIT_FAIL_OPEN` default every other limiter in this app still uses.
 
 Explicitly out of scope for this pass (see the plan's own "Out of scope"):
-MFA/step-up auth, broader member-portal session/lockout hardening, and a
+MFA/step-up auth, broader member-area session/lockout hardening, and a
 daily/rolling online-payment velocity ceiling — considered and declined by
 the developer; the per-transaction ₱20–₱10,000 bound and the 10/15min
 checkout throttle remain the only volume limits.

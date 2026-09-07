@@ -99,7 +99,13 @@ test.describe("Global customer portal social sign-in — UI", () => {
     // pool has no tenant dimension. `next` is the only query param the
     // component appends.
     expect(url.searchParams.get("tenant")).toBeNull();
-    expect(url.searchParams.get("next")).toBe("/portal");
+    // This `next` value is the `GlobalLoginForm`'s own `CustomerSocialSignIn
+    // next="/member"` prop (member-player-route-rename, Phase 2 updated it
+    // from "/portal") — a different mechanism from the foundation's
+    // `payload.next ?? "/portal"` OAuth-callback fallback, which only applies
+    // when no explicit `next` was supplied at all. This page always supplies
+    // one, so the correct value here is "/member".
+    expect(url.searchParams.get("next")).toBe("/member");
   });
 
   test("a returned ?error= renders the mapped toast on login and sign-up", async ({ page }) => {

@@ -50,7 +50,7 @@ export function GlobalLoginForm() {
       setLoading(false);
       return;
     }
-    location.href = "/portal";
+    location.href = "/member";
   }
 
   return (
@@ -61,7 +61,7 @@ export function GlobalLoginForm() {
           <CardDescription>Access your account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomerSocialSignIn providers={providers} next="/portal" />
+          <CustomerSocialSignIn providers={providers} next="/member" />
           {providers && providers.social.length > 0 ? (
             <Row items="center" gap={3} className="mb-4">
               <Separator className="flex-1" />
@@ -97,13 +97,13 @@ export function GlobalLoginForm() {
             </Button>
           </form>
           <p className="mt-4 text-sm text-muted-foreground">
-            <Link href="/portal/forgot" className="text-primary hover:underline">
+            <Link href="/member/forgot" className="text-primary hover:underline">
               Forgot password?
             </Link>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             No account?{" "}
-            <Link href="/portal/sign-up" className="text-primary hover:underline">
+            <Link href="/member/sign-up" className="text-primary hover:underline">
               Create one
             </Link>
           </p>

@@ -2,11 +2,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
- * Member area shell — `/member/*` (chrono/member-area, execution phase 2).
+ * Member area shell — `/member/*` (tenant-member, physically `(tenant-member)/player`
+ * aliased via the `next.config.ts` rewrite — see `member-player-route-rename`).
  *
- * Covers: nav tabs + user menu render, the `/portal → /member` redirect, the
- * unauthenticated-visitor role gate (→ `/login?next=`), and cross-tenant
- * isolation (tenant B's member session cannot reach tenant A's member area).
+ * Covers: nav tabs + user menu render, the blanket `/portal → /member` redirect
+ * (host-unconditioned since that plan; the value is unchanged, only its
+ * mechanism is), the unauthenticated-visitor role gate (→ `/login?next=`), and
+ * cross-tenant isolation (tenant B's member session cannot reach tenant A's
+ * member area).
  */
 const PASSWORD = "Password123!";
 
@@ -64,7 +67,8 @@ test.describe("Member area shell", () => {
     const customerPage = await customerCtx.newPage();
     await memberSignUp(customerPage, base, { name: "Shell Member", email: memberEmail });
 
-    // Redirect: /portal → /member on a tenant host.
+    // Redirect: /portal → /member — now a blanket, host-unconditioned redirect
+    // (next.config.ts), not a tenant-only one; still resolves the same here.
     await customerPage.goto(`${base}/portal`);
     await customerPage.waitForURL(`${base}/member`);
 

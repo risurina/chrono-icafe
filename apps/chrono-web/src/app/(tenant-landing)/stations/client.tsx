@@ -138,7 +138,7 @@ export function StationAvailabilityPoller({
           {/* Never dead-end: an empty floor is still a reason to sign up. */}
           <Row justify="center" gap={3} wrap>
             <Link
-              href="/portal/sign-up"
+              href="/member/sign-up"
               className={cn(buttonVariants(), "rounded-full px-6")}
               data-testid="stations-join-cta"
             >
@@ -223,7 +223,7 @@ export function StationAvailabilityPoller({
 
           <Row justify="center" gap={3} wrap className="pt-4">
             <Link
-              href="/portal/sign-up"
+              href="/member/sign-up"
               className={cn(buttonVariants(), "rounded-full px-6")}
               data-testid="stations-join-cta"
             >

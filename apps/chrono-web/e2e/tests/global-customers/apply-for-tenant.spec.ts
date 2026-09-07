@@ -47,7 +47,8 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.getByLabel("Email").fill(customerEmail);
     await page.getByLabel("Password", { exact: true }).fill("Password123!");
     await page.getByRole("button", { name: /create account/i }).click();
-    await page.waitForURL(/\/portal$/, { timeout: 30_000 });
+    // The global sign-up form now lands on /member directly (member-player-route-rename).
+    await page.waitForURL(/\/member$/, { timeout: 30_000 });
     await expect(page.getByText("Welcome, Global Test Customer")).toBeVisible();
 
     // ── Apply to tenant A's portal (happy path) ──
@@ -100,10 +101,10 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Your businesses")).toBeVisible();
     await expect(
-      page.locator(`a[href="http://${slugA}.localtest.me:3000/portal"]`),
+      page.locator(`a[href="http://${slugA}.localtest.me:3000/member"]`),
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.locator(`a[href="http://${slugB}.localtest.me:3000/portal"]`),
+      page.locator(`a[href="http://${slugB}.localtest.me:3000/member"]`),
     ).toBeVisible();
   });
 

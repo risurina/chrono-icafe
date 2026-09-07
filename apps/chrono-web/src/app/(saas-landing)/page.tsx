@@ -522,7 +522,7 @@ export default async function Home({
                       targets. */}
                   <Row wrap gap={3} className="pt-2" id="join">
                     <Link
-                      href="/portal/sign-up"
+                      href="/member/sign-up"
                       className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
                     >
                       Join as a Player
@@ -551,7 +551,7 @@ export default async function Home({
                       new players a door and returning ones none. */}
                   <p className="text-sm text-muted-foreground">
                     Already play on Chrono?{" "}
-                    <Link href="/portal/login" className="font-medium underline underline-offset-4">
+                    <Link href="/member/login" className="font-medium underline underline-offset-4">
                       Sign in
                     </Link>
                     {" · "}
@@ -983,7 +983,7 @@ export default async function Home({
               </p>
               <Row wrap gap={3} justify="center">
                 <Link
-                  href="/portal/sign-up"
+                  href="/member/sign-up"
                   className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6")}
                 >
                   Join Chrono Free

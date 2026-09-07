@@ -89,7 +89,7 @@ async function assertTenantSections(
   const join = page.getByTestId("landing-playercta-join");
   await expect(join).toBeVisible();
   await expect(join).toHaveText(`Join ${tenantName}`);
-  await expect(join).toHaveAttribute("href", "/portal/sign-up");
+  await expect(join).toHaveAttribute("href", "/member/sign-up");
   const signIn = page.getByTestId("landing-playercta-signin");
   await expect(signIn).toBeVisible();
   await expect(signIn).toHaveAttribute("href", "/login");
