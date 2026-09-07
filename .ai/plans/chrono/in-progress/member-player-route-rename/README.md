@@ -1,6 +1,7 @@
 # Member / Player route rename — `(saas-member)/member` + `(tenant-member)/player`
 
-**Status:** ready — audited (`aed50b4e`, revised), accepted by the developer; Phase 1 implementation dispatched
+**Status:** in-progress — Phase 1 (folder renames + routing) complete and verified;
+Phase 2 (in-app URLs + docs) and Phase 3 (e2e) not started.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
@@ -236,7 +237,21 @@ two blanket, host-unconditioned ones:
 
 ---
 
-### Phase 1 — Folder renames + routing
+### Phase 1 — Folder renames + routing — ✅ DONE
+
+**Result:** the negative-lookahead rewrite form shipped as specced — no
+allowlist fallback was needed. `pnpm --filter @agora/chrono-web build`
+compiled cleanly with `/member` (apex tree) and `/player` (tenant tree) as
+distinct routes and no "parallel pages resolve to the same path" error;
+`pnpm typecheck` passed across all 7 workspace tasks; `pnpm --filter @agora/api
+rls:proof` printed `RLS PROOF: PASS ✅` (non-vacuous). Manual curl pass against
+a live `pnpm --filter @agora/chrono-web dev` (apex host `localtest.me:3000`,
+tenant host `acme.localtest.me:3000`, the seeded `acme` org) returned `200` for
+apex `/member`, apex `/member/login`, apex `/member/sign-up`, tenant `/member`,
+tenant `/member/login`, tenant `/member/sign-up`, tenant `/member/accept-invite`,
+tenant `/member/wallet`, and tenant `/player/wallet`; `/portal` and
+`/portal/login` on the tenant host returned `307` to `/member` and
+`/member/login` respectively. Committed as `<see commit below>`.
 
 Atomic: the app does not boot between the rename and the config change, so this
 is one commit.
