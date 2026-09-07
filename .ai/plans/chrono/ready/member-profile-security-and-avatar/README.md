@@ -132,26 +132,41 @@ location within that venue). Verified by direct research (2026-09-07):
    ```
 2. In `portal-routes.ts`, add `GET /me/recent-branch` (alongside the existing
    `.get("/me")`/`.get("/me/onboarding")` — same `memberMiddleware()` gate
-   already applied `.use("*", ...)` at the top of this router). Implementation:
-   a `withTenant` query that, for `c.var.member.memberId`, does a `UNION` (or
-   two separate queries compared in code — whichever is simpler given
-   Drizzle's query builder) over the most recent `chronoReservation` row and
-   the most recent `chronoSession` row for that member, each joined to
-   `chronoBranch` for the name, picks whichever has the later timestamp
-   (`createdAt`/`startedAt` — check each schema's actual timestamp column
-   name first), and returns `null` if the member has no reservation/session
-   history yet (a new member — this must not error, just render "—" on the
-   page).
+   already applied `.use("*", ...)` at the top of this router). This must
+   represent actual physical presence at a branch, never a booking the
+   member hasn't visited yet — verified exact columns/semantics (pin these,
+   don't re-derive at implementation time):
+   - `chronoReservation` (`apps/chrono-api/src/modules/reservation/
+     schema.ts`): `status` is free text (not a pgEnum), with
+     `"checked_in"`/`"completed"` being the only two values that mean the
+     member was physically at the branch (`"pending"`, `"hold"`,
+     `"confirmed"`, `"cancelled"`, `"cancelled_late"`, `"no_show"`,
+     `"queue_expired"` do not). Use `checkedInAt` (nullable timestamp, set
+     only on actual arrival) as its "visited at" time — not `startAt`
+     (the scheduled window, sometimes null for a still-queued booking) and
+     not `createdAt` (when the booking was made, not when they showed up).
+   - `chronoSession` (`apps/chrono-api/src/modules/session/schema.ts`):
+     `memberId`/`startedAt` are both `notNull` and every row (any `status`:
+     `"active"`/`"paused"`/`"ended"`) inherently means the member was
+     physically at a station in that branch — there's no "not yet visited"
+     status here. Use `startedAt` as its "visited at" time.
+   - Query: for `c.var.member.memberId`, find the most recent
+     `chronoReservation` row with `status IN ('checked_in', 'completed')`
+     (by `checkedInAt`) and the most recent `chronoSession` row (by
+     `startedAt`), each joined to `chronoBranch` for the name, and return
+     whichever of the two has the later "visited at" timestamp. Return
+     `null` if neither exists yet (a new member with no activity — this must
+     not error, just render "—" on the page).
 3. No permission gate beyond `memberMiddleware()` — a member reading their
    own derived activity needs no `requirePermission` call (same posture as
    the existing `.get("/me")` in this file).
 
 **Acceptance criteria:**
-- `GET /portal/members/me/recent-branch` (confirm the actual mount prefix by
-  re-reading how `portal-routes.ts` is mounted in `apps/chrono-api/src/
-  app.ts` before wiring the client call in Phase 2 — the foundation research
-  found it mounted at `/portal/members`, distinct from `/portal/auth`) returns
-  the member's own most recent branch, or `null` for a member with no
+- `GET /portal/members/me/recent-branch` (verified mount point:
+  `apps/chrono-api/src/app.ts:569`, `.route("/portal/members",
+  memberPortalRoutes())` — distinct from the foundation's `/portal/auth`)
+  returns the member's own most recent branch (per the `checked_in`/
+  `completed`/session-row rule above), or `null` for a member with no
   activity yet.
 - Never returns another member's data — `memberId` always from
   `c.var.member`, never client input.
@@ -280,6 +295,8 @@ profile/page.tsx`, the Hero `Card` block (line 280).
 
 **Verification commands:**
 - `pnpm --filter @agora/chrono-web build`
+- `pnpm --filter @agora/chrono-web test:e2e -- profile-settings` (confirm the
+  existing spec still passes unmodified — see "Regression check" above)
 - Manual browser pass: open two browser sessions as the same test member
   (e.g. a normal window + an incognito window), confirm both show up in the
   list from either one, revoke the *other* one from the first window, confirm
@@ -289,6 +306,14 @@ profile/page.tsx`, the Hero `Card` block (line 280).
 refetch, not push); showing more than the caller's own tenant's sessions
 (there is only ever one tenant's worth for a `tenantMember`-scoped session
 anyway).
+
+**Regression check:** `apps/chrono-web/e2e/tests/member/profile-settings.spec.ts`
+already exercises this exact page (one `test.describe("Member profile +
+settings", ...)` block, two tests: the name/password happy path and the
+cross-tenant isolation case) and must keep passing unmodified once the
+Security card and avatar control land — neither test's selectors reference
+"Security" or an avatar control, so there is no expected collision, but this
+must be run (not just assumed) as part of this phase's verification.
 
 **Execution start point:** `apps/chrono-web/src/app/(tenant-member)/player/
 profile/page.tsx`, after the "Edit Profile Details" `Card` (line 410).
