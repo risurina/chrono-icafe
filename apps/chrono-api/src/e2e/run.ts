@@ -8,7 +8,7 @@
  * No external database, no Docker. Exits non-zero if any assertion fails.
  */
 import "dotenv/config"; // load apps/api/.env → picks up TEST_DATABASE_URL
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { is, Column } from "drizzle-orm";
 import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 
@@ -9823,6 +9823,291 @@ async function main() {
       );
     } finally {
       globalThis.fetch = realFetch;
+    }
+  }
+
+  // ── Global customer portal social login (chrono/global-portal-social-login
+  // plan, Phase 8) ──
+  // Re-runs the foundation's own customer-oauth.test.ts case list
+  // (facebook-unconfigured 404, create-on-first-login, reuse-on-second-login,
+  // Facebook-email-collision refusal, suspended-customer refusal,
+  // missing-email -> email_required, IdP-decline -> cancelled, and the
+  // apply-to-tenant composition case) against THIS app's database — the same
+  // "prove it locally per consuming app" reasoning as the member-oauth block
+  // immediately above. Cross-tenant separation is dropped, exactly like the
+  // foundation's own test: Customers/CustomerOAuthAccounts is a platform-wide
+  // pool with no tenant dimension at all.
+  {
+    // A dedicated, disposable tenant for the one case that touches a tenant
+    // at all (the apply-to-tenant composition case) — NOT the shared
+    // acmeId/contosoId fixtures, for the same file-ordering-independence
+    // reason the member-oauth block above uses oauth-acme/oauth-contoso.
+    const customerOauthOrgId = await ensureOrg("oauth-customer", "OAuth Customer Co");
+
+    const realFetch = globalThis.fetch;
+    let googleSub = "chrono-customer-google-sub-1";
+    let googleEmail = "newplayer-customer@example.com";
+    const googleEmailVerified = true;
+    const facebookId = "chrono-customer-fb-id-1";
+    const facebookEmail: string | null = "existing-customer-oauth@example.com";
+
+    function fakeIdToken(claims: Record<string, unknown>): string {
+      const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+      return `${b64({ alg: "none" })}.${b64(claims)}.sig`;
+    }
+
+    globalThis.fetch = (async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      const url = String(input);
+      if (url.startsWith(base)) return realFetch(input, init);
+      if (url.startsWith("https://oauth2.googleapis.com/token")) {
+        return new Response(
+          JSON.stringify({
+            id_token: fakeIdToken({
+              iss: "https://accounts.google.com",
+              aud: "e2e-google-client-id",
+              sub: googleSub,
+              email: googleEmail,
+              email_verified: googleEmailVerified,
+              name: "New Player",
+              exp: Math.floor(Date.now() / 1000) + 3600,
+            }),
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.startsWith("https://graph.facebook.com") && url.includes("/oauth/access_token")) {
+        return new Response(JSON.stringify({ access_token: "fb-access-token" }), { status: 200 });
+      }
+      if (url.startsWith("https://graph.facebook.com") && url.includes("/me")) {
+        return new Response(
+          JSON.stringify({ id: facebookId, name: "FB Player", email: facebookEmail ?? undefined }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`Unexpected fetch in customer OAuth e2e: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      // A pre-existing password-only global customer, for the Facebook
+      // collision case.
+      await adminDb.insert(schema.customer).values({
+        email: "existing-customer-oauth@example.com",
+        name: "Existing OAuth Customer",
+        passwordHash: "scrypt$deadbeef$deadbeef",
+      });
+      // A suspended global customer with a linked google account, for the
+      // suspended case.
+      const [suspendedCustomer] = await adminDb
+        .insert(schema.customer)
+        .values({
+          email: "suspended-customer-oauth@example.com",
+          name: "Suspended OAuth Customer",
+          passwordHash: null,
+          status: "suspended",
+        })
+        .returning({ id: schema.customer.id });
+      await adminDb.insert(schema.customerOAuthAccount).values({
+        customerId: suspendedCustomer!.id,
+        provider: "google",
+        providerAccountId: "chrono-customer-google-suspended-1",
+        email: "suspended-customer-oauth@example.com",
+      });
+
+      // ── provider-unavailable: facebook has no credentials yet
+      // (deliberately left unconfigured up to this point in the whole run,
+      // exactly like the member-oauth block above) ──
+      const fbUnavailable = await reqNoFollow("GET", "/auth/customer/facebook/start");
+      check("customer oauth: facebook /start 404s while unconfigured", fbUnavailable.status === 404);
+
+      async function driveCustomerOAuth(
+        provider: "google" | "facebook",
+        opts: { simulateCancel?: boolean } = {},
+      ): Promise<NoFollowRes> {
+        const start = await reqNoFollow("GET", `/auth/customer/${provider}/start`);
+        if (start.status !== 302) {
+          throw new Error(`customer oauth /start did not redirect: ${start.status}`);
+        }
+        const cookie = jar(start.setCookie);
+        const authorizeUrl = new URL(start.location!);
+        const state = authorizeUrl.searchParams.get("state")!;
+        const cb = opts.simulateCancel
+          ? `/auth/customer/${provider}/callback?state=${encodeURIComponent(state)}&error=access_denied`
+          : `/auth/customer/${provider}/callback?code=test-code&state=${encodeURIComponent(state)}`;
+        return reqNoFollow("GET", cb, { cookie });
+      }
+
+      // ── create-on-first-login ──
+      const customerFirst = await driveCustomerOAuth("google");
+      check(
+        "customer oauth: google create-on-first-login redirects to /portal",
+        customerFirst.location?.includes("/portal") ?? false,
+        customerFirst.location ?? "",
+      );
+      const customersAfterFirst = await adminDb.select().from(schema.customer);
+      const createdCustomer = customersAfterFirst.find((c) => c.email === googleEmail);
+      check("customer oauth: create-on-first-login inserted exactly one Customers row", !!createdCustomer);
+      check(
+        "customer oauth: created customer has passwordHash null (OAuth-only)",
+        createdCustomer?.passwordHash === null,
+      );
+      const oauthAccountsAfterFirst = await adminDb.select().from(schema.customerOAuthAccount);
+      check(
+        "customer oauth: create-on-first-login inserted a CustomerOAuthAccounts row",
+        !!oauthAccountsAfterFirst.find(
+          (a) => a.customerId === createdCustomer?.id && a.provider === "google",
+        ),
+      );
+
+      // ── reuse-on-second-login: same providerAccountId, no duplicate rows ──
+      const customerSecond = await driveCustomerOAuth("google");
+      check(
+        "customer oauth: reuse-on-second-login redirects to /portal",
+        customerSecond.location?.includes("/portal") ?? false,
+      );
+      const customersAfterSecond = await adminDb.select().from(schema.customer);
+      check(
+        "customer oauth: no duplicate Customers row on second login",
+        customersAfterSecond.filter((c) => c.email === googleEmail).length === 1,
+      );
+      const oauthAccountsAfterSecond = await adminDb.select().from(schema.customerOAuthAccount);
+      check(
+        "customer oauth: no duplicate CustomerOAuthAccounts row on second login",
+        oauthAccountsAfterSecond.filter(
+          (a) => a.provider === "google" && a.providerAccountId === googleSub,
+        ).length === 1,
+      );
+
+      // ── cross-tenant separation: dropped intentionally, exactly like the
+      // foundation's own customer-oauth.test.ts — Customers/
+      // CustomerOAuthAccounts has no tenant dimension at all. ──
+
+      // ── Facebook-email-collision refusal — needs Facebook actually
+      // configured, so briefly enable it and wait out
+      // resolveAuthProviders()'s 5s cache before driving the flow. ──
+      process.env.FACEBOOK_AUTH_KEY = "e2e-facebook-client-id";
+      process.env.FACEBOOK_AUTH_SECRET = "e2e-facebook-client-secret";
+      await new Promise((resolve) => setTimeout(resolve, 5200));
+      const beforeCollisionCount = (await adminDb.select().from(schema.customer)).length;
+      const customerCollision = await driveCustomerOAuth("facebook");
+      check(
+        "customer oauth: facebook collision redirects with account_not_linked",
+        customerCollision.location?.includes("error=account_not_linked") ?? false,
+      );
+      const afterCollisionCount = (await adminDb.select().from(schema.customer)).length;
+      check(
+        "customer oauth: facebook collision inserted no new Customers row",
+        afterCollisionCount === beforeCollisionCount,
+      );
+
+      // ── suspended-customer refusal ──
+      googleSub = "chrono-customer-google-suspended-1";
+      googleEmail = "suspended-customer-oauth@example.com";
+      const customerSuspendedAttempt = await driveCustomerOAuth("google");
+      check(
+        "customer oauth: suspended customer is refused a session",
+        customerSuspendedAttempt.location?.includes("error=account_suspended") ?? false,
+      );
+      check(
+        "customer oauth: suspended customer gets no session cookie",
+        customerSuspendedAttempt.setCookie.every((c) => !c.startsWith("agora_customer=")),
+      );
+
+      // ── missing provider email -> email_required ──
+      googleSub = "chrono-customer-google-no-email";
+      const noEmailStart = await reqNoFollow("GET", "/auth/customer/google/start");
+      const noEmailCookie = jar(noEmailStart.setCookie);
+      const noEmailAuthorizeUrl = new URL(noEmailStart.location!);
+      const noEmailState = noEmailAuthorizeUrl.searchParams.get("state")!;
+      const noEmailToken = fakeIdToken({
+        iss: "https://accounts.google.com",
+        aud: "e2e-google-client-id",
+        sub: "chrono-customer-google-no-email",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      });
+      globalThis.fetch = (async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        const url = String(input);
+        if (url.startsWith(base)) return realFetch(input, init);
+        if (url.startsWith("https://oauth2.googleapis.com/token")) {
+          return new Response(JSON.stringify({ id_token: noEmailToken }), { status: 200 });
+        }
+        throw new Error(`Unexpected fetch in customer OAuth e2e (no-email leg): ${url}`);
+      }) as typeof fetch;
+      const noEmailCallback = await reqNoFollow(
+        "GET",
+        `/auth/customer/google/callback?code=test-code&state=${encodeURIComponent(noEmailState)}`,
+        { cookie: noEmailCookie },
+      );
+      check(
+        "customer oauth: missing provider email aborts with email_required",
+        noEmailCallback.location?.includes("error=email_required") ?? false,
+      );
+
+      // ── IdP-declined consent -> cancelled ──
+      globalThis.fetch = (async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        const url = String(input);
+        if (url.startsWith(base)) return realFetch(input, init);
+        if (url.startsWith("https://oauth2.googleapis.com/token")) {
+          return new Response(
+            JSON.stringify({
+              id_token: fakeIdToken({
+                iss: "https://accounts.google.com",
+                aud: "e2e-google-client-id",
+                sub: "chrono-customer-google-cancel",
+                email: "cancel-customer-oauth@example.com",
+                email_verified: true,
+                exp: Math.floor(Date.now() / 1000) + 3600,
+              }),
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`Unexpected fetch in customer OAuth e2e (cancel leg): ${url}`);
+      }) as typeof fetch;
+      const customerCancelled = await driveCustomerOAuth("google", { simulateCancel: true });
+      check(
+        "customer oauth: IdP-declined consent aborts with cancelled",
+        customerCancelled.location?.includes("error=cancelled") ?? false,
+      );
+
+      // ── composition: an OAuth-created global customer can still self-
+      // service "apply" to a tenant via the untouched POST /portal/customer/
+      // apply route. `createdCustomer` (from the create-on-first-login case
+      // above) is the OAuth-only global customer. ──
+      const applyToken = "chrono-customer-oauth-e2e-apply-token";
+      await adminDb.insert(schema.customerSession).values({
+        customerId: createdCustomer!.id,
+        tokenHash: createHash("sha256").update(applyToken).digest("hex"),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+      });
+      const applyRes = await req("POST", "/portal/customer/apply", {
+        cookie: `agora_customer=${applyToken}`,
+        slug: "oauth-customer",
+      });
+      check(
+        "customer oauth: OAuth-created global customer applies to a tenant (201)",
+        applyRes.status === 201,
+        `status ${applyRes.status} ${JSON.stringify(applyRes.body)}`,
+      );
+      const oauthCustomerOrgMembers = await withTenant(customerOauthOrgId, (tx) =>
+        tx.select().from(schema.tenantMember),
+      );
+      check(
+        "customer oauth: apply created a tenantMember row linked via customerId",
+        !!oauthCustomerOrgMembers.find((m) => m.customerId === createdCustomer!.id),
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+      delete process.env.FACEBOOK_AUTH_KEY;
+      delete process.env.FACEBOOK_AUTH_SECRET;
     }
   }
 
