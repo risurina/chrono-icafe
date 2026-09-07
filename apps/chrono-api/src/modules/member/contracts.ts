@@ -44,6 +44,19 @@ export const memberProfileDtoSchema = z.object({
 });
 export type MemberProfileDto = z.infer<typeof memberProfileDtoSchema>;
 
+// Member-portal "recent branch" read (member-profile-security-and-avatar
+// Phase 1) — the branch of the member's most recent physical visit (a
+// checked-in/completed reservation or any session row), never a mere
+// booking. `null` when the member has no qualifying activity yet.
+export const recentBranchSchema = z
+  .object({
+    branchId: z.string(),
+    branchName: z.string(),
+    lastActivityAt: z.string(),
+  })
+  .nullable();
+export type RecentBranch = z.infer<typeof recentBranchSchema>;
+
 type MemberProfileRow = {
   id: string;
   tenantId: string;

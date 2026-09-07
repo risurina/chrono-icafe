@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { withTenant, eq } from "agora/db";
+import { withTenant, eq, and, inArray, desc } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { zValidator } from "agora/server";
 import { createId } from "agora";
@@ -7,6 +7,9 @@ import { chronoMemberProfile } from "./schema";
 import { applyForMembershipSchema, updateMyMemberProfileSchema, toMemberProfile } from "./contracts";
 import { getChronoTenantFlag } from "../../contracts/extensions";
 import { chronoWallet } from "../wallet/schema";
+import { chronoReservation } from "../reservation/schema";
+import { chronoSession } from "../session/schema";
+import { chronoBranch } from "../branch/schema";
 
 /**
  * Customer-facing venue-membership self-service surface — gated by the
@@ -70,6 +73,65 @@ export function memberPortalRoutes() {
         // customer simply qualifies for a station group's memberRate where
         // one is configured. See session/service.ts's rate-resolution logic.
         memberRateEligible: applicationStatus === "approved",
+      });
+    })
+    // member-profile-security-and-avatar Phase 1: the branch of the member's
+    // most recent PHYSICAL visit — a checked-in/completed reservation or any
+    // session row (never a mere pending/hold/confirmed booking). `null` when
+    // the member has no qualifying activity yet (must not error).
+    .get("/me/recent-branch", async (c) => {
+      const { tenantId, memberId } = c.var.member;
+
+      const [lastReservation, lastSession] = await withTenant(tenantId, (tx) =>
+        Promise.all([
+          tx
+            .select({
+              branchId: chronoBranch.id,
+              branchName: chronoBranch.name,
+              visitedAt: chronoReservation.checkedInAt,
+            })
+            .from(chronoReservation)
+            .innerJoin(chronoBranch, eq(chronoReservation.branchId, chronoBranch.id))
+            .where(
+              and(
+                eq(chronoReservation.memberId, memberId),
+                inArray(chronoReservation.status, ["checked_in", "completed"]),
+              ),
+            )
+            .orderBy(desc(chronoReservation.checkedInAt))
+            .limit(1)
+            .then((rows) => rows[0] ?? null),
+          tx
+            .select({
+              branchId: chronoBranch.id,
+              branchName: chronoBranch.name,
+              visitedAt: chronoSession.startedAt,
+            })
+            .from(chronoSession)
+            .innerJoin(chronoBranch, eq(chronoSession.branchId, chronoBranch.id))
+            .where(eq(chronoSession.memberId, memberId))
+            .orderBy(desc(chronoSession.startedAt))
+            .limit(1)
+            .then((rows) => rows[0] ?? null),
+        ]),
+      );
+
+      const candidates = [lastReservation, lastSession].filter(
+        (row): row is NonNullable<typeof row> => row !== null && row.visitedAt !== null,
+      );
+      if (candidates.length === 0) {
+        return c.json({ recentBranch: null });
+      }
+      const latest = candidates.reduce((a, b) =>
+        (a.visitedAt as Date) > (b.visitedAt as Date) ? a : b,
+      );
+
+      return c.json({
+        recentBranch: {
+          branchId: latest.branchId,
+          branchName: latest.branchName,
+          lastActivityAt: (latest.visitedAt as Date).toISOString(),
+        },
       });
     })
     .post("/apply", zValidator("json", applyForMembershipSchema), async (c) => {
