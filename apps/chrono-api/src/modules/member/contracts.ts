@@ -34,6 +34,7 @@ export const memberProfileDtoSchema = z.object({
   tenantId: z.string(),
   memberId: z.string(),
   phone: z.string().nullable(),
+  memberCode: z.string().nullable(),
   applicationStatus: memberApplicationStatusSchema,
   appliedAt: z.string(),
   approvedAt: z.string().nullable(),
@@ -48,6 +49,7 @@ type MemberProfileRow = {
   tenantId: string;
   memberId: string;
   phone: string | null;
+  memberCode: string | null;
   applicationStatus: string;
   appliedAt: Date;
   approvedAt: Date | null;
@@ -62,6 +64,7 @@ export function toMemberProfile(row: MemberProfileRow): MemberProfileDto {
     tenantId: row.tenantId,
     memberId: row.memberId,
     phone: row.phone,
+    memberCode: row.memberCode,
     applicationStatus: row.applicationStatus as MemberApplicationStatus,
     appliedAt: row.appliedAt.toISOString(),
     approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
