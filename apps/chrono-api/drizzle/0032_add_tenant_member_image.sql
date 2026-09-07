@@ -1,0 +1,1 @@
+ALTER TABLE "TenantMembers" ADD COLUMN "image" text;
