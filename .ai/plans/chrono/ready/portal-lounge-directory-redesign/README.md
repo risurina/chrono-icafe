@@ -1,9 +1,10 @@
 # Global portal home — "Gaming Lounge Directory" redesign
 
-**Status:** ready — accepted by the developer, phases specified, unclaimed (blocked on `member-player-route-rename` landing first — see below)
+**Status:** in-progress — `member-player-route-rename` Phases 1-2 landed (branch `feature/member-player-route-rename`, not yet merged to `main`); implementing on a worktree branched off that feature branch, not `main`, since this plan's paths only exist there
 **App:** chrono
 **Sessions:**
 - Planning: agora-a9 [10bb99]
+- Implementation: agora-a3 [4c723d] (dispatched to a fresh subagent per `delegate-implementation`)
 
 ## Blocking dependency — do not start until this clears
 
