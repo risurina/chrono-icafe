@@ -7,7 +7,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  Badge,
 } from "agora/ui";
 import {
   useGlobalCustomerSession,
@@ -16,85 +15,70 @@ import {
   type GlobalCustomerMembership,
   type MembershipVenueStatus,
 } from "@/lib/customer-client";
-
-function tenantPortalUrl(slug: string): string {
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
-  const scheme = typeof window !== "undefined" ? window.location.protocol : "https:";
-  return `${scheme}//${slug}.${appDomain}/member`;
-}
-
-/** Active tenant lifecycle states — everything else blocks portal access
- * (`assertTenantActive`), so it renders as a badge instead of a live link. */
-const REACHABLE_STATUSES = new Set(["active", "trial", "pending"]);
-
-function MembershipRow({
-  membership,
-  venueStatus,
-}: {
-  membership: GlobalCustomerMembership;
-  venueStatus: MembershipVenueStatus | undefined;
-}) {
-  const reachable = REACHABLE_STATUSES.has(membership.tenantStatus);
-  return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{membership.tenantName}</span>
-        {reachable && venueStatus ? (
-          <>
-            <Badge variant={venueStatus.status === "open" ? "default" : "secondary"}>
-              {venueStatus.status === "open" ? "Open" : "Closed"}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {venueStatus.available}/{venueStatus.total} available
-            </span>
-          </>
-        ) : null}
-      </div>
-      {reachable ? (
-        <a
-          href={tenantPortalUrl(membership.tenantSlug)}
-          className="text-sm text-primary hover:underline"
-        >
-          Go to portal →
-        </a>
-      ) : (
-        <Badge variant="secondary">{membership.tenantStatus}</Badge>
-      )}
-    </div>
-  );
-}
+import { listBusinessDirectory } from "@/lib/discover-client";
+import type { BusinessDirectoryListItem } from "@agora/chrono-api/business-lead";
+import { LoungeDirectoryCard } from "@/components/member/lounge-directory-card";
 
 /**
- * Global customer account home. To become a customer of a specific
- * business, visit that business's `/member` while signed in here — it
- * offers a one-click "Apply" (see apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx).
+ * Global customer account home — the "Gaming Lounge Directory". Every
+ * reachable tenant is listed (not just ones the customer has joined); each
+ * card shows "Enter Portal" for a tenant the customer already belongs to, or
+ * "Apply to Join" otherwise. Applying happens on the tenant's own `/member`
+ * (see apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx) —
+ * no apex-side apply call.
  */
 export function GlobalPortalHome() {
   const { customer } = useGlobalCustomerSession();
   const [memberships, setMemberships] = useState<GlobalCustomerMembership[] | null>(null);
+  const [directory, setDirectory] = useState<BusinessDirectoryListItem[]>([]);
+  const [directoryError, setDirectoryError] = useState(false);
   const [venueStatusBySlug, setVenueStatusBySlug] = useState<
     Record<string, MembershipVenueStatus>
   >({});
 
   useEffect(() => {
     let active = true;
-    getMyTenantMemberships().then(({ data }) => {
-      if (active) setMemberships(data ?? []);
+
+    // Fetched in parallel; none of the three must block the others from
+    // rendering. The directory list failing to load must not blank the page
+    // — matches the pre-existing `getMyVenueStatus()` "absorb failure
+    // silently" precedent this file already followed before this change.
+    Promise.allSettled([
+      getMyTenantMemberships(),
+      listBusinessDirectory(),
+      getMyVenueStatus(),
+    ]).then(([membershipsResult, directoryResult, venueStatusResult]) => {
+      if (!active) return;
+
+      if (membershipsResult.status === "fulfilled") {
+        setMemberships(membershipsResult.value.data ?? []);
+      } else {
+        setMemberships([]);
+      }
+
+      if (directoryResult.status === "fulfilled" && directoryResult.value.ok) {
+        setDirectory(directoryResult.value.items);
+      } else {
+        setDirectory([]);
+        setDirectoryError(true);
+      }
+
+      if (venueStatusResult.status === "fulfilled" && venueStatusResult.value.data) {
+        setVenueStatusBySlug(
+          Object.fromEntries(venueStatusResult.value.data.map((v) => [v.tenantSlug, v])),
+        );
+      }
     });
-    // Fetched separately (own Chrono-owned route) and merged by
-    // `tenantSlug` — a failure here must never block the membership list
-    // itself from rendering, so it's silently absorbed to "no status".
-    getMyVenueStatus().then(({ data }) => {
-      if (!active || !data) return;
-      setVenueStatusBySlug(Object.fromEntries(data.map((v) => [v.tenantSlug, v])));
-    });
+
     return () => {
       active = false;
     };
   }, []);
 
+  const memberSlugs = new Set((memberships ?? []).map((m) => m.tenantSlug));
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Welcome{customer ? `, ${customer.name}` : ""}
@@ -119,34 +103,36 @@ export function GlobalPortalHome() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your businesses</CardTitle>
-          <CardDescription>
-            Businesses you&apos;ve applied to and been approved for.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {memberships === null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : memberships.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              You haven&apos;t joined any businesses yet — visit a business&apos;s
-              portal and apply to become a customer there.
-            </p>
-          ) : (
-            <div className="divide-y">
-              {memberships.map((m) => (
-                <MembershipRow
-                  key={m.tenantSlug}
-                  membership={m}
-                  venueStatus={venueStatusBySlug[m.tenantSlug]}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Gaming Lounge Directory</h2>
+          <p className="text-sm text-muted-foreground">
+            Every active Chrono lounge. Enter the ones you&apos;ve joined, or apply to a
+            new one.
+          </p>
+        </div>
+
+        {directory.length === 0 && directoryError ? (
+          <p className="text-sm text-muted-foreground">
+            Could not load the directory right now. Please try again later.
+          </p>
+        ) : directory.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No lounges are listed yet.</p>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {directory.map((item) => (
+              <LoungeDirectoryCard
+                key={item.slug}
+                name={item.name}
+                slug={item.slug}
+                status={item.status}
+                isMember={memberSlugs.has(item.slug)}
+                venueStatus={venueStatusBySlug[item.slug]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -354,7 +354,7 @@ pnpm typecheck
 
 ---
 
-### Phase 3 — UI: header, sidebar, card, page assembly
+### Phase 3 — UI: header, sidebar, card, page assembly — COMPLETE
 
 **Files to update**
 - `apps/chrono-web/src/components/landing/marketing-chrome.tsx`
@@ -362,6 +362,50 @@ pnpm typecheck
 - `apps/chrono-web/src/components/member/lounge-directory-card.tsx` (new)
 - `(saas-member)/member/global-portal-home.tsx`
 - `(saas-member)/member/global-portal-layout.tsx`
+
+**Verification summary (implemented and verified)**
+
+- `pnpm typecheck` — PASS (all 5 workspace packages, `@agora/chrono-web` included).
+- `pnpm --filter @agora/chrono-web build` — PASS, all 126 routes compiled including
+  `/member`.
+- `MarketingHeader` callers confirmed unaffected: grepped every actual `<MarketingHeader`
+  JSX instantiation in `apps/chrono-web` (not just text/comment mentions) — exactly 5:
+  `app/(saas-landing)/page.tsx:479`, `app/(saas-landing)/login/layout.tsx:42`,
+  `app/(apex-marketing)/layout.tsx:28`, `components/staff-auth-chrome.tsx:61`,
+  `components/portal-auth-chrome.tsx:37`. None pass `actions` — all fall through to the
+  existing default (ThemeToggle + "Join Chrono" CTA), unchanged.
+- **`/member/profile` decision**: confirmed no such route exists (checked
+  `apps/chrono-web/src/app/(saas-member)/member/` directory listing and the build's
+  route manifest — only `/member`, `/member/login`, `/member/sign-up`, `/member/forgot`,
+  `/member/reset`, `/member/accept-invite`; the only "profile" route in the whole app is
+  the unrelated tenant-side `/player/profile`). `global-portal-sidebar.tsx` ships with
+  Dashboard + Logout only, per the plan's own fallback instruction.
+- **Manual pass — completed via Playwright, real dev servers, real DB.** Ran
+  `apps/chrono-api` on port 8788 and `apps/chrono-web` on port 3002 (env-var overrides
+  only — `PORT`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_DOMAIN`, `APP_DOMAIN` — to avoid
+  colliding with a sibling worktree's servers already on 3000/8787; `.env` files were
+  copied unread via `cp`, per the no-read-.env-contents rule, then deleted again after).
+  Ran `pnpm --filter @agora/chrono-api run seed` (idempotent, already-tracked test data)
+  and signed in as the existing seeded global customer (`global@customer.test`, a member
+  of `acme`+`contoso`, not `globex`). Temporarily flipped `globex`'s `organization.status`
+  to `suspended` via a throwaway script using the app's own `adminDb`/`schema` exports
+  (no raw SQL, no secrets touched), then restored it to `active` after observing the
+  result. Confirmed via screenshot + DOM text assertion:
+  - Header shows the signed-in identity avatar/menu ("GC") in place of "Join Chrono".
+  - Sidebar renders with Dashboard (highlighted/active) + Logout, no Profile item.
+  - Grid renders "Enter Portal" for `acme`/`contoso` (joined, each carrying a live
+    Open/Closed badge + station availability from `getMyVenueStatus()`) and "Apply to
+    Join" for every other active tenant (`appusagesmoke`, `gaming`, etc.).
+  - `globex` (forced to `suspended`) does not appear anywhere in the rendered page text
+    — confirmed via `document.body.innerText` not containing "Globex".
+  - CTA hrefs resolve to `http://<slug>.localtest.me:3002?source=global_directory`,
+    matching the existing `tenantHref()` cross-subdomain pattern used elsewhere.
+  - `MarketingFooter` renders below the grid.
+  One transient false read during this pass: an early screenshot (taken ~8s after
+  navigation, before the parallel fetches resolved on a cold Turbopack compile) showed
+  "No lounges are listed yet." — re-confirmed via a temporary debug `console.log` that
+  this was a timing artifact (the fetch that eventually returned 10 items with `ok:
+  true`), not a logic bug; removed the debug log before committing.
 
 **Step-by-step tasks**
 1. `marketing-chrome.tsx`: add `actions?: React.ReactNode` to `MarketingHeader`'s

@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Button, ThemeToggle, CenteredMessage, Row } from "agora/ui";
+import { ThemeToggle, IdentityMenu, CenteredMessage, Row } from "agora/ui";
 import { customerAuth, useGlobalCustomerSession } from "@/lib/customer-client";
+import { MarketingHeader, MarketingFooter } from "@/components/landing/marketing-chrome";
+import { GlobalPortalSidebar } from "@/components/member/global-portal-sidebar";
 
 // `/member/accept-invite` is a tenant-member invite link (hardcoded in
 // foundation emails, kept at this path per the plan) that renders its own
@@ -35,23 +37,34 @@ export function GlobalPortalLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex h-14 items-center justify-between border-b px-6">
-        <span className="text-sm font-medium">Your account</span>
-        <Row items="center" gap={1}>
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              await customerAuth.signOut();
-              location.href = "/member/login";
-            }}
-          >
-            Sign out
-          </Button>
-        </Row>
-      </header>
-      <main className="flex-1 p-6">{children}</main>
+      <MarketingHeader
+        actions={
+          <Row items="center" gap={2}>
+            <Row className="hidden sm:flex">
+              <ThemeToggle />
+            </Row>
+            <IdentityMenu
+              name={customer.name}
+              email={customer.email}
+              items={[]}
+              triggerTestId="global-customer-user-menu-trigger"
+              onSignOut={async () => {
+                await customerAuth.signOut();
+                location.href = "/member/login";
+              }}
+            />
+          </Row>
+        }
+      />
+      {/* `MarketingHeader` is fixed/80px, not sticky — content reserves its
+          own top padding instead of relying on document flow. */}
+      <main className="flex-1 pt-24">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 sm:flex-row">
+          <GlobalPortalSidebar name={customer.name} email={customer.email} />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
+      </main>
+      <MarketingFooter year={new Date().getFullYear()} />
     </div>
   );
 }
