@@ -1,13 +1,27 @@
 # Global portal home — "Gaming Lounge Directory" redesign
 
-**Status:** Phases 1-3 complete and verified (backend route, frontend data layer, UI
-assembly — typecheck/build/rls:proof/manual pass all green, including a live
-suspended-tenant exclusion check). Phase 4 (e2e): `lounge-directory.spec.ts` is
-written and was corrected to the repo's standard port (3000, after a throwaway
-worktime fix at :3010 was reverted), but implementation was interrupted before a
-clean, confirmed pass/fail run completed — **do not treat Phase 4 as verified**.
-Recommend running `pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts`
-against a real dev server as a follow-up before considering this plan fully done.
+**Status:** all 4 phases complete and verified. Phase 4 (e2e) required two real fixes
+found by actually running it against the correct dev servers (root `pnpm dev` starts
+the `@agora/web`/`@agora/api` scaffold, NOT `@agora/chrono-web`/`@agora/chrono-api` —
+business apps are never auto-wired into it per `.ai/rules/business-app.md`; running
+against the scaffold by mistake produced misleading label-mismatch failures against
+the wrong app entirely):
+
+1. `lounge-directory.spec.ts`'s `signUpBusiness()` helper used "Business name"/
+   "Business URL" labels matching chrono-web's real sign-up form — that part was
+   already correct once tested against the right app.
+2. **Real, confirmed defect**: `global-portal-home.tsx` called `listBusinessDirectory()`
+   with no query params, defaulting to `page: 1, pageSize: 10` — so the grid only ever
+   showed the alphabetically-first 10 tenants, silently contradicting this plan's own
+   "Full directory: every active tenant is listed" decision once the tenant count
+   exceeds 10 (confirmed against 557 active tenants in the dev DB). Fixed with
+   `listBusinessDirectory({ pageSize: 100 })` (the contract's max) as a stopgap,
+   developer-approved. **This is not a complete fix** — a platform with >100 active
+   tenants will still silently truncate the directory. Real pagination/search on this
+   page is unscoped follow-up work, not covered by this plan.
+
+`pnpm --filter @agora/chrono-web e2e member/lounge-directory.spec.ts` — 1/1 passed
+(4.9m) after both fixes, run against the correct `chrono-api`/`chrono-web` dev servers.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a9 [10bb99]

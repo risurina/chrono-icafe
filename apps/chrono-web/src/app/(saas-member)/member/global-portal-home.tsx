@@ -45,7 +45,11 @@ export function GlobalPortalHome() {
     // silently" precedent this file already followed before this change.
     Promise.allSettled([
       getMyTenantMemberships(),
-      listBusinessDirectory(),
+      // pageSize: 100 is the contract's max (listQuerySchema) — a stopgap so
+      // the grid covers far more than the 10-item default. It still isn't
+      // truly "every active tenant" once the platform exceeds 100; real
+      // pagination/search on this page is a separate, unscoped follow-up.
+      listBusinessDirectory({ pageSize: 100 }),
       getMyVenueStatus(),
     ]).then(([membershipsResult, directoryResult, venueStatusResult]) => {
       if (!active) return;
