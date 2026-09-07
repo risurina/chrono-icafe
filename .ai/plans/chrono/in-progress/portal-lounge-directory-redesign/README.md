@@ -294,7 +294,31 @@ pnpm --filter @agora/chrono-api build
 
 ---
 
-### Phase 2 — Frontend data layer
+### Phase 2 — Frontend data layer — COMPLETE
+
+**Verification summary:** Implemented on `feature/portal-lounge-directory-redesign`
+(same worktree/branch as Phase 1). Created `src/lib/tenant-links.ts` exporting
+`tenantHref(slug, source = "global_discovery")` — the exact logic moved out of
+`business-result-card.tsx`, plus an optional second `source` argument (unused
+by any caller yet; Phase 3's directory grid will pass `"global_directory"`).
+Updated `business-result-card.tsx` to import `tenantHref` from the new file
+and removed its local definition — no other change, so its generated URLs are
+identical (default `source` still resolves to `"global_discovery"`). Added
+`listBusinessDirectory(query?, signal?)` to `discover-client.ts`, mirroring
+`searchBusinesses`'s fetch/error-handling shape, calling
+`GET /public/discover/businesses/directory` (confirmed the mount path from
+`app.ts`'s `.route("/public/discover", businessLeadPublicRoutes())` plus the
+route's own `/businesses/directory` path) and typed against
+`BusinessDirectoryListItem` (`@agora/chrono-api/business-lead`) and
+`PaginationMeta` (`agora`).
+
+`pnpm typecheck` passes across all 5 workspace packages. Manually verified
+the round trip: ran the chrono-api dev server on an alternate port (8787 was
+already occupied by an unrelated worktree's server — left untouched) and
+curled `GET /public/discover/businesses/directory?page=1&pageSize=3`; the
+response (`{ items, meta }`) exactly matches `listBusinessDirectory()`'s
+expected shape — each item has exactly the four allowlisted fields
+(`id`/`slug`/`name`/`status`) and `meta` matches `PaginationMeta`'s fields.
 
 **Files to update**
 - `apps/chrono-web/src/lib/discover-client.ts`

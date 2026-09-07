@@ -12,22 +12,7 @@ import {
   Row,
   Stack,
 } from "agora/ui";
-
-/**
- * Builds the public URL of a listed business's own tenant host. The apex domain
- * is the same value the browser is already on, so the subdomain is derived from
- * `window.location.host` rather than a second env var.
- */
-function tenantHref(slug: string): string {
-  if (typeof window === "undefined") return `/`;
-  const { protocol, host } = window.location;
-  // Strip a leading subdomain only if one is present (the apex may be
-  // `chrono.example.com` or bare `localtest.me:3000`).
-  // `?source=global_discovery` attributes the visit to this listing so the
-  // tenant page's `TENANT_PAGE_VIEW` (and every downstream conversion event
-  // in the same session) can be joined back to it — see `lib/analytics.ts`.
-  return `${protocol}//${slug}.${host}?source=global_discovery`;
-}
+import { tenantHref } from "@/lib/tenant-links";
 
 export function BusinessResultCard({
   business,

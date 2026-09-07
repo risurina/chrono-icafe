@@ -1,8 +1,10 @@
 import type {
   BusinessDirectoryResult,
+  BusinessDirectoryListItem,
   DiscoverBusinessesQuery,
   CreateBusinessLeadInput,
 } from "@agora/chrono-api/business-lead";
+import type { PaginationMeta } from "agora";
 
 /**
  * Thin typed wrapper over the apex `/public/discover/*` routes.
@@ -41,6 +43,39 @@ export async function searchBusinesses(
     return { ok: false, error: body?.error ?? "Could not search right now. Please try again." };
   }
   return { ok: true, businesses: (await res.json()) as BusinessDirectoryResult[] };
+}
+
+export type DirectoryListResult =
+  | { ok: true; items: BusinessDirectoryListItem[]; meta: PaginationMeta }
+  | { ok: false; error: string };
+
+/**
+ * The plain, unranked directory listing behind the global portal home's
+ * "Gaming Lounge Directory" — every reachable tenant, not a search. Mirrors
+ * `searchBusinesses`'s fetch/error-handling shape.
+ */
+export async function listBusinessDirectory(
+  query?: { page?: number; pageSize?: number },
+  signal?: AbortSignal,
+): Promise<DirectoryListResult> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set("page", String(query.page));
+  if (query?.pageSize) params.set("pageSize", String(query.pageSize));
+
+  const res = await fetch(`${apiBase()}/public/discover/businesses/directory?${params}`, {
+    signal,
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    return {
+      ok: false,
+      error: body?.error ?? "Could not load the directory right now. Please try again.",
+    };
+  }
+  const body = (await res.json()) as { items: BusinessDirectoryListItem[]; meta: PaginationMeta };
+  return { ok: true, items: body.items, meta: body.meta };
 }
 
 /**
