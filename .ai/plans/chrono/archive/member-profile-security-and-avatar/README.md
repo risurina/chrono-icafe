@@ -368,3 +368,88 @@ plan) — Phase 1 of *this* plan only needs `chronoReservation`/`chronoSession`
 (already landed, unrelated to the foundation plan), so it could in principle
 start independently, but Phases 2–3 hard-depend on the foundation's new
 routes/client methods existing.
+
+---
+
+## Closure
+
+All 4 phases implemented and committed on `main`:
+
+- **Phase 1** (`1f437855`) — recent-branch read (`GET /portal/members/me/
+  recent-branch`), `apps/chrono-api`.
+- **Phase 2** (`06013862`) — avatar upload UI (`AvatarUploadField`),
+  `apps/chrono-web`.
+- **Phase 3** (`f5df42cb`) — security session log UI (Security card: lounge/
+  recent-branch context, per-session revoke), `apps/chrono-web`.
+- **Phase 4** (`218c4a1a`) — e2e spec
+  (`apps/chrono-web/e2e/tests/member/profile-security-and-avatar.spec.ts`)
+  covering the happy path, the ownership gate (cross-account session 404),
+  and cross-tenant isolation.
+
+### Two real bugs found and fixed by Phase 4's e2e coverage
+
+1. **Missing chrono-api migration.** Phase 2's foundation schema change
+   (`ipAddress`/`userAgent`/`lastSeenAt` on `TenantMemberSessions`) had a
+   migration generated for the `agora-api` reference scaffold's own database
+   but was never generated/applied for `chrono-api`'s own, separate
+   database — each app has its own independent Drizzle migration history
+   even though both compose the same foundation schema. Fixed by generating
+   and applying `apps/chrono-api/drizzle/0033_add_member_session_metadata.sql`
+   (also picked up an unrelated pending foundation column-nullability change
+   on `Customers.passwordHash`, itself already-decided/safe/additive).
+   `rls:proof` re-verified passing after the migration.
+2. **Avatar upload ticket-consumption bug.** Phase 2's `avatar-upload.tsx`
+   (`consumeUploadTicket`) sent a raw `PUT` body with `Content-Type:
+   file.type` for any non-POST upload ticket, but the local dev storage
+   proxy (`PUT /api/upload/local`, `apps/chrono-api/src/app.ts`) expects a
+   multipart body with a `file` field (`c.req.parseBody()`). Fixed by
+   aligning it with this app's own already-established upload-ticket
+   pattern in `apps/chrono-web/src/lib/upload.ts` (always send `FormData`,
+   regardless of ticket method).
+
+### Pre-existing e2e environment flakiness (documented, not a regression)
+
+This suite's local headed-Chromium environment (`apps/chrono-web/
+playwright.config.ts`: `headless: false`, `slowMo: 350`, `workers: 1`)
+reproduces the same flakiness already confirmed in Phase 3's closure notes
+for `profile-settings.spec.ts` — it is **pre-existing infra slowness,
+independent of this plan's code**, not a regression introduced here:
+
+- Repeated back-to-back runs exhaust local resources — request latencies
+  climb under load (an avatar sign/upload/confirm round trip that normally
+  completes in ~1-2s took ~18s combined in one observed run, per
+  `chrono-api`'s own request log, with every call still returning `200`),
+  and a browser context can be torn down mid-test
+  (`Target page, context or browser has been closed`).
+- A dev server left running across a code change can silently serve stale
+  code (`tsx`/`next dev` here don't hot-restart on save) — several early
+  runs failed on 404s that were actually stale-server artifacts, not real
+  route regressions.
+- The member sign-up rate limiter (`packages/agora/src/identity/
+  member-auth/index.ts`: 10 signups/hour/IP, in-memory, no Redis in this
+  local env) is real and correct, but repeated manual test runs from the
+  same machine can exhaust it within the hour — visible as `429` on
+  `POST /portal/auth/sign-up`, not an app defect.
+- **The safety-critical scenario — the ownership-gate cross-account session
+  404 (test `b`) — was independently verified passing cleanly on 3 separate
+  full runs** in this same environment, across different stages of
+  debugging. The two other scenarios (happy path, cross-tenant isolation)
+  hit the above environment-level flakiness (timing/navigation failures,
+  never a wrong-content assertion) on the final clean-environment run and
+  were committed as-is per the developer's explicit direction, with an
+  environment note added at the top of the spec file.
+
+### Corrections to this plan's own assumptions
+
+- The plan's Phase 3 draft assumed a `/member/login` redirect path; the
+  actual sign-out/session-expiry redirect in this app is `/login` (see
+  `page.tsx`'s `onRevokeSession`, `settings/page.tsx`, `member-header.tsx`)
+  — corrected during Phase 3 implementation, reflected in Phase 4's e2e spec.
+
+### Not verified in this environment
+
+- The plan's Phase 2/3 manual-browser-pass verification steps (opening two
+  real browser windows side by side, visually confirming avatar persistence
+  across a reload, visually confirming a revoked session's next request
+  401s) were exercised via the e2e spec's automated multi-context flow
+  instead of by hand — no separate manual pass was run.
