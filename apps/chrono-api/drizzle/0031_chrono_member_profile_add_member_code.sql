@@ -1,0 +1,2 @@
+ALTER TABLE "ChronoMemberProfiles" ADD COLUMN "memberCode" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "chrono_member_profile_code_uq" ON "ChronoMemberProfiles" USING btree ("tenantId","memberCode");
