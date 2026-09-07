@@ -6,7 +6,7 @@ change.
 **Sessions:**
 - Planning: algolia-search-provider-integration [10bb99]
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: (subagent, no persistent session name)
 
 ## Reported symptom
 

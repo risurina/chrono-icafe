@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, CenteredMessage, Card, CardHeader, CardTitle, CardDescription, CardContent, toast } from "agora/ui";
 import { applyForTenantMembership } from "@/lib/customer-client";
+import { applyForMembership } from "@/lib/member/account";
 import { track } from "@/lib/analytics";
 
 /**
@@ -21,6 +22,12 @@ export function ApplyForTenantPrompt() {
       toast.error(error);
       setApplying(false);
       return;
+    }
+    // Best-effort: the foundation apply already succeeded and granted access.
+    // A failure here must not block the member from completing the join.
+    const { error: profileError } = await applyForMembership();
+    if (profileError) {
+      console.error("applyForMembership failed after tenant join:", profileError);
     }
     track("PLAYER_SIGNUP_FROM_TENANT", { method: "customer_apply" });
     // The literal "player connects to business" moment of the loop.

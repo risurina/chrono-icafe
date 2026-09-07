@@ -62,13 +62,19 @@ test.describe("Global customer — apply to a tenant", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
-    // the applied customer shows up in tenant A's Members list (the applied
-    // customer has no chronoMemberProfile row, so this is the real proof the
-    // Members list's LEFT JOIN surfaces every tenantMember, not just
-    // profiled ones — see .ai/plans/chrono/active/customers-members-merge/README.md). ──
+    // the applied customer shows up in tenant A's Members list. Since
+    // member-apply-profile-autocreate, "Join this business" also files a
+    // real Chrono membership application (ChronoMemberProfile row), so this
+    // applicant now has a profileId and a real pending "Approve" action —
+    // not just a bare tenantMember row. (The profile-less-row LEFT JOIN case
+    // — a tenantMember with no ChronoMemberProfile — is still covered
+    // separately, by customers-members-merge's own "Create customer"
+    // scenario in members.spec.ts; that path is unaffected by this change.) ──
     await page.goto(`http://${slugA}.localtest.me:3000/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
+    const tenantARow = page.getByRole("row", { name: new RegExp(customerEmail) });
+    await expect(tenantARow.getByRole("button", { name: "Approve" })).toBeVisible();
 
     // ── Tenant B: create a second, independent business. ──
     const { slug: slugB } = await signUpNewWorkspace(page);
