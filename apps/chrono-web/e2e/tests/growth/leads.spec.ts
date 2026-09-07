@@ -17,8 +17,13 @@ const SEEDED_PASSWORD = "Password123!";
 
 async function findInviteLink(toEmail: string): Promise<string> {
   const deadline = Date.now() + 15_000;
+  // Case-insensitive: the invite backend normalizes recipient emails to
+  // lowercase before logging/sending, but faker-generated addresses aren't
+  // always already lowercase — a case-sensitive match here is flaky, not a
+  // real assertion on casing.
   const pattern = new RegExp(
     `\\[email:console\\] to=${toEmail.replace(/[.+]/g, "\\$&")}.*?link=(\\S+)`,
+    "i",
   );
   while (Date.now() < deadline) {
     const log = readFileSync(DEV_LOG_PATH, "utf8");
