@@ -36,10 +36,12 @@ import { chronoBusinessLead } from "./schema";
 import {
   createBusinessLeadSchema,
   discoverBusinessesQuerySchema,
+  businessDirectoryListQuerySchema,
   normalizeBusinessName,
   rankBusinessesByDemand,
   DISCOVER_RESULT_LIMIT,
   type BusinessDirectoryResult,
+  type BusinessDirectoryListItem,
 } from "./contracts";
 
 /**
@@ -319,6 +321,65 @@ export function businessLeadPublicRoutes() {
       // empty state is a UI concern (it offers the invite form), not an error.
       return c.json(results);
     })
+
+    /**
+     * Cross-tenant directory LISTING — every reachable tenant, not a search.
+     * Backs the global portal home's "Gaming Lounge Directory" grid: it must
+     * show every active/trial/pending tenant regardless of whether it has
+     * published a landing page, unlike `GET /businesses` above (which
+     * requires that affirmative publish signal). No ranking, no demand
+     * boosting, no availability/location join — an explicit four-field
+     * allowlist (`BusinessDirectoryListItem`), ordered by name.
+     *
+     * Uses `withAdmin` — same RLS-bypass class as `GET /businesses` and
+     * `readPublishedLandingPage`; the explicit status predicate below is the
+     * only isolation on this path. `rls:proof` does not cover it. Public,
+     * read-only, no `requirePermission` — same trust level as `/businesses`.
+     */
+    .get(
+      "/businesses/directory",
+      zValidator("query", businessDirectoryListQuerySchema),
+      async (c) => {
+        const { page, pageSize } = c.req.valid("query");
+
+        const reachableStatuses = ["active", "trial", "pending"] as const;
+
+        const items = await withAdmin(async (tx) => {
+          const [totalRow] = await tx
+            .select({ value: count() })
+            .from(base.organization)
+            .where(inArray(base.organization.status, reachableStatuses));
+          const totalItems = Number(totalRow?.value ?? 0);
+
+          const rows = await tx
+            .select({
+              id: base.organization.id,
+              slug: base.organization.slug,
+              name: base.organization.name,
+              status: base.organization.status,
+            })
+            .from(base.organization)
+            .where(inArray(base.organization.status, reachableStatuses))
+            .orderBy(asc(base.organization.name))
+            .limit(pageSize)
+            .offset((page - 1) * pageSize);
+
+          const listItems: BusinessDirectoryListItem[] = rows.map((r) => ({
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            status: r.status,
+          }));
+
+          return { listItems, totalItems };
+        });
+
+        return c.json({
+          items: items.listItems,
+          meta: buildPaginationMeta(page, pageSize, items.totalItems, "name", "asc"),
+        });
+      },
+    )
 
     /**
      * Cold-start lead capture: "this business isn't here, bring them in".

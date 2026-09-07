@@ -68,7 +68,14 @@ const NAV = [
   { label: "Login", href: "/login" },
 ];
 
-export function MarketingHeader() {
+/**
+ * `actions`, when supplied, fully replaces the default ThemeToggle + "Join
+ * Chrono" CTA row — the same override shape `TenantHeader` already offers
+ * (see below). Optional and defaulted so every existing caller (apex
+ * marketing pages, the SaaS landing/login chrome) renders unchanged; only the
+ * global portal home passes a signed-in identity menu here.
+ */
+export function MarketingHeader({ actions }: { actions?: React.ReactNode } = {}) {
   return (
     <SiteHeader
       {...HEADER_PROPS}
@@ -92,22 +99,24 @@ export function MarketingHeader() {
         </>
       }
       actions={
-        <>
-          {/* The toggle is a nicety, and at 390px it competed with the brand
-              and the CTA for the same 40px. It returns at `sm`. */}
-          <Row className="hidden sm:flex">
-            <ThemeToggle />
-          </Row>
-          {/* One primary nav CTA; the player/partner split lives in the hero
-              it anchors to, so the nav does not have to pick an audience. */}
-          <Link
-            href="/#join"
-            className={cn(buttonVariants(), CTA_PILL)}
-            data-testid="marketing-cta"
-          >
-            Join Chrono
-          </Link>
-        </>
+        actions ?? (
+          <>
+            {/* The toggle is a nicety, and at 390px it competed with the brand
+                and the CTA for the same 40px. It returns at `sm`. */}
+            <Row className="hidden sm:flex">
+              <ThemeToggle />
+            </Row>
+            {/* One primary nav CTA; the player/partner split lives in the hero
+                it anchors to, so the nav does not have to pick an audience. */}
+            <Link
+              href="/#join"
+              className={cn(buttonVariants(), CTA_PILL)}
+              data-testid="marketing-cta"
+            >
+              Join Chrono
+            </Link>
+          </>
+        )
       }
     />
   );

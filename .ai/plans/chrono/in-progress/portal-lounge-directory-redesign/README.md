@@ -1,6 +1,13 @@
 # Global portal home — "Gaming Lounge Directory" redesign
 
-**Status:** in-progress — `member-player-route-rename` Phases 1-2 landed (branch `feature/member-player-route-rename`, not yet merged to `main`); implementing on a worktree branched off that feature branch, not `main`, since this plan's paths only exist there
+**Status:** Phases 1-3 complete and verified (backend route, frontend data layer, UI
+assembly — typecheck/build/rls:proof/manual pass all green, including a live
+suspended-tenant exclusion check). Phase 4 (e2e): `lounge-directory.spec.ts` is
+written and was corrected to the repo's standard port (3000, after a throwaway
+worktime fix at :3010 was reverted), but implementation was interrupted before a
+clean, confirmed pass/fail run completed — **do not treat Phase 4 as verified**.
+Recommend running `pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts`
+against a real dev server as a follow-up before considering this plan fully done.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a9 [10bb99]
@@ -230,7 +237,32 @@ Once the route-rename plan's Phase 1 (+ ideally Phase 2) is committed: add
 
 ---
 
-### Phase 1 — Backend directory route + contracts
+### Phase 1 — Backend directory route + contracts — COMPLETE
+
+**Verification summary:** Implemented on `feature/portal-lounge-directory-redesign`
+(worktree `.ai/worktree/portal-lounge-directory-redesign`, branched from
+`feature/member-player-route-rename`, whose Phases 1-2 were already committed
+there). Added `businessDirectoryListQuerySchema` (`listQuerySchema(["name"])`) and
+`businessDirectoryListItemSchema`/`BusinessDirectoryListItem`
+(`{ id, slug, name, status }`) to `contracts.ts`; added
+`GET /businesses/directory` to `businessLeadPublicRoutes()` in `routes.ts`
+(mounted at `/public/discover/businesses/directory`), reading `organization` via
+`withAdmin`, filtered to `status IN ('active','trial','pending')`, ordered by
+`name` asc, paginated via `buildPaginationMeta`. No `requirePermission` (public
+read-only, matching `/businesses`).
+
+`pnpm typecheck` and `pnpm --filter @agora/chrono-api build` both pass. Manually
+verified by running `pnpm --filter @agora/chrono-api dev` and curling
+`GET http://localhost:8787/public/discover/businesses/directory`: response is
+`{ items, meta }`, each item has exactly the four allowlisted fields
+(`id`/`slug`/`name`/`status`), ordered alphabetically by name, paginated
+(`pageSize: 10` default, `totalItems: 557`, `sort: "name"`, `order: "asc"`).
+Confirmed the status filter against the live DB: `organization` holds 557
+`active` rows and 1 `archived` row; the directory's `totalItems` (557) matches
+exactly the active count, confirming the archived tenant is excluded (no
+suspended/cancelled/trial/pending rows existed in this dataset to exercise
+those branches directly, but the same `inArray` predicate covers them
+identically).
 
 **Files to update**
 - `apps/chrono-api/src/modules/business-lead/contracts.ts`
@@ -269,7 +301,31 @@ pnpm --filter @agora/chrono-api build
 
 ---
 
-### Phase 2 — Frontend data layer
+### Phase 2 — Frontend data layer — COMPLETE
+
+**Verification summary:** Implemented on `feature/portal-lounge-directory-redesign`
+(same worktree/branch as Phase 1). Created `src/lib/tenant-links.ts` exporting
+`tenantHref(slug, source = "global_discovery")` — the exact logic moved out of
+`business-result-card.tsx`, plus an optional second `source` argument (unused
+by any caller yet; Phase 3's directory grid will pass `"global_directory"`).
+Updated `business-result-card.tsx` to import `tenantHref` from the new file
+and removed its local definition — no other change, so its generated URLs are
+identical (default `source` still resolves to `"global_discovery"`). Added
+`listBusinessDirectory(query?, signal?)` to `discover-client.ts`, mirroring
+`searchBusinesses`'s fetch/error-handling shape, calling
+`GET /public/discover/businesses/directory` (confirmed the mount path from
+`app.ts`'s `.route("/public/discover", businessLeadPublicRoutes())` plus the
+route's own `/businesses/directory` path) and typed against
+`BusinessDirectoryListItem` (`@agora/chrono-api/business-lead`) and
+`PaginationMeta` (`agora`).
+
+`pnpm typecheck` passes across all 5 workspace packages. Manually verified
+the round trip: ran the chrono-api dev server on an alternate port (8787 was
+already occupied by an unrelated worktree's server — left untouched) and
+curled `GET /public/discover/businesses/directory?page=1&pageSize=3`; the
+response (`{ items, meta }`) exactly matches `listBusinessDirectory()`'s
+expected shape — each item has exactly the four allowlisted fields
+(`id`/`slug`/`name`/`status`) and `meta` matches `PaginationMeta`'s fields.
 
 **Files to update**
 - `apps/chrono-web/src/lib/discover-client.ts`
@@ -305,7 +361,7 @@ pnpm typecheck
 
 ---
 
-### Phase 3 — UI: header, sidebar, card, page assembly
+### Phase 3 — UI: header, sidebar, card, page assembly — COMPLETE
 
 **Files to update**
 - `apps/chrono-web/src/components/landing/marketing-chrome.tsx`
@@ -313,6 +369,50 @@ pnpm typecheck
 - `apps/chrono-web/src/components/member/lounge-directory-card.tsx` (new)
 - `(saas-member)/member/global-portal-home.tsx`
 - `(saas-member)/member/global-portal-layout.tsx`
+
+**Verification summary (implemented and verified)**
+
+- `pnpm typecheck` — PASS (all 5 workspace packages, `@agora/chrono-web` included).
+- `pnpm --filter @agora/chrono-web build` — PASS, all 126 routes compiled including
+  `/member`.
+- `MarketingHeader` callers confirmed unaffected: grepped every actual `<MarketingHeader`
+  JSX instantiation in `apps/chrono-web` (not just text/comment mentions) — exactly 5:
+  `app/(saas-landing)/page.tsx:479`, `app/(saas-landing)/login/layout.tsx:42`,
+  `app/(apex-marketing)/layout.tsx:28`, `components/staff-auth-chrome.tsx:61`,
+  `components/portal-auth-chrome.tsx:37`. None pass `actions` — all fall through to the
+  existing default (ThemeToggle + "Join Chrono" CTA), unchanged.
+- **`/member/profile` decision**: confirmed no such route exists (checked
+  `apps/chrono-web/src/app/(saas-member)/member/` directory listing and the build's
+  route manifest — only `/member`, `/member/login`, `/member/sign-up`, `/member/forgot`,
+  `/member/reset`, `/member/accept-invite`; the only "profile" route in the whole app is
+  the unrelated tenant-side `/player/profile`). `global-portal-sidebar.tsx` ships with
+  Dashboard + Logout only, per the plan's own fallback instruction.
+- **Manual pass — completed via Playwright, real dev servers, real DB.** Ran
+  `apps/chrono-api` on port 8788 and `apps/chrono-web` on port 3002 (env-var overrides
+  only — `PORT`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_DOMAIN`, `APP_DOMAIN` — to avoid
+  colliding with a sibling worktree's servers already on 3000/8787; `.env` files were
+  copied unread via `cp`, per the no-read-.env-contents rule, then deleted again after).
+  Ran `pnpm --filter @agora/chrono-api run seed` (idempotent, already-tracked test data)
+  and signed in as the existing seeded global customer (`global@customer.test`, a member
+  of `acme`+`contoso`, not `globex`). Temporarily flipped `globex`'s `organization.status`
+  to `suspended` via a throwaway script using the app's own `adminDb`/`schema` exports
+  (no raw SQL, no secrets touched), then restored it to `active` after observing the
+  result. Confirmed via screenshot + DOM text assertion:
+  - Header shows the signed-in identity avatar/menu ("GC") in place of "Join Chrono".
+  - Sidebar renders with Dashboard (highlighted/active) + Logout, no Profile item.
+  - Grid renders "Enter Portal" for `acme`/`contoso` (joined, each carrying a live
+    Open/Closed badge + station availability from `getMyVenueStatus()`) and "Apply to
+    Join" for every other active tenant (`appusagesmoke`, `gaming`, etc.).
+  - `globex` (forced to `suspended`) does not appear anywhere in the rendered page text
+    — confirmed via `document.body.innerText` not containing "Globex".
+  - CTA hrefs resolve to `http://<slug>.localtest.me:3002?source=global_directory`,
+    matching the existing `tenantHref()` cross-subdomain pattern used elsewhere.
+  - `MarketingFooter` renders below the grid.
+  One transient false read during this pass: an early screenshot (taken ~8s after
+  navigation, before the parallel fetches resolved on a cold Turbopack compile) showed
+  "No lounges are listed yet." — re-confirmed via a temporary debug `console.log` that
+  this was a timing artifact (the fetch that eventually returned 10 items with `ok:
+  true`), not a logic bug; removed the debug log before committing.
 
 **Step-by-step tasks**
 1. `marketing-chrome.tsx`: add `actions?: React.ReactNode` to `MarketingHeader`'s
