@@ -4,10 +4,15 @@
 - Planning: consolidate-customers-members-page [7ffb50]
 - Audit: (unclaimed)
 - Implementation: email-theme-fixes-session (dispatched subagent, 2026-09-07) — complete,
-  phases 0-4, 6-9 landed (merge `7300883b`); Phase 5 deferred pending a developer decision
-  on reversing "no realtime for members." Known follow-ups: (1) e2e specs for phases 4/7/8
-  were written but not executed live (port conflict with a concurrent worktree) — run them
-  against a fresh `pnpm dev`; (2) Phase 7 diverged from the plan's literal instruction to
+  phases 0-4, 6-9 landed (merge `7300883b`); Phase 5 landed 2026-09-07 (commit `d1e26205`) —
+  polling, not the realtime provider (see below). Known follow-ups: (1) e2e specs for
+  phases 4/7/8 were written but not executed live (port conflict with a concurrent
+  worktree) — run against a fresh `pnpm dev` — done 2026-09-07, all passing, with several
+  real spec bugs found and fixed along the way (auto-provisioned "Main" branch not
+  targeted, missing `x-tenant-slug` on cross-origin calls, a case-sensitive invite-email
+  match, a stale-session reuse in the activity isolation test, and a real app-side race
+  in the platform-visibility toggle where a slow mount-time GET could stomp a fast user
+  toggle); (2) Phase 7 diverged from the plan's literal instruction to
   extend the foundation's `GET /portal/customer/memberships` — added a new Chrono-owned
   `GET /portal/customer/venues` route instead, merged client-side, per
   `.ai/rules/business-app.md`'s extension-seam rule (the foundation route is business-neutral
@@ -166,13 +171,13 @@ from the station's schedule/operating hours + existing reservations), per spec �
 Backend concurrency guard already exists — this is frontend-only plus one new "available
 slots for station X on date Y" read endpoint.
 
-### Phase 5 — Active session live updates (BLOCKED on a developer decision)
+### Phase 5 — Active session live updates (done, 2026-09-07)
 
-The prior `reservations`-page code comment records an explicit decision: "Realtime: none for
-members." The spec (§35, §90) wants live elapsed-time/charge/balance. Reversing that decision
-means either wiring the existing realtime provider (`agora/realtime`) into the member session
-view, or a lighter polling approach — a real architecture choice, not a mechanical build. See
-Open Question 3. Do not start this phase until answered.
+The prior `reservations`-page code comment recorded an explicit decision: "Realtime: none for
+members." The spec (§35, §90) wanted live elapsed-time/charge/balance. The developer resolved
+Open Question 3 in favor of **polling** over wiring the existing realtime provider
+(`agora/realtime`) into the member session view — see "Resolved for implementation" item 3
+above for the landed shape.
 
 ### Phase 6 — Wallet/session transaction copy cleanup
 
@@ -235,17 +240,22 @@ could proceed without guessing on anything security- or architecture-sensitive:
    History merged, Leaderboard removed) — **no renames** (Dashboard/Session/History keep
    their current labels). Renaming is a product/copy decision that should not be made
    unilaterally.
-3. **Phase 5**: **Deferred, not implemented in this pass.** Reversing "no realtime for members"
-   is a real architecture decision (realtime provider vs. polling, cost/complexity) that
-   should not be made without explicit developer sign-off. Left as `future/`-eligible; the
-   existing static/manual-refresh behavior is unchanged.
+3. **Phase 5**: Implemented 2026-09-07 (commit `d1e26205`), once the developer resolved the
+   standing "no realtime for members" decision in favor of **polling** — the lighter-weight,
+   lower-risk option, since no one had reviewed a realtime-provider integration for this
+   surface. A shared `useLiveRefresh` hook (`apps/chrono-web/src/lib/member/
+   use-live-refresh.ts`) polls `/member/session` and `/member/session/[id]` every 12s while a
+   session is active/paused, pausing when the tab is hidden (Page Visibility API) and
+   refreshing immediately on return; it stops entirely once the session ends. No schema/route
+   change — both pages already had everything they needed from the existing
+   `GET /portal/sessions/summary` / `GET /portal/sessions/:id`.
 4. **Scope check**: Phase 7 (venue-list live status) and Phase 9 (support routing) stay in
    this plan — they operate on this plan's own files (`global-portal-home.tsx`,
    `member-gate.tsx`, `member/settings/page.tsx`), not on `tenant-experience-v2`'s or
    `growth-loop-hardening`'s files. No overlap found; no move needed.
 
-**Phases implemented in this pass:** 0, 1 (structural only), 2, 3, 4, 6, 7, 8, 9.
-**Phase 5 explicitly excluded** — needs its own developer decision before it becomes a phase.
+**Phases implemented:** 0, 1 (structural only), 2, 3, 4, 5 (polling), 6, 7, 8, 9 — every
+phase this plan scoped is now landed. Plan closed.
 
 ## Open questions (must be answered before the affected phase is `ready/`)
 
@@ -258,8 +268,9 @@ could proceed without guessing on anything security- or architecture-sensitive:
 2. **Phase 1**: Confirm the Dashboard→Home, Session→Play, History→Activity renames are
    wanted, or whether only the structural consolidation (fewer nav items) should proceed
    without a terminology change.
-3. **Phase 5**: Confirm whether to reverse the standing "no realtime for members" decision,
-   and if so, realtime provider vs. polling.
+3. **Phase 5**: ~~Confirm whether to reverse the standing "no realtime for members" decision,
+   and if so, realtime provider vs. polling.~~ Resolved 2026-09-07: polling — see "Resolved
+   for implementation" item 3.
 4. Confirm this plan's scope split against `tenant-experience-v2`/`growth-loop-hardening` is
    correct — in particular Phase 7 (live status on venue list) and Phase 9 (support routing)
    touch tenant-portal-adjacent code; flag if either should move to those plans instead.
