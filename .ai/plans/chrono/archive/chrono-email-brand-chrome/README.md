@@ -2,6 +2,20 @@
 
 **Sessions:**
 - Planning: agora-19 [75ff11]
+- Implementation: agora-19 [75ff11]
+
+**Status:** Complete — all 3 phases implemented, verified, and committed on
+`feature/chrono-email-brand-chrome` (worktree `.ai/worktree/chrono-email-brand-chrome`):
+- Phase 1 (foundation seam) — commit `e21dd58c`
+- Phase 2 (Chrono asset + registration) — commit `ed3f73ac`
+- Fix (malformed `!important` found during Phase 3 verification) — commit `a3e6c064`
+- Phase 3 (verification) — passed: typecheck green across all 7 workspace packages;
+  direct `emailLayout()` exercise confirmed the no-override case renders byte-identical
+  to before (regression guard) and the Chrono-override case renders the logo image +
+  dark dotted background with the card content unchanged.
+
+Not yet done: merging `feature/chrono-email-brand-chrome` into `main` and cleaning up
+the worktree — left for the developer to confirm.
 
 ## Summary
 
