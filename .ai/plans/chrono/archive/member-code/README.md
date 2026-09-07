@@ -125,3 +125,12 @@ application is approved, and surfaces it everywhere the profile already flows
 
 Start at `apps/chrono-api/src/modules/member/schema.ts` — add the column, then
 follow the Step-by-Step Tasks in order.
+
+## Closure
+
+Implemented and verified: `pnpm typecheck` (all packages), `pnpm --filter
+@agora/api rls:proof` (PASS), the `test:member-concurrency` guard test
+(9/9), and the extended `profile-settings.spec.ts` e2e spec run against
+real dev servers (2/2 passing). Migration
+`apps/chrono-api/drizzle/0031_chrono_member_profile_add_member_code.sql`
+applied. No deviations from scope.
