@@ -4,7 +4,7 @@
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
-- Audit: _unclaimed_
+- Audit: agora-a3 [4c723d]
 - Implementation: _unclaimed_
 
 ## Goal
