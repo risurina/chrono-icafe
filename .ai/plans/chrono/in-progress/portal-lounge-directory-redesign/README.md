@@ -501,3 +501,17 @@ pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts
 **Out of scope:** re-running the full existing `member/*` e2e suite (unaffected by this plan; the route-rename plan's own Phase 3 covers file-path fallout from the rename itself).
 
 **Execution start point:** copy the nearest sibling `member/*.spec.ts` file's seeding/auth boilerplate.
+
+## Closure
+
+Merged into `main` at `6462394c`, with the pageSize fix at `f61db037`. All 4 phases
+complete and verified (e2e 1/1 pass). Worktree `.ai/worktree/portal-lounge-directory-redesign`
+removed post-merge; branch `feature/portal-lounge-directory-redesign` left in place.
+
+**Handoff / known follow-up — real, not cosmetic:** the directory grid on the apex
+`/member` page fetches only `pageSize: 100` of active tenants (bumped from a
+default of 10 as a stopgap). At 557 active tenants in this dev DB alone, that stopgap
+already doesn't cover "every active tenant" as this plan's own Decision section
+specified. A future plan should add real pagination or search to
+`global-portal-home.tsx`'s directory grid — this was intentionally left unscoped
+here rather than silently expanding this plan's phases.

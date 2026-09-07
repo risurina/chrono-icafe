@@ -546,3 +546,19 @@ lists verbatim if time has passed and new specs were added.
    the login page. It is listed first in that phase for this reason.
 4. **Blind find/replace on `/portal`** breaks every member API call. Pass 2 has
    the namespace table; Phase 2 lists the web call sites individually.
+
+## Closure
+
+Merged into `main` at `63afc4ae`, then `f61db037` (lounge-directory, stacked on
+top). All 3 phases complete and verified. Worktree `.ai/worktree/member-player-route-rename`
+removed post-merge; branch `feature/member-player-route-rename` left in place.
+
+**Handoff / known follow-up:** the Category B bootstrap-navigation e2e sample was
+never independently re-confirmed after implementation was cut short mid-run — the
+underlying redirect it relies on WAS directly tested (Phase 1's manual pass), so
+this is a low-risk gap, not a known failure. Two other e2e specs
+(`public-stations/branded-availability.spec.ts`, `tenant-landing/public-site-happy-path.spec.ts`)
+carry a pre-existing, unrelated race in their own `createBranch` helper — not fixed
+here, out of scope; a future touch of either file should pick up the
+`waitForResponse` guard pattern from `auth/tenant-login-paths.spec.ts`'s copy of the
+same helper.
