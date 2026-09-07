@@ -37,28 +37,41 @@ async function signUp(
   });
 }
 
-/** Create a branch through the real dashboard UI, returning its id. */
-async function createBranch(
-  page: import("@playwright/test").Page,
-  base: string,
-  name: string,
-): Promise<string> {
-  await page.goto(`${base}/admin/branches`);
-  await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Add Branch" }).click();
-  await page.getByLabel("Name").fill(name);
-  await page.getByRole("button", { name: "Create branch" }).click();
-  // `.first()`: the dashboard table can momentarily render the just-created
-  // row twice (optimistic insert + refetch) before settling — a pre-existing
-  // characteristic of this table, not something this spec is testing.
-  await expect(page.getByText(name).first()).toBeVisible();
+/**
+ * Sign-up auto-provisions a default "Main" branch, fire-and-forget, from the
+ * root `/admin` dashboard page (`onboarding-defaults.ts`) — `signUp()` above
+ * already lands there. Wait for its completion toast before doing anything
+ * that depends on the branch existing.
+ */
+async function waitForMainBranch(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.getByText(/Set up a default/i)).toBeVisible({ timeout: 15_000 });
+}
 
+/**
+ * Resolve the id of the tenant's auto-provisioned "Main" branch — the ONE
+ * branch `/public/venue-info` (and so `/about`) ever reads (the tenant's
+ * first active branch, oldest by `createdAt`, `apps/chrono-api/AGENTS.md`).
+ * Every case below patches Main directly rather than creating a second
+ * branch, whose hours would never reach that endpoint.
+ *
+ * This `GET /rpc/branches` goes straight to the API origin (`localhost:8787`),
+ * not through the web app's same-origin proxy — so `tenantMiddleware` has no
+ * host to resolve a tenant from unless the request carries `x-tenant-slug`
+ * explicitly (same as every other cross-origin `page.request` call in this
+ * suite, e.g. `signup-default-provisioning.spec.ts`). Without it every such
+ * call 401s regardless of the session cookie.
+ */
+async function getMainBranchId(
+  page: import("@playwright/test").Page,
+  slug: string,
+): Promise<string> {
   const res = await page.request.get(`${API_URL}/rpc/branches`, {
     params: { pageSize: "100" },
+    headers: { "x-tenant-slug": slug },
   });
   expect(res.ok()).toBeTruthy();
   const body = (await res.json()) as { items: { id: string; name: string }[] };
-  const branch = body.items.find((b) => b.name === name);
+  const branch = body.items.find((b) => b.name === "Main");
   expect(branch).toBeTruthy();
   return branch!.id;
 }
@@ -89,12 +102,13 @@ test.describe("Dynamic open/closed status", () => {
     const slug = `e2ehoursopen${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
-    const branchName = `test-branch-${uniq}`;
 
     await signUp(page, { name: "Hours Owner", email, slug });
-    const branchId = await createBranch(page, base, branchName);
+    await waitForMainBranch(page);
+    const branchId = await getMainBranchId(page, slug);
 
     const patch = await page.request.patch(`${API_URL}/rpc/branches/${branchId}`, {
+      headers: { "x-tenant-slug": slug },
       data: { hoursConfig: ALL_DAYS_24H },
     });
     expect(patch.ok()).toBeTruthy();
@@ -116,12 +130,13 @@ test.describe("Dynamic open/closed status", () => {
     const slug = `e2ehoursclosed${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
-    const branchName = `test-branch-${uniq}`;
 
     await signUp(page, { name: "Hours Owner", email, slug });
-    const branchId = await createBranch(page, base, branchName);
+    await waitForMainBranch(page);
+    const branchId = await getMainBranchId(page, slug);
 
     const patch = await page.request.patch(`${API_URL}/rpc/branches/${branchId}`, {
+      headers: { "x-tenant-slug": slug },
       data: { hoursConfig: ALL_DAYS_CLOSED },
     });
     expect(patch.ok()).toBeTruthy();
@@ -143,14 +158,15 @@ test.describe("Dynamic open/closed status", () => {
     const slug = `e2ehoursnone${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
-    const branchName = `test-branch-${uniq}`;
     const legacyHours = `test-hours-${uniq}`;
 
     await signUp(page, { name: "Hours Owner", email, slug });
-    const branchId = await createBranch(page, base, branchName);
+    await waitForMainBranch(page);
+    const branchId = await getMainBranchId(page, slug);
 
     // Set the legacy free-text field; deliberately never set hoursConfig.
     const patch = await page.request.patch(`${API_URL}/rpc/branches/${branchId}`, {
+      headers: { "x-tenant-slug": slug },
       data: { operatingHours: legacyHours },
     });
     expect(patch.ok()).toBeTruthy();
@@ -175,13 +191,13 @@ test.describe("Dynamic open/closed status", () => {
     const slugB = `e2ehoursb${uniq}`;
     const emailA = faker.internet.email({ provider: "example.com" });
     const emailB = faker.internet.email({ provider: "example.com" });
-    const baseA = `http://${slugA}.localtest.me:3000`;
-    const baseB = `http://${slugB}.localtest.me:3000`;
 
     // Tenant A: always open.
     await signUp(page, { name: "Venue A", email: emailA, slug: slugA });
-    const branchIdA = await createBranch(page, baseA, `branch-a-${uniq}`);
+    await waitForMainBranch(page);
+    const branchIdA = await getMainBranchId(page, slugA);
     const patchA = await page.request.patch(`${API_URL}/rpc/branches/${branchIdA}`, {
+      headers: { "x-tenant-slug": slugA },
       data: { hoursConfig: ALL_DAYS_24H },
     });
     expect(patchA.ok()).toBeTruthy();
@@ -190,8 +206,10 @@ test.describe("Dynamic open/closed status", () => {
     const ctxB = await browser.newContext();
     const pageB = await ctxB.newPage();
     await signUp(pageB, { name: "Venue B", email: emailB, slug: slugB });
-    const branchIdB = await createBranch(pageB, baseB, `branch-b-${uniq}`);
+    await waitForMainBranch(pageB);
+    const branchIdB = await getMainBranchId(pageB, slugB);
     const patchB = await pageB.request.patch(`${API_URL}/rpc/branches/${branchIdB}`, {
+      headers: { "x-tenant-slug": slugB },
       data: { hoursConfig: ALL_DAYS_CLOSED },
     });
     expect(patchB.ok()).toBeTruthy();
