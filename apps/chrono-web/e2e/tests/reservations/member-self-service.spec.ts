@@ -48,27 +48,43 @@ async function portalSignUp(
   await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
-/** Create a branch + station for a tenant via the staff dashboard API, so the
+/**
+ * Create a branch + station for a tenant via the staff dashboard API, so the
  * member portal's public station grid has something to book. Staff-authed
- * `page` must already be signed in on that tenant's host. */
-async function seedStation(page: import("@playwright/test").Page, stationName: string) {
+ * `page` must already be signed in on that tenant's host.
+ *
+ * These calls go straight to the API origin (`localhost:8787`/
+ * `api.localtest.me:8787`), not through the web app's same-origin proxy — so
+ * `tenantMiddleware` has no host to resolve a tenant from unless the request
+ * carries `x-tenant-slug` explicitly. Without it every such call 401s
+ * regardless of the session cookie.
+ */
+async function seedStation(
+  page: import("@playwright/test").Page,
+  slug: string,
+  stationName: string,
+) {
+  const headers = { "x-tenant-slug": slug };
   const branchRes = await page.request.post(`${apiUrl}/rpc/branches`, {
+    headers,
     data: { name: `Branch ${stationName}`, code: stationName.slice(0, 8).toUpperCase() },
   });
-  expect(branchRes.ok()).toBeTruthy();
+  expect(branchRes.ok(), await branchRes.text()).toBeTruthy();
   const branch = (await branchRes.json()) as { branch: { id: string } };
   const stationRes = await page.request.post(`${apiUrl}/rpc/stations`, {
+    headers,
     data: {
       branchId: branch.branch.id,
       name: stationName,
       stationNumber: "1",
     },
   });
-  expect(stationRes.ok()).toBeTruthy();
+  expect(stationRes.ok(), await stationRes.text()).toBeTruthy();
   const station = (await stationRes.json()) as { station: { id: string } };
   // Activate the branch so it's visible on /public/stations (only "active"
   // branches show — see station/routes.ts's publicStationRoutes).
   await page.request.patch(`${apiUrl}/rpc/branches/${branch.branch.id}`, {
+    headers,
     data: { status: "active" },
   });
   return { branchId: branch.branch.id, stationId: station.station.id };
@@ -87,7 +103,7 @@ test.describe("Member reservations", () => {
     const base = `http://${slug}.localtest.me:3000`;
 
     await signUp(page, { name: "Owner", email: ownerEmail, slug });
-    const { stationId } = await seedStation(page, `Station-${uniq}`);
+    const { stationId } = await seedStation(page, slug, `Station-${uniq}`);
 
     const ctxMember = await browser.newContext();
     const pageMember = await ctxMember.newPage();
@@ -123,7 +139,7 @@ test.describe("Member reservations", () => {
       email: faker.internet.email({ provider: "example.com" }),
       slug,
     });
-    const { stationId } = await seedStation(page, `Station-${uniq}`);
+    const { stationId } = await seedStation(page, slug, `Station-${uniq}`);
 
     const ctxMember = await browser.newContext();
     const pageMember = await ctxMember.newPage();
@@ -159,7 +175,7 @@ test.describe("Member reservations", () => {
       email: faker.internet.email({ provider: "example.com" }),
       slug: slugA,
     });
-    const { stationId } = await seedStation(page, `Station-${uniqA}`);
+    const { stationId } = await seedStation(page, slugA, `Station-${uniqA}`);
 
     const ctxMemberA = await browser.newContext();
     const pageMemberA = await ctxMemberA.newPage();
@@ -239,7 +255,7 @@ test.describe("Reservation availability (slot picker)", () => {
       email: faker.internet.email({ provider: "example.com" }),
       slug,
     });
-    const { stationId } = await seedStation(page, `Station-${uniq}`);
+    const { stationId } = await seedStation(page, slug, `Station-${uniq}`);
 
     const ctxMember = await browser.newContext();
     const pageMember = await ctxMember.newPage();
@@ -307,7 +323,7 @@ test.describe("Reservation availability (slot picker)", () => {
       email: faker.internet.email({ provider: "example.com" }),
       slug: slugA,
     });
-    const { stationId: stationIdA } = await seedStation(page, `Station-${uniqA}`);
+    const { stationId: stationIdA } = await seedStation(page, slugA, `Station-${uniqA}`);
 
     const ctxB = await browser.newContext();
     const pageB = await ctxB.newPage();
