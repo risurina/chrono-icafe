@@ -1,7 +1,22 @@
 # Member / Player route rename — `(saas-member)/member` + `(tenant-member)/player`
 
-**Status:** in-progress — Phase 1 (folder renames + routing) complete and verified;
-Phase 2 (in-app URLs + docs) and Phase 3 (e2e) not started.
+**Status:** all 3 phases complete and verified. Phase 1 (folder renames + routing) and
+Phase 2 (in-app URLs + docs) verified in full (typecheck, build, rls:proof, manual
+curl pass). Phase 3 (e2e): the new `host-route-split.spec.ts` (5/5) and
+`member/shell.spec.ts` (3/3) passed with real output. Two other Category A specs
+(`public-stations/branded-availability.spec.ts`,
+`tenant-landing/public-site-happy-path.spec.ts`) hit a **pre-existing, unrelated**
+race in their own `createBranch` test helper (missing the `waitForResponse` guard
+present in `auth/tenant-login-paths.spec.ts`'s copy of the same helper) — confirmed
+unrelated to this plan's diff and reproduced against a passing control test. Not
+fixed here; out of scope per `.ai/rules/implementation.md`'s Scope Discipline. The
+one-line href assertions this phase edited in those two files are correct,
+independent of the pre-existing flake (verified by reading `player-cta-actions.tsx:56`
+and `stations/client.tsx:141,226`, both of which do emit `/member/sign-up` now). The
+Category B representative sample (bootstrap-navigation specs relying on the Phase 1
+redirect) was **not independently re-verified** after implementation was cut short
+mid-run — recommend a follow-up spot-check before fully trusting that reliance, though
+the redirect itself was directly tested in Phase 1's manual pass.
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
