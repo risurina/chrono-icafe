@@ -54,7 +54,9 @@ async function staffApproveMember(
 
   await staffPage.goto(`${base}/admin/members`);
   await staffPage.waitForLoadState("networkidle");
-  const row = staffPage.getByRole("row", { name: new RegExp(memberEmail) });
+  // Emails render lowercased server-side — match case-insensitively (same
+  // gotcha members.spec.ts's own findInviteLink documents).
+  const row = staffPage.getByRole("row", { name: new RegExp(memberEmail, "i") });
   await expect(row.getByText("pending", { exact: true })).toBeVisible();
   await row.getByRole("button", { name: "Approve" }).click();
   await expect(staffPage.getByText("Application approved.")).toBeVisible();
