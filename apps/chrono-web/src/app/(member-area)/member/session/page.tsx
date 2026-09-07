@@ -24,6 +24,11 @@ import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
 import { formatCurrency, formatDateTime, formatMinutes, type PaginationMeta } from "@/lib/member/format";
 import { getMySessionSummary, getMySessions, type SessionSummary, type PortalSessionSummary } from "@/lib/member/session";
+import { useLiveRefresh } from "@/lib/member/use-live-refresh";
+
+// Poll while a session is active so elapsed time / status stay current with
+// no manual refresh — see use-live-refresh.ts for why polling over realtime.
+const ACTIVE_SESSION_POLL_MS = 12_000;
 
 const STATUS_VARIANT: Record<PortalSessionSummary["status"], "default" | "secondary" | "outline"> = {
   active: "default",
@@ -113,6 +118,15 @@ export default function MemberSessionPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Silent background refresh (no loading skeleton) — only the active-session
+  // summary, not the paginated history table, since that's the part whose
+  // status/elapsed-time display goes stale without a manual refresh.
+  const refreshSummary = useCallback(async () => {
+    const s = await getMySessionSummary();
+    if (s.data) setSummary(s.data);
+  }, []);
+  useLiveRefresh(refreshSummary, ACTIVE_SESSION_POLL_MS, summary?.active != null);
 
   const columns: DataTableColumn<PortalSessionSummary>[] = [
     {

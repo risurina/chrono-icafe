@@ -8,12 +8,18 @@ import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
 import { formatCurrency, formatDateTime, formatMinutes } from "@/lib/member/format";
 import { getMySession, type SessionDetail } from "@/lib/member/session";
+import { useLiveRefresh } from "@/lib/member/use-live-refresh";
 
 const STATUS_VARIANT: Record<SessionDetail["status"], "default" | "secondary" | "outline"> = {
   active: "default",
   paused: "secondary",
   ended: "outline",
 };
+
+// Poll while this session is still running so elapsed time / status / the
+// eventual final charge stay current with no manual refresh — see
+// use-live-refresh.ts for why polling over realtime.
+const ACTIVE_SESSION_POLL_MS = 12_000;
 
 export default function MemberSessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -27,6 +33,11 @@ export default function MemberSessionDetailPage({ params }: { params: Promise<{ 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Stop polling once the session has ended (or wasn't found) — a permanent
+  // state, so there is nothing left to go stale.
+  const isLive = session?.status === "active" || session?.status === "paused";
+  useLiveRefresh(load, ACTIVE_SESSION_POLL_MS, isLive);
 
   return (
     <Stack gap={6}>
