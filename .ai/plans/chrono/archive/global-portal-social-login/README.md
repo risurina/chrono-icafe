@@ -1,5 +1,16 @@
 # Chrono — global portal social login
 
+**Status: complete.** Phase 7 (`06a4f053` — CustomerSocialSignIn + wiring), Phase 8
+(`3632bbca` — Chrono e2e re-run + browser spec), and Phase 9 (`c9b2b6dd` — env docs)
+all landed on `feature/global-portal-social-login`, merged into `main`. The apex Chrono
+portal's login/sign-up forms now offer Google/Facebook alongside email/password, reusing
+the global-customer OAuth engine from the companion foundation plan. During Phase 8 the
+Chrono e2e suite (`pnpm test:e2e`) could not be run end-to-end in this environment: setup
+fails during initial table-drop with a pre-existing, unrelated DB-role error (`must be
+owner of table "Accounts"`, code 42501), before reaching either the member-oauth or
+customer-oauth test blocks. This is a standing environment issue worth separate
+investigation — it is not something this plan caused or could fix.
+
 **Sessions:** Planning: social-login-oauth-domain-fix [4739f0]; Implementation: dispatched subagent (Phase 7), via the `Agent` tool, worktree `.ai/worktree/global-portal-social-login`
 
 ## What this is
