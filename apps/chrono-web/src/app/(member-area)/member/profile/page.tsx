@@ -308,7 +308,10 @@ export default function MemberProfilePage() {
             {approved ? (
               <Stack gap={0} data-testid="member-code">
                 <span className="text-xs uppercase tracking-wider text-muted-foreground">Member Code</span>
-                <span className="premium-text-gradient text-2xl font-black tracking-[0.2em]">
+                <span
+                  data-testid="member-code-value"
+                  className="premium-text-gradient text-2xl font-black tracking-[0.2em]"
+                >
                   {profile?.memberCode ?? "Not assigned"}
                 </span>
               </Stack>

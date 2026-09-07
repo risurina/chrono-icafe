@@ -5,6 +5,7 @@ export type MemberProfile = {
   tenantId: string;
   memberId: string;
   phone: string | null;
+  memberCode: string | null;
   applicationStatus: "pending" | "approved" | "rejected";
   appliedAt: string;
   approvedAt: string | null;
