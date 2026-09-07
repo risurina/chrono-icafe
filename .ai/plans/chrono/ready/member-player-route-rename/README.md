@@ -1,11 +1,11 @@
 # Member / Player route rename — `(saas-member)/member` + `(tenant-member)/player`
 
-**Status:** draft — audited (`aed50b4e`, verdict: needs revision, addressed below); awaiting developer acceptance
+**Status:** ready — audited (`aed50b4e`, revised), accepted by the developer; Phase 1 implementation dispatched
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
 - Audit: agora-a3 [4c723d]
-- Implementation: _unclaimed_
+- Implementation: agora-a3 [4c723d] (dispatched to a fresh subagent per `delegate-implementation`)
 
 ## Audit resolution
 
