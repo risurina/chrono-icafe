@@ -1,6 +1,6 @@
 # Chrono — global portal social login
 
-**Sessions:** Planning: social-login-oauth-domain-fix [4739f0]
+**Sessions:** Planning: social-login-oauth-domain-fix [4739f0]; Implementation: dispatched subagent (Phase 7), via the `Agent` tool, worktree `.ai/worktree/global-portal-social-login`
 
 ## What this is
 
