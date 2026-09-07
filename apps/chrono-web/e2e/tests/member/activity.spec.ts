@@ -282,11 +282,16 @@ test.describe("Member activity feed", () => {
     const baseA = `http://${slugA}.localtest.me:3000`;
     const baseB = `http://${slugB}.localtest.me:3000`;
 
+    // `page` stays Owner A's staff session throughout — `creditMemberWallet`
+    // below is a staff-only route, so Member A needs its own separate
+    // context (mirrors every other test in this file: the staff session that
+    // seeds the wallet is never the same session used to sign up a member).
     await signUpBusiness(page, { name: "Activity Owner A", email: emailA, slug: slugA });
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await page.waitForLoadState("networkidle");
-    await memberSignUp(page, baseA, { name: "Member A", email: memberEmailA });
-    const { memberId: memberIdA } = await getMemberIdentity(page, slugA, uniq);
+
+    const contextMemberA = await browser.newContext();
+    const pageMemberA = await contextMemberA.newPage();
+    await memberSignUp(pageMemberA, baseA, { name: "Member A", email: memberEmailA });
+    const { memberId: memberIdA } = await getMemberIdentity(pageMemberA, slugA, uniq);
 
     const distinctiveReason = `Member A only activity ${uniq}`;
     await creditMemberWallet(page, slugA, uniq, {
@@ -294,6 +299,7 @@ test.describe("Member activity feed", () => {
       amount: "42.00",
       reason: distinctiveReason,
     });
+    await contextMemberA.close();
 
     const contextB = await browser.newContext();
     const pageB = await contextB.newPage();
