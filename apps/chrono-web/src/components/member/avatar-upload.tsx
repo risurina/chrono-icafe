@@ -32,23 +32,22 @@ const ALLOWED_AVATAR_TYPES = [
 ] as const;
 
 async function consumeUploadTicket(ticket: UploadTicket, file: File): Promise<void> {
-  if (ticket.method === "POST") {
-    // Cloudinary-style: multipart form fields + the file, no explicit headers
-    // (the browser sets the multipart boundary).
-    const formData = new FormData();
-    for (const [key, value] of Object.entries(ticket.fields)) {
-      formData.append(key, value);
-    }
-    formData.append("file", file);
-    const res = await fetch(ticket.url, { method: "POST", body: formData });
-    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-    return;
+  // Multipart form fields + the file, regardless of method — matches this
+  // app's existing upload-ticket-consumption pattern
+  // (`apps/chrono-web/src/lib/upload.ts`'s `uploadFile`), which the local
+  // dev storage adapter's proxy (`PUT /api/upload/local`,
+  // `apps/chrono-api/src/app.ts`) expects: it reads the file via
+  // `c.req.parseBody()`'s `file` field, not a raw request body. No explicit
+  // Content-Type header — the browser sets the multipart boundary.
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(ticket.fields)) {
+    formData.append(key, value);
   }
-  // local/S3-style: a direct PUT of the raw bytes.
+  formData.append("file", file);
   const res = await fetch(ticket.url, {
-    method: "PUT",
-    headers: { "Content-Type": file.type, ...(ticket.headers ?? {}) },
-    body: file,
+    method: ticket.method,
+    headers: ticket.headers ?? undefined,
+    body: formData,
   });
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);
 }

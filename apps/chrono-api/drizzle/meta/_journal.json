@@ -232,6 +232,13 @@
       "when": 1788760523858,
       "tag": "0032_add_tenant_member_image",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788794865185,
+      "tag": "0033_add_member_session_metadata",
+      "breakpoints": true
     }
   ]
 }
