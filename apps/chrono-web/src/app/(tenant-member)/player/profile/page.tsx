@@ -88,6 +88,7 @@ import { MemberPageHeader } from "@/components/member/member-page-header";
 import { formatDate } from "@/lib/member/format";
 import { applyForMembership } from "@/lib/member/account";
 import { getMyLoyalty } from "@/lib/member/loyalty";
+import { AvatarUploadField } from "@/components/member/avatar-upload";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -159,6 +160,7 @@ function InfoTile({
 export default function MemberProfilePage() {
   const { member, profile, onboarding, approved, refreshProfile } = useMemberArea();
   const [name, setName] = useState(member?.name ?? "");
+  const [avatarImage, setAvatarImage] = useState<string | null>(member?.image ?? null);
   const [branchName, setBranchName] = useState("");
   const [memberSince, setMemberSince] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -171,6 +173,10 @@ export default function MemberProfilePage() {
   // the always-safe "Change password" form is what briefly flashes, never
   // the more permissive "Set a password" one.
   const hasPassword = member?.hasPassword ?? true;
+
+  useEffect(() => {
+    setAvatarImage(member?.image ?? null);
+  }, [member?.image]);
 
   useEffect(() => {
     setName(member?.name ?? "");
@@ -284,9 +290,14 @@ export default function MemberProfilePage() {
         />
         <CardHeader className="p-8 md:p-10">
           <Row items="center" gap={3}>
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
-              <User className="h-5 w-5 text-primary" aria-hidden />
-            </span>
+            <AvatarUploadField
+              name={member?.name}
+              image={avatarImage}
+              onUploaded={(image) => {
+                setAvatarImage(image || null);
+                void refreshProfile();
+              }}
+            />
             <Stack gap={0}>
               <CardTitle className="premium-text-gradient text-2xl font-black tracking-tight">
                 Player Profile
