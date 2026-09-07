@@ -55,7 +55,7 @@ export function GlobalSignUpForm() {
       return;
     }
     track("PLAYER_SIGNUP");
-    location.href = "/portal";
+    location.href = "/member";
   }
 
   return (
@@ -68,7 +68,7 @@ export function GlobalSignUpForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomerSocialSignIn providers={providers} next="/portal" />
+          <CustomerSocialSignIn providers={providers} next="/member" />
           {providers && providers.social.length > 0 ? (
             <Row items="center" gap={3} className="mb-4">
               <Separator className="flex-1" />
@@ -115,7 +115,7 @@ export function GlobalSignUpForm() {
           </form>
           <p className="mt-4 text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/portal/login" className="text-primary hover:underline">
+            <Link href="/member/login" className="text-primary hover:underline">
               Sign in
             </Link>
           </p>

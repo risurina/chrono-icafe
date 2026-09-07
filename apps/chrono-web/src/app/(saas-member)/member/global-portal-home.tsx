@@ -20,7 +20,7 @@ import {
 function tenantPortalUrl(slug: string): string {
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "localtest.me:3000";
   const scheme = typeof window !== "undefined" ? window.location.protocol : "https:";
-  return `${scheme}//${slug}.${appDomain}/portal`;
+  return `${scheme}//${slug}.${appDomain}/member`;
 }
 
 /** Active tenant lifecycle states — everything else blocks portal access
@@ -66,7 +66,7 @@ function MembershipRow({
 
 /**
  * Global customer account home. To become a customer of a specific
- * business, visit that business's `/portal` while signed in here — it
+ * business, visit that business's `/member` while signed in here — it
  * offers a one-click "Apply" (see apps/chrono-web/src/components/member/apply-for-tenant-prompt.tsx).
  */
 export function GlobalPortalHome() {

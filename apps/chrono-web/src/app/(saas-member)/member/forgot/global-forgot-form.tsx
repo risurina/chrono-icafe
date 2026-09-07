@@ -63,7 +63,7 @@ export function GlobalForgotForm() {
             </form>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
-            <Link href="/portal/login" className="text-primary hover:underline">
+            <Link href="/member/login" className="text-primary hover:underline">
               Back to sign in
             </Link>
           </p>

@@ -104,13 +104,13 @@ export function MemberLoginForm() {
             </Button>
           </form>
           <p className="mt-4 text-sm text-muted-foreground">
-            <Link href="/portal/forgot" className="text-primary hover:underline">
+            <Link href="/member/forgot" className="text-primary hover:underline">
               Forgot password?
             </Link>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             No account?{" "}
-            <Link href="/portal/sign-up" className="text-primary hover:underline">
+            <Link href="/member/sign-up" className="text-primary hover:underline">
               Create one
             </Link>
           </p>

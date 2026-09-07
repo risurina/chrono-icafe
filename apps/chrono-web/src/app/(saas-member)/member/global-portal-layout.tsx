@@ -5,16 +5,16 @@ import { usePathname } from "next/navigation";
 import { Button, ThemeToggle, CenteredMessage, Row } from "agora/ui";
 import { customerAuth, useGlobalCustomerSession } from "@/lib/customer-client";
 
-// `/portal/accept-invite` is a tenant-member invite link (hardcoded in
+// `/member/accept-invite` is a tenant-member invite link (hardcoded in
 // foundation emails, kept at this path per the plan) that renders its own
 // `memberAuth`-based flow regardless of host — it must not be gated behind a
 // global-customer session.
 const PUBLIC = [
-  "/portal/login",
-  "/portal/sign-up",
-  "/portal/forgot",
-  "/portal/reset",
-  "/portal/accept-invite",
+  "/member/login",
+  "/member/sign-up",
+  "/member/forgot",
+  "/member/reset",
+  "/member/accept-invite",
 ];
 
 /** Shell for the global customer identity's own apex-level pages. */
@@ -24,7 +24,7 @@ export function GlobalPortalLayout({ children }: { children: React.ReactNode }) 
   const { customer, isPending } = useGlobalCustomerSession();
 
   useEffect(() => {
-    if (!isPublic && !isPending && !customer) location.href = "/portal/login";
+    if (!isPublic && !isPending && !customer) location.href = "/member/login";
   }, [isPublic, isPending, customer]);
 
   if (isPublic) return <>{children}</>;
@@ -44,7 +44,7 @@ export function GlobalPortalLayout({ children }: { children: React.ReactNode }) 
             size="sm"
             onClick={async () => {
               await customerAuth.signOut();
-              location.href = "/portal/login";
+              location.href = "/member/login";
             }}
           >
             Sign out

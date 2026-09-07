@@ -320,6 +320,45 @@ on either host means the rewrite exclusion in "The rewrite" above didn't take.
 
 ### Phase 2 — In-app URLs + docs
 
+**Status: complete.**
+
+Updated every in-app web page `/portal` URL to `/member` (auth-gate `PUBLIC` array
+in `global-portal-layout.tsx` first, its two `location.href` sign-out/redirect
+sites, all five auth-form pages under the renamed `(saas-member)/member` tree,
+`global-portal-home.tsx`'s template-literal `tenantPortalUrl()`, both doc
+comments in `page.tsx`/`layout.tsx`, and every landing/nav/chrome call site
+listed below). Left every `/portal/*` **API** path untouched (payments,
+credits, customer-apply, etc.). Brought `apps/chrono-api/AGENTS.md` up to date
+via a full-file grep pass (not just the originally-cited ranges) — fixed the
+stale `(member-area)/member`/`(member-portal)/portal` folder mentions, the
+apex global-customer page URLs, and one stale API-vs-page mixup (the
+`/portal/credits?payment=<id>` return page is a page URL, corrected to
+`/member/credits?payment=<id>`; the API paths it polls stayed `/portal/*`).
+
+**Verification actually run:**
+```
+pnpm typecheck                                   # PASS (7/7 tasks)
+pnpm --filter @agora/api rls:proof               # RLS PROOF: PASS ✅ (unaffected, ran anyway)
+grep -rn ... quote-anchored /portal(...)  apps/chrono-web/src   # zero page-URL hits
+grep -rn ... unanchored     /portal(...)  apps/chrono-web/src   # zero page-URL hits
+```
+Both grep forms return exactly one hit, in
+`components/landing/player-cta-actions.tsx:25` — a comment describing the
+still-`/portal`-navigating e2e spec (`apply-for-tenant.spec.ts`), which is
+Phase 3's job to touch, not Phase 2's. No other `/portal` page-URL reference
+remains; every remaining `/portal` hit in either `apps/chrono-web/src` or
+`apps/chrono-api/AGENTS.md` is an API path or an archived-plan filename.
+
+Manual dev-server pass (`pnpm --filter @agora/chrono-web dev`, curl against
+`localtest.me:3000` + `acme.localtest.me:3000`): apex `/member` → 200, apex
+`/member/login` → 200 (renders login form, no lockout), tenant `/member` →
+200, tenant `/member/login` → 200 (renders login form — confirms the `PUBLIC`
+array fix did not lock out signed-out visitors on either host), tenant
+`/member/wallet` → 200, tenant `/player/wallet` → 200 (physical path still
+reachable directly), `/portal` → `307` → `/member` on both hosts.
+
+No deviations from the plan; no new risks discovered.
+
 Phase 1 leaves every `/portal/*` href working *through a redirect*. This phase
 removes the extra hop and fixes the now-stale docs.
 
