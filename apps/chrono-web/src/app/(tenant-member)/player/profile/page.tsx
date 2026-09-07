@@ -62,7 +62,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { User, KeyRound, ShieldCheck, MapPin, Clock } from "lucide-react";
+import { User, KeyRound, ShieldCheck, MapPin, Clock, LogOut } from "lucide-react";
+import type { MemberSession } from "agora";
 import {
   Card,
   CardHeader,
@@ -85,10 +86,39 @@ import { tenantFetch } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { MemberPageHeader } from "@/components/member/member-page-header";
-import { formatDate } from "@/lib/member/format";
+import { formatDate, formatRelative } from "@/lib/member/format";
 import { applyForMembership } from "@/lib/member/account";
 import { getMyLoyalty } from "@/lib/member/loyalty";
+import { getMyRecentBranch, type RecentBranch } from "@/lib/member/recent-branch";
 import { AvatarUploadField } from "@/components/member/avatar-upload";
+
+/** Small display-only parse of a session's `userAgent` into "Chrome on
+ * macOS"-style copy — plain string matching, not a UA-parsing library. This
+ * is a security-log nicety, never a security signal. */
+function describeUserAgent(userAgent: string | null): string {
+  if (!userAgent) return "Unknown device";
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Chrome\//.test(userAgent)
+      ? "Chrome"
+      : /Firefox\//.test(userAgent)
+        ? "Firefox"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "Unknown browser";
+  const os = /iPhone|iPad|iOS/.test(userAgent)
+    ? "iOS"
+    : /Android/.test(userAgent)
+      ? "Android"
+      : /Mac OS X/.test(userAgent)
+        ? "macOS"
+        : /Windows/.test(userAgent)
+          ? "Windows"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : null;
+  return os ? `${browser} on ${os}` : browser;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -167,6 +197,9 @@ export default function MemberProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState<MemberSession[]>([]);
+  const [recentBranch, setRecentBranch] = useState<RecentBranch>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const status: ApplicationStatus = onboarding?.applicationStatus ?? "pending";
   // Undefined only while the session is still loading — default to `true` so
@@ -218,6 +251,32 @@ export default function MemberProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    void Promise.all([memberAuth.listSessions(), getMyRecentBranch()]).then(
+      ([sessionList, recentBranchRes]) => {
+        setSessions(sessionList);
+        setRecentBranch(recentBranchRes.data?.recentBranch ?? null);
+      },
+    );
+  }, []);
+
+  async function onRevokeSession(id: string) {
+    setRevokingId(id);
+    const { ok, signedOutSelf, error } = await memberAuth.revokeSession(id);
+    setRevokingId(null);
+    if (!ok) {
+      toast.error(error ?? "Could not log out that session.");
+      return;
+    }
+    if (signedOutSelf) {
+      toast.success("Signed out.");
+      location.href = "/login";
+      return;
+    }
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    toast.success("Session logged out.");
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -493,6 +552,71 @@ export default function MemberProfilePage() {
             </CardFooter>
           </Card>
         </Stack>
+
+        {/* Security session log — account-level lounge/recent-branch context
+            above per-session rows, per the plan's "lounge/branch" design
+            decision (a session's tenant IS the lounge; recent branch is the
+            member's most recent physical-visit read, never fabricated). */}
+        <Card className="rounded-2xl sm:col-span-3" data-testid="security-sessions-card">
+          <CardHeader className="p-6">
+            <CardTitle>Security</CardTitle>
+            <CardDescription>Where you&apos;re signed in, and from where.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 pt-0">
+            <Stack gap={4}>
+              <Row items="center" gap={4} className="flex-wrap text-sm">
+                <span>
+                  <span className="text-muted-foreground">Lounge: </span>
+                  <span className="font-medium">{branchName || "—"}</span>
+                </span>
+                <span>
+                  <span className="text-muted-foreground">Recent branch: </span>
+                  <span className="font-medium">{recentBranch?.branchName ?? "—"}</span>
+                </span>
+              </Row>
+
+              <Stack gap={2}>
+                {sessions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No active sessions found.</p>
+                ) : (
+                  sessions.map((session) => (
+                    <Row
+                      key={session.id}
+                      items="center"
+                      className="flex-wrap justify-between gap-2 rounded-xl border border-border p-3"
+                    >
+                      <Stack gap={0}>
+                        <Row items="center" gap={2}>
+                          <span className="text-sm font-medium">
+                            {describeUserAgent(session.userAgent)}
+                          </span>
+                          {session.isCurrent ? (
+                            <Badge variant="secondary">This device</Badge>
+                          ) : null}
+                        </Row>
+                        <span className="text-xs text-muted-foreground">
+                          {session.ipAddress ?? "—"} · last seen{" "}
+                          {session.lastSeenAt ? formatRelative(session.lastSeenAt) : "—"}
+                        </span>
+                      </Stack>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        disabled={revokingId === session.id}
+                        onClick={() => void onRevokeSession(session.id)}
+                      >
+                        <LogOut className="h-3.5 w-3.5" aria-hidden />
+                        {revokingId === session.id ? "Logging out…" : "Log out"}
+                      </Button>
+                    </Row>
+                  ))
+                )}
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
       </Grid>
     </Stack>
   );
