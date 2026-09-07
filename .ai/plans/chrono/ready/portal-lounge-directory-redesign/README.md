@@ -1,6 +1,6 @@
 # Global portal home — "Gaming Lounge Directory" redesign
 
-**Status:** draft — not yet audited, not yet accepted
+**Status:** ready — accepted by the developer, phases specified, unclaimed (blocked on `member-player-route-rename` landing first — see below)
 **App:** chrono
 **Sessions:**
 - Planning: agora-a9 [10bb99]
@@ -225,15 +225,164 @@ Once the route-rename plan's Phase 1 (+ ideally Phase 2) is committed: add
 `businessDirectoryListQuerySchema` + `BusinessDirectoryListItem` to
 `apps/chrono-api/src/modules/business-lead/contracts.ts`.
 
-## Phases (fill in during audit / before moving to `ready/`)
+## Phases
 
-Suggested split, to be confirmed at audit:
-1. Backend directory route + contracts.
-2. Frontend data layer (`listBusinessDirectory`, shared `tenantHref`).
-3. UI components (`MarketingHeader` `actions` prop, sidebar, card, page/layout
-   assembly).
-4. E2E spec.
+---
 
-This plan has **not** passed the Concreteness Gate for phase-by-phase
-step-by-step tasks yet (only the file list + acceptance criteria are filled
-in) — needs a pass-2 audit before `git mv` to `ready/`.
+### Phase 1 — Backend directory route + contracts
+
+**Files to update**
+- `apps/chrono-api/src/modules/business-lead/contracts.ts`
+- `apps/chrono-api/src/modules/business-lead/routes.ts`
+
+**Step-by-step tasks**
+1. In `contracts.ts`, add `businessDirectoryListQuerySchema` — `listQuerySchema`
+   with no extra fields (page/pageSize only, no `q`).
+2. Add `BusinessDirectoryListItem` type — explicit allowlist
+   `{ id: string; slug: string; name: string; status: string }`. No ranking,
+   no `liveAvailability`, no location fields — this is a lighter shape than
+   `BusinessDirectoryResult`.
+3. In `routes.ts`'s `businessLeadPublicRoutes()`, add
+   `GET /businesses/directory`, `zValidator("query", businessDirectoryListQuerySchema)`.
+   Read `organization` via `withAdmin` (public route, no tenant/session
+   context), filter `status in ('active','trial','pending')`, order by `name`,
+   paginate per `.ai/rules/pagination.md`, return `{ items, meta }`.
+4. No `requirePermission` call — this route is public/read-only, same
+   trust level as the existing `/businesses` search route.
+
+**Acceptance criteria**
+- `GET /businesses/directory` returns only active/trial/pending tenants,
+  paginated, ordered by name.
+- A suspended/cancelled/archived/deleting/pending-deletion tenant is absent.
+- Response contains only the four allowlisted fields — never a raw `organization` row.
+
+**Verification**
+```
+pnpm typecheck
+pnpm --filter @agora/chrono-api build
+```
+
+**Out of scope:** any change to the existing `/businesses` search route or `service.ts` ranking logic.
+
+**Execution start point:** add `businessDirectoryListQuerySchema` to `contracts.ts`.
+
+---
+
+### Phase 2 — Frontend data layer
+
+**Files to update**
+- `apps/chrono-web/src/lib/discover-client.ts`
+- `apps/chrono-web/src/lib/tenant-links.ts` (new)
+- `apps/chrono-web/src/app/(apex-marketing)/discover/business-result-card.tsx`
+
+**Step-by-step tasks**
+1. Create `src/lib/tenant-links.ts` exporting `tenantHref(slug: string): string`
+   — move the existing implementation verbatim out of
+   `business-result-card.tsx:14-27` (same `window.location`-derived logic,
+   including the `?source=` query param it currently appends — keep that
+   default, add an optional second arg for a different `source` value so the
+   directory grid can pass e.g. `"global_directory"`).
+2. Update `business-result-card.tsx` to import `tenantHref` from the new file
+   instead of defining it locally.
+3. In `discover-client.ts`, add `listBusinessDirectory(query?: { page?: number; pageSize?: number })`
+   calling `GET /businesses/directory`, mirroring `searchBusinesses`'s existing
+   fetch/error-handling shape.
+
+**Acceptance criteria**
+- `tenantHref` has exactly one implementation, imported by both the discover
+  card and the new directory card (Phase 3).
+- `listBusinessDirectory()` returns typed `BusinessDirectoryListItem[]` + pagination meta.
+
+**Verification**
+```
+pnpm typecheck
+```
+
+**Out of scope:** any change to `searchBusinesses` itself.
+
+**Execution start point:** create `src/lib/tenant-links.ts`.
+
+---
+
+### Phase 3 — UI: header, sidebar, card, page assembly
+
+**Files to update**
+- `apps/chrono-web/src/components/landing/marketing-chrome.tsx`
+- `apps/chrono-web/src/components/member/global-portal-sidebar.tsx` (new)
+- `apps/chrono-web/src/components/member/lounge-directory-card.tsx` (new)
+- `(saas-member)/member/global-portal-home.tsx`
+- `(saas-member)/member/global-portal-layout.tsx`
+
+**Step-by-step tasks**
+1. `marketing-chrome.tsx`: add `actions?: React.ReactNode` to `MarketingHeader`'s
+   props; when provided, render it in place of the current hardcoded
+   `ThemeToggle` + "Join Chrono" CTA `Row`. No existing caller passes this prop,
+   so every current render is unaffected.
+2. `global-portal-sidebar.tsx`: new component, `agora/ui` primitives only —
+   identity block (avatar/initials, name, email — same data already available
+   via `useGlobalCustomerSession()`), then Dashboard/Profile/Logout nav items
+   (Dashboard → `/member`, Profile → `/member/profile` if it exists, else omit
+   until that route exists — confirm during implementation; Logout →
+   `customerAuth.signOut()` then redirect to `/member/login`, matching the
+   existing `global-portal-layout.tsx` sign-out behavior).
+3. `lounge-directory-card.tsx`: new component — `Card` with tenant name,
+   "CHRONO LOUNGE" eyebrow (`text-primary text-[10px] uppercase tracking-widest`),
+   description text branching on membership state (join vs. not-yet-joined
+   copy, following the UX the oikos `LoungeSelectorClient` establishes, worded
+   fresh), and a full-width `Button` linking via `tenantHref(slug)` reading
+   "Enter Portal" (member) or "Apply to Join" (not yet).
+4. `global-portal-home.tsx`: fetch `listBusinessDirectory()`,
+   `getMyTenantMemberships()`, and the existing `getMyVenueStatus()` in
+   parallel; merge into one list keyed by `slug`
+   (`isMember = memberships.some(m => m.tenantSlug === item.slug)`); render
+   `<LoungeDirectoryCard>` in a `grid gap-6 sm:grid-cols-2 lg:grid-cols-3`;
+   keep the existing "Your account" card unchanged, above the grid.
+5. `global-portal-layout.tsx`: replace the bare `<header>`/`<main>` shell with
+   `<MarketingHeader actions={...signed-in Row: ThemeToggle + IdentityMenu...} />`,
+   `<main>{children}</main>`, `<MarketingFooter year={new Date().getFullYear()} />`.
+
+**Acceptance criteria** — see the plan's top-level "Acceptance criteria" section (all items apply to this phase).
+
+**Verification**
+```
+pnpm typecheck
+pnpm --filter @agora/chrono-web build
+```
+Manual: `pnpm --filter @agora/chrono-web dev`, sign in as a global customer at
+`chrono2.localtest.me:3000/member`, confirm header/sidebar/grid render and
+both card CTA states appear.
+
+**Out of scope:** tenant-side `member-nav.tsx`/`MemberHeader` — untouched.
+
+**Execution start point:** `marketing-chrome.tsx`'s `MarketingHeader` `actions` prop.
+
+---
+
+### Phase 4 — E2E
+
+**Files to update**
+- `apps/chrono-web/e2e/tests/member/lounge-directory.spec.ts` (new)
+
+**Step-by-step tasks**
+1. Seed one tenant the test customer has joined and one they haven't, plus one
+   `suspended` tenant, via the e2e faker/test-data helpers already used in
+   sibling `member/*.spec.ts` files.
+2. Assert the joined tenant renders "Enter Portal", the unjoined one renders
+   "Apply to Join", and the suspended one does not render at all.
+3. Assert clicking "Apply to Join" navigates to `{slug}.../member` (or opens a
+   new tab/window per how `tenantHref` renders — adjust the assertion to
+   whatever `target` the anchor actually uses) and that the destination is not
+   a 404.
+
+**Acceptance criteria**
+- Spec passes locally against `pnpm dev`.
+
+**Verification**
+```
+pnpm dev                       # separate shell
+pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts
+```
+
+**Out of scope:** re-running the full existing `member/*` e2e suite (unaffected by this plan; the route-rename plan's own Phase 3 covers file-path fallout from the rename itself).
+
+**Execution start point:** copy the nearest sibling `member/*.spec.ts` file's seeding/auth boilerplate.
