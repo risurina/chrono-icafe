@@ -42,7 +42,7 @@ async function signUpBusiness(
   // knows the tenant's host up front.
   await page.getByLabel("Business URL").fill(slug);
   await page.getByRole("button", { name: /create business/i }).click();
-  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3010/admin`), {
+  await page.waitForURL(new RegExp(`//${slug}\\.localtest\\.me:3000/admin`), {
     timeout: 60_000,
   });
 }
@@ -147,7 +147,7 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
     // ── Global customer signs up once, applies to the "joined" tenant only. ──
     const customerEmail = faker.internet.email({ provider: "example.com" });
     await signUpGlobalCustomer(page, { name: "Lounge Directory Customer", email: customerEmail });
-    await applyToTenant(page, `http://${slugJoined}.localtest.me:3010`);
+    await applyToTenant(page, `http://${slugJoined}.localtest.me:3000`);
 
     // ── The directory grid on the apex home. ──
     await page.goto("/member");
@@ -184,14 +184,14 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
     // that tenant's own /member — reachable from that landing page via its
     // "Member login" link — is itself live. ──
     await unjoinedCard.getByTestId("lounge-directory-card-cta").click();
-    await page.waitForURL(new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3010/(\\?.*)?$`), {
+    await page.waitForURL(new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3000/(\\?.*)?$`), {
       timeout: 15_000,
     });
     await expect(page.getByRole("heading", { name: nameUnjoined }).first()).toBeVisible({
       timeout: 15_000,
     });
 
-    await page.goto(`http://${slugUnjoined}.localtest.me:3010/member`);
+    await page.goto(`http://${slugUnjoined}.localtest.me:3000/member`);
     await expect(page.getByRole("heading", { name: "Join this business" })).toBeVisible({
       timeout: 15_000,
     });

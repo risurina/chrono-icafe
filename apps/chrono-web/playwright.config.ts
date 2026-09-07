@@ -10,7 +10,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localtest.me:3010",
+    baseURL: "http://localtest.me:3000",
     headless: false,
     viewport: { width: 1280, height: 800 },
     trace: "on",
