@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button,
   Input,
@@ -86,6 +86,9 @@ export default function BrandingPage() {
   const [emailPreview, setEmailPreview] = useState<string | null>(null);
   const [hidePlatformBranding, setHidePlatformBranding] = useState(false);
   const [platformVisibilitySaving, setPlatformVisibilitySaving] = useState(false);
+  // Set as soon as the user interacts with the toggle, so the initial mount
+  // fetch below can no longer clobber their choice — see loadPlatformVisibility.
+  const userToggledRef = useRef(false);
 
   const set = <K extends keyof BrandingForm>(k: K, v: BrandingForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -100,7 +103,15 @@ export default function BrandingPage() {
   async function loadPlatformVisibility() {
     const res = await api.rpc.branding["platform-visibility"].$get();
     if (!res.ok) return;
-    setHidePlatformBranding((await res.json()).hidePlatformBranding);
+    const { hidePlatformBranding: value } = await res.json();
+    // Guard against this mount-time read racing a fast user toggle: without
+    // this, a slow initial GET resolving AFTER the user has already flipped
+    // the switch (its own PATCH in flight or even already applied) silently
+    // stomps their choice back to the pre-toggle value — reproducible any
+    // time this request is still in flight when the user clicks, and
+    // effectively guaranteed in dev under StrictMode's double effect
+    // invocation (two real, independent GETs racing the click).
+    if (!userToggledRef.current) setHidePlatformBranding(value);
   }
 
   useEffect(() => {
@@ -111,6 +122,7 @@ export default function BrandingPage() {
   // Applies immediately — no publish/save step, unlike the form above (matches
   // every other TenantBrandings field's own "write now, live now" behavior).
   async function togglePlatformVisibility(next: boolean) {
+    userToggledRef.current = true;
     setPlatformVisibilitySaving(true);
     setHidePlatformBranding(next);
     const res = await api.rpc.branding["platform-visibility"].$patch({

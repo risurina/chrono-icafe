@@ -46,7 +46,16 @@ test.describe("Platform visibility (hidePlatformBranding)", () => {
     const toggle = page.getByRole("switch", { name: /hide "powered by chrono"/i });
     await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-checked", "false");
+    // The switch flips optimistically before its PATCH resolves — wait for
+    // the actual response, not just the (immediate) UI state, or the public
+    // page below can be read before the write has landed.
+    const patchOn = page.waitForResponse(
+      (res) =>
+        res.url().includes("/rpc/branding/platform-visibility") &&
+        res.request().method() === "PATCH",
+    );
     await toggle.click();
+    await patchOn;
     await expect(toggle).toHaveAttribute("aria-checked", "true");
 
     // A fresh, signed-out context — the change must be visible with no
@@ -66,7 +75,13 @@ test.describe("Platform visibility (hidePlatformBranding)", () => {
       name: /hide "powered by chrono"/i,
     });
     await expect(toggleAfterReload).toHaveAttribute("aria-checked", "true");
+    const patchOff = page.waitForResponse(
+      (res) =>
+        res.url().includes("/rpc/branding/platform-visibility") &&
+        res.request().method() === "PATCH",
+    );
     await toggleAfterReload.click();
+    await patchOff;
     await expect(toggleAfterReload).toHaveAttribute("aria-checked", "false");
 
     await publicPage.goto(`http://${slug}.localtest.me:3000/`);
