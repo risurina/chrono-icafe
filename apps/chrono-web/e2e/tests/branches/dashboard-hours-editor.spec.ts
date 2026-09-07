@@ -50,8 +50,13 @@ async function signUp(
 
 async function findInviteLink(toEmail: string): Promise<string> {
   const deadline = Date.now() + 15_000;
+  // Case-insensitive: the invite backend normalizes recipient emails to
+  // lowercase before logging/sending (standard email-address handling), but
+  // faker-generated addresses aren't always already lowercase — a
+  // case-sensitive match here is flaky, not a real assertion on casing.
   const pattern = new RegExp(
     `\\[email:console\\] to=${toEmail.replace(/[.+]/g, "\\$&")}.*?link=(\\S+)`,
+    "i",
   );
   while (Date.now() < deadline) {
     const log = readFileSync(DEV_LOG_PATH, "utf8");
@@ -70,6 +75,19 @@ async function setAllDaysTo24h(page: Page) {
   }
 }
 
+/**
+ * Sign-up auto-provisions a default "Main" branch, but as a fire-and-forget
+ * call made from the root `/admin` dashboard page only (`onboarding-defaults.ts`)
+ * — not from `/admin/branches`. `signUp()` already lands on `/admin`, so wait
+ * here for that provisioning call's own completion toast before navigating
+ * away — a page-request API poll doesn't reliably carry the session's cookie
+ * cross-origin (`localtest.me` -> `localhost:8787`) the way the real browser
+ * fetch (`tenantFetch`) does.
+ */
+async function waitForMainBranch(page: Page): Promise<void> {
+  await expect(page.getByText(/Set up a default/i)).toBeVisible({ timeout: 15_000 });
+}
+
 test.describe("Branch dashboard — structured hours editor", () => {
   test("an owner can save structured hours, and they reflect immediately on the public site", async ({
     page,
@@ -78,18 +96,17 @@ test.describe("Branch dashboard — structured hours editor", () => {
     const slug = `e2ebrho${uniq}`;
     const email = faker.internet.email({ provider: "example.com" });
     const base = `http://${slug}.localtest.me:3000`;
-    const branchName = `${faker.company.name()} Hours Branch`;
 
     await signUp(page, { name: "Hours Owner", email, slug });
+    // Edit the auto-provisioned "Main" branch directly rather than adding a
+    // second one: `/public/venue-info` only ever serves the tenant's FIRST
+    // active branch (oldest by `createdAt`, `apps/chrono-api/AGENTS.md`), so a
+    // second branch's hours would never reach that endpoint.
+    await waitForMainBranch(page);
 
     await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Add Branch" }).click();
-    await page.getByLabel("Name").fill(branchName);
-    await page.getByRole("button", { name: "Create branch" }).click();
-    await expect(page.getByText(branchName).first()).toBeVisible();
-
-    await page.getByRole("button", { name: `Edit ${branchName}` }).click();
+    await page.getByRole("button", { name: "Edit Main" }).click();
     await setAllDaysTo24h(page);
     // The post-save `load()` refetch is a fire-and-forget call the save
     // handler doesn't await, so wait for its response explicitly rather than
@@ -105,7 +122,7 @@ test.describe("Branch dashboard — structured hours editor", () => {
 
     // Re-open the dialog: the editor must pre-fill from the saved config, not
     // just accept writes.
-    await page.getByRole("button", { name: `Edit ${branchName}` }).click();
+    await page.getByRole("button", { name: "Edit Main" }).click();
     await expect(page.getByLabel("Monday hours")).toContainText("24 hours");
     await page.keyboard.press("Escape");
 
@@ -131,16 +148,11 @@ test.describe("Branch dashboard — structured hours editor", () => {
     const staffEmail = faker.internet.email({ provider: "example.com" });
     const staffSlug = `e2ebrhrinv${uniq}`;
     const base = `http://${slug}.localtest.me:3000`;
-    const branchName = `${faker.company.name()} Gate Hours Branch`;
 
     await signUp(page, { name: "Hours Owner", email: ownerEmail, slug });
-
-    await page.goto(`${base}/admin/branches`);
-    await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Add Branch" }).click();
-    await page.getByLabel("Name").fill(branchName);
-    await page.getByRole("button", { name: "Create branch" }).click();
-    await expect(page.getByText(branchName).first()).toBeVisible();
+    // Main is provisioned against the OWNER's own tenant; confirm it landed
+    // before the staff account (a separate org) ever gets invited into it.
+    await waitForMainBranch(page);
 
     // Invite a teammate (default role: staff — no branch:update).
     await page.goto(`${base}/admin/settings/crew`);
@@ -163,7 +175,7 @@ test.describe("Branch dashboard — structured hours editor", () => {
 
     await page.goto(`${base}/admin/branches`);
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: `Edit ${branchName}` }).click();
+    await page.getByRole("button", { name: "Edit Main" }).click();
     await setAllDaysTo24h(page);
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Only admins can manage branches.")).toBeVisible();
