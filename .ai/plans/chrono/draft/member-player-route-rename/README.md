@@ -1,11 +1,47 @@
 # Member / Player route rename — `(saas-member)/member` + `(tenant-member)/player`
 
-**Status:** draft — awaiting developer acceptance (and a decision on the Open Decision below)
+**Status:** draft — audited (`aed50b4e`, verdict: needs revision, addressed below); awaiting developer acceptance
 **App:** chrono
 **Sessions:**
 - Planning: agora-a3 [4c723d]
 - Audit: agora-a3 [4c723d]
 - Implementation: _unclaimed_
+
+## Audit resolution
+
+Audited once; verdict was "needs revision." The developer confirmed **keeping
+the full rename** (all five auth pages move to `/member/*`, not the simplified
+"only the home moves" alternative the audit preferred) — that decision is
+final, do not re-raise it. The audit's other findings are fixed in this
+revision:
+
+1. **Corrected fact, changes the risk description but not the plan.** Pass 1/2
+   originally said all five auth pages are "host-dual" (each has a
+   `global-*-form.tsx` and a `tenant-*-form.tsx`). That's only true for
+   `sign-up`/`forgot`/`reset`. `login/page.tsx` is **apex-only** and immediately
+   `location.replace("/login")`s a tenant visitor; `accept-invite/page.tsx` has
+   **no** host branching (one form, reached only via a foundation-emailed link,
+   host-agnostic). Both still need the same rewrite exclusion as the other
+   three — not because they render two ways, but because the URL
+   `/member/{login,accept-invite}` must resolve to this tree on **either** host
+   and must not be swallowed by the tenant catch-all. Fixed in "The rewrite"
+   below.
+2. Phase 3's e2e file list was 6 of ~30 files touching a `/portal` page URL —
+   replaced with a generated list and an explicit policy for what does and
+   doesn't need editing.
+3. `global-portal-home.tsx`'s `tenantPortalUrl()` (a template-literal-built
+   `/portal` link, invisible to a quote-anchored grep) added to Phase 2.
+4. Phase 1's automated verification changed from an unbounded `pnpm dev` to
+   `pnpm --filter @agora/chrono-web build` (bounded, scriptable, and `next
+   build` raises the exact "parallel pages" error this phase exists to catch);
+   the four host-specific runtime checks stay as a separate, explicitly
+   bounded manual/curl pass.
+5. `PUBLIC_PATHS` corrected to `PUBLIC` throughout (the actual export name in
+   `global-portal-layout.tsx`) — matters if any phase is ever handed to Jules,
+   which needs exact names per `.ai/rules/feature-planning.md`.
+6. `apps/chrono-api/AGENTS.md` Phase 2 item widened to a full-file pass, not
+   just the four originally-cited ranges (more stale `member-portal`/
+   `member-area` mentions exist around lines 258, 324).
 
 ## Goal
 
@@ -38,6 +74,20 @@ That rewrite pattern is already proven in this repo for the identical apex-vs-te
 tenant `/admin/*` → rewrite → `/dashboard/*` → `(tenant-admin)/dashboard`, with
 the tenant folder deliberately named differently. We are copying that shape.
 
+The prior-art Chrono implementation (`~/karta/karta-tenant/apps/chrono-web`,
+distinct repo — see `reference_chrono_oikos_prior_art` memory) confirms the same
+mechanism works in production for `/member` specifically: it has two physically
+distinct folders, `src/app/member` (apex) and `src/app/tenant/landing/member`
+(tenant, nested three levels deeper), and its `next.config.ts` rewrites
+tenant-host `/member/*` → `/tenant/landing/member/*`. Its tenant folder is *also*
+literally named `member` — the reason there is no collision there is that
+`/member` and `/tenant/landing/member` are different physical URLs, not that the
+folder basename differs. This plan's `player` rename is the same
+differing-physical-URL trick with a flat name instead of a nested one; both are
+valid, and the nested form is not simpler for us since it would require
+inventing a new intermediate segment (`(tenant-member)/???/member`) with no
+existing meaning in this codebase, whereas `player` already has one.
+
 ## Pass 1 — Workflow analysis
 
 **Who uses this:** tenant members ("players") signing in and using their member
@@ -68,8 +118,8 @@ apex; anyone arriving from a foundation-sent email link.
 - **Foundation email links 404ing** — mitigated by blanket `/portal/* → /member/*`
   redirects rather than editing the shared foundation.
 - **The global-portal auth gate opening or locking wrongly.**
-  `(saas-member)/portal/global-portal-layout.tsx:13-17` holds a `PUBLIC_PATHS`
-  array of `/portal/{login,sign-up,forgot,reset,accept-invite}` compared against
+  `(saas-member)/portal/global-portal-layout.tsx:12-17` holds a `PUBLIC` array
+  of `/portal/{login,sign-up,forgot,reset,accept-invite}` compared against
   `usePathname()`. If those strings are not updated in lockstep with the folder,
   the layout either redirects a signed-out visitor away from the login page
   (lockout) or treats a private page as public.
@@ -109,10 +159,23 @@ the web call sites explicitly for this reason.
 ### The rewrite (the risky part)
 
 Apex must serve `/member/{login,sign-up,forgot,reset,accept-invite}` from
-`(saas-member)/member`, **and so must tenant hosts** — those five pages are
-host-dual today (each has a `global-*-form.tsx` and a `tenant-*-form.tsx`) and
-are the pages foundation emails point at. So the tenant catch-all rewrite must
-not swallow them.
+`(saas-member)/member`, **and so must tenant hosts** — foundation emails and
+OAuth-callback redirects point at these paths regardless of which host the
+recipient is on. So the tenant catch-all rewrite must not swallow them. This
+holds for all five, but not for the same reason in each case (corrected per
+the audit — do not assume uniform host-duality):
+
+- `sign-up`, `forgot`, `reset` genuinely render two ways: each has both a
+  `global-*-form.tsx` and a `tenant-*-form.tsx`, chosen by host at runtime.
+- `login/page.tsx` is **apex-only** — on a tenant host it immediately
+  `location.replace("/login")`s away. It still needs the exclusion so that
+  replace can run at all; without it, the tenant rewrite would send
+  `/member/login` to a non-existent `/player/login` before the page ever
+  mounts.
+- `accept-invite/page.tsx` has no host branching at all — one form, reached
+  only via a foundation-emailed link that carries no host guarantee. It needs
+  the exclusion for the same reason: the URL must resolve to this page
+  wherever the link is opened.
 
 Primary form (single rule, negative lookahead — Next supports a regex on a named
 `source` param):
@@ -169,27 +232,6 @@ two blanket, host-unconditioned ones:
   precedent leaves the physical `/dashboard/*` path reachable, and matching that
   keeps the two surfaces consistent.
 
-## Open decision (please confirm before Phase 1)
-
-**Recommended simplification: leave the five shared auth pages at `/portal/*`.**
-
-If `(saas-member)/portal/{login,sign-up,forgot,reset,accept-invite}` stays put and
-only the global-portal *home* moves to `(saas-member)/member`, then:
-
-- the rewrite needs **no exclusions at all** (nothing named `login` exists under
-  `/member`), removing the single riskiest detail in this plan;
-- foundation email/OAuth URLs keep working with **no redirects**;
-- `global-portal-layout.tsx`'s `PUBLIC_PATHS` needs no change, removing the
-  lockout risk;
-- Phase 2's href list shrinks to the handful pointing at `/portal` (the home).
-
-Cost: the `(saas-member)` group spans two URL prefixes (`/member` for the home,
-`/portal/*` for auth), which is less tidy — but those auth URLs are baked into
-already-sent emails, so churning them is pure risk for no user-visible gain.
-
-The plan below is written for the **full** rename you selected. Say the word and
-I will cut it down to this variant instead.
-
 ## Phases
 
 ---
@@ -228,11 +270,32 @@ is one commit.
 - Tenant `/player/wallet` still resolves directly (physical path, mirrors `/dashboard`).
 
 **Verification**
+
+Automated gate — bounded, catches the exact route-manifest error this phase
+exists to guard against (`next build` raises "parallel pages resolve to the
+same path" the same as `next dev`, but exits cleanly instead of hanging):
 ```
-pnpm --filter @agora/chrono-web dev      # boot check — the collision only shows here
+pnpm --filter @agora/chrono-web build
 pnpm typecheck
 pnpm --filter @agora/api rls:proof       # unaffected, cheap, run it anyway
 ```
+
+Manual runtime pass — the four host-specific acceptance criteria above cannot
+be verified by `build` alone; run bounded, don't leave `dev` running unwatched:
+```
+timeout 60 pnpm --filter @agora/chrono-web dev &
+sleep 8
+curl -s -o /dev/null -w '%{http_code} apex /member\n'          http://chrono2.localtest.me:3000/member
+curl -s -o /dev/null -w '%{http_code} apex /member/login\n'    http://chrono2.localtest.me:3000/member/login
+curl -s -o /dev/null -w '%{http_code} tenant /member\n'        http://<slug>.localtest.me:3000/member
+curl -s -o /dev/null -w '%{http_code} tenant /member/login\n'  http://<slug>.localtest.me:3000/member/login
+curl -s -o /dev/null -w '%{http_code} tenant /member/wallet\n' http://<slug>.localtest.me:3000/member/wallet
+curl -s -o /dev/null -w '%{http_code} tenant /player/wallet\n' http://<slug>.localtest.me:3000/player/wallet
+curl -s -I http://<slug>.localtest.me:3000/portal | head -1     # expect a 307/308 to /member
+kill %1
+```
+All must be `200` (the two redirect checks aside) — any `404` on `/member/login`
+on either host means the rewrite exclusion in "The rewrite" above didn't take.
 
 **Out of scope:** any `href` change (Phase 2), any `packages/agora` change (never).
 
@@ -248,13 +311,19 @@ removes the extra hop and fixes the now-stale docs.
 **Files to update** (web page URLs only — never the API paths from Pass 2)
 
 Auth-gate array — highest risk, do first:
-- `(saas-member)/member/global-portal-layout.tsx:13-17` — `PUBLIC_PATHS` → `/member/{login,sign-up,forgot,reset,accept-invite}`; also `:27`, `:47` (`location.href = "/portal/login"`), and the `:8` comment
+- `(saas-member)/member/global-portal-layout.tsx:12-17` — `PUBLIC` → `/member/{login,sign-up,forgot,reset,accept-invite}`; also `:27`, `:47` (`location.href = "/portal/login"`), and the `:8` comment
 
 Inside the renamed tree:
 - `(saas-member)/member/login/global-login-form.tsx:53,64,100,106`
 - `(saas-member)/member/sign-up/global-sign-up-form.tsx:58,71,118`
 - `(saas-member)/member/reset/global-reset-form.tsx:45,80`
 - `(saas-member)/member/forgot/global-forgot-form.tsx:66`
+- `(saas-member)/member/global-portal-home.tsx:20-23,55` — `tenantPortalUrl(slug)`
+  builds `` `${scheme}://${slug}.${appDomain}/portal` `` via template-literal
+  interpolation (invisible to a quote-anchored grep — see the fixed
+  verification pattern below); this is the "Go to portal →" link to a tenant
+  host and must become `/member`. Also its doc comment referencing "that
+  business's `/portal`".
 - `(saas-member)/member/page.tsx:3` and `layout.tsx:4-10` — both doc comments describe the old `/portal` split
 
 Outside it:
@@ -268,10 +337,13 @@ Outside it:
 - `app/robots.ts:34` — `disallow: ["/dashboard", "/member", "/player", "/admin"]`, and rewrite the block comment (lines 8-18) which explains `/portal`
 
 Docs:
-- `apps/chrono-api/AGENTS.md:132-140,154,166-174` — the surface map. Already stale
-  after `cd22a4cd` (still says `(member-area)/member` and `(member-portal)/portal`);
-  bring it to `(saas-member)/member` + `(tenant-member)/player` and document the
-  new rewrite + redirects.
+- `apps/chrono-api/AGENTS.md` — full-file pass, not just one range. Already
+  stale after `cd22a4cd` (still says `(member-area)/member` and
+  `(member-portal)/portal` in places — confirmed stale mentions at lines
+  132-140, 154, 166-174, 258, 324). Bring every mention to `(saas-member)/member`
+  + `(tenant-member)/player` and document the new rewrite + redirects.
+  `grep -n "member-portal\|member-area\|/portal" apps/chrono-api/AGENTS.md`
+  before editing to catch anything beyond the ranges above.
 
 **Acceptance criteria**
 - No `/portal`-prefixed **page** URL remains in `apps/chrono-web/src`; every
@@ -283,8 +355,15 @@ Docs:
 **Verification**
 ```
 pnpm typecheck
+# Quote/backtick-anchored form (catches string-literal hrefs):
 grep -rn --include='*.tsx' --include='*.ts' -E "['\"\`]/portal(/login|/sign-up|/forgot|/reset|/accept-invite)?['\"\`?]" apps/chrono-web/src
-# ^ expect zero page-URL hits; API-path hits are expected and correct
+# Unanchored form (also catches template-literal joins like `${x}/portal`,
+# which the quote-anchored pattern misses — this is what caught
+# global-portal-home.tsx's tenantPortalUrl() in the audit):
+grep -rn --include='*.tsx' --include='*.ts' -E "/portal(/login|/sign-up|/forgot|/reset|/accept-invite)?['\"\`?]" apps/chrono-web/src
+# ^ both: expect zero page-URL hits; API-path hits (/portal/auth, /portal/members,
+# /portal/wallet, /portal/credits, /portal/payments, /portal/activity,
+# /portal/sessions, /portal/loyalty, /portal/customer) are expected and correct
 ```
 
 **Out of scope:** `packages/agora` (`auth-page-chrome.tsx:33`'s
@@ -298,17 +377,42 @@ shape, and every Chrono call site passes its own value explicitly). Renaming
 
 ### Phase 3 — E2E
 
-**Files to update**
-- `e2e/tests/global-customers/apply-for-tenant.spec.ts:43` — `goto("/portal/sign-up")`
-- `e2e/tests/global-customers/venue-status.spec.ts:73` — same
-- `e2e/tests/public-stations/branded-availability.spec.ts:127` — href assertion
-- `e2e/tests/tenant-landing/public-site-happy-path.spec.ts:92` — href assertion
-- `e2e/tests/portal/global-social-login-ui.spec.ts` — the `/portal/login` +
-  `/portal/sign-up` navigations in its header comment and body
-- `e2e/tests/member/shell.spec.ts:7` — asserts the `/portal → /member` redirect;
-  still valid, but re-point its comment at the new blanket redirect
+The audit found the original file list (6 files) was far short — regenerate it
+before editing rather than trusting either version. As of this plan's writing:
 
-**Leave alone:** `global-social-login-ui.spec.ts:102`
+```
+grep -rln "portal" apps/chrono-web/e2e/tests --include='*.spec.ts' | sort
+```
+returns **33 files**. Not all need edits — split them by what they actually do:
+
+**Category A — asserts a literal rendered `href`/redirect value. MUST be fixed**,
+because Phase 2 changes the actual page output and these would start failing,
+not passing-by-accident:
+- `e2e/tests/public-stations/branded-availability.spec.ts:127` —
+  `toHaveAttribute("href", "/portal/sign-up")` → `/member/sign-up`
+- `e2e/tests/tenant-landing/public-site-happy-path.spec.ts:92` — same
+- `e2e/tests/member/shell.spec.ts` — asserts the `/portal → /member` redirect
+  behavior; re-point at the new blanket redirect and its comment (`:7`)
+
+**Category B — `page.goto(...)` used only as a bootstrap step to reach the
+sign-up/login form, not asserting a URL.** ~28 files, all following the same
+`page.goto(\`${base}/portal/sign-up\`)` (or `/portal/login`, `/portal`) shape —
+`e2e/tests/{stations,reconciliation,inquiries,reservations,public-stations
+[dup],global-customers,member,loyalty,qr,pos,sessions,wallet,members,credits,
+auth}/*.spec.ts` plus everything under `e2e/tests/portal/`. Generate the exact
+list at execution time with:
+```
+grep -rln -E "goto\(.*/portal(/login|/sign-up)?[\`'\"]" apps/chrono-web/e2e/tests --include='*.spec.ts'
+```
+**Decision: leave these as `/portal/*` navigations, relying on Phase 1's
+blanket redirect** (`/portal/:path* → /member/:path*`, 307/308, tested directly
+in Phase 1's manual pass). This is a deliberate scope cut, not an oversight —
+rewriting ~28 near-identical call sites for a URL the redirect already handles
+correctly is churn with no behavior change. If any of these specs assert
+`page.url()` **after** the goto (a few do, for `next=` round-trips — check each
+before assuming it's pure bootstrap), that assertion moves into Category A.
+
+**Leave alone entirely:** `global-social-login-ui.spec.ts:102`
 (`expect(next).toBe("/portal")`). That value comes from the foundation
 (`customer-auth/index.ts:866`, `payload.next ?? "/portal"`), which this plan does
 not touch; the resulting `/portal` lands on the redirect and reaches `/member`.
@@ -320,20 +424,31 @@ caught by CI rather than by a developer:
 - apex `/member` renders the global portal home;
 - tenant `/member` renders the member dashboard;
 - tenant `/member/login` renders the login form (the rewrite-exclusion case);
+- apex `/member/login` renders the global login form;
+- tenant `/member/accept-invite` does not 404 (the no-host-branching case);
 - `/portal` redirects to `/member` on both hosts.
 
-**Acceptance criteria:** the four updated specs and the new one pass; no spec
-still drives a `/portal/*` page URL.
+**Acceptance criteria:**
+- Every Category A spec passes against the new hrefs (not the old ones).
+- The new `host-route-split.spec.ts` passes.
+- Category B specs are explicitly *not* required to stop using `/portal/*` —
+  the acceptance bar is "still passes via the redirect," confirmed by actually
+  running a representative sample (see Verification), not by grepping for zero
+  `/portal` references.
 
 **Verification** — per `.ai/rules/rbac.md`, the browser suite is manual and needs
 `pnpm dev` running first, with no `apps/chrono-api/.env` present:
 ```
 pnpm dev                       # separate shell
 pnpm --filter @agora/chrono-web test:e2e -- member/host-route-split.spec.ts
-pnpm --filter @agora/chrono-web test:e2e -- global-customers tenant-landing public-stations portal
+pnpm --filter @agora/chrono-web test:e2e -- public-stations/branded-availability.spec.ts tenant-landing/public-site-happy-path.spec.ts member/shell.spec.ts
+# Representative sample of Category B, to confirm the redirect-reliance decision holds:
+pnpm --filter @agora/chrono-web test:e2e -- global-customers portal member/dashboard.spec.ts
 ```
 
-**Execution start point:** the two `page.goto` call sites.
+**Execution start point:** run the two `grep` commands above to produce the
+real, current file lists before touching anything — do not reuse this plan's
+lists verbatim if time has passed and new specs were added.
 
 ---
 
