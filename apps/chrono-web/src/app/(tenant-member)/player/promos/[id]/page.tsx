@@ -25,6 +25,8 @@ import {
 } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { MemberPageHeader } from "@/components/member/member-page-header";
+import { useMemberArea } from "@/components/member/member-area-context";
+import { UnlockHint } from "@/components/member/unlock-hint";
 import { formatCurrency, formatMinutes } from "@/lib/member/format";
 import { getCreditProducts, purchaseCreditProduct, type CreditProduct } from "@/lib/member/credits";
 import { getMyWalletBalance, type WalletBalance } from "@/lib/member/wallet";
@@ -32,6 +34,7 @@ import { createCheckout, getPaymentGateway, type PaymentGatewayStatus } from "@/
 
 export default function MemberPromoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { canInteract } = useMemberArea();
   const [product, setProduct] = useState<CreditProduct | null | undefined>(undefined);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [gateway, setGateway] = useState<PaymentGatewayStatus | null>(null);
@@ -174,14 +177,14 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
                     purchaseIdempotencyKeyRef.current = null;
                     setConfirmOpen(true);
                   }}
-                  disabled={insufficient}
+                  disabled={insufficient || !canInteract}
                 >
                   Buy with wallet
                 </Button>
                 <Button
                   variant="outline"
                   onClick={onBuyOnline}
-                  disabled={!gateway?.available || buyingOnline}
+                  disabled={!gateway?.available || buyingOnline || !canInteract}
                   data-testid="buy-online-button"
                 >
                   {buyingOnline ? "Redirecting…" : "Buy online (GCash/Card)"}
@@ -190,6 +193,7 @@ export default function MemberPromoDetailPage({ params }: { params: Promise<{ id
               {gateway && !gateway.available ? (
                 <p className="text-sm text-muted-foreground">Ask staff at the counter to add credits.</p>
               ) : null}
+              {!canInteract ? <UnlockHint /> : null}
             </Stack>
           </CardFooter>
         </Card>

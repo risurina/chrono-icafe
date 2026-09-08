@@ -38,7 +38,7 @@ type Member = {
   email: string;
   status: "active" | "suspended";
   phone: string | null;
-  applicationStatus: "pending" | "approved" | "rejected" | null;
+  applicationStatus: "visitor" | "pending" | "approved" | "rejected" | null;
   appliedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -438,7 +438,9 @@ export default function MembersPage() {
                           ? "success"
                           : member.applicationStatus === "rejected"
                             ? "destructive"
-                            : "warning"
+                            : member.applicationStatus === "visitor"
+                              ? "outline"
+                              : "warning"
                       }
                       className="capitalize"
                     >
