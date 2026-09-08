@@ -29,7 +29,8 @@ import {
   type RealtimeLimits,
 } from "agora/realtime";
 import { resolveDeviceAuthContext, type DeviceAuthVars } from "./device-auth-middleware";
-import { chronoDevice } from "./schema";
+import { chronoDevice, chronoDeviceCommand } from "./schema";
+import { deviceCommandAckSchema } from "./contracts";
 import { validateChronoDeviceScopes } from "../realtime/scope-validators";
 
 /**
@@ -92,6 +93,45 @@ export const CHRONO_DEVICE_REALTIME_LIMITS: RealtimeLimits = {
 };
 
 /**
+ * Handles one validated `{ type: "command-ack", commandId, result }` inbound
+ * frame (Phase 3, device command dispatch). Looks the command up scoped by
+ * BOTH `tenantId` (via `withTenant`) AND `deviceId` (`actor.actorKey`) in the
+ * WHERE clause — mirroring `routes.ts`'s own `requireOwnDevice` pattern, so a
+ * forged/stale `commandId` (wrong tenant, wrong device, or simply unknown)
+ * can never be applied. Not found -> silently drop, exactly like the
+ * existing `deviceId` self-check below (never close the connection over a
+ * malformed/foreign ack).
+ *
+ * Async, so it is fired with `void` from the sync `onFrame` callback below —
+ * the same "fire, don't await" shape `route.ts` already uses for its own
+ * `resolveActor` re-validation timer.
+ */
+async function handleCommandAck(
+  actor: ResolvedActor,
+  ack: { commandId: string; result?: Record<string, unknown> },
+): Promise<void> {
+  await withTenant(actor.tenantId, async (tx) => {
+    const [command] = await tx
+      .select({ id: chronoDeviceCommand.id })
+      .from(chronoDeviceCommand)
+      .where(
+        and(
+          eq(chronoDeviceCommand.id, ack.commandId),
+          eq(chronoDeviceCommand.tenantId, actor.tenantId),
+          eq(chronoDeviceCommand.deviceId, actor.actorKey),
+        ),
+      )
+      .limit(1);
+    if (!command) return; // Forged/stale commandId — drop, never applied.
+
+    await tx
+      .update(chronoDeviceCommand)
+      .set({ status: "acked", ackedAt: new Date(), result: ack.result ?? null })
+      .where(eq(chronoDeviceCommand.id, command.id));
+  });
+}
+
+/**
  * The device realtime mount, `GET /ws` under wherever this is `.route()`d
  * (Chrono's `app.ts` mounts it at `/api/v1/device`, alongside — but as a
  * SEPARATE `.route()` call from — the existing `deviceAuthRoutes()` REST
@@ -100,9 +140,10 @@ export const CHRONO_DEVICE_REALTIME_LIMITS: RealtimeLimits = {
  * `onFrame` enforces the one piece of inbound hardening this phase specifies:
  * a device reports only its OWN status/ack, so any frame naming a
  * `stationId`/`deviceId` other than the one this connection resolved to is
- * dropped — never relayed, never acted on. No inbound frame TYPE is defined
- * yet (remote commands/acks are deferred, per the plan's own "Out of scope"),
- * so this is deliberately just the hardening check with no further handling.
+ * dropped — never relayed, never acted on. The first real inbound frame
+ * TYPE, `command-ack` (Phase 3), is handled by `handleCommandAck` above; any
+ * other/malformed frame is dropped with no error, matching the existing
+ * "drop, don't fail" hardening style.
  */
 export function deviceRealtimeRoutes(upgradeWebSocket: UpgradeWebSocket) {
   return new Hono<{ Variables: DeviceAuthVars }>().get(
@@ -114,13 +155,18 @@ export function deviceRealtimeRoutes(upgradeWebSocket: UpgradeWebSocket) {
       limits: CHRONO_DEVICE_REALTIME_LIMITS,
       onFrame: ({ actor, data }) => {
         if (typeof data !== "object" || data === null) return;
-        const frame = data as { deviceId?: unknown; stationId?: unknown };
+        const frame = data as { deviceId?: unknown; stationId?: unknown; type?: unknown };
         if (typeof frame.deviceId === "string" && frame.deviceId !== actor.actorKey) {
           return; // Dropped: a device may only ever report on itself.
         }
         // stationId hardening is enforced the same way once an inbound
-        // frame TYPE actually carries one — no such type exists yet
-        // (remote commands/acks are out of scope for this phase).
+        // frame TYPE actually carries one — no such type carries one yet.
+
+        if (frame.type === "command-ack") {
+          const parsed = deviceCommandAckSchema.safeParse(data);
+          if (!parsed.success) return; // Malformed ack — drop, don't crash the connection.
+          void handleCommandAck(actor, parsed.data);
+        }
       },
     }),
   );

@@ -246,6 +246,13 @@
       "when": 1788853596534,
       "tag": "0034_customer-oauth-accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788889150548,
+      "tag": "0035_chrono-device-commands",
+      "breakpoints": true
     }
   ]
 }

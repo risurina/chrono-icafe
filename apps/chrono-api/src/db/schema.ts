@@ -15,7 +15,7 @@ import {
   chronoSalePayment,
 } from "../modules/pos/schema";
 import { chronoWallet, chronoWalletTransaction } from "../modules/wallet/schema";
-import { chronoDeviceProvisioningToken, chronoDevice } from "../modules/device/schema";
+import { chronoDeviceProvisioningToken, chronoDevice, chronoDeviceCommand } from "../modules/device/schema";
 import { chronoLoyaltyAccount, chronoLoyaltyTransaction } from "../modules/loyalty/schema";
 import { chronoSession } from "../modules/session/schema";
 import { chronoPayment, chronoPaymentEvent } from "../modules/payment/schema";
@@ -52,6 +52,7 @@ export {
   chronoWalletTransaction,
   chronoDeviceProvisioningToken,
   chronoDevice,
+  chronoDeviceCommand,
   chronoLoyaltyAccount,
   chronoLoyaltyTransaction,
   chronoSession,
@@ -260,6 +261,7 @@ export const APP_TENANT_TABLES = [
   "ChronoWalletTransactions",
   "ChronoDeviceProvisioningTokens",
   "ChronoDevices",
+  "ChronoDeviceCommands",
   "ChronoLoyaltyAccounts",
   "ChronoLoyaltyTransactions",
   "ChronoSessions",

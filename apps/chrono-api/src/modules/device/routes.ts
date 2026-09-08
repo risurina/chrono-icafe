@@ -22,7 +22,7 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoStation } from "../station/schema";
 import { publishStationTransition } from "../station/routes";
-import { chronoDevice, chronoDeviceProvisioningToken } from "./schema";
+import { chronoDevice, chronoDeviceProvisioningToken, chronoDeviceCommand } from "./schema";
 import {
   createProvisioningTokenSchema,
   approveDeviceSchema,
@@ -31,9 +31,11 @@ import {
   pairDeviceSchema,
   authDeviceSchema,
   heartbeatSchema,
+  issueDeviceCommandSchema,
 } from "./contracts";
+import { getEffectiveCommandStatus } from "./command-status";
 import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-middleware";
-import { closeConnections } from "agora/realtime";
+import { closeConnections, getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { createRateLimiter } from "agora/server";
 import { chronoSecurityAlert } from "../security-alert/schema";
 import { deviceReportSecurityAlertSchema } from "../security-alert/contracts";
@@ -58,6 +60,12 @@ function isUniqueViolation(err: unknown): boolean {
     typeof cause === "object" && cause !== null && "code" in cause && cause.code === "23505"
   );
 }
+
+// A command not acked within 15 minutes of issuance is treated as expired
+// (Phase 3's own "offline/expiry decision") — lazily, at read time, via
+// `getEffectiveCommandStatus`, never a background sweep in this first
+// version.
+const DEVICE_COMMAND_EXPIRY_MS = 15 * 60 * 1000;
 
 // Unambiguous uppercase alphabet — excludes O/0 and I/1, which are read aloud
 // at a physical PC and easily confused (security-hardening Phase 1).
@@ -499,6 +507,104 @@ export function staffDeviceRoutes() {
         await closeConnections({ tenantId, actorKey: updated.id });
       }
       return c.json({ device: updated });
+    })
+
+    // GET /:id/commands — device:manage. Command visibility is the same
+    // hardware-trust tier as issuing one (no read/write split), unlike the
+    // ungated device list above. Applies `getEffectiveCommandStatus` so a
+    // stale `pending`/`delivered` row past its `expiresAt` reads as
+    // "expired" without a background sweep.
+    .get("/:id/commands", async (c) => {
+      const { tenantId } = c.var.tenant;
+      requirePermission(c.var.tenant.permissions, { device: ["manage"] });
+      const id = c.req.param("id");
+
+      const rows = await withTenant(tenantId, async (tx) => {
+        await requireOwnDevice(tx, tenantId, id);
+        return tx
+          .select()
+          .from(chronoDeviceCommand)
+          .where(and(eq(chronoDeviceCommand.deviceId, id), eq(chronoDeviceCommand.tenantId, tenantId)))
+          .orderBy(desc(chronoDeviceCommand.issuedAt));
+      });
+
+      const now = new Date();
+      const items = rows.map((row) => ({
+        ...row,
+        status: getEffectiveCommandStatus(
+          row.status as "pending" | "delivered" | "acked" | "expired",
+          row.expiresAt,
+          now,
+        ),
+      }));
+
+      return c.json({ items });
+    })
+
+    // POST /:id/commands — device:manage. Writes a `pending` command row
+    // (the source of truth), then best-effort pushes it over the device's
+    // open realtime connection if one exists — the push is latency-avoidance
+    // only; there is no delivery ack at the transport layer, so "delivered"
+    // here means "we attempted the push", not "the device received it". The
+    // real signal is the `command-ack` inbound frame handled in
+    // `realtime-actor.ts`.
+    .post("/:id/commands", zValidator("json", issueDeviceCommandSchema), async (c) => {
+      const { tenantId, userId } = c.var.tenant;
+      requirePermission(c.var.tenant.permissions, { device: ["manage"] });
+      const id = c.req.param("id");
+      const input = c.req.valid("json");
+
+      const expiresAt = new Date(Date.now() + DEVICE_COMMAND_EXPIRY_MS);
+
+      const created = await withTenant(tenantId, async (tx) => {
+        await requireOwnDevice(tx, tenantId, id);
+        const [row] = await tx
+          .insert(chronoDeviceCommand)
+          .values({
+            id: createId(),
+            tenantId,
+            deviceId: id,
+            type: input.type,
+            status: "pending",
+            issuedByUserId: userId,
+            expiresAt,
+          })
+          .returning();
+        return row;
+      });
+      if (!created) {
+        throw new Error("Failed to create device command.");
+      }
+
+      let result = created;
+      try {
+        await getRealtimeProvider().publish(
+          tenantScopeChannel(tenantId, `device:${id}`),
+          "device.command",
+          { commandId: created.id, type: created.type, expiresAt: created.expiresAt },
+        );
+        const [updated] = await withTenant(tenantId, (tx) =>
+          tx
+            .update(chronoDeviceCommand)
+            .set({ status: "delivered", deliveredAt: new Date() })
+            .where(and(eq(chronoDeviceCommand.id, created.id), eq(chronoDeviceCommand.tenantId, tenantId)))
+            .returning(),
+        );
+        if (updated) result = updated;
+      } catch {
+        // Best-effort — the device may simply be offline right now. The
+        // queued `pending` row remains the source of truth.
+      }
+
+      await recordStaffAudit(c, {
+        action: "device.command_issued",
+        targetType: "device",
+        targetId: id,
+        targetLabel: created.type,
+        metadata: { commandId: created.id, type: created.type },
+      });
+
+      return c.json({ command: result }, 201);
     });
 }
 

@@ -102,3 +102,48 @@ export const chronoDevice = pgTable(
       .where(sql`${t.stationId} is not null and ${t.status} = 'approved'`),
   ],
 );
+
+/**
+ * Remote command queue for a device (lock/unlock/reboot/force_logout) —
+ * Phase 3 of `.ai/plans/chrono/in-progress/pc-client-tauri-api-integration/README.md`.
+ * The row is the source of truth; the realtime push
+ * (`routes.ts`'s `POST /:id/commands`) is latency-avoidance only. `status`
+ * transitions pending -> delivered -> acked (or a lazily-computed "expired"
+ * once `expiresAt` has passed with no ack — see `command-status.ts`'s
+ * `getEffectiveCommandStatus`, never written back eagerly by a background
+ * sweep in this first version).
+ */
+export const chronoDeviceCommand = pgTable(
+  "ChronoDeviceCommands",
+  {
+    id: text("id").primaryKey().$defaultFn(createId),
+    tenantId: text("tenantId")
+      .notNull()
+      .references(() => base.organization.id, { onDelete: "cascade" }),
+    deviceId: text("deviceId")
+      .notNull()
+      .references(() => chronoDevice.id, { onDelete: "cascade" }),
+    // "lock" | "unlock" | "reboot" | "force_logout" — free text per the
+    // dominant agora convention (this file's own device/token `status`
+    // columns), not a pg enum.
+    type: text("type").notNull(),
+    // "pending" | "delivered" | "acked" | "expired" — the STORED value; a
+    // reader must call `getEffectiveCommandStatus()` rather than trust this
+    // column alone, since "expired" is never written back eagerly.
+    status: text("status").notNull().default("pending"),
+    // Nullable + "set null", mirroring `chronoDevice.approvedByUserId` —
+    // the command row must outlive the issuing staff account being removed.
+    issuedByUserId: text("issuedByUserId").references(() => base.user.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issuedAt").notNull().defaultNow(),
+    deliveredAt: timestamp("deliveredAt"),
+    ackedAt: timestamp("ackedAt"),
+    expiresAt: timestamp("expiresAt").notNull(),
+    // Free-form ack payload the device reports back — genuinely dynamic,
+    // mirrors `chronoDevice.metadata`'s own catch-all.
+    result: jsonb("result").$type<Record<string, unknown> | null>(),
+  },
+  (t) => [
+    index("chrono_device_command_tenant_idx").on(t.tenantId),
+    index("chrono_device_command_device_idx").on(t.deviceId),
+  ],
+);
