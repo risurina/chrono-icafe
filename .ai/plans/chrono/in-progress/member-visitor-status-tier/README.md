@@ -7,7 +7,7 @@ a free-text column, not a Postgres enum.
 **Sessions:**
 - Planning: (this session)
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: (subagent, no persistent session name)
 
 ## Supersedes / reworks
 

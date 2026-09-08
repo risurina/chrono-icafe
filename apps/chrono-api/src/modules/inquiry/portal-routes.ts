@@ -6,6 +6,7 @@ import { createId, buildPaginationMeta } from "agora";
 import { chronoInquiry, chronoInquiryMessage } from "./schema";
 import { submitPortalInquirySchema, replyToInquirySchema, inquiryListQuerySchema } from "./contracts";
 import { notifyInquiryManagers } from "./notify";
+import { requireAppliedMembership } from "../member/access";
 
 /**
  * Customer-facing inquiry self-service surface — gated by the foundation's
@@ -81,6 +82,7 @@ export function inquiryPortalRoutes() {
     })
 
     .post("/", zValidator("json", submitPortalInquirySchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId, email, name } = c.var.member;
       const { category, subject, message } = c.req.valid("json");
 
@@ -116,6 +118,7 @@ export function inquiryPortalRoutes() {
     })
 
     .post("/:id/reply", zValidator("json", replyToInquirySchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const id = c.req.param("id");
       const { body } = c.req.valid("json");
