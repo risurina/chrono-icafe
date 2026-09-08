@@ -30,7 +30,7 @@ import {
   type PortalInquiryStatus,
 } from "@/lib/member/inquiries";
 import { useMemberArea } from "@/components/member/member-area-context";
-import { RequiresMembership } from "@/components/member/requires-membership";
+import { UnlockHint } from "@/components/member/unlock-hint";
 
 const STATUS_VARIANT: Record<
   PortalInquiryStatus,
@@ -53,7 +53,7 @@ const CATEGORY_OPTIONS: { value: PortalInquiryCategory; label: string }[] = [
 ];
 
 export default function PortalInquiriesPage() {
-  const { member } = useMemberArea();
+  const { member, canInteract } = useMemberArea();
   const [inquiries, setInquiries] = useState<PortalInquiry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -130,7 +130,6 @@ export default function PortalInquiriesPage() {
         <p className="text-sm text-muted-foreground">Ask us anything — we usually reply within a day.</p>
       </div>
 
-      <RequiresMembership member={member}>
       <Card>
         <CardHeader>
           <CardTitle>New inquiry</CardTitle>
@@ -161,9 +160,10 @@ export default function PortalInquiriesPage() {
               <Label htmlFor="message">Message</Label>
               <Textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} required />
             </div>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !canInteract}>
               {submitting ? "Submitting…" : "Submit"}
             </Button>
+            {!canInteract ? <UnlockHint /> : null}
           </form>
         </CardContent>
       </Card>
@@ -230,14 +230,14 @@ export default function PortalInquiriesPage() {
             <form onSubmit={onReply} className="space-y-2">
               <Label htmlFor="reply">Reply</Label>
               <Textarea id="reply" value={reply} onChange={(e) => setReply(e.target.value)} required />
-              <Button type="submit" disabled={replying || !reply.trim()}>
+              <Button type="submit" disabled={replying || !reply.trim() || !canInteract}>
                 {replying ? "Sending…" : "Send reply"}
               </Button>
+              {!canInteract ? <UnlockHint /> : null}
             </form>
           </CardContent>
         </Card>
       ) : null}
-      </RequiresMembership>
     </div>
   );
 }

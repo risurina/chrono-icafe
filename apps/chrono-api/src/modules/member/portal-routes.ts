@@ -5,6 +5,7 @@ import { zValidator } from "agora/server";
 import { createId } from "agora";
 import { chronoMemberProfile } from "./schema";
 import { applyForMembershipSchema, updateMyMemberProfileSchema, toMemberProfile } from "./contracts";
+import { requireAppliedMembership } from "./access";
 import { getChronoTenantFlag } from "../../contracts/extensions";
 import { chronoWallet } from "../wallet/schema";
 import { chronoReservation } from "../reservation/schema";
@@ -138,9 +139,11 @@ export function memberPortalRoutes() {
       const { tenantId, memberId } = c.var.member;
       const { phone } = c.req.valid("json");
 
-      // Idempotent: an existing profile is returned unchanged — no duplicate
-      // row, no re-triggered workflow (mirrors oikos's own idempotent-apply
-      // behavior; see the module plan's "Failure cases" section).
+      // Idempotent: an existing "pending"/"approved"/"rejected" profile is
+      // returned unchanged — no duplicate row, no re-triggered workflow
+      // (mirrors oikos's own idempotent-apply behavior; see the module
+      // plan's "Failure cases" section). A "visitor" row is the one
+      // exception — see below, this is the call that promotes it.
       const existing = await withTenant(tenantId, (tx) =>
         tx
           .select()
@@ -148,15 +151,35 @@ export function memberPortalRoutes() {
           .where(eq(chronoMemberProfile.memberId, memberId))
           .limit(1),
       );
-      if (existing[0]) {
-        return c.json({ profile: toMemberProfile(existing[0]) });
-      }
 
       // customer-onboarding Phase 1, Decision 1: a tenant may opt into instant
       // access via the `chrono.autoApproveMembers` flag (default off — most
       // venues want to vet a walk-in before granting access).
       const autoApprove = await getChronoTenantFlag(tenantId, "chrono.autoApproveMembers");
       const now = new Date();
+
+      if (existing[0]) {
+        // member-visitor-status-tier: a "visitor" row (auto-created on first
+        // visit, see `/visit` below) is not yet an application — promote it
+        // in place instead of returning it unchanged. Every other existing
+        // status keeps today's untouched-return behavior exactly.
+        if (existing[0].applicationStatus === "visitor") {
+          const [promoted] = await withTenant(tenantId, (tx) =>
+            tx
+              .update(chronoMemberProfile)
+              .set({
+                phone: phone ?? existing[0]!.phone,
+                applicationStatus: autoApprove ? "approved" : "pending",
+                ...(autoApprove ? { approvedAt: now } : {}),
+                updatedAt: now,
+              })
+              .where(eq(chronoMemberProfile.memberId, memberId))
+              .returning(),
+          );
+          return c.json({ profile: promoted ? toMemberProfile(promoted) : null });
+        }
+        return c.json({ profile: toMemberProfile(existing[0]) });
+      }
 
       const [created] = await withTenant(tenantId, (tx) =>
         tx
@@ -176,9 +199,43 @@ export function memberPortalRoutes() {
       // is staff-actor-shaped; see the module plan's Routes section).
       return c.json({ profile: created ? toMemberProfile(created) : null }, 201);
     })
+    // member-visitor-status-tier Phase 1: silent first-visit registration —
+    // NOT gated by `requireAppliedMembership` (a "visitor" must be able to
+    // call this; it's what creates the "visitor" row in the first place).
+    // Idempotent: an existing row of ANY status is returned unchanged, same
+    // response shape as `/apply`'s own existing-row branch.
+    .post("/visit", async (c) => {
+      const { tenantId, memberId } = c.var.member;
+
+      const existing = await withTenant(tenantId, (tx) =>
+        tx
+          .select()
+          .from(chronoMemberProfile)
+          .where(eq(chronoMemberProfile.memberId, memberId))
+          .limit(1),
+      );
+      if (existing[0]) {
+        return c.json({ profile: toMemberProfile(existing[0]) });
+      }
+
+      const [created] = await withTenant(tenantId, (tx) =>
+        tx
+          .insert(chronoMemberProfile)
+          .values({
+            id: createId(),
+            tenantId,
+            memberId,
+            applicationStatus: "visitor",
+          })
+          .returning(),
+      );
+
+      return c.json({ profile: created ? toMemberProfile(created) : null }, 201);
+    })
     // Member-portal self-update (Phase F2) — 404 before the member has ever
     // applied (no chronoMemberProfile row yet); apply first, then edit.
     .patch("/me", zValidator("json", updateMyMemberProfileSchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const { phone } = c.req.valid("json");
 

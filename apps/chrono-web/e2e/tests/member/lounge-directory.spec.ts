@@ -88,21 +88,15 @@ async function signUpGlobalCustomer(
   await page.waitForURL(/\/member$/, { timeout: 30_000 });
 }
 
-/** Applies the signed-in global customer to a tenant via its own `/member`
- * (rewritten to the tenant-member tree — see `next.config.ts`), reusing the
- * same apply flow the `global-customers/*` specs exercise. Since
- * member-portal-guest-preview-banner, the top "not-applied" banner was
- * removed entirely — a not-yet-applied guest sees the normal Chrome with the
- * Apply CTA inside `RequiresMembership`'s locked-section card instead. */
+/** Registers the signed-in global customer as a member of a tenant by
+ * visiting its own `/member` (rewritten to the tenant-member tree — see
+ * `next.config.ts`). Since member-visitor-status-tier, a first visit alone
+ * silently creates the `tenantMember` row (as a `"visitor"` — no click, no
+ * lock/prompt to get through), which is all "joined" means for this
+ * directory (`isMember`, backed by `getMyTenantMemberships()`), independent
+ * of the Chrono application status. */
 async function applyToTenant(page: Page, base: string) {
   await page.goto(`${base}/member`);
-  await page.waitForLoadState("networkidle");
-  await expect(
-    page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-  ).toBeVisible({
-    timeout: 15_000,
-  });
-  await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 30_000 });
 }
@@ -197,26 +191,18 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
     await expect(page.getByText(nameSuspended)).toHaveCount(0);
 
     // ── Clicking "Apply to Join" is a plain same-tab `<a>` (`tenantHref()`,
-    // no `target`) to the tenant's own ROOT host — it does not itself append
-    // `/member` (confirmed by reading `tenant-links.ts` and by Phase 3's own
-    // verification notes: "CTA hrefs resolve to
-    // http://<slug>.localtest.me:3002?source=global_directory"). So "reaches
-    // the tenant's own /member, no dead link / 404" is checked in two parts:
-    // the click lands on a real (non-404) landing page for that tenant, and
-    // that tenant's own /member — reachable from that landing page via its
-    // "Member login" link — is itself live. ──
+    // no `target`) built as `tenantHref(slug, "global_directory", "/member")`
+    // (`lounge-directory-card.tsx`), which resolves to the tenant's own
+    // `/member?source=global_directory` (`tenant-links.ts`) — since
+    // member-visitor-status-tier, the member portal now shows real content
+    // immediately for a newly-registered visitor, so the click lands directly
+    // on `/member`, not the tenant root. ──
     await unjoinedCard.getByTestId("lounge-directory-card-cta").click();
-    await page.waitForURL(new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3000/(\\?.*)?$`), {
-      timeout: 15_000,
-    });
-    await expect(page.getByRole("heading", { name: nameUnjoined }).first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    await page.goto(`http://${slugUnjoined}.localtest.me:3000/member`);
-    await expect(
-      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-    ).toBeVisible({
+    await page.waitForURL(
+      new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3000/member\\?source=global_directory$`),
+      { timeout: 15_000 },
+    );
+    await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({
       timeout: 15_000,
     });
   });

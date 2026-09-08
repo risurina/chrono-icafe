@@ -3,6 +3,7 @@ import { withTenant, eq, and, isNull, sql, desc } from "agora/db";
 import { type MemberVars, memberMiddleware } from "agora/member-auth";
 import { HttpError, zValidator, clientIp } from "agora/server";
 import { recordAudit } from "agora/audit";
+import { requireAppliedMembership } from "../member/access";
 import { chronoStation } from "../station/schema";
 import { chronoReservation } from "./schema";
 import { chronoMemberReservationRestriction } from "./restriction-schema";
@@ -146,6 +147,7 @@ export function reservationPortalRoutes() {
 
     // Flow 1 — direct reservation.
     .post("/", zValidator("json", createDirectReservationSchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const input = c.req.valid("json");
       const reservation = await createDirectReservation({
@@ -170,6 +172,7 @@ export function reservationPortalRoutes() {
 
     // Flow 2 — join the queue.
     .post("/queue", zValidator("json", joinQueueSchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const input = c.req.valid("json");
       const reservation = await joinQueue({
@@ -193,6 +196,7 @@ export function reservationPortalRoutes() {
 
     // Flow 2 Option B — schedule from a live hold (does not start play).
     .post("/:id/confirm", async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const id = c.req.param("id");
       const reservation = await confirmHold({ tenantId, memberId, reservationId: id });
@@ -209,6 +213,7 @@ export function reservationPortalRoutes() {
     })
 
     .post("/:id/cancel", zValidator("json", cancelReservationSchema), async (c) => {
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const id = c.req.param("id");
       const input = c.req.valid("json");

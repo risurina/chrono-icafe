@@ -22,6 +22,7 @@ import {
   toPortalCreditLedgerEntryDto,
 } from "./contracts";
 import { purchaseCreditProduct } from "./service";
+import { requireAppliedMembership } from "../member/access";
 
 /**
  * Customer-facing credit-lot self-service surface — gated by the
@@ -146,6 +147,7 @@ export function creditPortalRoutes() {
     // request with no key is unprotected, same as before this plan.
     .post("/purchase", zValidator("json", portalPurchaseCreditProductSchema), async (c) => {
       requireMemberActionHeader(c);
+      await requireAppliedMembership(c);
       const { tenantId, memberId } = c.var.member;
       const { productId } = c.req.valid("json");
       const idempotencyKey = c.req.header("Idempotency-Key")?.slice(0, 128);

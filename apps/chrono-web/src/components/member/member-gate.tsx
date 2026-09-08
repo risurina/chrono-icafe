@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CenteredMessage } from "agora/ui";
 import { useMemberSession } from "@/lib/member-client";
-import { useGlobalCustomerSession } from "@/lib/customer-client";
+import { useGlobalCustomerSession, applyForTenantMembership } from "@/lib/customer-client";
+import { registerVisit } from "@/lib/member/account";
 import { MemberAreaProvider, useMemberArea } from "./member-area-context";
 import { MemberAccessBanner } from "./member-access-banner";
 import { MemberHeader } from "./member-header";
@@ -66,10 +67,16 @@ function Chrome({
  * Gate cascade (moved from `tenant-portal-layout.tsx`, not duplicated):
  * 1. Sessions pending → skeleton shell.
  * 2. Neither member nor global customer → `/login?next=<path>`.
- * 3. Global customer only (not yet applied to this tenant) → guest-mode
- *    `Chrome` (no top banner) with member-only page content locked behind
- *    `RequiresMembership`'s own "Join this business" card, which carries the
- *    Apply action.
+ * 3. Global customer only (not yet applied to this tenant) → silently
+ *    registers them as a `"visitor"` (member-visitor-status-tier): calls the
+ *    foundation's `applyForTenantMembership()` (creates the `tenantMember`
+ *    row, instant access) then `registerVisit()` (creates a Chrono
+ *    `chronoMemberProfile` row with `applicationStatus: "visitor"`), then
+ *    reloads so `useMemberSession()` resolves a real `member` on the next
+ *    request. If either call fails, this falls back to `guestMode` Chrome
+ *    with `member: null` — today's guest rendering — rather than retrying in
+ *    a loop; each page already treats `member === null` as "skip member-only
+ *    fetches".
  * 4. Member → one `GET /portal/members/me` (via `MemberAreaProvider`) → header + nav + banner (if pending) + page.
  */
 export function MemberGate({
@@ -103,6 +110,24 @@ export function MemberGate({
       location.href = `/login?next=${next}`;
     }
   }, [bothResolved, member, globalCustomer, pathname, searchParams]);
+
+  // Silent visitor auto-registration — fires at most once per mount (a ref,
+  // not state, so a re-render never re-triggers it) and never retries on
+  // failure; a failed attempt just leaves `guestMode` Chrome in place until
+  // the next mount (e.g. navigating to another `/member/*` page tries again).
+  const attemptedVisitorRegistration = useRef(false);
+  useEffect(() => {
+    if (!guestMode) return;
+    if (attemptedVisitorRegistration.current) return;
+    attemptedVisitorRegistration.current = true;
+    void (async () => {
+      const { error: joinError } = await applyForTenantMembership();
+      if (joinError) return;
+      const { error: visitError } = await registerVisit();
+      if (visitError) return;
+      location.reload();
+    })();
+  }, [guestMode]);
 
   if (!bothResolved) {
     return <CenteredMessage>Loading…</CenteredMessage>;

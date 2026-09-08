@@ -13,13 +13,17 @@ import { faker } from "../../utils/faker";
  *
  * Happy path: the catalog + detail page render (or a clean empty state when
  * no credit products exist yet, since a fresh tenant has none) and a
- * nonexistent product id doesn't crash; role check: since
- * member-portal-guest-preview-banner, Promos is no longer client-side
- * approval-gated — a pending applicant sees the catalog render normally with
- * a "pending" `MemberAccessBanner` above it (server-side, pending members
- * were always allowed to read promos/credits; only the old
- * `ApprovalRequiredCard` UI block is gone); cross-tenant isolation: tenant
- * B's member never sees tenant A's credit products.
+ * nonexistent product id doesn't crash. Role/status check: this page has NO
+ * lock treatment of any kind (member-visitor-status-tier's Phase 2 finding —
+ * it is a pure read, never wrapped in `UnlockHint`) — a `"visitor"` (a
+ * signed-in global customer auto-registered on first visit, no application
+ * yet), a `"pending"` applicant, and an `"approved"` member all see the same
+ * real catalog. A `"pending"` applicant additionally sees the pre-existing
+ * "pending" `MemberAccessBanner` above it (unrelated to this plan — that
+ * banner has applied to every `/member/*` page for a pending applicant since
+ * before this plan; only the old, now-removed guest-mode top banner and the
+ * `ApprovalRequiredCard` full-page block are gone). Cross-tenant isolation:
+ * tenant B's member never sees tenant A's credit products.
  */
 const PASSWORD = "Password123!";
 
@@ -40,6 +44,25 @@ async function signUpBusiness(
   });
 }
 
+async function signOutOwner(page: Page) {
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.waitForLoadState("networkidle");
+}
+
+async function signUpGlobalCustomer(
+  page: Page,
+  { name, email }: { name: string; email: string },
+) {
+  await page.goto("/portal/sign-up");
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1000);
+  await page.getByLabel("Your name").fill(name);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: /create account/i }).click();
+  await page.waitForURL(/\/member$/, { timeout: 30_000 });
+}
+
 async function memberSignUp(
   page: Page,
   base: string,
@@ -57,6 +80,33 @@ async function memberSignUp(
 
 test.describe("Member promos", () => {
   test.describe.configure({ timeout: 270_000 });
+
+  test("no lock treatment: a first-visit visitor (no application yet) sees the same real catalog as an applied member", async ({
+    page,
+  }) => {
+    const uniq = faker.string.alphanumeric(8).toLowerCase();
+    const slug = `e2ememvisit${uniq}`;
+    const ownerEmail = faker.internet.email({ provider: "example.com" });
+    const customerEmail = faker.internet.email({ provider: "example.com" });
+    const base = `http://${slug}.localtest.me:3000`;
+
+    await signUpBusiness(page, { name: "Promo Visitor Owner", email: ownerEmail, slug });
+    await signOutOwner(page);
+    await signUpGlobalCustomer(page, { name: "Promo Visitor Customer", email: customerEmail });
+
+    // First visit to /member/promos as a global customer with no
+    // tenantMember yet silently registers them as a "visitor" (MemberGate) —
+    // the catalog renders immediately once that completes, with no pending
+    // banner (a visitor is not "pending") and no lock of any kind.
+    await page.goto(`${base}/member/promos`);
+    await expect(page.getByRole("heading", { name: "Credit packs" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("Your membership application is pending approval.")).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("Approval required")).toHaveCount(0);
+  });
 
   test("role gate: a pending applicant sees the pending banner with the full Promos page, not a blocking card", async ({
     page,
