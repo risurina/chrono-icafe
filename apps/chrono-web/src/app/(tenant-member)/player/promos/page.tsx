@@ -16,7 +16,6 @@ import {
 } from "agora/ui";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatMinutes } from "@/lib/member/format";
 import { getCreditProducts, type CreditProduct } from "@/lib/member/credits";
@@ -54,7 +53,6 @@ export default function MemberPromosPage() {
         actions={<RefreshButton onRefresh={load} />}
       />
 
-      <RequiresMembership member={member}>
       <Stack gap={3}>
         <h2 className="text-sm font-medium text-muted-foreground">Credit packs</h2>
         {loading ? (
@@ -108,7 +106,6 @@ export default function MemberPromosPage() {
           </Stack>
         )}
       </Stack>
-      </RequiresMembership>
     </Stack>
   );
 }

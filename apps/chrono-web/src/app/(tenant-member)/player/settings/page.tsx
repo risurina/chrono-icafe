@@ -18,12 +18,12 @@ import {
 } from "agora/ui";
 import { memberAuth } from "@/lib/member-client";
 import { useMemberArea } from "@/components/member/member-area-context";
-import { RequiresMembership } from "@/components/member/requires-membership";
+import { UnlockHint } from "@/components/member/unlock-hint";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { NeedHelpLinks } from "@/components/member/need-help-links";
 
 export default function MemberSettingsPage() {
-  const { member, refreshProfile } = useMemberArea();
+  const { member, canInteract, refreshProfile } = useMemberArea();
   const [name, setName] = useState(member?.name ?? "");
   const [savingName, setSavingName] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -73,7 +73,6 @@ export default function MemberSettingsPage() {
     <Stack gap={8}>
       <MemberPageHeader title="Settings" description="Password, appearance, and account access." />
 
-      <RequiresMembership member={member}>
       <Card>
         <form onSubmit={onSaveProfile}>
           <CardHeader>
@@ -93,9 +92,12 @@ export default function MemberSettingsPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={savingName}>
-              {savingName ? "Saving…" : "Save changes"}
-            </Button>
+            <Stack gap={2}>
+              <Button type="submit" disabled={savingName || !canInteract}>
+                {savingName ? "Saving…" : "Save changes"}
+              </Button>
+              {!canInteract ? <UnlockHint /> : null}
+            </Stack>
           </CardFooter>
         </form>
       </Card>
@@ -134,13 +136,15 @@ export default function MemberSettingsPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Changing…" : "Change password"}
-            </Button>
+            <Stack gap={2}>
+              <Button type="submit" disabled={saving || !canInteract}>
+                {saving ? "Changing…" : "Change password"}
+              </Button>
+              {!canInteract ? <UnlockHint /> : null}
+            </Stack>
           </CardFooter>
         </form>
       </Card>
-      </RequiresMembership>
 
       <Card>
         <CardHeader>

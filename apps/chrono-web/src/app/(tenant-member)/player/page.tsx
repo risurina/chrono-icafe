@@ -21,7 +21,6 @@ import { cn } from "agora/ui/cn";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
 import { formatMinutes, formatCurrency, formatDate, formatDateTime } from "@/lib/member/format";
 import { getMySessionSummary, type SessionSummary } from "@/lib/member/session";
 import { getMyWalletBalance, getLastTopUp, type WalletBalance, type WalletTransaction } from "@/lib/member/wallet";
@@ -123,7 +122,6 @@ export default function MemberDashboardPage() {
         </Card>
       ) : null}
 
-      <RequiresMembership member={member}>
       {/*
         Home dashboard states (member-portal-v2 phase 2). This branches purely
         on data already fetched above (session summary + the member's own
@@ -360,7 +358,6 @@ export default function MemberDashboardPage() {
           </Link>
         </CardFooter>
       </Card>
-      </RequiresMembership>
     </Stack>
   );
 }

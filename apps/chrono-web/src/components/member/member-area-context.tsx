@@ -10,6 +10,10 @@ type MemberAreaValue = {
   onboarding: MemberOnboarding | null;
   /** Only Promos/Leaderboard are gated on this — see the plan's decision. */
   approved: boolean;
+  /** member-visitor-status-tier: whether this member may perform a mutating
+   * action (`"pending"` or `"approved"`) — a `"visitor"` has full read access
+   * but is blocked here and server-side (`requireAppliedMembership`). */
+  canInteract: boolean;
   loaded: boolean;
   refreshProfile: () => Promise<void>;
 };
@@ -52,9 +56,13 @@ export function MemberAreaProvider({
   }, [member]);
 
   const approved = onboarding?.applicationStatus === "approved";
+  const canInteract =
+    onboarding?.applicationStatus === "pending" || onboarding?.applicationStatus === "approved";
 
   return (
-    <MemberAreaContext.Provider value={{ member, profile, onboarding, approved, loaded, refreshProfile }}>
+    <MemberAreaContext.Provider
+      value={{ member, profile, onboarding, approved, canInteract, loaded, refreshProfile }}
+    >
       {children}
     </MemberAreaContext.Provider>
   );

@@ -26,7 +26,6 @@ import {
 import { cn } from "agora/ui/cn";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatDateTime, type PaginationMeta } from "@/lib/member/format";
 import { getMyActivity, type ActivityEvent, type ActivityEventType } from "@/lib/member/activity";
@@ -46,10 +45,9 @@ const TYPE_LABELS: Record<ActivityEventType, string> = {
  * source tables, not four separate fetches merged client-side).
  *
  * Promos stays a link-out card, not inlined content: `/member/promos` keeps
- * its own page, gated for guests by `RequiresMembership` (member-portal
- * guest-preview-banner plan) rather than the old `requiresApproval`
- * mechanism, so inlining its catalog here would silently bypass that gate
- * for a guest/pending applicant. A credit-pack purchase already shows up
+ * its own page and renders real data for any resolved member (reads are
+ * unconditional — see member-visitor-status-tier), so inlining its catalog
+ * here would just duplicate that page. A credit-pack purchase already shows up
  * in the feed itself as a "Credits granted" row (the purchase mints a
  * `chronoCreditGrantLedgerEntry`), so this card is purely a shortcut to buy
  * more — nothing is hidden by removing its old tab.
@@ -142,7 +140,6 @@ function ActivityFeed({ member, refreshKey }: { member: MemberUser | null; refre
   ];
 
   return (
-    <RequiresMembership member={member}>
     <Stack gap={4}>
       <DataTableToolbar
         q={query.q}
@@ -185,7 +182,6 @@ function ActivityFeed({ member, refreshKey }: { member: MemberUser | null; refre
         />
       ) : null}
     </Stack>
-    </RequiresMembership>
   );
 }
 

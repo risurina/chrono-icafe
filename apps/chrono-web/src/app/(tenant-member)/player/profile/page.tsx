@@ -85,7 +85,7 @@ import { cn } from "agora/ui/cn";
 import { tenantFetch } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { useMemberArea } from "@/components/member/member-area-context";
-import { RequiresMembership } from "@/components/member/requires-membership";
+import { UnlockHint } from "@/components/member/unlock-hint";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { formatDate, formatRelative } from "@/lib/member/format";
 import { applyForMembership } from "@/lib/member/account";
@@ -123,24 +123,27 @@ function describeUserAgent(userAgent: string | null): string {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
 
-type ApplicationStatus = "pending" | "approved" | "rejected";
+type ApplicationStatus = "visitor" | "pending" | "approved" | "rejected";
 
 const STATUS_LABEL: Record<ApplicationStatus, string> = {
   approved: "Approved",
   pending: "Pending review",
   rejected: "Not approved",
+  visitor: "Visiting",
 };
 
 const STATUS_BADGE_VARIANT: Record<ApplicationStatus, "success" | "secondary" | "outline"> = {
   approved: "success",
   pending: "secondary",
   rejected: "outline",
+  visitor: "outline",
 };
 
 const STATUS_CAPTION: Record<ApplicationStatus, string> = {
   approved: "Your membership is active.",
   pending: "Your application is pending approval.",
   rejected: "Your application was not approved.",
+  visitor: "Apply to become a member and unlock your account.",
 };
 
 const QUICK_ACTIONS = [
@@ -189,7 +192,7 @@ function InfoTile({
 }
 
 export default function MemberProfilePage() {
-  const { member, profile, onboarding, approved, refreshProfile } = useMemberArea();
+  const { member, profile, onboarding, approved, canInteract, refreshProfile } = useMemberArea();
   const [name, setName] = useState(member?.name ?? "");
   const [avatarImage, setAvatarImage] = useState<string | null>(member?.image ?? null);
   const [branchName, setBranchName] = useState("");
@@ -347,7 +350,6 @@ export default function MemberProfilePage() {
     <Stack gap={8}>
       <MemberPageHeader title="Profile" description="Your account and membership details." />
 
-      <RequiresMembership member={member}>
       {/* Hero */}
       <Card className="premium-card-shadow relative overflow-hidden rounded-3xl border-1">
         <div
@@ -380,7 +382,9 @@ export default function MemberProfilePage() {
                 ? "Approved Member"
                 : status === "rejected"
                   ? "Application not approved"
-                  : "Application pending"}
+                  : status === "visitor"
+                    ? "Visiting"
+                    : "Application pending"}
             </Badge>
             {approved ? (
               <Stack gap={0} data-testid="member-code">
@@ -479,9 +483,12 @@ export default function MemberProfilePage() {
               </Stack>
             </CardContent>
             <CardFooter className="p-6 pt-0">
-              <Button type="submit" disabled={saving} className="rounded-full">
-                {saving ? "Saving…" : "Save changes"}
-              </Button>
+              <Stack gap={2}>
+                <Button type="submit" disabled={saving || !canInteract} className="rounded-full">
+                  {saving ? "Saving…" : "Save changes"}
+                </Button>
+                {!canInteract ? <UnlockHint /> : null}
+              </Stack>
             </CardFooter>
           </form>
         </Card>
@@ -625,7 +632,6 @@ export default function MemberProfilePage() {
           </CardContent>
         </Card>
       </Grid>
-      </RequiresMembership>
     </Stack>
   );
 }

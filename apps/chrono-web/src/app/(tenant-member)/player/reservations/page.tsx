@@ -42,7 +42,7 @@ import {
 } from "@/lib/member/reservations";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
+import { UnlockHint } from "@/components/member/unlock-hint";
 import { useMemberArea } from "@/components/member/member-area-context";
 
 const DURATION_OPTIONS = [60, 120, 180, 240, 300, 360];
@@ -93,7 +93,7 @@ function useCountdown(targetIso: string | null): string | null {
 }
 
 export default function PortalReservationsPage() {
-  const { member } = useMemberArea();
+  const { member, canInteract } = useMemberArea();
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [active, setActive] = useState<PortalReservation | null>(null);
@@ -120,10 +120,11 @@ export default function PortalReservationsPage() {
   const holdCountdown = useCountdown(active?.status === "hold" ? active.holdExpiresAt : null);
 
   const load = useCallback(async () => {
-    // Guest mode — `getMyReservation`/`getMyRestrictions` are member-only
-    // (`memberMiddleware()`) and would 401 with no `tenantMember` row yet;
-    // the booking UI itself is locked behind `RequiresMembership` below, so
-    // there's no point fetching the (public) station list either.
+    // `member` is only null here in the rare case silent visitor
+    // auto-registration failed (`member-gate.tsx`) — `getMyReservation`/
+    // `getMyRestrictions` are member-only (`memberMiddleware()`) and would
+    // 401 with no `tenantMember` row yet, so there's no point fetching the
+    // (public) station list either.
     if (!member) {
       setLoading(false);
       return;
@@ -281,7 +282,7 @@ export default function PortalReservationsPage() {
         description="Reserve a station or join its queue."
         actions={<RefreshButton onRefresh={load} />}
       />
-      <RequiresMembership member={member}>
+      {!canInteract && <UnlockHint />}
       {active && (
         <Card>
           <CardHeader>
@@ -309,9 +310,11 @@ export default function PortalReservationsPage() {
           </CardHeader>
           <CardFooter className="gap-2">
             {active.status === "hold" && (
-              <Button onClick={handleConfirmHold}>Confirm reservation</Button>
+              <Button onClick={handleConfirmHold} disabled={!canInteract}>
+                Confirm reservation
+              </Button>
             )}
-            <Button variant="outline" onClick={() => openCancelDialog(active)}>
+            <Button variant="outline" onClick={() => openCancelDialog(active)} disabled={!canInteract}>
               Cancel
             </Button>
           </CardFooter>
@@ -365,11 +368,20 @@ export default function PortalReservationsPage() {
                     Unavailable
                   </Button>
                 ) : station.status === "available" ? (
-                  <Button className="w-full" onClick={() => openReserveDialog(station)}>
+                  <Button
+                    className="w-full"
+                    onClick={() => openReserveDialog(station)}
+                    disabled={!canInteract}
+                  >
                     Reserve PC
                   </Button>
                 ) : station.status === "occupied" ? (
-                  <Button variant="outline" className="w-full" onClick={() => submitJoinQueue(station.id)}>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => submitJoinQueue(station.id)}
+                    disabled={!canInteract}
+                  >
                     Join Queue
                   </Button>
                 ) : (
@@ -486,7 +498,6 @@ export default function PortalReservationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </RequiresMembership>
     </div>
   );
 }

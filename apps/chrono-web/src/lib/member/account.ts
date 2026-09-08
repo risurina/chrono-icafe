@@ -6,7 +6,7 @@ export type MemberProfile = {
   memberId: string;
   phone: string | null;
   memberCode: string | null;
-  applicationStatus: "pending" | "approved" | "rejected";
+  applicationStatus: "visitor" | "pending" | "approved" | "rejected";
   appliedAt: string;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -15,7 +15,7 @@ export type MemberProfile = {
 };
 
 export type MemberOnboarding = {
-  applicationStatus: "pending" | "approved" | "rejected";
+  applicationStatus: "visitor" | "pending" | "approved" | "rejected";
   appliedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -38,6 +38,16 @@ export function getMyOnboarding(): Promise<Result<MemberOnboarding>> {
 export function applyForMembership(phone?: string): Promise<Result<MemberProfile | null>> {
   return api.portal.members.apply
     .$post({ json: { phone: phone ?? undefined } })
+    .then((res) => unwrap(res, (json) => (json as { profile: MemberProfile | null }).profile));
+}
+
+/** Silent first-visit registration (member-visitor-status-tier Phase 2) —
+ * calls `POST /portal/members/visit`, which is idempotent and does not
+ * require an application: it creates a `"visitor"` row if none exists yet,
+ * or returns the existing row of any status unchanged. */
+export function registerVisit(): Promise<Result<MemberProfile | null>> {
+  return api.portal.members.visit
+    .$post()
     .then((res) => unwrap(res, (json) => (json as { profile: MemberProfile | null }).profile));
 }
 
