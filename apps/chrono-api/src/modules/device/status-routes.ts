@@ -1,9 +1,29 @@
 import { Hono } from "hono";
 import { withTenant, eq, and } from "agora/db";
 import * as base from "agora/db/schema";
+import { HttpError, zValidator, createRateLimiter } from "agora/server";
+import { verifyMemberPassword } from "agora/member-auth";
 import { chronoSession } from "../session/schema";
 import { chronoWallet } from "../wallet/schema";
+import { startSession, publishSessionTransition } from "../session/service";
+import { deviceSessionStartSchema } from "./contracts";
 import { requireDeviceBearerAuth, type DeviceAuthVars } from "./device-auth-middleware";
+
+/**
+ * Per-device bucket for the kiosk login -> session-start route below,
+ * mirroring `routes.ts`'s `deviceSecurityAlertLimiter` pattern exactly
+ * (`blockedFor(device.deviceId)` / `record(device.deviceId)` /
+ * `clear(device.deviceId)`). A kiosk-forwarded login shares one IP across
+ * every customer at that station, so the per-account bucket the underlying
+ * `tenantMember` password-verify path would normally rely on
+ * (`member-auth/index.ts`'s own `loginLimiter`, 5/15min per account+IP) is
+ * not enough on its own here — a run of wrong guesses for ONE customer must
+ * not lock out the NEXT unrelated customer who walks up to the same PC. Set
+ * higher than that per-account number (20 vs. 5) since this bucket is shared
+ * across every distinct customer who uses this station in the window, not
+ * a single account.
+ */
+const deviceSessionLoginLimiter = createRateLimiter(20, 15 * 60 * 1000, "device-session-login");
 
 /**
  * Device-facing session/wallet status reads — Phase 4 of
@@ -120,5 +140,82 @@ export function deviceStatusRoutes() {
 
       if (!wallet) return c.json({ balance: null });
       return c.json({ balance: wallet.balance, currency: wallet.currency });
-    });
+    })
+
+    // POST /session/start — kiosk login -> session start (Phase 5). A
+    // customer standing at an already-approved kiosk enters their own
+    // member email/password directly on the device; the device forwards it
+    // here with its own bearer credential. tenantId/stationId come ONLY
+    // from the authenticated device's own row (c.var.device) — never a body
+    // field — so a compromised kiosk can only ever start a session on its
+    // own station. `startSession`'s own `startedByUserId: null` marks this
+    // as a self-service start, identical in shape to the member portal's
+    // own QR self-service path (see `session/service.ts`'s doc comment).
+    .post(
+      "/session/start",
+      requireDeviceBearerAuth(),
+      zValidator("json", deviceSessionStartSchema),
+      async (c) => {
+        const device = c.var.device;
+        // Not linked to a station (still pending_approval, or approved but
+        // never relinked) — there is no station to start a session on.
+        if (!device.stationId) {
+          throw new HttpError(404, "This device is not linked to a station.");
+        }
+        const stationId = device.stationId;
+        const { memberEmail, memberPassword } = c.req.valid("json");
+        const email = memberEmail.toLowerCase();
+
+        const retryAfter = await deviceSessionLoginLimiter.blockedFor(device.deviceId);
+        if (retryAfter !== null) {
+          return c.json(
+            { error: "Too many login attempts from this device. Try again later." },
+            429,
+            { "Retry-After": String(retryAfter) },
+          );
+        }
+
+        const [member] = await withTenant(device.tenantId, (tx) =>
+          tx
+            .select()
+            .from(base.tenantMember)
+            .where(
+              and(
+                eq(base.tenantMember.tenantId, device.tenantId),
+                eq(base.tenantMember.email, email),
+              ),
+            )
+            .limit(1),
+        );
+
+        // Wrong email, wrong password, or an inactive account all collapse
+        // to the same generic 401 — never leak which field was wrong or
+        // whether the account exists.
+        if (
+          !member ||
+          member.status !== "active" ||
+          !(await verifyMemberPassword(memberPassword, member.passwordHash))
+        ) {
+          await deviceSessionLoginLimiter.record(device.deviceId);
+          throw new HttpError(401, "Incorrect email or password.");
+        }
+        await deviceSessionLoginLimiter.clear(device.deviceId);
+
+        const created = await withTenant(device.tenantId, (tx) =>
+          startSession(tx, {
+            tenantId: device.tenantId,
+            stationId,
+            memberId: member.id,
+            startedByUserId: null,
+          }),
+        );
+
+        // Publish AFTER the transaction commits, never from inside it —
+        // mirrors every other `startSession` call site (`session/routes.ts`)
+        // and the wallet.low publish-after-commit fix (c57e8799).
+        await publishSessionTransition(device.tenantId, created!);
+
+        return c.json({ session: created }, 201);
+      },
+    );
 }
