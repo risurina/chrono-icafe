@@ -261,7 +261,25 @@ email render at `/member/profile`.
 
 ---
 
-### Phase 2 — Split the directory into "My Lounges" / "Discover Lounges" tabs
+### Phase 2 — Split the directory into "My Lounges" / "Discover Lounges" tabs — COMPLETE
+
+**Verification summary:** Implemented on `feature/member-profile-page-lounge-tabs`,
+commit `553b25ad`. `global-portal-home.tsx` now imports `Tabs`/`TabsList`/
+`TabsTrigger`/`TabsContent` from `agora/ui`; computes `myLounges`/`discoverLounges` by
+filtering the existing `directory` array against the existing `memberSlugs` Set (no
+new fetch); renders a `Tabs defaultValue="my-lounges"` block with two panes, each the
+same `grid gap-6 sm:grid-cols-2 lg:grid-cols-3` of `LoungeDirectoryCard`s as before,
+each with its own non-blank empty state. The top-level `directoryError`/
+`directory.length === 0` branches are untouched and still gate whether the `Tabs`
+block renders at all.
+
+`pnpm typecheck` — pass (7/7 workspace packages). `pnpm --filter @agora/chrono-web
+build` — pass; `/member` and `/member/profile` both confirmed in the generated route
+list. Manual browser verification was not done (no seeded DB/session in the dispatch
+environment) — a follow-up manual pass (sign in as a customer who has joined at least
+one but not all listed tenants, confirm both tabs populate and switching works) is
+still recommended before Phase 3's e2e spec is written, since that spec will need to
+exercise the same tab-click flow.
 
 **Files to update**
 - `apps/chrono-web/src/app/(saas-member)/member/global-portal-home.tsx`
