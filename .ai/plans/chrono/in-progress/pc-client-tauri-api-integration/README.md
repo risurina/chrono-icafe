@@ -1,9 +1,9 @@
-# Chrono — `pc-client-tauri-api-integration` (DRAFT)
+# Chrono — `pc-client-tauri-api-integration`
 
 **Sessions:**
-- Planning: Claude Code (this session)
-- Audit: unclaimed
-- Implementation: unclaimed
+- Planning: Claude Code (main session)
+- Audit: Claude Code (plan-auditor agent a9ce88c3794cf82f2) — approved with conditions, folded in
+- Implementation: Claude Code (subagent, worktree `.ai/worktree/pc-client-tauri-api-integration`, branch `feature/pc-client-tauri-api-integration`) — Phase 1 in progress
 
 ## What this is
 
@@ -110,10 +110,10 @@ skeleton. Those are kept; only their data source changes.
   (`apps/chrono-api/src/modules/device/realtime-actor.ts`), `agora/realtime`-based,
   device-bearer-authenticated, scope pattern `device:<deviceId>`
   (`apps/chrono-api/src/modules/realtime/scope-validators.ts`,
-  `validateChronoDeviceScopes`). `onFrame` currently drops everything except a
-  self-referential status frame — "no inbound frame TYPE is defined yet (remote
-  commands/acks are deferred)" (realtime-actor.ts comment) — this is the exact seam
-  Phase 3 fills in.
+  `validateChronoDeviceScopes`). `onFrame` today only ever filters — it drops a frame
+  naming a different device's `deviceId`, but processes/stores nothing even for a
+  self-referential frame; "no inbound frame TYPE is defined yet (remote commands/acks
+  are deferred)" (realtime-actor.ts comment) — this is the exact seam Phase 3 fills in.
 - `device` permission resource already registered
   (`apps/chrono-api/src/auth/permissions.ts`, via `registerAppPermissions()`).
 
@@ -147,6 +147,26 @@ skeleton. Those are kept; only their data source changes.
    read-the-actual-session-module pass before Phase 5 can be made concrete; flagged as
    an open question below, not assumed.
 
+**Tenant-isolation / RBAC constraints, locked in now per plan-audit, before Phase 3/4
+leave DRAFT:**
+- Phase 3 command-ack validation must scope the command lookup by both `tenantId`
+  and `deviceId` via `withTenant(actor.tenantId, ...)`, not just filter by `deviceId`
+  client-side — mirroring `requireOwnDevice`'s existing pattern (`routes.ts:112-122`),
+  so a forged `commandId` can't be acked cross-tenant even if the realtime actor-key
+  check is somehow bypassed.
+- Phase 3 push-on-issue (server to a single connected device) must target the
+  connection by the `{ tenantId, actorKey }` tuple together — the same pair
+  `closeConnections()` already requires (`routes.ts:462`) — confirmed once the
+  Phase-2 prerequisite protocol read establishes the actual push API shape.
+- Phase 4 device-facing reads must stay scoped by the device's own `stationId`, not
+  just `tenantId` — a compromised single kiosk must never be able to read another
+  customer's session/wallet data tenant-wide. This must be an explicit, testable
+  Phase 4 acceptance criterion, not just prose.
+- `ChronoDeviceCommands` (Phase 3) must follow `.ai/rules/database.md` exactly:
+  `tenantId` referencing `organization.id` `onDelete: cascade` plus a `*_tenant_idx`
+  index, added to `APP_TENANT_TABLES`, migrated via `db:generate --name` +
+  `db:migrate` (never `db:push`), and `rls:proof` re-run before the phase is done.
+
 ### Divergence from the Tauri client's current assumptions (must change client-side)
 
 - Drop `rust_socketio`; use a plain WS client speaking `agora/realtime`'s protocol
@@ -178,14 +198,26 @@ target of record going forward.
   `src/config/client-config.ts`, `src/features/api/pc-client-api.ts`.
 - **Step-by-step tasks**:
   1. Diff `pairDeviceSchema`/`authDeviceSchema`/`heartbeatSchema` field-by-field
-     against what `http.rs` sends/expects.
+     against what `http.rs` sends/expects. Known finding to confirm/resolve:
+     `http.rs`'s `try_refresh()` POSTs `/auth` with `{ tokenHash, fingerprintV1,
+     hostname }`, but this repo's `authDeviceSchema` requires `{ fingerprint,
+     hostname, provisioningToken }` — field names don't line up at all. This is a
+     client bug (client adapts), not a server gap, per the default above — confirm
+     and record it as the first diff-table row.
   2. Confirm the `/api/v1/device` mount path in `apps/chrono-api/src/app.ts` matches
      `client-config.ts`'s auto-append convention.
-  3. Document every mismatch found (client bug vs. genuine server gap) in this plan's
+  3. Confirm whether `client-config.ts::API_BASE_URL` is still read anywhere live in
+     the webview, given `http.rs`'s own doc comment says the Rust core holds the
+     access token/cookie jar and owns all real HTTP calls — flag as stale duplication
+     to remove in Phase 1's diff table if so, not a live contract surface.
+  4. Document every mismatch found (client bug vs. genuine server gap) in this plan's
      "Findings" section (append after this audit runs) before writing any code.
 - **Acceptance criteria**: a written diff table of every device REST endpoint the
-  client calls vs. what this repo serves, with a fix owner (client or server) per row.
-- **Verification commands**: none yet — this phase is read/diff-only.
+  client calls vs. what this repo serves, with a fix owner (client or server) per row,
+  including the `/auth` field-name mismatch above.
+- **Verification commands**: none required for the read/diff itself. If a server-side
+  contract fix is made (per "Files to update" below), `pnpm typecheck` must pass
+  before this phase is closed — a real code edit never ships with zero verification.
 - **Out of scope**: no code changes beyond a genuine, documented server-side contract
   gap.
 - **Execution start point**: read `apps/chrono-api/src/modules/device/contracts.ts`
