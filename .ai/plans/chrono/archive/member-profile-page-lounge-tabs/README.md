@@ -325,7 +325,43 @@ listed tenants; confirm both tabs populate correctly and switching tabs works.
 
 ---
 
-### Phase 3 — E2E
+### Phase 3 — E2E — COMPLETE
+
+**Verification summary:** Implemented on `feature/member-profile-page-lounge-tabs`,
+commits `9f8af7b0` (initial specs) and `7fe1739c` (fixes found by actually running the
+suite). `lounge-directory.spec.ts` updated to be tab-aware: the joined-tenant/
+suspended-tenant assertions run against the default-active "My Lounges" tab with no
+click, then `page.getByRole("tab", { name: "Discover Lounges" }).click()` before
+asserting the unjoined-tenant card and re-checking suspended-tenant absence there too.
+New file `apps/chrono-web/e2e/tests/member/global-portal-profile.spec.ts` (named to
+avoid colliding with the existing tenant-side `profile-settings.spec.ts`/
+`profile-security-and-avatar.spec.ts`, which cover the unrelated `/player/profile`
+page) signs up a fresh global customer, clicks the sidebar "Profile" link, and asserts
+`/member/profile` renders that customer's name/email.
+
+**Both specs run for real against live dev servers and pass** — not just statically
+verified. `apps/chrono-web`'s actual npm script is `e2e`, not `test:e2e` as this
+plan's own "Verification" section below assumed; `npx playwright test <path>` was
+used directly instead once `pnpm --filter ... e2e -- <path>` was found to mis-forward
+a literal `"--"` to Playwright's CLI (ran the full suite instead of the target spec).
+Ran on alternate ports (chrono-api :8790, chrono-web :3005 via env overrides) since
+the default ports were occupied by another session, `.env` files copied unread from
+the main checkout and deleted after, per this repo's own precedent in
+`portal-lounge-directory-redesign`. `pnpm --filter @agora/chrono-api run seed` reseeded
+the existing tracked fixtures (`gaming`/`acme`/`contoso`/`globex` + global customer +
+platform admin/viewer) against the project's single dev/staging Neon project.
+
+First run surfaced two genuine test-locator bugs (not app bugs), fixed in `7fe1739c`:
+1. Email assertion compared against the faker-generated mixed-case email, but
+   `agora/customer-auth` lowercases email on signup — normalized with
+   `.toLowerCase()` before asserting.
+2. `page.getByText(name/email, { exact: true })` was a strict-mode violation — the
+   sidebar renders the same name/email on every `/member/*` page, so the bare
+   page-level locator matched twice. Scoped both assertions to `page.locator("dl")`
+   (the profile card's own definition list).
+
+Final result: `global-portal-profile.spec.ts` — 1 passed. `lounge-directory.spec.ts` —
+1 passed (58.3s).
 
 **Files to update**
 - `apps/chrono-web/e2e/tests/member/lounge-directory.spec.ts`
@@ -355,3 +391,21 @@ pnpm --filter @agora/chrono-web test:e2e -- member/lounge-directory.spec.ts
 
 **Execution start point:** update `lounge-directory.spec.ts`'s tab-selection
 assertions first (highest risk of silently going stale).
+
+## Closure
+
+All 3 phases complete and verified. A separate follow-up fix (sticky sidebar on
+`/member`, not part of this plan's original scope) was implemented on its own branch
+`fix/member-portal-sticky-sidebar` and merged alongside this plan's work.
+
+Merged into local `main` (not yet pushed to `origin`):
+- `ed354b8a`, `fe25dfb0` — Phase 1
+- `553b25ad`, `da8b2111` — Phase 2
+- `9f8af7b0` — Phase 3 (initial e2e specs)
+- `b4cd94ab` — sticky-sidebar fix (separate branch, unrelated follow-up)
+- `7fe1739c` — Phase 3 e2e fixes found by actually running the suite
+- `f32eee1f` — merge commit
+
+Worktrees `.ai/worktree/member-profile-page-lounge-tabs` and
+`.ai/worktree/member-portal-sticky-sidebar` are still present on disk — safe to remove
+(`git worktree remove`) once the developer confirms no further work is pending there.
