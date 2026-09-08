@@ -7,15 +7,15 @@ import { applyForMembership } from "@/lib/member/account";
 import { track } from "@/lib/analytics";
 
 /**
- * Shown instead of redirecting to /login when a signed-in GLOBAL customer
- * (agora/customer-auth) has not yet applied to become a member of this
- * tenant. Copy is asserted verbatim by an existing e2e spec — do not reword.
- * Moved here unchanged from the old `tenant-portal-layout.tsx`.
+ * Shared apply sequence: foundation tenant-join + best-effort Chrono profile
+ * creation + analytics + reload. Used by both `ApplyForTenantPrompt` (the
+ * landing page's full-card flow) and `MemberAccessBanner` (the in-portal
+ * banner) so the sequence lives in exactly one place.
  */
-export function ApplyForTenantPrompt() {
+export function useApplyForTenant(): { applying: boolean; apply: () => Promise<void> } {
   const [applying, setApplying] = useState(false);
 
-  async function onApply() {
+  async function apply() {
     setApplying(true);
     const { error } = await applyForTenantMembership();
     if (error) {
@@ -37,6 +37,19 @@ export function ApplyForTenantPrompt() {
     location.reload();
   }
 
+  return { applying, apply };
+}
+
+/**
+ * Shown instead of redirecting to /login when a signed-in GLOBAL customer
+ * (agora/customer-auth) has not yet applied to become a member of this
+ * tenant. Copy is asserted verbatim by an existing e2e spec — do not reword.
+ * Moved here unchanged from the old `tenant-portal-layout.tsx`. Still used
+ * unchanged by the landing page's `PlayerCtaActions` flow.
+ */
+export function ApplyForTenantPrompt() {
+  const { applying, apply } = useApplyForTenant();
+
   return (
     <CenteredMessage>
       <Card className="max-w-md">
@@ -48,7 +61,7 @@ export function ApplyForTenantPrompt() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={onApply} disabled={applying} className="w-full">
+          <Button onClick={apply} disabled={applying} className="w-full">
             {applying ? "Applying…" : "Apply"}
           </Button>
         </CardContent>

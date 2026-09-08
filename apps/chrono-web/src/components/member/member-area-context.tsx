@@ -23,29 +23,33 @@ export function useMemberArea(): MemberAreaValue {
 }
 
 /** Fetches the member's own profile/onboarding once and provides it down the
- * tree — pages read `useMemberArea()` instead of each re-fetching `/me`. */
+ * tree — pages read `useMemberArea()` instead of each re-fetching `/me`.
+ * `member: null` is the guest-mode case (a signed-in global customer with no
+ * `tenantMember` row yet) — both `/me` fetches would 401, so they're skipped
+ * entirely and the context resolves immediately to an unlocked/empty state. */
 export function MemberAreaProvider({
   member,
   children,
 }: {
-  member: MemberUser;
+  member: MemberUser | null;
   children: React.ReactNode;
 }) {
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [onboarding, setOnboarding] = useState<MemberOnboarding | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(member === null);
 
   const refreshProfile = useCallback(async () => {
+    if (!member) return;
     const [{ data: p }, { data: o }] = await Promise.all([getMyMembership(), getMyOnboarding()]);
     setProfile(p ?? null);
     setOnboarding(o ?? null);
     setLoaded(true);
-  }, []);
+  }, [member]);
 
   useEffect(() => {
     void refreshProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [member]);
 
   const approved = onboarding?.applicationStatus === "approved";
 

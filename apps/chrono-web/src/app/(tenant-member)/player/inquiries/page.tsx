@@ -29,6 +29,8 @@ import {
   type PortalInquiryMessage,
   type PortalInquiryStatus,
 } from "@/lib/member/inquiries";
+import { useMemberArea } from "@/components/member/member-area-context";
+import { RequiresMembership } from "@/components/member/requires-membership";
 
 const STATUS_VARIANT: Record<
   PortalInquiryStatus,
@@ -51,6 +53,7 @@ const CATEGORY_OPTIONS: { value: PortalInquiryCategory; label: string }[] = [
 ];
 
 export default function PortalInquiriesPage() {
+  const { member } = useMemberArea();
   const [inquiries, setInquiries] = useState<PortalInquiry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,6 +70,12 @@ export default function PortalInquiriesPage() {
   const [replying, setReplying] = useState(false);
 
   async function loadList() {
+    // Guest mode — member-only (`memberMiddleware()`), would 401 with no
+    // `tenantMember` row yet.
+    if (!member) {
+      setLoading(false);
+      return;
+    }
     const { data } = await getMyInquiries({ page: 1, pageSize: 20 });
     if (data) setInquiries(data.items);
     setLoading(false);
@@ -74,7 +83,8 @@ export default function PortalInquiriesPage() {
 
   useEffect(() => {
     loadList();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member]);
 
   async function openThread(id: string) {
     setOpenId(id);
@@ -120,6 +130,7 @@ export default function PortalInquiriesPage() {
         <p className="text-sm text-muted-foreground">Ask us anything — we usually reply within a day.</p>
       </div>
 
+      <RequiresMembership member={member}>
       <Card>
         <CardHeader>
           <CardTitle>New inquiry</CardTitle>
@@ -226,6 +237,7 @@ export default function PortalInquiriesPage() {
           </CardContent>
         </Card>
       ) : null}
+      </RequiresMembership>
     </div>
   );
 }

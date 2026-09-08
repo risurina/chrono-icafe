@@ -9,7 +9,7 @@ import { apexUrl } from "@/lib/app-domain";
  * link even for issues the venue can't act on (e.g. a rejected application,
  * a platform outage).
  *
- * - **Contact this venue** — unchanged existing pattern: the tenant's own
+ * - **Contact administrator** — unchanged existing pattern: the tenant's own
  *   staff-facing inquiry queue (`/member/inquiries`, already in `MEMBER_NAV`
  *   as the "Help" menu entry).
  * - **Contact Chrono support** — new: the apex `/company/contact` form, the
@@ -21,15 +21,16 @@ import { apexUrl } from "@/lib/app-domain";
  *   would resolve on the current tenant subdomain instead. Opens in a new
  *   tab so a member doesn't lose their place in the portal.
  *
- * One component, used from `member-gate.tsx`'s `ApprovalRequiredCard`,
- * `member/page.tsx`'s membership-status card, and `member/settings/page.tsx`'s
- * Account card, so all three read and behave identically.
+ * One component, used from `member-gate.tsx`'s `MemberAccessBanner` (pending
+ * variant), `member/page.tsx`'s membership-status card, and
+ * `member/settings/page.tsx`'s Account card, so all three read and behave
+ * identically.
  */
 export function NeedHelpLinks({ className }: { className?: string }) {
   return (
     <Row gap={4} wrap className={className}>
       <Link href="/member/inquiries" className="text-sm underline underline-offset-2">
-        Contact this venue
+        Contact administrator
       </Link>
       <Link
         href={apexUrl("/company/contact")}

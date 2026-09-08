@@ -17,16 +17,18 @@ import {
  * member-portal-v2 phase 1 (nav consolidation): Session absorbed Connect's
  * QR-scan explainer (folded directly into `/member/session`'s page content —
  * `/member/connect` now just redirects there); History absorbed Promos as a
- * "reachable from within it" link tab (`/member/promos` keeps its own page +
- * approval gate, it's just no longer a separate top-level nav entry); the
- * dead, page-less Leaderboard entry is removed entirely (was `disabled`, not
- * `requiresApproval` — no near-term plan to build it).
+ * "reachable from within it" link tab (`/member/promos` keeps its own page,
+ * it's just no longer a separate top-level nav entry); the dead, page-less
+ * Leaderboard entry is removed entirely (was `disabled` — no near-term plan
+ * to build it).
  *
  * The `promos` entry below is intentionally kept in this array with
  * `placements: []` — invisible in every nav surface, but still present so
- * `RouteGate` (`member-gate.tsx`) keeps matching `/member/promos*` by href
- * prefix and gating it on `applicationStatus === "approved"` exactly as
- * before. Removing the entry outright would silently un-gate that route.
+ * `matchMemberNav` keeps highlighting `/member/promos*` consistently. A
+ * pending member's access to Promos (and every other route) is no longer
+ * blocked client-side — see `member-gate.tsx`'s `MemberAccessBanner`, which
+ * replaced the old per-route `requiresApproval`/`ApprovalRequiredCard`
+ * mechanism with a persistent banner instead.
  */
 export type MemberNavEntry = {
   key: string;
@@ -34,8 +36,6 @@ export type MemberNavEntry = {
   shortLabel: string;
   href: string;
   icon: LucideIcon;
-  /** Gated by `RouteGate` — only Promos is flagged per the plan's decision. */
-  requiresApproval?: boolean;
   disabled?: boolean;
   /** Exact-match highlighting instead of prefix match (only the dashboard root needs this). */
   exact?: boolean;
@@ -75,9 +75,8 @@ export const MEMBER_NAV: MemberNavEntry[] = [
     shortLabel: "Promos",
     href: "/member/promos",
     icon: Ticket,
-    requiresApproval: true,
-    // Merged into History (phase 1) — kept unplaced so RouteGate still
-    // gates /member/promos*; reachable via the History page's Promos tab.
+    // Merged into History (phase 1) — kept unplaced (invisible in every nav
+    // surface); reachable via the History page's Promos tab.
     placements: [],
   },
   {

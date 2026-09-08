@@ -6,7 +6,7 @@ change. No new tenant-scoped tables.
 **Sessions:**
 - Planning: (this session)
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: (subagent, no persistent session name)
 
 ## Reported request (verbatim intent)
 
@@ -298,6 +298,22 @@ touching anything; Phase 1 changes all three together.
 
 ## Plan closure
 
-Once all phases land and verify, move this plan from `draft/` → `ready/` →
-`in-progress/` → `.ai/plans/chrono/archive/member-portal-guest-preview-banner/README.md`
-per `.ai/rules/feature-planning.md`.
+All three phases landed:
+
+- Phase 1 (`031f1b65`) — banner instead of blocking screen for guest/pending members.
+- Phase 2 (`d9b66855`) — lock member-only page content behind `RequiresMembership` for
+  guests.
+- Phase 1+2 were merged into `main` via `974d31d6`.
+- Phase 3 (this commit) — updated `apply-for-tenant.spec.ts`, `venue-status.spec.ts`,
+  and `lounge-directory.spec.ts` to assert the new `MemberAccessBanner` copy instead of
+  the old full-page `ApplyForTenantPrompt`/`ApprovalRequiredCard` takeovers, rewrote
+  `promos.spec.ts`'s pending-applicant test to assert the unblocked page + pending
+  banner, and added `guest-preview-banner.spec.ts` covering guest-mode lock state +
+  apply-to-unlock and the pending-member unblocked-data regression case.
+
+`pnpm --filter @agora/chrono-web typecheck` passes. The new/updated specs were not run
+live against a dev server in this session (no `pnpm dev` running) — run
+`pnpm --filter @agora/chrono-web e2e -- global-customers`,
+`pnpm --filter @agora/chrono-web e2e -- member` before merging to confirm.
+
+Plan moved from `in-progress/` to `archive/` per `.ai/rules/feature-planning.md`.

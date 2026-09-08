@@ -42,6 +42,8 @@ import {
 } from "@/lib/member/reservations";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
+import { RequiresMembership } from "@/components/member/requires-membership";
+import { useMemberArea } from "@/components/member/member-area-context";
 
 const DURATION_OPTIONS = [60, 120, 180, 240, 300, 360];
 
@@ -91,6 +93,7 @@ function useCountdown(targetIso: string | null): string | null {
 }
 
 export default function PortalReservationsPage() {
+  const { member } = useMemberArea();
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [active, setActive] = useState<PortalReservation | null>(null);
@@ -117,6 +120,14 @@ export default function PortalReservationsPage() {
   const holdCountdown = useCountdown(active?.status === "hold" ? active.holdExpiresAt : null);
 
   const load = useCallback(async () => {
+    // Guest mode — `getMyReservation`/`getMyRestrictions` are member-only
+    // (`memberMiddleware()`) and would 401 with no `tenantMember` row yet;
+    // the booking UI itself is locked behind `RequiresMembership` below, so
+    // there's no point fetching the (public) station list either.
+    if (!member) {
+      setLoading(false);
+      return;
+    }
     const [stationsRes, mine, myRestrictions] = await Promise.all([
       getPublicStations(),
       getMyReservation(),
@@ -129,7 +140,7 @@ export default function PortalReservationsPage() {
     }
     if (myRestrictions.data) setRestrictions(myRestrictions.data.restrictions);
     setLoading(false);
-  }, []);
+  }, [member]);
 
   useEffect(() => {
     load();
@@ -270,6 +281,7 @@ export default function PortalReservationsPage() {
         description="Reserve a station or join its queue."
         actions={<RefreshButton onRefresh={load} />}
       />
+      <RequiresMembership member={member}>
       {active && (
         <Card>
           <CardHeader>
@@ -474,6 +486,7 @@ export default function PortalReservationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </RequiresMembership>
     </div>
   );
 }
