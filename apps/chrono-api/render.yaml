@@ -53,7 +53,7 @@ services:
       # Facebook OAuth redirect_uri is built from — see .env.example's
       # "Social sign-in" section for the exact callback paths to register.
       - key: BETTER_AUTH_URL
-        value: https://REPLACE-ME.onrender.com
+        value: https://api.chrono2.izur.com.ph
       - key: APP_DOMAIN
         sync: false
       - key: WEB_ORIGIN
@@ -65,7 +65,7 @@ services:
 
       # ─── Transactional email (console driver = safe default) ───
       - key: EMAIL_PROVIDER
-        value: console
+        value: resend
       - key: EMAIL_FROM
         sync: false
       # Required — apex /support and /company/contact lead-capture routes 500
