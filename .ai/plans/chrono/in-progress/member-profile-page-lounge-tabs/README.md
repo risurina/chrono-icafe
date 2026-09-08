@@ -3,6 +3,9 @@
 **App:** chrono
 **Sessions:**
 - Planning: this session (no `ListAgents` identity available in this environment)
+- Implementation: dispatched to a fresh subagent per `delegate-implementation`
+  (Phase 1 committed at `ed354b8a` on `feature/member-profile-page-lounge-tabs`,
+  worktree `.ai/worktree/member-profile-page-lounge-tabs`)
 
 ## Decisions (developer, this session)
 
@@ -193,7 +196,28 @@ Create `src/app/(saas-member)/member/profile/global-portal-profile.tsx`, moving 
 
 ---
 
-### Phase 1 — `/member/profile` page + sidebar nav
+### Phase 1 — `/member/profile` page + sidebar nav — COMPLETE
+
+**Verification summary:** Implemented on `feature/member-profile-page-lounge-tabs`
+(worktree `.ai/worktree/member-profile-page-lounge-tabs`), commit `ed354b8a`. Created
+`global-portal-profile.tsx` (reads `useGlobalCustomerSession()`, renders the "Your
+account" `Card` moved verbatim) and `profile/page.tsx` (thin default export, mirrors
+`member/page.tsx`'s shape). Removed the "Your account" `Card` block and its now-unused
+`Card`/`CardHeader`/`CardTitle`/`CardDescription`/`CardContent` import from
+`global-portal-home.tsx` — welcome heading and directory grid untouched. Added `User`
+(lucide-react) to `global-portal-sidebar.tsx`'s `NAV_ITEMS` after "Dashboard" and
+removed the stale "No Profile item" comment block.
+
+`pnpm typecheck` — pass (7/7 workspace packages). `pnpm --filter @agora/chrono-web
+build` — pass; `/member/profile` confirmed as a generated route in the build output.
+Manual verification: did not start `pnpm dev` (impractical in the dispatch
+environment); instead confirmed via the production build's route listing that
+`/member/profile` compiles and is routable, and re-read the diff against the
+acceptance criteria — `GlobalPortalProfile` reads `customer?.name`/`customer?.email`
+identically to the removed card, and `global-portal-home.tsx` no longer references
+account details. A follow-up manual browser pass (sign in, click sidebar "Profile",
+confirm the rendered page) is still recommended before this phase is considered fully
+verified end-to-end, since the dispatch environment couldn't run `pnpm dev`.
 
 **Files to update**
 - `apps/chrono-web/src/app/(saas-member)/member/profile/page.tsx` (new)
