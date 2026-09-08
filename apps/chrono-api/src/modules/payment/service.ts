@@ -1,7 +1,7 @@
 import { eq, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { chronoPayment, chronoPaymentEvent } from "./schema";
-import { creditWallet, debitWallet } from "../wallet/service";
+import { creditWallet, debitWallet, type WalletLowSignal } from "../wallet/service";
 
 type ChronoPaymentRow = typeof chronoPayment.$inferSelect;
 
@@ -65,10 +65,10 @@ export async function markAsPaid(
     providerReference?: string;
     performedByUserId?: string;
   },
-): Promise<{ payment: ChronoPaymentRow; alreadyPaid: boolean }> {
+): Promise<{ payment: ChronoPaymentRow; alreadyPaid: boolean; walletLow: WalletLowSignal }> {
   const payment = await lockPaymentForUpdate(tx, args.tenantId, args.paymentId);
   if (payment.status === "paid") {
-    return { payment, alreadyPaid: true };
+    return { payment, alreadyPaid: true, walletLow: null };
   }
   if (payment.status !== "pending") {
     throw new HttpError(409, `Payment is ${payment.status}, cannot be paid.`);
@@ -92,8 +92,9 @@ export async function markAsPaid(
   });
 
   // A standalone payment with no sessionId funds a wallet top-up.
+  let walletLow: WalletLowSignal = null;
   if (payment.memberId && !payment.sessionId) {
-    await creditWallet(tx, {
+    ({ walletLow } = await creditWallet(tx, {
       tenantId: args.tenantId,
       memberId: payment.memberId,
       amount: payment.amount,
@@ -101,10 +102,10 @@ export async function markAsPaid(
       referenceType: "payment",
       referenceId: payment.id,
       performedByUserId: args.performedByUserId,
-    });
+    }));
   }
 
-  return { payment: updated!, alreadyPaid: false };
+  return { payment: updated!, alreadyPaid: false, walletLow };
 }
 
 /**
@@ -119,9 +120,9 @@ async function reverseSideEffects(
   tx: TenantTx,
   payment: ChronoPaymentRow,
   args: { tenantId: string; kind: "payment_void" | "payment_refund"; performedByUserId?: string },
-) {
+): Promise<WalletLowSignal> {
   if (payment.memberId && !payment.sessionId) {
-    await debitWallet(tx, {
+    const { walletLow } = await debitWallet(tx, {
       tenantId: args.tenantId,
       memberId: payment.memberId,
       amount: payment.amount,
@@ -130,7 +131,9 @@ async function reverseSideEffects(
       referenceId: payment.id,
       performedByUserId: args.performedByUserId,
     });
+    return walletLow;
   }
+  return null;
 }
 
 async function terminatePayment(
@@ -141,7 +144,7 @@ async function terminatePayment(
     toStatus: "voided" | "refunded";
     performedByUserId?: string;
   },
-): Promise<ChronoPaymentRow> {
+): Promise<{ payment: ChronoPaymentRow; walletLow: WalletLowSignal }> {
   const payment = await lockPaymentForUpdate(tx, args.tenantId, args.paymentId);
   // Includes a second void/refund attempt on an already-voided/refunded
   // payment — there is no no-op path; a concurrent second caller loses the
@@ -162,13 +165,13 @@ async function terminatePayment(
     eventType: args.toStatus,
   });
 
-  await reverseSideEffects(tx, payment, {
+  const walletLow = await reverseSideEffects(tx, payment, {
     tenantId: args.tenantId,
     kind: args.toStatus === "voided" ? "payment_void" : "payment_refund",
     performedByUserId: args.performedByUserId,
   });
 
-  return updated!;
+  return { payment: updated!, walletLow };
 }
 
 export function voidPayment(

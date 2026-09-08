@@ -6,6 +6,7 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoStation } from "../station/schema";
 import { chronoSession } from "./schema";
 import { closeSession, startSession, publishSessionTransition } from "./service";
+import { publishWalletLowIfCrossed } from "../wallet/service";
 import { startSessionSchema, extendSessionSchema, sessionListQuerySchema } from "./contracts";
 import { promoteNextInQueue } from "../reservation/service";
 
@@ -252,6 +253,7 @@ export function sessionRoutes() {
 
       if (!result.alreadyClosed) {
         await publishSessionTransition(tenantId, result.session);
+        await publishWalletLowIfCrossed(result.walletLow);
 
         await recordStaffAudit(c, {
           action: "session.ended",
@@ -269,6 +271,6 @@ export function sessionRoutes() {
         // "pending" row exists for this station.
         await promoteNextInQueue(tenantId, result.session.stationId);
       }
-      return c.json(result);
+      return c.json({ session: result.session, alreadyClosed: result.alreadyClosed });
     });
 }

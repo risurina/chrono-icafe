@@ -103,6 +103,7 @@ import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
 import { paymentPortalRoutes } from "./modules/payment/portal-routes";
 import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
+import { publishWalletLowIfCrossed } from "./modules/wallet/service";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -1049,6 +1050,10 @@ export const app = baseApp
     }
 
     const result = await withTenant(tenantId, (tx) => fulfilCustomerPayment(tx, { tenantId, parsed }));
+
+    if (result.outcome === "fulfilled") {
+      await publishWalletLowIfCrossed(result.walletLow);
+    }
 
     if (result.outcome === "amount_mismatch") {
       await recordAudit({

@@ -33,6 +33,16 @@ const MAX_BALANCE_CENTS = toCents(MAX_BALANCE);
 const LOW_BALANCE_THRESHOLD = "20.00";
 
 /**
+ * Signal returned by `applyWalletDelta` (and every function that composes
+ * it) when a mutation crossed the low-balance threshold — `null` otherwise.
+ * The caller that owns the enclosing `withTenant` transaction is responsible
+ * for calling `publishWalletLowIfCrossed` with this value AFTER that
+ * transaction has committed. See `publishWalletLowIfCrossed`'s doc comment
+ * for why this indirection exists.
+ */
+export type WalletLowSignal = { tenantId: string; memberId: string; balance: string } | null;
+
+/**
  * Publishes `wallet.low` to the owning device's private channel — reuses the
  * exact `tenantScopeChannel(tenantId, \`device:${deviceId}\`)` push pattern
  * `session/service.ts`'s `publishSessionTransition` already established
@@ -40,25 +50,15 @@ const LOW_BALANCE_THRESHOLD = "20.00";
  * the member, or no approved device on that session's station, simply means
  * no channel to reach — not an error).
  *
- * Deviation from `publishSessionTransition`'s own "after commit, never
- * inside the transaction" rule, documented here rather than silently
- * followed: `applyWalletDelta` (this function's only caller) does not own
- * the enclosing transaction — it always runs inside an already-open `tx`
- * passed in by call sites spread across several modules (`credit`,
- * `payment`, `pos`, `wallet/routes.ts`, `session/service.ts`), none of which
- * this phase's file list (`wallet/service.ts` only) authorizes touching.
- * Adding a genuine post-commit hook would mean updating every one of those
- * call sites. This function still does its OWN fresh `withTenant` reads for
- * the session/device lookup (matching `publishSessionTransition`'s shape
- * exactly) so the push reflects live, not stale, device pairing state; the
- * one accepted risk is that a subsequent rollback of the caller's own
- * transaction could leave a stale "wallet.low" push already delivered. Given
- * the realtime provider is in-process pub/sub (no external I/O) and this
- * event is a UX nudge, not a security- or money-critical signal, that
- * trade-off is accepted for this first version rather than blocking the
- * phase on a broader refactor of every wallet-mutation call site.
+ * MUST be called AFTER the caller's own `withTenant` transaction commits,
+ * never from inside it — a publish is not transactional and must not roll
+ * back with the write (mirrors `publishSessionTransition`'s own rule in
+ * `session/service.ts`). This is why `applyWalletDelta` never calls this
+ * itself — it returns a `WalletLowSignal` instead, and every call site that
+ * owns a `withTenant` block calls `publishWalletLowIfCrossed` once that
+ * block has resolved.
  */
-async function publishWalletLow(tenantId: string, memberId: string, balance: string): Promise<void> {
+export async function publishWalletLow(tenantId: string, memberId: string, balance: string): Promise<void> {
   const [session] = await withTenant(tenantId, (tx) =>
     tx
       .select({ stationId: chronoSession.stationId })
@@ -83,6 +83,16 @@ async function publishWalletLow(tenantId: string, memberId: string, balance: str
     "wallet.low",
     event,
   );
+}
+
+/**
+ * Convenience wrapper every post-commit call site uses: no-ops on `null`
+ * (no crossing happened), otherwise publishes. Kept as a single function so
+ * a call site never has to re-derive the null-check.
+ */
+export async function publishWalletLowIfCrossed(signal: WalletLowSignal): Promise<void> {
+  if (!signal) return;
+  await publishWalletLow(signal.tenantId, signal.memberId, signal.balance);
 }
 
 /**
@@ -169,11 +179,11 @@ async function applyWalletDelta(
   const crossedLowBalance =
     compareMoney(wallet.balance, LOW_BALANCE_THRESHOLD) >= 0 &&
     compareMoney(balanceAfter, LOW_BALANCE_THRESHOLD) < 0;
-  if (crossedLowBalance) {
-    await publishWalletLow(args.tenantId, args.memberId, balanceAfter);
-  }
+  const walletLow: WalletLowSignal = crossedLowBalance
+    ? { tenantId: args.tenantId, memberId: args.memberId, balance: balanceAfter }
+    : null;
 
-  return { wallet: updatedWallet!, transaction: transaction! };
+  return { wallet: updatedWallet!, transaction: transaction!, walletLow };
 }
 
 /**

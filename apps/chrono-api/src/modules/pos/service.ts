@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, sql, schema as base } from "agora/db";
 import type { TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
-import { debitWallet, creditWallet } from "../wallet/service";
+import { debitWallet, creditWallet, type WalletLowSignal } from "../wallet/service";
 import { addMoney, multiplyMoney, subtractMoney, compareMoney } from "../wallet/money";
 import { chronoShift } from "../shift/schema";
 import {
@@ -20,6 +20,7 @@ export type CheckoutResult = {
   sale: ChronoSaleRow;
   items: ChronoSaleItemRow[];
   payments: ChronoSalePaymentRow[];
+  walletLow: WalletLowSignal;
 };
 
 export async function findSaleByIdempotencyKey(
@@ -38,7 +39,9 @@ export async function findSaleByIdempotencyKey(
     tx.select().from(chronoSaleItem).where(eq(chronoSaleItem.saleId, sale.id)),
     tx.select().from(chronoSalePayment).where(eq(chronoSalePayment.saleId, sale.id)),
   ]);
-  return { sale, items, payments };
+  // A replayed idempotent request never re-runs the wallet debit, so there is
+  // nothing to publish for it.
+  return { sale, items, payments, walletLow: null };
 }
 
 /**
@@ -234,13 +237,16 @@ export async function checkout(
   }
 
   const payments: ChronoSalePaymentRow[] = [];
+  // Tracks whichever wallet tender's debit ran last — a sale carries at most
+  // one wallet tender in practice, but this stays correct if it ever doesn't.
+  let walletLow: WalletLowSignal = null;
   for (const tender of input.payments) {
     let walletTransactionId: string | null = null;
     if (tender.method === "wallet") {
       if (!input.memberId) {
         throw new HttpError(400, "A wallet tender requires memberId.");
       }
-      const { transaction } = await debitWallet(tx, {
+      const { transaction, walletLow: crossed } = await debitWallet(tx, {
         tenantId,
         memberId: input.memberId,
         amount: tender.amount,
@@ -250,6 +256,7 @@ export async function checkout(
         performedByUserId: cashierUserId,
       });
       walletTransactionId = transaction.id;
+      walletLow = crossed;
     }
     const [payment] = await tx
       .insert(chronoSalePayment)
@@ -265,7 +272,7 @@ export async function checkout(
     payments.push(payment!);
   }
 
-  return { sale: sale!, items, payments };
+  return { sale: sale!, items, payments, walletLow };
 }
 
 /**
@@ -277,7 +284,7 @@ export async function checkout(
 export async function refundSale(
   tx: TenantTx,
   args: { tenantId: string; saleId: string; reason: string; performedByUserId: string },
-): Promise<ChronoSaleRow> {
+): Promise<{ sale: ChronoSaleRow; walletLow: WalletLowSignal }> {
   // Locked FIRST, and the status re-checked while the lock is held: without
   // this, two concurrent refunds both read "completed", both credit the wallet,
   // and the sale is refunded twice — money created from nothing. The sale row
@@ -317,9 +324,15 @@ export async function refundSale(
       .where(and(eq(chronoProduct.id, item.productId), eq(chronoProduct.trackStock, true)));
   }
 
+  // Tracks whichever wallet-tendered payment's credit ran last — a sale
+  // carries at most one wallet tender in practice, but this stays correct if
+  // it ever doesn't. A credit only ever increases the balance, so this never
+  // actually crosses the low-balance floor downward; kept for consistency
+  // with `checkout()`'s own tracking.
+  let walletLow: WalletLowSignal = null;
   for (const payment of payments) {
     if (payment.method !== "wallet" || !sale.memberId) continue;
-    await creditWallet(tx, {
+    const { walletLow: crossed } = await creditWallet(tx, {
       tenantId: args.tenantId,
       memberId: sale.memberId,
       amount: payment.amount,
@@ -328,6 +341,7 @@ export async function refundSale(
       referenceId: sale.id,
       performedByUserId: args.performedByUserId,
     });
+    walletLow = crossed;
   }
 
   const [updated] = await tx
@@ -342,5 +356,5 @@ export async function refundSale(
     .where(eq(chronoSale.id, sale.id))
     .returning();
 
-  return updated!;
+  return { sale: updated!, walletLow };
 }

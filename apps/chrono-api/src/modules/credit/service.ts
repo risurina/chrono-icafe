@@ -246,7 +246,7 @@ export async function purchaseCreditProduct(
   const chargeAmount = args.chargeAmount ?? product.priceAmount;
 
   // Cash side first — reuses wallet's own guard rather than re-deriving it.
-  const { transaction } = await debitWallet(tx, {
+  const { transaction, walletLow } = await debitWallet(tx, {
     tenantId: args.tenantId,
     memberId: args.memberId,
     amount: chargeAmount,
@@ -302,7 +302,7 @@ export async function purchaseCreditProduct(
     })
     .returning();
 
-  return { purchase: purchase!, grant: grant! };
+  return { purchase: purchase!, grant: grant!, walletLow };
 }
 
 /** Free minutes with no charge — a comp. Same insert shape as the grant half
@@ -431,7 +431,7 @@ export async function voidCreditPurchase(
     .where(eq(chronoCreditPurchase.id, purchase.id))
     .returning();
 
-  const { transaction } = await creditWallet(tx, {
+  const { transaction, walletLow } = await creditWallet(tx, {
     tenantId: args.tenantId,
     memberId: purchase.memberId,
     amount: purchase.priceAmount,
@@ -441,5 +441,5 @@ export async function voidCreditPurchase(
     performedByUserId: args.performedByUserId,
   });
 
-  return { purchase: updatedPurchase!, walletTransaction: transaction };
+  return { purchase: updatedPurchase!, walletTransaction: transaction, walletLow };
 }

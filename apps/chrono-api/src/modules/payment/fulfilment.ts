@@ -2,7 +2,7 @@ import { eq, and, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import type { ParsedCustomerPayment } from "agora/customer-payments";
 import { chronoPayment } from "./schema";
-import { creditWallet } from "../wallet/service";
+import { creditWallet, type WalletLowSignal } from "../wallet/service";
 import { toCents } from "../wallet/money";
 import { purchaseCreditProduct } from "../credit/service";
 
@@ -45,6 +45,13 @@ export type FulfilmentOutcome =
       /** true when the credit-purchase step was skipped (product archived/repriced) and only the wallet was credited. */
       degraded: boolean;
       fulfilmentNote: string | null;
+      /**
+       * Set when the wallet mutation(s) this fulfilment performed crossed
+       * the low-balance threshold. The caller (the webhook route) must
+       * publish this AFTER its own `withTenant` transaction has committed —
+       * see `wallet/service.ts`'s `publishWalletLowIfCrossed`.
+       */
+      walletLow: WalletLowSignal;
     };
 
 /** Compares a decimal-string amount against provider-reported integer minor units. */
@@ -100,7 +107,7 @@ export async function fulfilCustomerPayment(
 
   // Wallet credited FIRST — this is what the customer actually paid for,
   // and it must land even if the credit-purchase step below degrades.
-  await deps.creditWallet(tx, {
+  const { walletLow: creditWalletLow } = await deps.creditWallet(tx, {
     tenantId,
     memberId: row.memberId,
     amount: row.amount,
@@ -108,18 +115,25 @@ export async function fulfilCustomerPayment(
     referenceType: "online_payment",
     referenceId: row.id,
   });
+  // A credit only ever increases the balance, so this never crosses the
+  // low-balance floor downward — kept anyway so the final signal always
+  // reflects whichever wallet mutation ran last.
+  let walletLow: WalletLowSignal = creditWalletLow;
 
   let degraded = false;
   let fulfilmentNote: string | null = null;
 
   if (row.purpose === "credit_purchase" && row.creditProductId) {
     try {
-      await deps.purchaseCreditProduct(tx, {
+      const purchaseResult = await deps.purchaseCreditProduct(tx, {
         tenantId,
         memberId: row.memberId,
         productId: row.creditProductId,
         chargeAmount: row.amount,
       });
+      // Overwrites, not merges — this debit runs after the credit above, so
+      // its signal reflects the wallet's true final balance.
+      walletLow = purchaseResult.walletLow;
     } catch (err) {
       // A domain refusal (404 product gone / 409 no longer sellable) — the
       // wallet credit above already committed within this same transaction,
@@ -158,5 +172,6 @@ export async function fulfilCustomerPayment(
     purpose: row.purpose,
     degraded,
     fulfilmentNote,
+    walletLow,
   };
 }
