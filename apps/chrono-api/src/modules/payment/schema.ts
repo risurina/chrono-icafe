@@ -57,6 +57,15 @@ export const chronoPayment = pgTable(
     // Stored so a replayed checkout can return the exact same redirect URL —
     // `providerReference` alone (the PSP's own id) isn't enough to reconstruct it.
     checkoutUrl: text("checkoutUrl"),
+    // Which gateway this checkout was created against — "tenant" (the
+    // tenant's own configured PayMongo integration) or "platform" (the
+    // platform's shared PayMongo fallback account, used when the tenant has
+    // none configured). Defaulted to "tenant" for backfill safety on
+    // pre-existing rows, all of which predate the fallback and were
+    // necessarily tenant-gateway checkouts. See
+    // .ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md,
+    // Phase 4.
+    gatewayScope: text("gatewayScope").notNull().default("tenant"), // "tenant" | "platform"
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
