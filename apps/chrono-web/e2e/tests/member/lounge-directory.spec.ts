@@ -191,27 +191,17 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
     await expect(page.getByText(nameSuspended)).toHaveCount(0);
 
     // ── Clicking "Apply to Join" is a plain same-tab `<a>` (`tenantHref()`,
-    // no `target`) to the tenant's own ROOT host — it does not itself append
-    // `/member` (confirmed by reading `tenant-links.ts` and by Phase 3's own
-    // verification notes: "CTA hrefs resolve to
-    // http://<slug>.localtest.me:3002?source=global_directory"). So "reaches
-    // the tenant's own /member, no dead link / 404" is checked in two parts:
-    // the click lands on a real (non-404) landing page for that tenant, and
-    // that tenant's own /member — reachable from that landing page via its
-    // "Member login" link — is itself live. ──
+    // no `target`) built as `tenantHref(slug, "global_directory", "/member")`
+    // (`lounge-directory-card.tsx`), which resolves to the tenant's own
+    // `/member?source=global_directory` (`tenant-links.ts`) — since
+    // member-visitor-status-tier, the member portal now shows real content
+    // immediately for a newly-registered visitor, so the click lands directly
+    // on `/member`, not the tenant root. ──
     await unjoinedCard.getByTestId("lounge-directory-card-cta").click();
-    await page.waitForURL(new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3000/(\\?.*)?$`), {
-      timeout: 15_000,
-    });
-    await expect(page.getByRole("heading", { name: nameUnjoined }).first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Reaching the tenant's own /member (not a 404) — since
-    // member-visitor-status-tier, visiting it as a not-yet-joined global
-    // customer silently registers a "visitor" and renders real data
-    // immediately, not a locked/guest page.
-    await page.goto(`http://${slugUnjoined}.localtest.me:3000/member`);
+    await page.waitForURL(
+      new RegExp(`^http://${slugUnjoined}\\.localtest\\.me:3000/member\\?source=global_directory$`),
+      { timeout: 15_000 },
+    );
     await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({
       timeout: 15_000,
     });

@@ -92,7 +92,11 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.goto(`http://${slugA}.localtest.me:3000/admin/members`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(customerEmail)).toBeVisible({ timeout: 15_000 });
-    const tenantARow = page.getByRole("row", { name: new RegExp(customerEmail) });
+    // Better Auth normalizes stored emails to lowercase, but faker's raw
+    // output may be mixed-case — match case-insensitively.
+    const tenantARow = page.getByRole("row", {
+      name: new RegExp(customerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+    });
     await expect(tenantARow.getByRole("button", { name: "Approve" })).toBeVisible();
 
     // ── Tenant B: create a second, independent business. ──
