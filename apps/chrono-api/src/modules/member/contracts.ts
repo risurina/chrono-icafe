@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const memberApplicationStatusSchema = z.enum(["pending", "approved", "rejected"]);
+export const memberApplicationStatusSchema = z.enum(["visitor", "pending", "approved", "rejected"]);
 
 export const applyForMembershipSchema = z.object({
   phone: z.string().min(1).max(50).optional(),

@@ -7,7 +7,7 @@ a free-text column, not a Postgres enum.
 **Sessions:**
 - Planning: (this session)
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: (subagent, no persistent session name)
 
 ## Supersedes / reworks
 
@@ -301,6 +301,15 @@ Phase 1 changes this file first, everything else follows from its shape.
 
 ## Plan closure
 
-Once all phases land and verify, move this plan from `draft/` → `ready/` →
-`in-progress/` → `.ai/plans/chrono/archive/member-visitor-status-tier/README.md` per
-`.ai/rules/feature-planning.md`.
+All three phases landed:
+
+- Phase 1 (server: visitor status, mutation gate, promote-on-apply) — `f49d0871`
+- Phase 2 (client: silent visitor registration, unlock reads, inline-disable mutations) — `9cc3a862`
+- Phase 3 (e2e coverage, this commit) — renamed `guest-preview-banner.spec.ts` to
+  `visitor-status.spec.ts` and rewrote it against the shipped no-banner/no-section-lock
+  behavior; updated `promos.spec.ts` to add a visitor-status no-lock case; rewrote
+  `apply-for-tenant.spec.ts`, `venue-status.spec.ts`, and `lounge-directory.spec.ts`'s
+  `applyToTenant()` helpers to match the actual auto-registration flow (a first visit to
+  `/member` alone now creates a `"visitor"` tenantMember — no click, no lock/prompt).
+
+Moved from `in-progress/` to `archive/` per `.ai/rules/feature-planning.md`.

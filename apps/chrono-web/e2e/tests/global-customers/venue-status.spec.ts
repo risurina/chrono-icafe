@@ -82,17 +82,15 @@ async function signUpGlobalCustomer(page: Page): Promise<{ email: string }> {
   return { email };
 }
 
-/** Applies the signed-in global customer to a tenant via its own `/member`.
- * Since member-portal-guest-preview-banner, the top "not-applied" banner was
- * removed entirely — a not-yet-applied guest sees the normal Chrome with the
- * Apply CTA inside `RequiresMembership`'s locked-section card instead. */
+/** Registers the signed-in global customer as a member of a tenant by
+ * visiting its own `/member`. Since member-visitor-status-tier, a first
+ * visit alone silently creates the `tenantMember` row (as a `"visitor"` —
+ * no click, no lock/prompt to get through) — which is all this page's
+ * "joined" status (`getMyTenantMemberships()`) cares about, independent of
+ * the Chrono application status. */
 async function applyToTenant(page: Page, slug: string) {
   await page.goto(`http://${slug}.localtest.me:3000/member`);
   await page.waitForLoadState("networkidle");
-  await expect(
-    page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 15_000 });
 }
 

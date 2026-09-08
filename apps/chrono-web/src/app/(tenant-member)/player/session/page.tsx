@@ -22,7 +22,6 @@ import {
 import { cn } from "agora/ui/cn";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatDateTime, formatMinutes, type PaginationMeta } from "@/lib/member/format";
 import { getMySessionSummary, getMySessions, type SessionSummary, type PortalSessionSummary } from "@/lib/member/session";
@@ -179,7 +178,6 @@ export default function MemberSessionPage() {
 
       <StartSessionSection />
 
-      <RequiresMembership member={member}>
       <Card data-testid="active-session-card">
         <CardHeader>
           <CardTitle>Active session</CardTitle>
@@ -236,7 +234,6 @@ export default function MemberSessionPage() {
           </Stack>
         </CardContent>
       </Card>
-      </RequiresMembership>
     </Stack>
   );
 }

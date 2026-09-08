@@ -17,6 +17,7 @@ import {
 } from "agora/server";
 import { chronoPayment } from "./schema";
 import { chronoCreditProduct } from "../credit/schema";
+import { requireAppliedMembership } from "../member/access";
 import { toCents } from "../wallet/money";
 import {
   createCheckoutSchema,
@@ -88,6 +89,7 @@ export function paymentPortalRoutes(opts: {
     })
     .post("/checkout", zValidator("json", createCheckoutSchema), async (c) => {
       requireMemberActionHeader(c);
+      await requireAppliedMembership(c);
       const { tenantId, memberId, email } = c.var.member;
       const input = c.req.valid("json");
       const idempotencyKey = c.req.header("Idempotency-Key")?.slice(0, 128);

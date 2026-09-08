@@ -11,6 +11,7 @@ import { toPublicStationStatus } from "../station/routes";
 import { chronoQrTokenUse } from "./schema";
 import { verifyStationQrToken } from "./token";
 import { startSession, publishSessionTransition } from "../session/service";
+import { requireAppliedMembership } from "../member/access";
 import {
   resolveQrSchema,
   consumeQrSchema,
@@ -238,6 +239,7 @@ export function qrPublicRoutes() {
       // body must fail with the identical generic message, not `zValidator`'s
       // own distinct Zod-issue text.
       .post("/consume", memberMiddleware(), async (c) => {
+        await requireAppliedMembership(c);
         const { tenantId, memberId } = c.var.member;
         const parsed = consumeQrSchema.safeParse(await c.req.json().catch(() => null));
         if (!parsed.success) {

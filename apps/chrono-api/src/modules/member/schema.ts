@@ -18,7 +18,7 @@ export const chronoMemberProfile = pgTable(
     // ("active"/"suspended", the foundation's login-gate flag). A "pending"
     // profile can still sign in and see their own status; this field carries
     // no enforcement yet (see the module plan's "Enforcement note").
-    applicationStatus: text("applicationStatus").notNull().default("pending"), // "pending" | "approved" | "rejected"
+    applicationStatus: text("applicationStatus").notNull().default("pending"), // "visitor" | "pending" | "approved" | "rejected"
     // Staff-facing member code, generated once on first approval
     // (`generateMemberCode()` in `service.ts`). Null until approved; never
     // reused/reassigned after that (see the member-code plan's Out of Scope).

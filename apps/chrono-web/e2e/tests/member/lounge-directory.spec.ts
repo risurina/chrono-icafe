@@ -88,21 +88,15 @@ async function signUpGlobalCustomer(
   await page.waitForURL(/\/member$/, { timeout: 30_000 });
 }
 
-/** Applies the signed-in global customer to a tenant via its own `/member`
- * (rewritten to the tenant-member tree — see `next.config.ts`), reusing the
- * same apply flow the `global-customers/*` specs exercise. Since
- * member-portal-guest-preview-banner, the top "not-applied" banner was
- * removed entirely — a not-yet-applied guest sees the normal Chrome with the
- * Apply CTA inside `RequiresMembership`'s locked-section card instead. */
+/** Registers the signed-in global customer as a member of a tenant by
+ * visiting its own `/member` (rewritten to the tenant-member tree — see
+ * `next.config.ts`). Since member-visitor-status-tier, a first visit alone
+ * silently creates the `tenantMember` row (as a `"visitor"` — no click, no
+ * lock/prompt to get through), which is all "joined" means for this
+ * directory (`isMember`, backed by `getMyTenantMemberships()`), independent
+ * of the Chrono application status. */
 async function applyToTenant(page: Page, base: string) {
   await page.goto(`${base}/member`);
-  await page.waitForLoadState("networkidle");
-  await expect(
-    page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-  ).toBeVisible({
-    timeout: 15_000,
-  });
-  await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 30_000 });
 }
@@ -213,10 +207,12 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
       timeout: 15_000,
     });
 
+    // Reaching the tenant's own /member (not a 404) — since
+    // member-visitor-status-tier, visiting it as a not-yet-joined global
+    // customer silently registers a "visitor" and renders real data
+    // immediately, not a locked/guest page.
     await page.goto(`http://${slugUnjoined}.localtest.me:3000/member`);
-    await expect(
-      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-    ).toBeVisible({
+    await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({
       timeout: 15_000,
     });
   });

@@ -31,7 +31,7 @@ import {
 } from "agora/ui";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
-import { RequiresMembership } from "@/components/member/requires-membership";
+import { UnlockHint } from "@/components/member/unlock-hint";
 import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatDateTime, type PaginationMeta } from "@/lib/member/format";
 import { getMyWalletBalance, getMyWalletHistory, type WalletBalance, type WalletTransaction } from "@/lib/member/wallet";
@@ -180,7 +180,7 @@ function PaymentStatusCard({
 }
 
 export default function MemberWalletPage() {
-  const { member } = useMemberArea();
+  const { member, canInteract } = useMemberArea();
   const router = useRouter();
   const searchParams = useSearchParams();
   const paymentParam = searchParams.get("payment");
@@ -311,7 +311,6 @@ export default function MemberWalletPage() {
         actions={<RefreshButton onRefresh={load} />}
       />
 
-      <RequiresMembership member={member}>
       {paymentParam === "cancelled" ? (
         <Card data-testid="payment-status-card">
           <CardHeader>
@@ -352,13 +351,14 @@ export default function MemberWalletPage() {
                 topupIdempotencyKeyRef.current = null;
                 setTopupOpen(true);
               }}
-              disabled={!gateway?.available}
+              disabled={!gateway?.available || !canInteract}
             >
               Top up online
             </Button>
             {!loading && !gateway?.available ? (
               <p className="text-sm text-muted-foreground">Ask staff at the counter to add credits.</p>
             ) : null}
+            {!canInteract ? <UnlockHint /> : null}
           </Stack>
         </CardFooter>
       </Card>
@@ -439,7 +439,6 @@ export default function MemberWalletPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </RequiresMembership>
     </Stack>
   );
 }
