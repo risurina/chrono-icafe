@@ -2,23 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { LayoutDashboard, LogOut, User } from "lucide-react";
 import { Avatar, Button, Stack, Row } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { customerAuth } from "@/lib/customer-client";
 
 /**
- * The apex global-identity area's own nav rail — Dashboard/Logout, matching
- * the reference screenshot's left rail. Deliberately NOT the tenant-side
- * `member-nav.tsx` (many items, tenant-scoped data): this is a much smaller,
- * apex-only nav for the "Gaming Lounge Directory" page, built fresh from
- * `agora/ui` primitives only.
- *
- * No Profile item: `/member/profile` does not exist yet as a route (checked
- * during implementation), so it is omitted here rather than linking to a
- * 404. Add it back once that page ships.
+ * The apex global-identity area's own nav rail — Dashboard/Profile/Logout,
+ * matching the reference screenshot's left rail. Deliberately NOT the
+ * tenant-side `member-nav.tsx` (many items, tenant-scoped data): this is a
+ * much smaller, apex-only nav for the "Gaming Lounge Directory" page, built
+ * fresh from `agora/ui` primitives only.
  */
-const NAV_ITEMS = [{ label: "Dashboard", href: "/member", icon: LayoutDashboard }] as const;
+const NAV_ITEMS = [
+  { label: "Dashboard", href: "/member", icon: LayoutDashboard },
+  { label: "Profile", href: "/member/profile", icon: User },
+] as const;
 
 export function GlobalPortalSidebar({
   name,
