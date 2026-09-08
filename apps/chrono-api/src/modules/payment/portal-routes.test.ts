@@ -187,9 +187,15 @@ async function main() {
   const tenantB = await seedTenant("payment-route-test-b");
 
   // Stub the PSP: `createCheckout` returns a fake URL/ref, no network call.
+  // Wrapped shape: `resolveCustomerPaymentGateway` now returns
+  // `{ gateway, scope }`, not a bare gateway — this test simulates a
+  // tenant-configured integration (`scope: "tenant"`).
   __setCustomerPaymentGateway(async () => ({
-    id: "paymongo" as const,
-    createCheckout: async () => ({ url: "https://paymongo.test/checkout/fake", providerRef: "cs_fake_123" }),
+    gateway: {
+      id: "paymongo" as const,
+      createCheckout: async () => ({ url: "https://paymongo.test/checkout/fake", providerRef: "cs_fake_123" }),
+    },
+    scope: "tenant" as const,
   }));
 
   const app = new Hono().route(

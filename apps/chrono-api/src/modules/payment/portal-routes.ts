@@ -132,10 +132,15 @@ export function paymentPortalRoutes(opts: {
         });
       }
 
-      const gateway = await resolveCustomerPaymentGateway(tenantId);
-      if (!gateway) {
+      // `resolved.scope` ("tenant" | "platform") is not yet persisted anywhere
+      // — Phase 4 adds a `gatewayScope` column to `ChronoPayments` and writes
+      // it alongside this checkout's row. Phase 2 only threads the resolved
+      // gateway through to checkout creation.
+      const resolved = await resolveCustomerPaymentGateway(tenantId);
+      if (!resolved) {
         throw new HttpError(400, "Online payment is not available for this tenant.");
       }
+      const { gateway } = resolved;
       const cfg = await readCustomerPaymentConfig(tenantId);
       const currency = cfg?.currency ?? "PHP";
 
@@ -218,6 +223,7 @@ export function paymentPortalRoutes(opts: {
       const { url, providerRef } = await gateway.createCheckout({
         tenantId,
         referenceId: payment!.id,
+        referenceType: "chrono_payment",
         amountMinorUnits: Number(toCents(amount)),
         currency,
         description,

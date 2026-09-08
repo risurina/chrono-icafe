@@ -1804,9 +1804,15 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
 
   // ── Integrations: per-tenant customer payments (tenant → its own customers) ──
   // Distinct from platform billing: money moves customer → the TENANT's own
-  // PayMongo account. No platform env fallback — resolveCustomerPaymentGateway
-  // returns null for an unconfigured tenant, never a shared Agora account. See
-  // .ai/plans/agora/archive/tenant-customer-payments/README.md.
+  // PayMongo account when one is configured here. `resolveCustomerPaymentGateway`
+  // may also fall back to a shared platform PayMongo account
+  // (`scope: "platform"`, see `.ai/plans/agora/in-progress/
+  // platform-paymongo-customer-payment-fallback/README.md`) when this
+  // integration is unconfigured — routes below that confirm THIS integration
+  // specifically (the test-connection route) must check `scope === "tenant"`
+  // rather than treat any resolved gateway as proof this row works. See
+  // .ai/plans/agora/archive/tenant-customer-payments/README.md for this
+  // integration's own original design.
   .put(
     "/integrations/customer-payment",
     zValidator("json", upsertCustomerPaymentIntegrationSchema),
@@ -1956,10 +1962,15 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
   .post("/integrations/customer-payment/test", async (c) => {
     const { tenantId } = c.var.tenant;
     requirePermission(c.var.tenant.permissions, { integration: ["manage"] });
-    const gateway = await resolveCustomerPaymentGateway(tenantId);
-    if (!gateway) {
+    const resolved = await resolveCustomerPaymentGateway(tenantId);
+    // This route confirms THE TENANT'S OWN integration — it must not report
+    // success off the platform fallback (`scope === "platform"`), or a tenant
+    // that has configured nothing gets a false-positive "your integration
+    // works" once the platform fallback exists.
+    if (!resolved || resolved.scope !== "tenant") {
       throw new HttpError(404, "No customer-payment integration configured.");
     }
+    const { gateway } = resolved;
     await recordStaffAudit(c, {
       action: "integration.customer_payment_tested",
       targetType: "integration",
