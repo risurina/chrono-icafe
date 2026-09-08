@@ -91,14 +91,14 @@ async function signUpGlobalCustomer(
 /** Applies the signed-in global customer to a tenant via its own `/member`
  * (rewritten to the tenant-member tree — see `next.config.ts`), reusing the
  * same apply flow the `global-customers/*` specs exercise. Since
- * member-portal-guest-preview-banner, a not-yet-applied guest sees the normal
- * Chrome with a "not-applied" MemberAccessBanner instead of the old
- * full-page `ApplyForTenantPrompt` takeover — the Apply button lives there. */
+ * member-portal-guest-preview-banner, the top "not-applied" banner was
+ * removed entirely — a not-yet-applied guest sees the normal Chrome with the
+ * Apply CTA inside `RequiresMembership`'s locked-section card instead. */
 async function applyToTenant(page: Page, base: string) {
   await page.goto(`${base}/member`);
   await page.waitForLoadState("networkidle");
   await expect(
-    page.getByText("Join this business — apply to become a customer to unlock your account."),
+    page.getByRole("heading", { name: "Join this business to see your live account data here." }),
   ).toBeVisible({
     timeout: 15_000,
   });
@@ -215,7 +215,7 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
 
     await page.goto(`http://${slugUnjoined}.localtest.me:3000/member`);
     await expect(
-      page.getByText("Join this business — apply to become a customer to unlock your account."),
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
     ).toBeVisible({
       timeout: 15_000,
     });
