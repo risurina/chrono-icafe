@@ -149,13 +149,33 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
     await signUpGlobalCustomer(page, { name: "Lounge Directory Customer", email: customerEmail });
     await applyToTenant(page, `http://${slugJoined}.localtest.me:3000`);
 
-    // ── The directory grid on the apex home. ──
+    // ── The directory grid on the apex home, now split into "My Lounges"
+    // (default-active tab) and "Discover Lounges" tabs. Radix `Tabs` has no
+    // `forceMount` here (`packages/agora/src/presentation/ui/components/tabs.tsx`), so the
+    // inactive tab's content is not in the DOM at all until its trigger is
+    // clicked — see the plan's "Radix Tabs unmounts inactive content" note. ──
     await page.goto("/member");
     await page.waitForLoadState("networkidle");
 
+    // "My Lounges" is the default-active tab — the joined tenant's card is
+    // visible with no click needed.
     const joinedCard = page.getByTestId("lounge-directory-card").filter({ hasText: nameJoined });
     await expect(joinedCard).toBeVisible({ timeout: 20_000 });
     await expect(joinedCard.getByTestId("lounge-directory-card-cta")).toHaveText("Enter Portal");
+
+    // ── Isolation: the suspended tenant never renders as a card in "My
+    // Lounges" — not filtered out by pagination, filtered out because it's
+    // suspended (it shares the same "0 "-prefixed name, so it would have
+    // sorted onto page 1 right alongside the other two if it weren't). ──
+    await expect(
+      page.getByTestId("lounge-directory-card").filter({ hasText: nameSuspended }),
+    ).toHaveCount(0);
+    await expect(page.getByText(nameSuspended)).toHaveCount(0);
+
+    // ── Switch to "Discover Lounges" — the unjoined tenant's card only
+    // exists in this tab's content, which is unmounted until the trigger is
+    // clicked. ──
+    await page.getByRole("tab", { name: "Discover Lounges" }).click();
 
     const unjoinedCard = page
       .getByTestId("lounge-directory-card")
@@ -165,10 +185,7 @@ test.describe("Gaming Lounge Directory (apex /member)", () => {
       "Apply to Join",
     );
 
-    // ── Isolation: the suspended tenant never renders as a card, anywhere
-    // on the page — not filtered out by pagination, filtered out because
-    // it's suspended (it shares the same "0 "-prefixed name, so it would
-    // have sorted onto page 1 right alongside the other two if it weren't). ──
+    // ── The suspended tenant must never render, in either tab. ──
     await expect(
       page.getByTestId("lounge-directory-card").filter({ hasText: nameSuspended }),
     ).toHaveCount(0);
