@@ -23,17 +23,24 @@
   `publishSessionTransition` documents; refactored `applyWalletDelta` to return a
   signal and moved every call site's publish to after its own `withTenant` resolves).
   `typecheck` + `rls:proof` pass on both commits.
-- Phase 5 (kiosk login → session start) — NOT STARTED, still blocked on its open
-  research question (no existing route found for a device-initiated session start).
-- Phase 6 (e2e + verification) — NOT STARTED. None of Phases 2-4's branches are
-  pushed or merged yet.
+- Phase 5 (kiosk login → session start) — DONE, commit `b73545ae`. Research
+  resolved the open question (no prior device-initiated session-start route existed);
+  new `POST /api/v1/device/session/start` reuses `startSession()` and a newly
+  exported `verifyMemberPassword` (`packages/agora/src/identity/member-auth/index.ts`
+  — renamed from an internal `verifyPassword`, no behavior change, both existing call
+  sites updated), gated by a new per-device `deviceSessionLoginLimiter` (20/15min)
+  alongside the per-account check. `typecheck` + `rls:proof` pass.
+- Phase 6 (e2e + verification) — NOT STARTED. Both branches (this repo's
+  `feature/pc-client-tauri-api-integration`, pushed; the Tauri repo's
+  `feature/agora-realtime-transport`, pushed) are up on their remotes but not merged.
 
-**Not yet done, before this plan can close:** merge/push both branches (this repo's
-`feature/pc-client-tauri-api-integration` and the Tauri repo's
-`feature/agora-realtime-transport`), resolve Phase 5, add the e2e spec for the new
-`/rpc/devices/:id/commands` + `/api/v1/device/{session,wallet}` routes per
-`.ai/rules/e2e-testing.md` (not yet written), and run the manual pairing→approve→
-heartbeat→realtime→command-roundtrip smoke test Phase 6 calls for.
+**Not yet done, before this plan can close:** open PRs / merge both branches; add the
+e2e spec for the new `/rpc/devices/:id/commands` + `/api/v1/device/{session,wallet,
+session/start}` routes per `.ai/rules/e2e-testing.md` (not yet written — this is the
+one hard gate `.ai/rules/e2e-testing.md` calls non-optional for a new tenant-scoped
+feature); and run the manual pairing→approve→heartbeat→realtime→command-roundtrip
+smoke test Phase 6 calls for (needs a running `pnpm dev` + a real Tauri build against
+the new branch — cannot be done from a coordinating session alone).
 
 **Correction**: the Tauri client repo is NOT at the Windows path this plan originally
 cited. It is locally reachable at `/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`
