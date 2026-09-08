@@ -31,7 +31,7 @@ export function GlobalPortalSidebar({
   return (
     <Stack
       gap={6}
-      className="w-full shrink-0 border-border/60 sm:w-56 sm:border-r sm:pr-6"
+      className="w-full shrink-0 border-border/60 sm:sticky sm:top-24 sm:w-56 sm:self-start sm:border-r sm:pr-6"
     >
       <Row items="center" gap={3}>
         <Avatar name={name} size="lg" />
