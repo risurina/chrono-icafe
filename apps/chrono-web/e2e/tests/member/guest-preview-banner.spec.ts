@@ -4,12 +4,13 @@ import { faker } from "../../utils/faker";
 /**
  * member-portal-guest-preview-banner — the banner-instead-of-blocking-screen
  * gate (`MemberGate`/`Chrome` in `member-gate.tsx`, `MemberAccessBanner`,
- * `RequiresMembership`). Covers both banner variants end to end:
+ * `RequiresMembership`). Covers both states end to end:
  *
  * - A signed-in global customer who hasn't applied to this tenant ("guest
- *   mode") sees the normal Chrome (header + nav) with the "not-applied"
- *   banner and locked `RequiresMembership` sections instead of live data —
- *   and applying unlocks the real page in place.
+ *   mode") sees the normal Chrome (header + nav) with NO top banner at all —
+ *   the old "not-applied" banner was removed entirely — and locked
+ *   `RequiresMembership` sections carrying the Apply CTA instead of live
+ *   data. Applying unlocks the real page in place.
  * - A `tenantMember` with `applicationStatus: "pending"` sees the "pending"
  *   banner with real, unblocked promo/credit-product data — the concrete
  *   server/client mismatch phase 1 fixed (server-side, pending members were
@@ -89,14 +90,19 @@ test.describe("Member portal — guest preview banner", () => {
 
     // Visiting the tenant's member dashboard as a not-yet-applied global
     // customer renders the normal Chrome (header + nav) — not a full-page
-    // takeover — with the "not-applied" banner and a locked section instead
-    // of live data.
+    // takeover, and no top banner either (that banner was removed entirely) —
+    // with a locked `RequiresMembership` section instead of live data.
     await page.goto(`${base}/member`);
     await page.waitForLoadState("networkidle");
     await expect(
       page.getByText("Join this business — apply to become a customer to unlock your account."),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
     ).toBeVisible();
-    await expect(page.getByText("Apply to unlock this section")).toBeVisible();
+    await expect(
+      page.getByText("Apply to become a customer of this business to unlock this section."),
+    ).toBeVisible();
     // The nav is present — this proves Chrome rendered, not a takeover card.
     // (Both the desktop tab bar and mobile bottom nav carry a "session" item —
     // scope to the desktop tab's stable test id to avoid a strict-mode
@@ -107,17 +113,17 @@ test.describe("Member portal — guest preview banner", () => {
       0,
     );
 
-    // Applying performs the existing apply sequence and reloads into the
-    // unlocked portal — the not-applied banner is gone (replaced by the
-    // pending banner, since autoApproveMembers defaults off) and real data
-    // (the dashboard's playtime card) now renders in place of the lock card.
+    // Applying (from the locked card's own button, not a top banner) performs
+    // the existing apply sequence and reloads into the unlocked portal — the
+    // locked card is gone (replaced by the pending banner, since
+    // autoApproveMembers defaults off) and real data (the dashboard's
+    // playtime card) now renders in place of it.
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.getByText("Join this business — apply to become a customer to unlock your account."),
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
     ).toHaveCount(0);
     await expect(page.getByText("Your membership application is pending approval.")).toBeVisible();
-    await expect(page.getByText("Apply to unlock this section")).toHaveCount(0);
     await expect(page.getByTestId("playtime-hero")).toBeVisible();
   });
 
@@ -141,7 +147,9 @@ test.describe("Member portal — guest preview banner", () => {
     // banner, since server-side this was never gated on approval status.
     await page.goto(`${base}/member/promos`);
     await expect(page.getByText("Your membership application is pending approval.")).toBeVisible();
-    await expect(page.getByText("Apply to unlock this section")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
+    ).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Credit packs" })).toBeVisible();
   });
 });

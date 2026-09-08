@@ -54,14 +54,14 @@ test.describe("Global customer — apply to a tenant", () => {
     // ── Apply to tenant A's portal (happy path) ──
     // Since member-portal-guest-preview-banner, a not-yet-applied global
     // customer no longer gets the old full-page ApplyForTenantPrompt takeover
-    // on /member/* — they see the normal Chrome (header + nav) with a
-    // "not-applied" MemberAccessBanner and a locked page underneath.
+    // on /member/* — they see the normal Chrome (header + nav) with the top
+    // banner removed entirely; the Apply CTA now lives in
+    // `RequiresMembership`'s own locked-section card in place of live data.
     await page.goto(`http://${slugA}.localtest.me:3000/member`);
     await page.waitForLoadState("networkidle");
     await expect(
-      page.getByText("Join this business — apply to become a customer to unlock your account."),
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
     ).toBeVisible();
-    await expect(page.getByText("Apply to unlock this section")).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     // Reloads into the member area once the linked tenantMember exists.
     await expect(
@@ -97,7 +97,7 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.goto(`http://${slugB}.localtest.me:3000/member`);
     await page.waitForLoadState("networkidle");
     await expect(
-      page.getByText("Join this business — apply to become a customer to unlock your account."),
+      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(

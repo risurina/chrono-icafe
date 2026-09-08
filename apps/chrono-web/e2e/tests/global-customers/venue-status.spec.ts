@@ -83,14 +83,14 @@ async function signUpGlobalCustomer(page: Page): Promise<{ email: string }> {
 }
 
 /** Applies the signed-in global customer to a tenant via its own `/member`.
- * Since member-portal-guest-preview-banner, a not-yet-applied guest sees the
- * normal Chrome with a "not-applied" MemberAccessBanner (not the old
- * full-page ApplyForTenantPrompt takeover) — the Apply button lives there. */
+ * Since member-portal-guest-preview-banner, the top "not-applied" banner was
+ * removed entirely — a not-yet-applied guest sees the normal Chrome with the
+ * Apply CTA inside `RequiresMembership`'s locked-section card instead. */
 async function applyToTenant(page: Page, slug: string) {
   await page.goto(`http://${slug}.localtest.me:3000/member`);
   await page.waitForLoadState("networkidle");
   await expect(
-    page.getByText("Join this business — apply to become a customer to unlock your account."),
+    page.getByRole("heading", { name: "Join this business to see your live account data here." }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 15_000 });
