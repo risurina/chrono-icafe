@@ -47,8 +47,7 @@ function Chrome({
         identity={identity}
       />
       <MemberNav />
-      {guestMode && <MemberAccessBanner variant="not-applied" />}
-      {showPendingBanner && <MemberAccessBanner variant="pending" />}
+      {showPendingBanner && <MemberAccessBanner />}
       <main className="mx-auto w-full flex flex-col max-w-7xl flex-1 p-4 md:py-6 md:px-10">
         {children}
       </main>
@@ -68,9 +67,9 @@ function Chrome({
  * 1. Sessions pending → skeleton shell.
  * 2. Neither member nor global customer → `/login?next=<path>`.
  * 3. Global customer only (not yet applied to this tenant) → guest-mode
- *    `Chrome` with a "Join this business" banner (Phase 2 locks the
- *    member-only page content behind `RequiresMembership`; Phase 1 leaves
- *    guest-mode pages calling their existing data hooks, which 401 today).
+ *    `Chrome` (no top banner) with member-only page content locked behind
+ *    `RequiresMembership`'s own "Join this business" card, which carries the
+ *    Apply action.
  * 4. Member → one `GET /portal/members/me` (via `MemberAreaProvider`) → header + nav + banner (if pending) + page.
  */
 export function MemberGate({

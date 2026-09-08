@@ -1,8 +1,9 @@
 "use client";
 
 import { Lock } from "lucide-react";
-import { Card, CardContent, Row, Stack } from "agora/ui";
+import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Row, Stack } from "agora/ui";
 import type { MemberUser } from "@/lib/member-client";
+import { useApplyForTenant } from "./apply-for-tenant-prompt";
 
 /**
  * Guards the interactive/data-bearing part of a `/member/*` page so a guest
@@ -11,6 +12,11 @@ import type { MemberUser } from "@/lib/member-client";
  * member-only `/portal/*` call that would 401. Callers gate their own
  * `load()`/`useEffect` on `member` separately — this component only decides
  * what renders, not what fetches.
+ *
+ * `useApplyForTenant()` is called unconditionally (rules of hooks) even though
+ * its state is only ever rendered in the guest (`member === null`) fallback
+ * branch below — the top-of-portal "not-applied" banner was removed, so this
+ * per-section locked card is now the only place the Apply CTA lives.
  */
 export function RequiresMembership({
   member,
@@ -21,21 +27,28 @@ export function RequiresMembership({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
+  const { applying, apply } = useApplyForTenant();
+
   if (member) return <>{children}</>;
   if (fallback) return <>{fallback}</>;
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardHeader>
         <Row items="center" gap={3}>
           <Lock className="h-4 w-4 text-muted-foreground" aria-hidden />
           <Stack gap={0}>
-            <span className="text-sm font-medium">Apply to unlock this section</span>
-            <span className="text-xs text-muted-foreground">
-              Join this business to see your live account data here.
-            </span>
+            <CardTitle>Join this business to see your live account data here.</CardTitle>
+            <CardDescription>
+              Apply to become a customer of this business to unlock this section.
+            </CardDescription>
           </Stack>
         </Row>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={apply} disabled={applying} size="sm">
+          {applying ? "Applying…" : "Apply"}
+        </Button>
       </CardContent>
     </Card>
   );
