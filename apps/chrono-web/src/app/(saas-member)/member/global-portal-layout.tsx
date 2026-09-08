@@ -59,7 +59,7 @@ export function GlobalPortalLayout({ children }: { children: React.ReactNode }) 
       {/* `MarketingHeader` is fixed/80px, not sticky — content reserves its
           own top padding instead of relying on document flow. */}
       <main className="flex-1 pt-24">
-        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 sm:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 py-8 sm:flex-row">
           <GlobalPortalSidebar name={customer.name} email={customer.email} />
           <div className="min-w-0 flex-1">{children}</div>
         </div>

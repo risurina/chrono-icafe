@@ -67,7 +67,7 @@ export function LoungeDirectoryCard({
       <CardContent>
         {reachable ? (
           <a
-            href={tenantHref(slug, "global_directory")}
+            href={tenantHref(slug, "global_directory", "/member")}
             className={cn(buttonVariants(), "w-full")}
             data-testid="lounge-directory-card-cta"
           >
