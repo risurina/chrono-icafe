@@ -13,10 +13,13 @@ import { faker } from "../../utils/faker";
  *
  * Happy path: the catalog + detail page render (or a clean empty state when
  * no credit products exist yet, since a fresh tenant has none) and a
- * nonexistent product id doesn't crash; role check: Promos IS approval-gated
- * per the plan's decision — a pending applicant sees `ApprovalRequiredCard`
- * instead of the catalog; cross-tenant isolation: tenant B's member never
- * sees tenant A's credit products.
+ * nonexistent product id doesn't crash; role check: since
+ * member-portal-guest-preview-banner, Promos is no longer client-side
+ * approval-gated — a pending applicant sees the catalog render normally with
+ * a "pending" `MemberAccessBanner` above it (server-side, pending members
+ * were always allowed to read promos/credits; only the old
+ * `ApprovalRequiredCard` UI block is gone); cross-tenant isolation: tenant
+ * B's member never sees tenant A's credit products.
  */
 const PASSWORD = "Password123!";
 
@@ -55,7 +58,7 @@ async function memberSignUp(
 test.describe("Member promos", () => {
   test.describe.configure({ timeout: 270_000 });
 
-  test("role gate: a pending applicant is blocked from Promos with ApprovalRequiredCard", async ({
+  test("role gate: a pending applicant sees the pending banner with the full Promos page, not a blocking card", async ({
     page,
   }) => {
     const uniq = faker.string.alphanumeric(8).toLowerCase();
@@ -72,16 +75,22 @@ test.describe("Member promos", () => {
 
     await page.goto(`${base}/member/promos`);
     // A brand-new member has never applied, so applicationStatus defaults to
-    // "pending" — Promos is the one tab flagged `requiresApproval`.
-    await expect(page.getByText("Approval required")).toBeVisible();
-    await expect(page.getByText(/pending approval/i)).toBeVisible();
+    // "pending" — server-side this was always allowed to read promos/credits;
+    // the old client-side ApprovalRequiredCard block is gone, replaced by the
+    // "pending" MemberAccessBanner above the real, unblocked page content.
+    await expect(page.getByText("Your membership application is pending approval.")).toBeVisible();
+    await expect(page.getByText("Approval required")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Credit packs" })).toBeVisible();
 
-    // A nonexistent product id also stays behind the same gate.
+    // A nonexistent product id also renders normally (its own "not found"
+    // state), never the old page-level block.
     await page.goto(`${base}/member/promos/does-not-exist`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Approval required")).toBeVisible();
+    await expect(page.getByText("Your membership application is pending approval.")).toBeVisible();
+    await expect(page.getByText("Approval required")).toHaveCount(0);
+    await expect(page.getByText("Pack not found")).toBeVisible();
   });
 
-  test("happy path: an approved member sees the promos catalog (empty state on a fresh tenant)", async ({
+  test("happy path: a member sees the promos catalog regardless of approval status (empty state on a fresh tenant)", async ({
     page,
   }) => {
     const uniq = faker.string.alphanumeric(8).toLowerCase();
@@ -97,13 +106,11 @@ test.describe("Member promos", () => {
     await memberSignUp(page, base, { name: "Promo OK Member", email: memberEmail });
     await page.goto(`${base}/member/promos`);
 
-    // Whether approved or not depends on the tenant's autoApproveMembers
-    // flag (default off), so assert on whichever real state renders rather
-    // than assuming approval — this still proves the page never crashes and
-    // never fabricates data.
-    const gated = page.getByText("Approval required");
-    const catalogHeading = page.getByRole("heading", { name: "Credit packs" });
-    await expect(gated.or(catalogHeading)).toBeVisible();
+    // Whether approved or pending (depends on the tenant's autoApproveMembers
+    // flag, default off), the catalog itself always renders now — approval
+    // status only changes which banner (if any) shows above it.
+    await expect(page.getByRole("heading", { name: "Credit packs" })).toBeVisible();
+    await expect(page.getByText("Approval required")).toHaveCount(0);
   });
 
   test("isolation: tenant B's member never sees tenant A's credit products", async ({
@@ -132,10 +139,11 @@ test.describe("Member promos", () => {
     await pageB.waitForLoadState("networkidle");
     await memberSignUp(pageB, baseB, { name: "Member B", email: memberEmailB });
 
-    // Neither tenant has any credit products configured, so both members are
-    // gated (pending) — the isolation guarantee that matters here is that no
+    // Neither tenant has any credit products configured, so both members see
+    // the same empty-catalog state (both pending, since autoApproveMembers
+    // defaults off) — the isolation guarantee that matters here is that no
     // cross-tenant product/purchase data is ever reachable; confirmed by the
-    // API-level e2e block (Phase H) and by the gate rendering identically
+    // API-level e2e block (Phase H) and by the page rendering identically
     // with zero data leakage for both.
     await pageB.goto(`${baseB}/member/promos`);
     await expect(pageB.getByText("Member A")).toHaveCount(0);
