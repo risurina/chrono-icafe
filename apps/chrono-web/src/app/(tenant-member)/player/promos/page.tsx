@@ -16,22 +16,31 @@ import {
 } from "agora/ui";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
+import { RequiresMembership } from "@/components/member/requires-membership";
+import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatMinutes } from "@/lib/member/format";
 import { getCreditProducts, type CreditProduct } from "@/lib/member/credits";
 import { getActivePromos, type ActivePromo } from "@/lib/member/promos";
 
 export default function MemberPromosPage() {
+  const { member } = useMemberArea();
   const [products, setProducts] = useState<CreditProduct[]>([]);
   const [promos, setPromos] = useState<ActivePromo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    // Guest mode — both calls below are member-only (`memberMiddleware()`)
+    // and would 401 with no `tenantMember` row yet.
+    if (!member) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const [p, promoRes] = await Promise.all([getCreditProducts(), getActivePromos()]);
     if (p.data) setProducts(p.data);
     if (promoRes.data) setPromos(promoRes.data);
     setLoading(false);
-  }, []);
+  }, [member]);
 
   useEffect(() => {
     void load();
@@ -45,6 +54,7 @@ export default function MemberPromosPage() {
         actions={<RefreshButton onRefresh={load} />}
       />
 
+      <RequiresMembership member={member}>
       <Stack gap={3}>
         <h2 className="text-sm font-medium text-muted-foreground">Credit packs</h2>
         {loading ? (
@@ -98,6 +108,7 @@ export default function MemberPromosPage() {
           </Stack>
         )}
       </Stack>
+      </RequiresMembership>
     </Stack>
   );
 }

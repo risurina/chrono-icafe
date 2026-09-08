@@ -85,6 +85,7 @@ import { cn } from "agora/ui/cn";
 import { tenantFetch } from "agora/client";
 import { memberAuth } from "@/lib/member-client";
 import { useMemberArea } from "@/components/member/member-area-context";
+import { RequiresMembership } from "@/components/member/requires-membership";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { formatDate, formatRelative } from "@/lib/member/format";
 import { applyForMembership } from "@/lib/member/account";
@@ -216,10 +217,13 @@ export default function MemberProfilePage() {
   }, [member?.name]);
 
   useEffect(() => {
+    // Guest mode — member-only (`memberMiddleware()`), would 401 with no
+    // `tenantMember` row yet.
+    if (!member) return;
     void getMyLoyalty().then((res) => {
       if (res.data) setMemberSince(res.data.memberSince);
     });
-  }, []);
+  }, [member]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,13 +257,15 @@ export default function MemberProfilePage() {
   }, []);
 
   useEffect(() => {
+    // Guest mode — both are member-only (no `tenantMember` session/row yet).
+    if (!member) return;
     void Promise.all([memberAuth.listSessions(), getMyRecentBranch()]).then(
       ([sessionList, recentBranchRes]) => {
         setSessions(sessionList);
         setRecentBranch(recentBranchRes.data?.recentBranch ?? null);
       },
     );
-  }, []);
+  }, [member]);
 
   async function onRevokeSession(id: string) {
     setRevokingId(id);
@@ -341,6 +347,7 @@ export default function MemberProfilePage() {
     <Stack gap={8}>
       <MemberPageHeader title="Profile" description="Your account and membership details." />
 
+      <RequiresMembership member={member}>
       {/* Hero */}
       <Card className="premium-card-shadow relative overflow-hidden rounded-3xl border-1">
         <div
@@ -618,6 +625,7 @@ export default function MemberProfilePage() {
           </CardContent>
         </Card>
       </Grid>
+      </RequiresMembership>
     </Stack>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from "agora/ui";
 import { memberAuth } from "@/lib/member-client";
 import { useMemberArea } from "@/components/member/member-area-context";
+import { RequiresMembership } from "@/components/member/requires-membership";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { NeedHelpLinks } from "@/components/member/need-help-links";
 
@@ -72,6 +73,7 @@ export default function MemberSettingsPage() {
     <Stack gap={8}>
       <MemberPageHeader title="Settings" description="Password, appearance, and account access." />
 
+      <RequiresMembership member={member}>
       <Card>
         <form onSubmit={onSaveProfile}>
           <CardHeader>
@@ -138,6 +140,7 @@ export default function MemberSettingsPage() {
           </CardFooter>
         </form>
       </Card>
+      </RequiresMembership>
 
       <Card>
         <CardHeader>

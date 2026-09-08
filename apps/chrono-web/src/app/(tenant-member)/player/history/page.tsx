@@ -26,8 +26,11 @@ import {
 import { cn } from "agora/ui/cn";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
+import { RequiresMembership } from "@/components/member/requires-membership";
+import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatDateTime, type PaginationMeta } from "@/lib/member/format";
 import { getMyActivity, type ActivityEvent, type ActivityEventType } from "@/lib/member/activity";
+import type { MemberUser } from "@/lib/member-client";
 
 const TYPE_LABELS: Record<ActivityEventType, string> = {
   wallet: "Wallet",
@@ -43,9 +46,10 @@ const TYPE_LABELS: Record<ActivityEventType, string> = {
  * source tables, not four separate fetches merged client-side).
  *
  * Promos stays a link-out card, not inlined content: `/member/promos` keeps
- * its own page and its own approval gate (`requiresApproval`,
- * `member-gate.tsx`), so inlining its catalog here would silently bypass
- * that gate for a pending applicant. A credit-pack purchase already shows up
+ * its own page, gated for guests by `RequiresMembership` (member-portal
+ * guest-preview-banner plan) rather than the old `requiresApproval`
+ * mechanism, so inlining its catalog here would silently bypass that gate
+ * for a guest/pending applicant. A credit-pack purchase already shows up
  * in the feed itself as a "Credits granted" row (the purchase mints a
  * `chronoCreditGrantLedgerEntry`), so this card is purely a shortcut to buy
  * more — nothing is hidden by removing its old tab.
@@ -68,7 +72,7 @@ function PromosCard() {
   );
 }
 
-function ActivityFeed({ refreshKey }: { refreshKey: number }) {
+function ActivityFeed({ member, refreshKey }: { member: MemberUser | null; refreshKey: number }) {
   const query = useListQuery(["type"]);
   const [items, setItems] = useState<ActivityEvent[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
@@ -77,6 +81,12 @@ function ActivityFeed({ refreshKey }: { refreshKey: number }) {
   const typeFilter = (query.filters.type as ActivityEventType | undefined) ?? undefined;
 
   const load = useCallback(async () => {
+    // Guest mode — `GET /portal/activity` is member-only and would 401 with
+    // no `tenantMember` row yet.
+    if (!member) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const res = await getMyActivity({
       page: query.page,
@@ -96,7 +106,7 @@ function ActivityFeed({ refreshKey }: { refreshKey: number }) {
     }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.page, query.pageSize, typeFilter, query.q, query.sort, query.order, refreshKey]);
+  }, [member, query.page, query.pageSize, typeFilter, query.q, query.sort, query.order, refreshKey]);
 
   useEffect(() => {
     void load();
@@ -132,6 +142,7 @@ function ActivityFeed({ refreshKey }: { refreshKey: number }) {
   ];
 
   return (
+    <RequiresMembership member={member}>
     <Stack gap={4}>
       <DataTableToolbar
         q={query.q}
@@ -174,10 +185,12 @@ function ActivityFeed({ refreshKey }: { refreshKey: number }) {
         />
       ) : null}
     </Stack>
+    </RequiresMembership>
   );
 }
 
 export default function MemberHistoryPage() {
+  const { member } = useMemberArea();
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
@@ -193,7 +206,7 @@ export default function MemberHistoryPage() {
           <CardTitle>Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityFeed key={refreshKey} refreshKey={refreshKey} />
+          <ActivityFeed key={refreshKey} member={member} refreshKey={refreshKey} />
         </CardContent>
       </Card>
     </Stack>

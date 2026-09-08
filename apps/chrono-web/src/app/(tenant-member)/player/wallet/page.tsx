@@ -31,6 +31,8 @@ import {
 } from "agora/ui";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { RefreshButton } from "@/components/member/refresh-button";
+import { RequiresMembership } from "@/components/member/requires-membership";
+import { useMemberArea } from "@/components/member/member-area-context";
 import { formatCurrency, formatDateTime, type PaginationMeta } from "@/lib/member/format";
 import { getMyWalletBalance, getMyWalletHistory, type WalletBalance, type WalletTransaction } from "@/lib/member/wallet";
 import {
@@ -178,6 +180,7 @@ function PaymentStatusCard({
 }
 
 export default function MemberWalletPage() {
+  const { member } = useMemberArea();
   const router = useRouter();
   const searchParams = useSearchParams();
   const paymentParam = searchParams.get("payment");
@@ -203,6 +206,12 @@ export default function MemberWalletPage() {
   const topupIdempotencyKeyRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
+    // Guest mode — every call below is member-only (`memberMiddleware()`)
+    // and would 401 with no `tenantMember` row yet.
+    if (!member) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const [b, h, g] = await Promise.all([
       getMyWalletBalance(),
@@ -221,7 +230,7 @@ export default function MemberWalletPage() {
     }
     if (g.data) setGateway(g.data);
     setLoading(false);
-  }, [query.page, query.pageSize, query.sort, query.order]);
+  }, [member, query.page, query.pageSize, query.sort, query.order]);
 
   useEffect(() => {
     void load();
@@ -302,6 +311,7 @@ export default function MemberWalletPage() {
         actions={<RefreshButton onRefresh={load} />}
       />
 
+      <RequiresMembership member={member}>
       {paymentParam === "cancelled" ? (
         <Card data-testid="payment-status-card">
           <CardHeader>
@@ -429,6 +439,7 @@ export default function MemberWalletPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </RequiresMembership>
     </Stack>
   );
 }
