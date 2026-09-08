@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LogOut, User } from "lucide-react";
+import { LayoutDashboard, LogOut, Settings } from "lucide-react";
 import { Avatar, Button, Stack, Row } from "agora/ui";
 import { cn } from "agora/ui/cn";
 import { customerAuth } from "@/lib/customer-client";
@@ -16,7 +16,7 @@ import { customerAuth } from "@/lib/customer-client";
  */
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/member", icon: LayoutDashboard },
-  { label: "Profile", href: "/member/profile", icon: User },
+  { label: "Settings", href: "/member/settings", icon: Settings },
 ] as const;
 
 export function GlobalPortalSidebar({

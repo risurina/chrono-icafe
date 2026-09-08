@@ -35,7 +35,7 @@ export function MemberHeader({
       surface="member"
       actions={
         <Row items="center" gap={2}>
-          <Row className="hidden sm:flex">
+          <Row className="sm:flex">
             <ThemeToggle />
           </Row>
           <IdentityMenu

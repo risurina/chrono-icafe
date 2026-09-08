@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -17,14 +17,36 @@ import {
   toast,
 } from "agora/ui";
 import { memberAuth } from "@/lib/member-client";
+import { useMemberArea } from "@/components/member/member-area-context";
 import { MemberPageHeader } from "@/components/member/member-page-header";
 import { NeedHelpLinks } from "@/components/member/need-help-links";
 
 export default function MemberSettingsPage() {
+  const { member, refreshProfile } = useMemberArea();
+  const [name, setName] = useState(member?.name ?? "");
+  const [savingName, setSavingName] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    setName(member?.name ?? "");
+  }, [member?.name]);
+
+  async function onSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSavingName(true);
+    const { error } = await memberAuth.updateProfile({ name: name.trim() });
+    setSavingName(false);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success("Profile updated.");
+    await refreshProfile();
+  }
 
   async function onChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +71,32 @@ export default function MemberSettingsPage() {
   return (
     <Stack gap={6}>
       <MemberPageHeader title="Settings" description="Password, appearance, and account access." />
+
+      <Card>
+        <form onSubmit={onSaveProfile}>
+          <CardHeader>
+            <CardTitle>Edit Profile Details</CardTitle>
+            <CardDescription>Update your name.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input id="email" type="email" value={member?.email ?? ""} disabled />
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" disabled={savingName}>
+              {savingName ? "Saving…" : "Save changes"}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
 
       <Card>
         <form onSubmit={onChangePassword}>
