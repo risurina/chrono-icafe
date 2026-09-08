@@ -58,10 +58,14 @@ export function GlobalPortalLayout({ children }: { children: React.ReactNode }) 
       />
       {/* `MarketingHeader` is fixed/80px, not sticky — content reserves its
           own top padding instead of relying on document flow. */}
-      <main className="flex-1 pt-24">
+      <main className="flex-1 pt-20">
         <div className="mx-auto flex max-w-6xl flex-col gap-8 py-8 sm:flex-row">
           <GlobalPortalSidebar name={customer.name} email={customer.email} />
-          <div className="min-w-0 flex-1">{children}</div>
+          {/* `min-h-[calc(100vh-112px)]`: 80px header (`pt-20` above) + 32px
+              row top padding (`py-8`) — the space reserved above this div.
+              Also drives `GlobalPortalSidebar`'s own min-height — see the
+              comment there. Keep both in sync. */}
+          <div className="min-h-[calc(100vh-112px)] min-w-0 flex-1">{children}</div>
         </div>
       </main>
       <MarketingFooter year={new Date().getFullYear()} />

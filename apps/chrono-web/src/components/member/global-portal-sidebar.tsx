@@ -29,9 +29,13 @@ export function GlobalPortalSidebar({
   const pathname = usePathname();
 
   return (
+    // `min-h-[calc(100vh-112px)]` matches the content column's own min-height
+    // (`global-portal-layout.tsx`): 80px `MarketingHeader` + 32px row top
+    // padding (`py-8`), so the border-r spans the full column height instead
+    // of stopping at the nav's own content height. Keep both in sync.
     <Stack
       gap={6}
-      className="max-h-screen w-full    border-border/60 sm:sticky sm:top-24 sm:w-56 sm:border-r sm:pr-6  "
+      className="min-h-[calc(100vh-112px)] w-full border-border/60 sm:sticky sm:top-24 sm:w-56 sm:border-r sm:pr-6"
     >
       <Row items="center" gap={3}>
         <Avatar name={name} size="lg" />
