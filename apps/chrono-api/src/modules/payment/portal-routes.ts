@@ -78,11 +78,23 @@ export function paymentPortalRoutes(opts: {
     .use("*", memberMiddleware())
     .get("/gateway", async (c) => {
       const { tenantId } = c.var.member;
-      const cfg = await readCustomerPaymentConfig(tenantId);
+      // Availability must match what POST /checkout will actually do:
+      // `resolveCustomerPaymentGateway` returns a usable gateway when EITHER
+      // the tenant has its own configured row OR the platform fallback is
+      // configured (`.ai/plans/agora/in-progress/
+      // platform-paymongo-customer-payment-fallback/README.md`). Reading only
+      // the tenant's own row here (as this route used to) kept the "Top up
+      // online" button disabled for a fallback-only tenant even though
+      // checkout would succeed — see that plan's Phase 2 addendum.
+      const [resolved, cfg] = await Promise.all([
+        resolveCustomerPaymentGateway(tenantId),
+        readCustomerPaymentConfig(tenantId),
+      ]);
       return c.json(
         paymentGatewayStatusSchema.parse({
-          available: cfg !== null,
+          available: resolved !== null,
           currency: cfg?.currency ?? "PHP",
+          scope: resolved?.scope,
         }),
       );
     })
