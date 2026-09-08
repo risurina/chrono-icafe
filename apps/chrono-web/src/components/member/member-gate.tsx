@@ -80,7 +80,7 @@ function Chrome({
         member={member!}
       />
       <MemberNav />
-      <main className="mx-auto flex max-w-7xl flex-1 p-4 md:py-6 md:px-10">
+      <main className="mx-auto w-full flex flex-col max-w-7xl flex-1 p-4 md:py-6 md:px-10">
         <RouteGate>{children}</RouteGate>
       </main>
       <TenantFooter

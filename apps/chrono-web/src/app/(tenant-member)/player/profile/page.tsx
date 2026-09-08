@@ -342,7 +342,7 @@ export default function MemberProfilePage() {
       <MemberPageHeader title="Profile" description="Your account and membership details." />
 
       {/* Hero */}
-      <Card className="premium-card-shadow relative overflow-hidden rounded-3xl">
+      <Card className="premium-card-shadow relative overflow-hidden rounded-3xl border-1">
         <div
           aria-hidden
           className="pointer-events-none absolute -right-10 -top-10 h-64 w-64 rounded-full bg-primary/10 blur-3xl"

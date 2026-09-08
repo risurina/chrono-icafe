@@ -69,7 +69,7 @@ export default function MemberSettingsPage() {
   }
 
   return (
-    <Stack gap={6}>
+    <Stack gap={8}>
       <MemberPageHeader title="Settings" description="Password, appearance, and account access." />
 
       <Card>
