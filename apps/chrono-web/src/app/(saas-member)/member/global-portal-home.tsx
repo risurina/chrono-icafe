@@ -11,6 +11,7 @@ import {
 import { listBusinessDirectory } from "@/lib/discover-client";
 import type { BusinessDirectoryListItem } from "@agora/chrono-api/business-lead";
 import { LoungeDirectoryCard } from "@/components/member/lounge-directory-card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "agora/ui";
 
 /**
  * Global customer account home — the "Gaming Lounge Directory". Every
@@ -73,6 +74,8 @@ export function GlobalPortalHome() {
   }, []);
 
   const memberSlugs = new Set((memberships ?? []).map((m) => m.tenantSlug));
+  const myLounges = directory.filter((item) => memberSlugs.has(item.slug));
+  const discoverLounges = directory.filter((item) => !memberSlugs.has(item.slug));
 
   return (
     <div className="space-y-8">
@@ -101,18 +104,54 @@ export function GlobalPortalHome() {
         ) : directory.length === 0 ? (
           <p className="text-sm text-muted-foreground">No lounges are listed yet.</p>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {directory.map((item) => (
-              <LoungeDirectoryCard
-                key={item.slug}
-                name={item.name}
-                slug={item.slug}
-                status={item.status}
-                isMember={memberSlugs.has(item.slug)}
-                venueStatus={venueStatusBySlug[item.slug]}
-              />
-            ))}
-          </div>
+          <Tabs defaultValue="my-lounges" className="w-full">
+            <TabsList>
+              <TabsTrigger value="my-lounges">My Lounges</TabsTrigger>
+              <TabsTrigger value="discover-lounges">Discover Lounges</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="my-lounges">
+              {myLounges.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  You haven&apos;t joined a lounge yet — check Discover Lounges to apply.
+                </p>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {myLounges.map((item) => (
+                    <LoungeDirectoryCard
+                      key={item.slug}
+                      name={item.name}
+                      slug={item.slug}
+                      status={item.status}
+                      isMember={memberSlugs.has(item.slug)}
+                      venueStatus={venueStatusBySlug[item.slug]}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="discover-lounges">
+              {discoverLounges.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  You&apos;ve already joined every lounge in the directory.
+                </p>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {discoverLounges.map((item) => (
+                    <LoungeDirectoryCard
+                      key={item.slug}
+                      name={item.name}
+                      slug={item.slug}
+                      status={item.status}
+                      isMember={memberSlugs.has(item.slug)}
+                      venueStatus={venueStatusBySlug[item.slug]}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </div>
