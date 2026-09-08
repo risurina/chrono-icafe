@@ -21,8 +21,8 @@ function toNavItems(pathname: string): NavTabItem[] {
 export function MemberNav() {
   const pathname = usePathname();
   return (
-    <div className="sticky top-16 z-30 overflow-x-auto bg-background">
-      <NavTabs items={toNavItems(pathname)} className="min-w-max px-4" />
+    <div className="flex sticky top-16 z-30 overflow-x-auto bg-background">
+      <NavTabs items={toNavItems(pathname)} className="flex flex-1 justify-center min-w-max px-4" />
     </div>
   );
 }
