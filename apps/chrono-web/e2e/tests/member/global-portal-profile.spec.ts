@@ -50,7 +50,17 @@ test.describe("Global portal profile page (apex /member/profile)", () => {
 
     await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
     await expect(page.getByText("Your account")).toBeVisible();
-    await expect(page.getByText(name, { exact: true })).toBeVisible();
-    await expect(page.getByText(email, { exact: true })).toBeVisible();
+    // The sidebar's identity block (`global-portal-sidebar.tsx`) also renders
+    // the signed-in customer's name/email on every `/member/*` page, so a
+    // bare `page.getByText(...)` is ambiguous here (strict-mode violation:
+    // matches both the sidebar span and the profile card's <dd>). Scope to
+    // the profile card's `<dl>` (`global-portal-profile.tsx`), which is the
+    // only definition list on this page.
+    const accountDetails = page.locator("dl");
+    await expect(accountDetails.getByText(name, { exact: true })).toBeVisible();
+    // `agora/customer-auth` stores the email lowercased (case-insensitive
+    // uniqueness) — assert against the normalized form the page actually
+    // renders, not the faker-generated (possibly mixed-case) input.
+    await expect(accountDetails.getByText(email.toLowerCase(), { exact: true })).toBeVisible();
   });
 });
