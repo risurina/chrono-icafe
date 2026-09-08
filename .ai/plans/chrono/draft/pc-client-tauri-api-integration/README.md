@@ -1,0 +1,264 @@
+# Chrono — `pc-client-tauri-api-integration` (DRAFT)
+
+**Sessions:**
+- Planning: Claude Code (this session)
+- Audit: unclaimed
+- Implementation: unclaimed
+
+## What this is
+
+Bring `apps/chrono-pc-client-tauri` (a mature, largely-complete Rust/Tauri kiosk
+client — code lives at `C:\Users\ronni\project\izur\oikos\apps\chrono-pc-client-tauri`,
+a sibling `oikos` workspace, **not** this repo) online against **this repo's**
+`apps/chrono-api` — the from-scratch Agora-foundation reimplementation of Chrono. The
+Tauri client was built against oikos's old API (Express + Socket.IO); `apps/chrono-api`
+here is a different backend (Hono + `agora/realtime`, forced RLS, bearer-token device
+auth) that explicitly deferred PC-client support: `apps/chrono-api/AGENTS.md:122-125`
+states pc-client apps are "out of scope for this migration pass" but that "the API
+still needs to support device pairing/bearer-auth (stations depend on it)."
+
+Device pairing/bearer-auth **is** already landed here (`.ai/plans/chrono/archive/devices/`)
+and is structurally close to what the Tauri client expects. Two real capability gaps
+remain, both previously flagged and deferred:
+
+- **Remote command dispatch** (lock/unlock/reboot/force-logout) — `.ai/plans/chrono/blocked/admin-station-client/README.md`
+  confirms this was blocked specifically because "no PC-client exists" to receive
+  commands. One now does. This plan is what unblocks it.
+- **Device-facing session/wallet status** — `apps/chrono-api/src/modules/device/routes.ts`'s
+  `/heartbeat` handler explicitly returns "no session/pricing/reservation payload...
+  that's `sessions`' concern once it exists" (routes.ts:~730). It still doesn't exist.
+  The Tauri client's whole session-state UI (`Available`/`Active`/`LowTime`/`Expired`/
+  `Locked` states) has nothing real to read today.
+
+**This is a cross-repo plan.** Server-side phases (schema/routes/realtime) land in
+*this* repo (`apps/chrono-api`, `apps/chrono-web` if an admin surface is needed).
+Client-side phases (Rust/TS changes) land in the `oikos` workspace's
+`apps/chrono-pc-client-tauri` — out of this repo's git history, tracked here only as
+the plan of record since that's where the developer asked for it. Each phase says
+explicitly which repo it touches.
+
+## Improve, don't replicate
+
+Per explicit developer instruction: this plan does **not** try to make the Tauri
+client match oikos's old API 1:1. Two places where "port it as-is" would actively
+regress:
+
+1. **Realtime transport.** The Tauri client's `src-tauri/src/realtime.rs` speaks
+   **Socket.IO** (`rust_socketio` crate) against oikos's old `apps/chrono-api/src/realtime/socket.ts`.
+   This repo's device mount (`apps/chrono-api/src/modules/device/realtime-actor.ts`,
+   `GET /api/v1/device/ws`) is `agora/realtime` — a plain authenticated WebSocket with
+   its own JSON frame/scope protocol, not Socket.IO. These are wire-incompatible
+   protocols, not a config difference. Bridging them with a Socket.IO shim on the
+   server would mean running two realtime stacks side by side, permanently, for one
+   client type — the wrong trade. **Decision: replace `rust_socketio` with a plain
+   WebSocket client (e.g. `tokio-tungstenite`, already implied by the `tauri` async
+   runtime) speaking `agora/realtime`'s actual protocol.** This is a Tauri-client-side
+   change (oikos repo), covered in Phase 2.
+2. **Command dispatch shape.** oikos's design (per the Tauri client's own code
+   comments referencing `emitDeviceCommand`) assumed the server can push a command
+   over an always-open socket and the device ack's it inline. That's compatible with
+   `agora/realtime`'s actual push model (see Phase 3), so this part *can* carry over
+   conceptually — but the **schema and route are being designed fresh** against this
+   repo's actual `chronoDevice` table and permission vocabulary (`device` resource,
+   `.ai/rules/rbac.md`), not copied from an oikos `DeviceCommand` table this repo has
+   never seen the schema for.
+
+Everything else the Tauri client already does well and should NOT change: hardware
+fingerprinting (`identity.rs`), DPAPI at-rest secret storage (`secure.rs`), the
+separate `chrono-guard` Windows-service lockdown enforcer, the session-state UI
+skeleton. Those are kept; only their data source changes.
+
+## Pass 1 — Workflow Analysis
+
+- **Who uses this**: the physical kiosk PC itself (machine identity, no human
+  session) — pairing, heartbeat, realtime command/status. Indirectly, the customer
+  sitting at that PC (session start/end, time remaining, low-balance warning) and the
+  venue's tenant `admin`/`owner` (approve device, eventually issue lock/reboot/
+  force-logout commands via `apps/chrono-web`).
+- **End-to-end workflow enabled**: a fresh Windows PC runs the Tauri client → staff
+  generates a pairing code in `apps/chrono-web` (`.ai/plans/chrono/archive/devices/`,
+  already shipped) → client calls `/pair` then `/auth`, gets bearer token, sits in
+  `pending_approval` → staff approves → client heartbeats + opens the realtime socket
+  → a customer authenticates on the kiosk (QR or email/password) → client shows
+  live session/time/balance state, driven by real reads + realtime pushes → staff (or
+  eventually the venue admin, once command-dispatch lands) can remotely lock/reboot/
+  force-logout the station.
+- **Failure cases**: device revoked mid-connection (already handled server-side —
+  `revalidateEveryMs` re-check, `closeConnections` on revoke); PC offline (heartbeat
+  gap → `connectivityStatus: offline`, already covered); command sent to an offline
+  device (must not silently vanish — needs a queued/expired state, not just fire-and-
+  forget); session ends/wallet drains while a command is in flight; wrong-tenant/
+  wrong-branch device data leak (must go through `withTenant`, same as every other
+  module — no new leak surface this plan introduces).
+- **Notifications/audit**: command issue + result should audit (`recordAudit`/
+  `auditEvent` pattern, mirroring other sensitive Chrono mutations); realtime pushes
+  for session lifecycle events (started/ending-soon/ended) and wallet-low give the
+  kiosk UI what it needs without polling.
+
+## Pass 2 — Technical Planning
+
+### What already exists and is reusable as-is
+
+- Pairing + bearer auth: `POST /api/v1/device/pair`, `POST /api/v1/device/auth`,
+  `POST /api/v1/device/heartbeat`, `POST /api/v1/device/security-alert`
+  (`apps/chrono-api/src/modules/device/routes.ts`) — device-bearer-gated via
+  `requireDeviceBearerAuth()` / `resolveDeviceAuthContext`
+  (`device-auth-middleware.ts`), never trusts client-supplied `deviceId`/`tenantId`.
+- Device approve/revoke/link: staff-facing `/rpc` routes, already shipped, already
+  has a web UI at `apps/chrono-web/src/app/dashboard/devices/page.tsx`.
+- Device realtime mount: `GET /api/v1/device/ws`
+  (`apps/chrono-api/src/modules/device/realtime-actor.ts`), `agora/realtime`-based,
+  device-bearer-authenticated, scope pattern `device:<deviceId>`
+  (`apps/chrono-api/src/modules/realtime/scope-validators.ts`,
+  `validateChronoDeviceScopes`). `onFrame` currently drops everything except a
+  self-referential status frame — "no inbound frame TYPE is defined yet (remote
+  commands/acks are deferred)" (realtime-actor.ts comment) — this is the exact seam
+  Phase 3 fills in.
+- `device` permission resource already registered
+  (`apps/chrono-api/src/auth/permissions.ts`, via `registerAppPermissions()`).
+
+### What's genuinely new work
+
+1. Read `packages/agora/src/events/realtime/` (protocol/frame shape, connect
+   handshake, ping/pong, how a server-side handler pushes a frame to one actor vs
+   broadcasts to a tenant) before writing either the command-dispatch server code or
+   the Tauri WS client — this repo's realtime protocol has not yet been read in this
+   plan and must be before Phase 2/3 are made implementation-ready.
+2. `ChronoDeviceCommands` table (new) — command queue: `id, tenantId, deviceId,
+   type (lock|unlock|reboot|force_logout), status (pending|delivered|acked|expired),
+   issuedByUserId, issuedAt, deliveredAt, ackedAt, expiresAt, result (jsonb, nullable)`.
+   Tenant-scoped, RLS-forced, added to `APP_TENANT_TABLES`.
+3. `POST /rpc/devices/:id/commands` — `device:manage`-gated (existing resource,
+   already admin+-only per RBAC rules), writes a `pending` command row, pushes it
+   over the device's open realtime connection if online (best-effort — a queued row
+   is the source of truth, the push is just latency-avoidance), audits the write.
+4. Device WS `onFrame` gains one real inbound frame type: `{ type: "command-ack",
+   commandId, result }` — validated to reference a command belonging to the
+   connecting device's own `actor.actorKey`, exactly like the existing
+   self-referential `deviceId` check.
+5. Device-facing session/wallet status: new device-bearer-gated read route(s) under
+   `/api/v1/device` (exact shape TBD in Phase 4 — likely `GET /session/active` +
+   `GET /wallet/balance`, mirroring `sessionPortalRoutes()`'s shape but keyed off the
+   device's own `stationId`, not a `tenantMember`), plus realtime push events on
+   session start/end/low-time and wallet-low, sourced from `apps/chrono-api/src/modules/session/service.ts`
+   and `apps/chrono-api/src/modules/wallet/`.
+6. Kiosk login (QR / email+password) that **starts a session tied to the device's
+   station** — not yet confirmed to exist anywhere in `apps/chrono-api`. Needs its own
+   read-the-actual-session-module pass before Phase 5 can be made concrete; flagged as
+   an open question below, not assumed.
+
+### Divergence from the Tauri client's current assumptions (must change client-side)
+
+- Drop `rust_socketio`; use a plain WS client speaking `agora/realtime`'s protocol
+  (Phase 2, oikos repo).
+- `src-tauri/src/http.rs` / `src/features/api/pc-client-api.ts` request/response
+  shapes must be checked field-by-field against this repo's actual `pairDeviceSchema`/
+  `authDeviceSchema`/`heartbeatSchema` (`apps/chrono-api/src/modules/device/contracts.ts`,
+  not yet read in this pass — Phase 1 task) rather than assumed compatible because the
+  endpoint names look similar.
+- Base URL convention: client auto-appends `/api/v1/device` if missing
+  (`client-config.ts`) — confirm this repo's actual mount path matches
+  (`apps/chrono-api/src/app.ts`'s `.route("/api/v1/device", ...)` — consistent per
+  the routes.ts comment above, but verify the `app.ts` mount line directly in Phase 1).
+
+## Phases
+
+### Phase 1 — Contract audit: REST device endpoints (DRAFT, this repo + read-only in oikos)
+
+Verify field-for-field compatibility between the Tauri client's existing HTTP calls
+and this repo's real `/api/v1/device/*` contracts; fix any mismatches server-side
+only if this repo's contract is the one that's wrong (e.g. missing a field the client
+legitimately needs) — otherwise the client adapts, since this repo's API is the
+target of record going forward.
+
+- **Files to update (this repo)**: `apps/chrono-api/src/modules/device/contracts.ts`,
+  `routes.ts` (only if a genuine contract gap is found, e.g. `/pair` or `/auth`
+  response missing a field the kiosk needs at first boot).
+- **Files to read (oikos, no edits yet)**: `src-tauri/src/http.rs`,
+  `src/config/client-config.ts`, `src/features/api/pc-client-api.ts`.
+- **Step-by-step tasks**:
+  1. Diff `pairDeviceSchema`/`authDeviceSchema`/`heartbeatSchema` field-by-field
+     against what `http.rs` sends/expects.
+  2. Confirm the `/api/v1/device` mount path in `apps/chrono-api/src/app.ts` matches
+     `client-config.ts`'s auto-append convention.
+  3. Document every mismatch found (client bug vs. genuine server gap) in this plan's
+     "Findings" section (append after this audit runs) before writing any code.
+- **Acceptance criteria**: a written diff table of every device REST endpoint the
+  client calls vs. what this repo serves, with a fix owner (client or server) per row.
+- **Verification commands**: none yet — this phase is read/diff-only.
+- **Out of scope**: no code changes beyond a genuine, documented server-side contract
+  gap.
+- **Execution start point**: read `apps/chrono-api/src/modules/device/contracts.ts`
+  in full, then `oikos/apps/chrono-pc-client-tauri/src-tauri/src/http.rs` in full.
+
+### Phase 2 — Realtime transport migration (oikos repo, Rust)
+
+Replace the Socket.IO client with a plain WebSocket client speaking this repo's
+`agora/realtime` protocol.
+
+- **Prerequisite**: read `packages/agora/src/events/realtime/` (this repo) for the
+  exact handshake/frame/scope-subscription/ping-pong shape before writing Rust code.
+- **Files to update (oikos)**: `src-tauri/src/realtime.rs` (rewrite transport,
+  keep the existing `"device-command"` handling shape as the target inbound event —
+  now delivered as a JSON frame over plain WS, not a Socket.IO event), `Cargo.toml`
+  (drop `rust_socketio`, add a WS client crate).
+- **Status**: DRAFT — implementation-ready only after the `agora/realtime` protocol
+  read above; this entry is a placeholder until that read happens.
+
+### Phase 3 — Device command dispatch (this repo)
+
+- **Files to update**: `apps/chrono-api/src/db/schema.ts` (or a
+  `modules/device/schema.ts` addition) + migration for `ChronoDeviceCommands`;
+  `APP_TENANT_TABLES`; `apps/chrono-api/src/modules/device/contracts.ts` (command
+  request/response schemas); `apps/chrono-api/src/modules/device/routes.ts` (new
+  `POST /rpc/devices/:id/commands` — note this is the STAFF-facing `/rpc` mount, not
+  `deviceAuthRoutes()`); `apps/chrono-api/src/modules/device/realtime-actor.ts`
+  (`onFrame` gains `command-ack` handling + a push-on-issue path).
+- **Status**: DRAFT — needs the Phase-2 prerequisite protocol read to know how a
+  server-side handler pushes an unsolicited frame to one connected actor.
+
+### Phase 4 — Device-facing session & wallet status (this repo)
+
+- **Files to update**: new device-bearer-gated routes under `deviceAuthRoutes()` (or
+  a sibling mount) reading `apps/chrono-api/src/modules/session/*` and
+  `apps/chrono-api/src/modules/wallet/*`; realtime push on session
+  start/end/low-time/wallet-low from `session/service.ts`.
+- **Status**: DRAFT — needs a dedicated read of `session/service.ts` +
+  `wallet/` schema/routes before the exact endpoint shape can be pinned down.
+
+### Phase 5 — Kiosk login → session start (this repo + oikos)
+
+- **Open question, not yet resolved**: does any existing route let a device (not a
+  `tenantMember` portal session) start a session tied to its own station via
+  QR/email+password entered on the kiosk itself? Not found in this pass. Needs its
+  own Pass 1/Pass 2 once Phases 1–4 are further along — do not start this phase
+  concretely until that's answered.
+
+### Phase 6 — E2E + verification
+
+- `pnpm typecheck`, `pnpm --filter @agora/api rls:proof` after any schema/RLS change
+  (Phase 3), a new `apps/chrono-web` e2e spec if an admin command-dispatch UI is
+  added, and a manual Tauri-client-against-local-`chrono-api` smoke test (pairing →
+  approve → heartbeat → realtime connect → command round-trip) since the client half
+  lives outside this repo's automated test surface.
+
+## Out of Scope
+
+- `apps/chrono-mobile`, `apps/chrono-docs`, `chrono-pc-client` (non-Tauri),
+  `chrono-pc-client-service` — untouched by this plan.
+- Release/update-manifest publishing tooling (`.ai/plans/chrono/blocked/public-releases/`)
+  — separately blocked, not this plan's concern.
+- Redesigning `chrono-guard` (the separate Windows lockdown service) — out of scope;
+  it doesn't talk to `chrono-api` directly per the Tauri client's own architecture.
+- A platform-admin cross-tenant device rollup (`admin-station-client`'s own "Surface"
+  discussion already deferred this as a separate, additive follow-up) — not this plan.
+
+## Open Questions
+
+1. Kiosk login → session start (Phase 5) — no existing route found; needs dedicated
+   research before it can be planned concretely.
+2. Command delivery to an offline device: queue-and-wait-for-next-heartbeat/reconnect,
+   or expire after N minutes? Needs a decision before Phase 3's route logic is final.
+3. Should command-dispatch get a tenant-admin web UI in this pass, or REST-only for
+   now (Tauri client is the only consumer initially)? Affects whether Phase 3 also
+   touches `apps/chrono-web`.
