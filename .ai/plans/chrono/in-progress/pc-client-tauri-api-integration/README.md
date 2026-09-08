@@ -294,3 +294,49 @@ Replace the Socket.IO client with a plain WebSocket client speaking this repo's
 3. Should command-dispatch get a tenant-admin web UI in this pass, or REST-only for
    now (Tauri client is the only consumer initially)? Affects whether Phase 3 also
    touches `apps/chrono-web`.
+
+## Phase 1 Findings
+
+Audit method: read `apps/chrono-api/src/modules/device/{contracts.ts,routes.ts}` and
+`apps/chrono-api/src/app.ts`'s mount lines in full (this repo); read
+`oikos/apps/chrono-pc-client-tauri/src-tauri/src/http.rs`,
+`src/config/client-config.ts`, `src/features/api/pc-client-api.ts` in full, then
+dispatched a read-only Explore pass into the oikos repo to find the actual Rust IPC
+command bodies (`src-tauri/src/commands/api.rs`) and the TS request/response contract
+types (`src/features/api/contract.ts`), since `pc-client-api.ts` itself is a thin facade
+over `native.pcClient.*` Tauri IPC calls, not the place the wire payload is built.
+
+**Conclusion: every mismatch found is a client-side bug — the client must adapt to this
+repo's actual contract. No genuine server-side gap was found; no code was changed in
+this repo for Phase 1.**
+
+### Diff table
+
+| Endpoint | Client request (oikos, as coded) | This repo's actual contract | Mismatch | Fix owner |
+|---|---|---|---|---|
+| `POST /pair` | `PairRequest`: `{ pairingCode: string }` (`contract.ts`) | `pairDeviceSchema`: `{ pairingCode: string.min(1).max(32) }` | Request body matches. **Response mismatch**: this repo returns `{ provisioningToken, tenantId, branchId }`; `pair_device` (`commands/api.rs`) reads `data.tokenHash` and stores it as `device_token` — that field doesn't exist in the response, so pairing would store `undefined`/nothing and break the very next `/auth` call. | Client (read `provisioningToken`, not `tokenHash`) |
+| `POST /auth` (normal call, via `auth_device` IPC command) | `AuthDeviceRequest`: `{ fingerprintV1, hostname?, tokenHash }` | `authDeviceSchema`: `{ fingerprint, hostname?, provisioningToken }` | Field names don't line up at all: `fingerprintV1`→`fingerprint`, `tokenHash`→`provisioningToken`. **Confirms the known finding.** Also, `auth_device` reads `data.accessToken` (and strips `accessTokenExpiresIn`) from the response; this repo's `/auth` returns `{ deviceToken, status, minted }` — no `accessToken`, no expiry, and no refresh-token concept at all. This repo mints one long-lived bearer `deviceToken` used directly as `Authorization: Bearer <deviceToken>` on every subsequent call (see `requireDeviceBearerAuth`/`heartbeat`); it does not distinguish a short-lived access token from a longer-lived refresh credential. | Client — both the field names AND the client's whole access-token/refresh mental model need to change (flagged for Phase 2, not just a rename) |
+| `POST /auth` (401 refresh path, `http.rs::try_refresh`) | `{ tokenHash, fingerprintV1, hostname }` | same `authDeviceSchema` as above | Same two field-name mismatches as the normal call — this is the pre-confirmed finding from the plan. Additionally: this repo's `/auth` for an **already-known device+fingerprint** (idempotent re-auth) returns `{ status, minted: false }` with **no token in the response at all** (`routes.ts:704-707`) — it never issues a "fresh" credential on a routine re-check the way `try_refresh` assumes. The client's periodic-refresh model doesn't map onto this repo's mint-once bearer-token design. | Client (rename fields; the refresh-on-401 pattern itself needs redesign once Phase 2 picks a device-auth story — flag, don't silently rename and call it fixed) |
+| `POST /heartbeat` | `HeartbeatRequest['payload']`: `{ lockState?, runtimeStatus?, activeSessionId?, lastTrustedServerAt?, localTime?, uptime?, queuedEventCount?, serviceHealth?, uiHealth? }` | `heartbeatSchema`: `{ lockState?, runtimeStatus?, clientVersion?, osVersion?, uptimeSeconds?, }` | `uptime`→`uptimeSeconds` (name mismatch, silently dropped by Zod's default-strip behavior — heartbeat would always upload `uptimeSeconds: undefined`); `activeSessionId`/`lastTrustedServerAt`/`localTime`/`queuedEventCount`/`serviceHealth`/`uiHealth` have no server-side field and are silently dropped (not an error, since `heartbeatSchema` isn't `.strict()` — but silently lossy); the client never sends `clientVersion`/`osVersion`, which this repo's device list UI presumably wants to show. | Client (rename `uptime`→`uptimeSeconds`; add `clientVersion`/`osVersion`; drop or find a future home for the other now-unsupported fields — none is a Phase-1-blocking gap) |
+| `POST /security-alert` (reported by client as `POST /alerts/report`) | `report_security_alert` posts to path `"/alerts/report"` (`commands/api.rs`); body `ReportSecurityAlertRequest['payload']`: `{ type: string, severity: 'LOW'\|'MEDIUM'\|'HIGH'\|'CRITICAL', message, metadata?, timestamp }` | Route is mounted at `POST /security-alert` (`routes.ts`), not `/alerts/report` — a client call to `/alerts/report` 404s outright. Body schema `deviceReportSecurityAlertSchema`: `{ severity: "low"\|"medium"\|"high"\|"critical", type: <fixed enum: device_tamper\|unauthorized_access\|unexpected_shutdown\|chassis_open\|camera_flagged\|customer_dispute\|theft_suspected\|other>, message, metadata? }` | **Path mismatch** (`/alerts/report` vs `/security-alert` — highest-severity finding in this table, this call fails outright today); `severity` casing (`'LOW'` vs `"low"`); `type` is free-text on the client vs a fixed lowercase-snake_case enum server-side, so the client must map its own alert-type strings onto this repo's taxonomy (or use `"other"`); `timestamp` field is accepted-and-ignored server-side (harmless). | Client (fix the path, lowercase severity, map/constrain `type` to the server enum) |
+| Mount path / base URL convention | `client-config.ts`/`http.rs::api_base_url()` both auto-append `/api/v1/device` to `VITE_API_BASE_URL` if not already present | `app.ts` mounts `deviceAuthRoutes()` (and the realtime/app-usage device routers) at `.route("/api/v1/device", ...)` | **No mismatch** — the convention matches; once the env var points at this repo's API origin, the auto-appended path resolves correctly. | N/A |
+
+### `CLIENT_CONFIG.API_BASE_URL` — live or dead?
+
+Not read anywhere in the TS/React layer to make a real HTTP call. All real `/pair`,
+`/auth`, `/heartbeat`, `/security-alert` traffic goes through `native.pcClient.*` → Tauri
+IPC → the Rust `HttpGateway` in `src-tauri/src/http.rs`, which resolves its **own**,
+independently-configured `api_base_url()` (same env var, `VITE_API_BASE_URL`, read
+directly via `std::env::var` in Rust — not through the TS constant at all). The only two
+live TS-side consumers of `CLIENT_CONFIG.API_BASE_URL` are: (1) `src/lib/realtime.ts`,
+which derives just the WebSocket **origin** (`new URL(...).origin`) to hand to the Rust
+realtime initializer — no HTTP request is made from TS here either; and (2)
+`src/features/diagnostics/Diagnostics.tsx`, which renders it as plain display text in a
+diagnostics panel. **Finding: `CLIENT_CONFIG.API_BASE_URL` is effectively dead as a
+request-construction surface** (referenced, but never drives an actual `fetch`), though
+not literally unreferenced — flag for cleanup consideration in Phase 2, not a blocker.
+
+### Server-side change made in this repo
+
+None. Every mismatch above is a client-repo fix. `pnpm typecheck` was not run for this
+reason (no code changed).
