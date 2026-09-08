@@ -9,7 +9,7 @@ import { apexUrl } from "@/lib/app-domain";
  * link even for issues the venue can't act on (e.g. a rejected application,
  * a platform outage).
  *
- * - **Contact this venue** — unchanged existing pattern: the tenant's own
+ * - **Contact administrator** — unchanged existing pattern: the tenant's own
  *   staff-facing inquiry queue (`/member/inquiries`, already in `MEMBER_NAV`
  *   as the "Help" menu entry).
  * - **Contact Chrono support** — new: the apex `/company/contact` form, the
@@ -30,7 +30,7 @@ export function NeedHelpLinks({ className }: { className?: string }) {
   return (
     <Row gap={4} wrap className={className}>
       <Link href="/member/inquiries" className="text-sm underline underline-offset-2">
-        Contact this venue
+        Contact administrator
       </Link>
       <Link
         href={apexUrl("/company/contact")}
