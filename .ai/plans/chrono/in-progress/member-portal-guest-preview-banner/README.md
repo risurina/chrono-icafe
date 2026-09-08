@@ -6,7 +6,7 @@ change. No new tenant-scoped tables.
 **Sessions:**
 - Planning: (this session)
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: (subagent, no persistent session name)
 
 ## Reported request (verbatim intent)
 

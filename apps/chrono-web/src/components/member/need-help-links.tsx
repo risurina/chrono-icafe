@@ -21,9 +21,10 @@ import { apexUrl } from "@/lib/app-domain";
  *   would resolve on the current tenant subdomain instead. Opens in a new
  *   tab so a member doesn't lose their place in the portal.
  *
- * One component, used from `member-gate.tsx`'s `ApprovalRequiredCard`,
- * `member/page.tsx`'s membership-status card, and `member/settings/page.tsx`'s
- * Account card, so all three read and behave identically.
+ * One component, used from `member-gate.tsx`'s `MemberAccessBanner` (pending
+ * variant), `member/page.tsx`'s membership-status card, and
+ * `member/settings/page.tsx`'s Account card, so all three read and behave
+ * identically.
  */
 export function NeedHelpLinks({ className }: { className?: string }) {
   return (

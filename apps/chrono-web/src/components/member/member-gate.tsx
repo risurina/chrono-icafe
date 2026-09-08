@@ -2,53 +2,14 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CenteredMessage, Card, CardHeader, CardTitle, CardDescription, CardContent } from "agora/ui";
-import { NeedHelpLinks } from "./need-help-links";
+import { CenteredMessage } from "agora/ui";
 import { useMemberSession } from "@/lib/member-client";
 import { useGlobalCustomerSession } from "@/lib/customer-client";
 import { MemberAreaProvider, useMemberArea } from "./member-area-context";
-import { ApplyForTenantPrompt } from "./apply-for-tenant-prompt";
+import { MemberAccessBanner } from "./member-access-banner";
 import { MemberHeader } from "./member-header";
 import { MemberNav, MemberBottomNav } from "./member-nav";
-import { MEMBER_NAV, matchMemberNav } from "./member-nav.config";
 import { TenantFooter } from "@/components/landing/marketing-chrome";
-
-function ApprovalRequiredCard({ status }: { status: string | undefined }) {
-  const copy =
-    status === "rejected"
-      ? "Your membership application was not approved."
-      : "Your membership application is still pending approval. Check back soon.";
-  return (
-    <CenteredMessage>
-      <Card className="max-w-md">
-        <CardHeader>
-          <CardTitle>Approval required</CardTitle>
-          <CardDescription>{copy}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NeedHelpLinks />
-        </CardContent>
-      </Card>
-    </CenteredMessage>
-  );
-}
-
-/** Route flagged `requiresApproval` and the member isn't approved yet →
- * `ApprovalRequiredCard`, else render. Only Promos is flagged (the plan's
- * decision — `applicationStatus` enforces nothing elsewhere). Promos has no
- * standalone nav entry since member-portal-v2 phase 1 (merged into History),
- * but stays in `MEMBER_NAV` with `placements: []` so this match still fires
- * for `/member/promos*`. */
-function RouteGate({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const { approved, onboarding, loaded } = useMemberArea();
-  const entry = MEMBER_NAV.find((item) => matchMemberNav(pathname, item.href, item.exact));
-
-  if (entry?.requiresApproval && loaded && !approved) {
-    return <ApprovalRequiredCard status={onboarding?.applicationStatus} />;
-  }
-  return <>{children}</>;
-}
 
 function Chrome({
   tenantName,
@@ -57,6 +18,8 @@ function Chrome({
   logoDarkUrl,
   tagline,
   hidePlatformBranding,
+  identity,
+  guestMode,
   children,
 }: {
   tenantName: string;
@@ -65,9 +28,13 @@ function Chrome({
   logoDarkUrl?: string | null;
   tagline?: string | null;
   hidePlatformBranding?: boolean;
+  identity: { name: string; email: string };
+  guestMode: boolean;
   children: React.ReactNode;
 }) {
-  const { member } = useMemberArea();
+  const { approved, onboarding, loaded } = useMemberArea();
+  const showPendingBanner = !guestMode && loaded && !approved && onboarding?.applicationStatus === "pending";
+
   return (
     // `MemberHeader` (`TenantHeader`) is fixed/80px, not sticky — content
     // reserves its own top padding instead of relying on document flow.
@@ -77,11 +44,13 @@ function Chrome({
         displayName={displayName}
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
-        member={member!}
+        identity={identity}
       />
       <MemberNav />
+      {guestMode && <MemberAccessBanner variant="not-applied" />}
+      {showPendingBanner && <MemberAccessBanner variant="pending" />}
       <main className="mx-auto w-full flex flex-col max-w-7xl flex-1 p-4 md:py-6 md:px-10">
-        <RouteGate>{children}</RouteGate>
+        {children}
       </main>
       <TenantFooter
         year={new Date().getFullYear()}
@@ -98,8 +67,11 @@ function Chrome({
  * Gate cascade (moved from `tenant-portal-layout.tsx`, not duplicated):
  * 1. Sessions pending → skeleton shell.
  * 2. Neither member nor global customer → `/login?next=<path>`.
- * 3. Global customer only → `ApplyForTenantPrompt`.
- * 4. Member → one `GET /portal/members/me` (via `MemberAreaProvider`) → header + nav + `RouteGate`.
+ * 3. Global customer only (not yet applied to this tenant) → guest-mode
+ *    `Chrome` with a "Join this business" banner (Phase 2 locks the
+ *    member-only page content behind `RequiresMembership`; Phase 1 leaves
+ *    guest-mode pages calling their existing data hooks, which 401 today).
+ * 4. Member → one `GET /portal/members/me` (via `MemberAreaProvider`) → header + nav + banner (if pending) + page.
  */
 export function MemberGate({
   tenantName,
@@ -124,7 +96,7 @@ export function MemberGate({
   const { customer: globalCustomer, isPending: globalPending } = useGlobalCustomerSession();
 
   const bothResolved = !isPending && !globalPending;
-  const canApply = bothResolved && !member && !!globalCustomer;
+  const guestMode = bothResolved && !member && !!globalCustomer;
 
   useEffect(() => {
     if (bothResolved && !member && !globalCustomer) {
@@ -137,11 +109,12 @@ export function MemberGate({
     return <CenteredMessage>Loading…</CenteredMessage>;
   }
 
-  if (canApply) {
-    return <ApplyForTenantPrompt />;
+  if (!member && !globalCustomer) {
+    return <CenteredMessage>Loading…</CenteredMessage>;
   }
 
-  if (!member) {
+  const identity = member ?? globalCustomer;
+  if (!identity) {
     return <CenteredMessage>Loading…</CenteredMessage>;
   }
 
@@ -154,6 +127,8 @@ export function MemberGate({
         logoDarkUrl={logoDarkUrl}
         tagline={tagline}
         hidePlatformBranding={hidePlatformBranding}
+        identity={identity}
+        guestMode={guestMode}
       >
         {children}
       </Chrome>
