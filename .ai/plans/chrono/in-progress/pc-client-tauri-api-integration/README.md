@@ -5,7 +5,35 @@
 - Audit: Claude Code (plan-auditor agent a9ce88c3794cf82f2) — approved with conditions, folded in
 - Implementation: Claude Code (main session dispatching fresh subagents per phase,
   worktree `.ai/worktree/pc-client-tauri-api-integration`, branch
-  `feature/pc-client-tauri-api-integration`) — Phase 1 done, Phase 2/3/4 dispatched
+  `feature/pc-client-tauri-api-integration`) — Phases 1-4 DONE (Phase 2 in the
+  Tauri client's own repo/branch, see below). Phase 5 still blocked on its open
+  question; Phase 6 (e2e/manual smoke) not started.
+
+**Phase status:**
+- Phase 1 (contract audit) — DONE, no server changes needed (all client-side fixes).
+- Phase 2 (Rust realtime transport) — DONE. Repo: `/Users/risurina/karta/karta-tenant`
+  (not the stale Windows path this plan originally cited — corrected above). Branch
+  `feature/agora-realtime-transport`, commit `edbff4b4`. `cargo check`/`build` clean.
+- Phase 3 (device command dispatch) — DONE. This repo, worktree branch
+  `feature/pc-client-tauri-api-integration`, commit `ac5c67ea`. `typecheck` +
+  `rls:proof` (`pnpm --filter @agora/chrono-api rls:proof`, not `@agora/api`) both pass.
+- Phase 4 (device session/wallet status) — DONE, commit `2b8092da`, plus a follow-up
+  fix `c57e8799` (the wallet-low push originally fired inside the caller's open
+  transaction rather than after commit — violated the same rule
+  `publishSessionTransition` documents; refactored `applyWalletDelta` to return a
+  signal and moved every call site's publish to after its own `withTenant` resolves).
+  `typecheck` + `rls:proof` pass on both commits.
+- Phase 5 (kiosk login → session start) — NOT STARTED, still blocked on its open
+  research question (no existing route found for a device-initiated session start).
+- Phase 6 (e2e + verification) — NOT STARTED. None of Phases 2-4's branches are
+  pushed or merged yet.
+
+**Not yet done, before this plan can close:** merge/push both branches (this repo's
+`feature/pc-client-tauri-api-integration` and the Tauri repo's
+`feature/agora-realtime-transport`), resolve Phase 5, add the e2e spec for the new
+`/rpc/devices/:id/commands` + `/api/v1/device/{session,wallet}` routes per
+`.ai/rules/e2e-testing.md` (not yet written), and run the manual pairing→approve→
+heartbeat→realtime→command-roundtrip smoke test Phase 6 calls for.
 
 **Correction**: the Tauri client repo is NOT at the Windows path this plan originally
 cited. It is locally reachable at `/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`
