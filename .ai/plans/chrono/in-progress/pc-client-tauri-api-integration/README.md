@@ -3,7 +3,15 @@
 **Sessions:**
 - Planning: Claude Code (main session)
 - Audit: Claude Code (plan-auditor agent a9ce88c3794cf82f2) — approved with conditions, folded in
-- Implementation: Claude Code (subagent, worktree `.ai/worktree/pc-client-tauri-api-integration`, branch `feature/pc-client-tauri-api-integration`) — Phase 1 in progress
+- Implementation: Claude Code (main session dispatching fresh subagents per phase,
+  worktree `.ai/worktree/pc-client-tauri-api-integration`, branch
+  `feature/pc-client-tauri-api-integration`) — Phase 1 done, Phase 2/3/4 dispatched
+
+**Correction**: the Tauri client repo is NOT at the Windows path this plan originally
+cited. It is locally reachable at `/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`
+(same repo the root `AGENTS.md`/memory already flag as the correct local path for the
+sibling `oikos` prior-art workspace) — every "oikos repo" reference below means that
+path.
 
 ## What this is
 
@@ -223,42 +231,223 @@ target of record going forward.
 - **Execution start point**: read `apps/chrono-api/src/modules/device/contracts.ts`
   in full, then `oikos/apps/chrono-pc-client-tauri/src-tauri/src/http.rs` in full.
 
-### Phase 2 — Realtime transport migration (oikos repo, Rust)
+### Realtime protocol read (prerequisite, done)
 
-Replace the Socket.IO client with a plain WebSocket client speaking this repo's
-`agora/realtime` protocol.
+Read `packages/agora/src/events/realtime/{types,route,connections}.ts` +
+`apps/chrono-api/src/modules/device/realtime-actor.ts` +
+`apps/chrono-api/src/modules/realtime/scope-validators.ts` +
+`apps/chrono-api/src/modules/session/service.ts`. Findings:
 
-- **Prerequisite**: read `packages/agora/src/events/realtime/` (this repo) for the
-  exact handshake/frame/scope-subscription/ping-pong shape before writing Rust code.
-- **Files to update (oikos)**: `src-tauri/src/realtime.rs` (rewrite transport,
-  keep the existing `"device-command"` handling shape as the target inbound event —
-  now delivered as a JSON frame over plain WS, not a Socket.IO event), `Cargo.toml`
-  (drop `rust_socketio`, add a WS client crate).
-- **Status**: DRAFT — implementation-ready only after the `agora/realtime` protocol
-  read above; this entry is a placeholder until that read happens.
+- **Handshake**: plain WS upgrade at `GET /api/v1/device/ws`, bearer device token in
+  the `Authorization` header (same credential the REST device routes use —
+  `resolveDeviceAuthContext`). Optional `?scope=` query params, repeatable,
+  lowercased/deduped/capped at 25 server-side. A device is already allowed to request
+  `?scope=device:<its-own-deviceId>` (`validateChronoDeviceScopes` — pure string match
+  against `actor.actorKey`, no DB query) — **the Tauri client must add this query
+  param on connect**, it does not happen implicitly. Without it, the connection only
+  gets the tenant-wide channel, never its own private one.
+- **Frame shape (server → client)**: every pushed frame is `{ event: string, payload:
+  unknown }` JSON text (`route.ts`'s `onOpen` subscribe callback: `ws.send(JSON.stringify({
+  event, payload }))`). No envelope beyond that — `event` is the discriminator
+  (`"session.state"` is the one that already exists, see below).
+- **Frame shape (client → server, inbound)**: raw JSON text only (binary frames are
+  rejected with close code 1003); size-capped (`maxFrameBytes: 2048` for the device
+  mount) and rate-capped (`inboundFramesPerMin: 30`). The device mount's `onFrame`
+  today only exists to drop any frame naming a foreign `deviceId` — no frame TYPE is
+  handled yet. Phase 3 adds `{ type: "command-ack", commandId, result }` as the first
+  real inbound type, gated the same way (drop if `data.deviceId` is present and
+  doesn't match `actor.actorKey`; no `stationId` field involved here since a command
+  targets the device directly).
+- **Ping/pong**: protocol-level WS ping/pong, fully internal to `route.ts` — no
+  application-level heartbeat frame to implement client-side beyond answering pings
+  (which every real WS client library does automatically, same as `rust_socketio` did
+  as a transport concern, not app logic).
+- **Push-on-issue mechanism (the thing Phase 3/4 needed confirmed)**: there is **no
+  per-connection `send()`** exposed by the registry (`connections.ts` only tracks
+  `close()`, for revocation). A server handler pushes to ONE connected device by
+  `getRealtimeProvider().publish(tenantScopeChannel(tenantId, \`device:${deviceId}\`),
+  "<event>", payload)` — publishing to that device's own private scope channel, which
+  only its own connection is subscribed to (because it, and only it, is allowed to
+  request that scope). **This pattern already ships**: `session/service.ts`'s
+  `publishSessionTransition` already does exactly this for `"session.state"` on every
+  session start/end (looks up the station's approved device fresh, publishes to
+  `device:${device.id}`) — Phase 3's command push and Phase 4's wallet-low push are
+  the same one-line call, not new plumbing.
+- **Command-ack tenant/device scoping** (the plan-audit condition): `withTenant(actor.tenantId,
+  tx => tx.select().from(chronoDeviceCommands).where(and(eq(id, commandId),
+  eq(deviceId, actor.actorKey))))` — both columns in the WHERE, mirroring
+  `requireOwnDevice`'s existing pattern. Confirmed workable: nothing about the
+  protocol read changes this.
+
+### Phase 2 — Realtime transport migration (Tauri client repo, Rust)
+
+Replace the Socket.IO client with a plain WebSocket client speaking
+`agora/realtime`'s protocol (see the protocol read above — plain `{event, payload}`
+JSON frames, bearer token in the upgrade request's `Authorization` header, add
+`?scope=device:<ownDeviceId>` on connect to receive command pushes).
+
+- **Files to update** (`/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`):
+  `src-tauri/src/realtime.rs` (rewrite transport: drop `rust_socketio`, connect with
+  a plain WS client, e.g. `tokio-tungstenite`; send the bearer token as an
+  `Authorization: Bearer <deviceToken>` header on the upgrade request, not a
+  Socket.IO auth payload; append `?scope=device:<deviceId>` to the connect URL; parse
+  every inbound text frame as `{ event, payload }` and dispatch on `event`; keep the
+  existing `"device-command"` handling shape as the target for `event ===
+  "device.command"` (Phase 3 below fixes the exact event name), now delivered as a
+  JSON frame over plain WS instead of a Socket.IO event), `Cargo.toml` (drop
+  `rust_socketio`, add `tokio-tungstenite` + `futures-util`).
+- **Base URL**: derive the WS origin from `VITE_API_BASE_URL` exactly like
+  `src/lib/realtime.ts` already does (per Phase 1's finding, that TS file only computes
+  the origin today — Rust owns the actual socket). Confirm in Phase 1's diff table
+  that `/api/v1/device/ws` is the correct path suffix (mount matches `/api/v1/device`,
+  route is `.get("/ws", ...)`).
+- **Step-by-step tasks**: (1) add `tokio-tungstenite`/`futures-util` to `Cargo.toml`,
+  remove `rust_socketio`; (2) rewrite the connect function to open a WS with the
+  bearer header + `?scope=` query param; (3) replace the Socket.IO event-listener
+  registration with a read loop that JSON-parses each text frame into `{ event: String,
+  payload: serde_json::Value }` and matches on `event`; (4) wire `"session.state"` to
+  update the existing session-state UI store (already exists — this is a new event
+  source for an existing sink, not new UI); (5) leave a typed hook for `"device.command"`
+  (Phase 3's event) even if Phase 3 hasn't landed yet, so the two phases don't need to
+  touch the same match arm twice; (6) remove the now-dead `client-config.ts`
+  `API_BASE_URL` HTTP-construction path only if Phase 1's diff table confirmed it truly
+  unused (it wasn't — it drives the WS origin — so this bullet is DONE, not a TODO: no
+  removal needed, `client-config.ts` stays as-is).
+- **Acceptance criteria**: client connects to a local `chrono-api`'s
+  `/api/v1/device/ws` with a real paired device's bearer token, receives a
+  `session.state` push when a session is started/ended for that device's station via
+  the existing staff `/rpc/sessions` route, and the existing session-state UI reflects
+  it with no other code changes.
+- **Verification commands**: `cargo check` / `cargo build` in
+  `apps/chrono-pc-client-tauri/src-tauri`; manual connect test against a local
+  `chrono-api` dev server (`pnpm --filter @agora/chrono-api dev`) is the only real
+  proof, per Phase 6.
+- **Out of scope**: `chrono-guard`, the Windows lockdown service; any UI change beyond
+  wiring the new event source into the existing store.
+- **Execution start point**: read `src-tauri/src/realtime.rs` and `Cargo.toml` in
+  full, then implement per the tasks above.
+- **Status**: READY — protocol read complete, no remaining open question.
 
 ### Phase 3 — Device command dispatch (this repo)
 
-- **Files to update**: `apps/chrono-api/src/db/schema.ts` (or a
-  `modules/device/schema.ts` addition) + migration for `ChronoDeviceCommands`;
-  `APP_TENANT_TABLES`; `apps/chrono-api/src/modules/device/contracts.ts` (command
-  request/response schemas); `apps/chrono-api/src/modules/device/routes.ts` (new
-  `POST /rpc/devices/:id/commands` — note this is the STAFF-facing `/rpc` mount, not
-  `deviceAuthRoutes()`); `apps/chrono-api/src/modules/device/realtime-actor.ts`
-  (`onFrame` gains `command-ack` handling + a push-on-issue path).
-- **Status**: DRAFT — needs the Phase-2 prerequisite protocol read to know how a
-  server-side handler pushes an unsolicited frame to one connected actor.
+- **Files to update**: `apps/chrono-api/src/modules/device/schema.ts` (new
+  `chronoDeviceCommands` table — `id, tenantId, deviceId, type
+  (lock|unlock|reboot|force_logout), status (pending|delivered|acked|expired),
+  issuedByUserId, issuedAt, deliveredAt, ackedAt, expiresAt, result (jsonb,
+  nullable)`, `tenantId` → `organization.id` `onDelete: cascade`, `*_tenant_idx`
+  index — imported into `apps/chrono-api/src/db/schema.ts`); `APP_TENANT_TABLES`;
+  `apps/chrono-api/src/modules/device/contracts.ts` (`issueDeviceCommandSchema`,
+  `deviceCommandAckSchema`); `apps/chrono-api/src/modules/device/routes.ts` (new
+  `POST /rpc/devices/:id/commands` on the STAFF-facing `/rpc` mount, `device:manage`-
+  gated); `apps/chrono-api/src/modules/device/realtime-actor.ts` (`onFrame` gains
+  `command-ack` handling).
+- **Step-by-step tasks**: (1) schema + migration (`pnpm db:generate --name
+  chrono-device-commands` + `pnpm db:migrate`, never `db:push`); (2) add to
+  `APP_TENANT_TABLES`; (3) contracts; (4) `POST /rpc/devices/:id/commands`: gate
+  `device:manage`, insert a `pending` row via `withTenant`, then best-effort
+  `getRealtimeProvider().publish(tenantScopeChannel(tenantId, \`device:${deviceId}\`),
+  "device.command", { commandId, type, expiresAt })` (the queued row is the source of
+  truth — the push is latency-avoidance only, per the plan's own framing), audit via
+  `recordAudit`/the module's existing audit pattern, set `status: "delivered"` +
+  `deliveredAt` only if the publish succeeded (it always "succeeds" from the
+  publisher's POV under the `memory` provider — there is no delivery ack at the
+  transport layer, so "delivered" here means "we attempted the push", not "the
+  device received it"; the real signal is the ack below); (5) `onFrame`: for `data.type
+  === "command-ack"`, validate `data.commandId` is a string, look up the command via
+  `withTenant(actor.tenantId, tx => ... where(and(eq(id, commandId), eq(deviceId,
+  actor.actorKey))))`, update `status: "acked"`, `ackedAt`, `result` — silently drop
+  if not found (forged/stale commandId) rather than closing the connection, matching
+  the existing "drop, don't fail" hardening style for the `deviceId` self-check; (6)
+  **offline/expiry decision (resolves Open Question 2)**: a command not acked within
+  15 minutes of `issuedAt` is `expired` — implemented as a lazy check at read time (the
+  next `GET`/list of commands for that device recomputes `status: "expired"` for any
+  `pending`/`delivered` row past its `expiresAt`, mirroring the existing lazy-resolution
+  style used elsewhere in this codebase, e.g. `resolveTenantLimits`) rather than a
+  background sweep — no new cron/worker for a first version of this feature.
+- **Acceptance criteria**: an `admin`/`owner` can issue a command via `POST
+  /rpc/devices/:id/commands`; a `staff` role is rejected (`device:manage` is not in
+  `CHRONO_STAFF_GRANTS` for `device`, confirm in `apps/chrono-api/src/auth/permissions.ts`);
+  a connected device receives the push and can ack it; a forged cross-tenant
+  `commandId` in an ack frame is silently dropped, never applied; `rls:proof` passes.
+- **Verification commands**: `pnpm typecheck`; `pnpm db:generate` + `pnpm db:migrate`;
+  `pnpm --filter @agora/api rls:proof` (this repo's DB proof script — confirm exact
+  filter name matches `apps/chrono-api`'s own `package.json` script, not the scaffold's
+  `@agora/api`, before running).
+- **Out of scope**: a `chrono-web` admin UI to issue commands (Open Question 3,
+  resolved below: REST-only this pass).
+- **Execution start point**: read `apps/chrono-api/src/modules/device/{schema,
+  contracts,routes,realtime-actor}.ts` in full, then implement per the tasks above.
+- **Status**: READY.
 
 ### Phase 4 — Device-facing session & wallet status (this repo)
 
-- **Files to update**: new device-bearer-gated routes under `deviceAuthRoutes()` (or
-  a sibling mount) reading `apps/chrono-api/src/modules/session/*` and
-  `apps/chrono-api/src/modules/wallet/*`; realtime push on session
-  start/end/low-time/wallet-low from `session/service.ts`.
-- **Status**: DRAFT — needs a dedicated read of `session/service.ts` +
-  `wallet/` schema/routes before the exact endpoint shape can be pinned down.
+**Finding that changes this phase's scope**: `session/service.ts`'s
+`publishSessionTransition` already pushes `"session.state"` to a station's approved
+device on every session start/end/status change — that half of this phase's original
+"genuinely new work" item 5 is **already shipped**, not new. What's actually missing:
+(a) a wallet-low realtime push (nothing publishes wallet events to a device today —
+confirmed, `grep` for `getRealtimeProvider`/`tenantScopeChannel` in `wallet/` returns
+nothing), and (b) REST reads for a kiosk's own initial-state fetch on boot/reconnect
+(the realtime push only reaches an already-open socket — a cold-started kiosk needs a
+GET to know current state before the first push arrives).
 
-### Phase 5 — Kiosk login → session start (this repo + oikos)
+- **Files to update**: new device-bearer-gated routes, mounted alongside
+  `deviceAuthRoutes()` in `apps/chrono-api/src/modules/device/routes.ts` (or a small
+  sibling file if that file is already large) — `GET /api/v1/device/session/active`
+  (the device's own `stationId`'s current session, if any — reuse
+  `chronoSession`'s existing shape, scoped by `stationId` not just `tenantId`, per
+  the plan-audit condition) and `GET /api/v1/device/wallet/balance` (the session's
+  member's wallet balance, `null` if no active session); `apps/chrono-api/src/modules/wallet/service.ts`
+  (a `publishWalletLow` call — reuse the exact `tenantScopeChannel(tenantId,
+  \`device:${deviceId}\`)` push pattern from `session/service.ts`, fired from
+  `applyWalletDelta` when the resulting balance crosses below a low-balance threshold
+  — reuse whatever threshold constant the wallet module already exposes for UI
+  warnings, if one exists; if none exists, this phase does not invent a
+  business-configurable threshold, it hardcodes the same value the existing member
+  portal UI uses for its own low-balance banner, confirmed by reading that UI first).
+- **Step-by-step tasks**: (1) read `session/schema.ts` + `wallet/schema.ts` +
+  whatever the member portal's existing low-balance banner threshold is (`apps/chrono-web`,
+  search for "low balance"/"topup" prompts) before writing the route; (2) `GET
+  .../session/active`: resolve the device's own `stationId` via
+  `resolveDeviceAuthContext` (already available on `c.var`), query `chronoSession`
+  `where(and(eq(stationId, device.stationId), eq(status, "active")))` through
+  `withTenant`, return an explicit column allowlist, never a raw row; (3) `GET
+  .../wallet/balance`: same station scoping — no active session means no member
+  context, return `{ balance: null }`, never guess a member; (4) wire the wallet-low
+  publish into `applyWalletDelta`'s existing transaction-committed callback point
+  (same "publish after commit, never inside the transaction" rule
+  `publishSessionTransition`'s own doc comment states); (5) confirm neither new GET
+  route can be used to enumerate another station's data — the `stationId` used in the
+  WHERE must come from the device's own resolved auth context, never a route param or
+  query string.
+- **Acceptance criteria**: a paired device can `GET` its own station's active session
+  and wallet balance; a device cannot read another station's data (tested by pointing
+  a second device's bearer token at the first device's data — must 404/empty, not
+  leak); a wallet crossing the low-balance threshold triggers a push to the owning
+  device's private channel; `rls:proof` passes (no schema change here, but re-run per
+  `.ai/rules/testing.md`'s "any change that touches `withTenant`" standard since this
+  adds new tenant-scoped queries).
+- **Verification commands**: `pnpm typecheck`; `pnpm --filter @agora/api rls:proof`.
+- **Out of scope**: any UI beyond the Tauri client's own existing session-state
+  skeleton (Phase 2 already wires it to consume `session.state`; this phase's new
+  `wallet.low` event is a new event name that phase's `event` match needs one more
+  arm for — flagged here so Phase 2 and Phase 4 don't silently diverge on the event
+  name: **event name is `"wallet.low"`**, payload `{ balance: string }`).
+- **Execution start point**: read `apps/chrono-api/src/modules/session/schema.ts` and
+  `apps/chrono-api/src/modules/wallet/{schema,service}.ts` in full, then implement.
+- **Status**: READY.
+
+### Open Questions 2 & 3 — resolved
+
+2. **Offline device command delivery**: resolved above (Phase 3) — queue as the
+   source of truth (already the design), lazy-expire unacked commands after 15
+   minutes at read time, no background sweep in this pass.
+3. **Command-dispatch web UI**: resolved — **REST-only this pass.** The Tauri client
+   is the only consumer; a `chrono-web` admin UI to issue lock/reboot/force-logout
+   commands is deferred to a follow-up plan once the REST surface is proven. Phase 3
+   above stays scoped to `apps/chrono-api` only, no `apps/chrono-web` files.
+
+### Phase 5 — Kiosk login → session start (this repo + Tauri client repo)
 
 - **Open question, not yet resolved**: does any existing route let a device (not a
   `tenantMember` portal session) start a session tied to its own station via
