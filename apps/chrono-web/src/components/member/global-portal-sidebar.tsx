@@ -35,7 +35,7 @@ export function GlobalPortalSidebar({
     // of stopping at the nav's own content height. Keep both in sync.
     <Stack
       gap={6}
-      className="min-h-[calc(100vh-112px)] w-full border-border/60 sm:sticky sm:top-24 sm:w-56 sm:border-r sm:pr-6"
+      className="min-h-[calc(100vh-112px)] w-full border-border/60 sm:sticky sm:top-24 sm:w-56 sm:border-r sm:pr-6 py-8"
     >
       <Row items="center" gap={3}>
         <Avatar name={name} size="lg" />
@@ -66,7 +66,7 @@ export function GlobalPortalSidebar({
         })}
         <Button
           variant="ghost"
-          className="justify-start gap-2 px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="flex justify-start gap-2 px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
           onClick={async () => {
             await customerAuth.signOut();
             location.href = "/member/login";
