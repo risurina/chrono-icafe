@@ -17,11 +17,13 @@ function toNavItems(pathname: string): NavTabItem[] {
 
 /** Desktop tab bar — sticky under the header, horizontal-scroll for however
  * many items are placed in `tabs` (7 since member-portal-v2 phase 1's nav
- * consolidation). */
+ * consolidation). `top-20` matches `TenantHeader`'s fixed 80px height (the
+ * header is out of document flow, so this bar's own sticky offset is what
+ * keeps it flush underneath rather than document flow doing it for free). */
 export function MemberNav() {
   const pathname = usePathname();
   return (
-    <div className="flex sticky top-16 z-30 overflow-x-auto bg-background">
+    <div className="flex sticky top-20 z-30 overflow-x-auto bg-background">
       <NavTabs items={toNavItems(pathname)} className="flex flex-1 justify-center min-w-max px-4" />
     </div>
   );

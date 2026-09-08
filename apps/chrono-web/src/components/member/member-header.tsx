@@ -7,11 +7,11 @@ import { MEMBER_USER_MENU_ITEMS } from "./member-nav.config";
 import type { MemberUser } from "@/lib/member-client";
 
 /**
- * The member area's header — `TenantHeader` (the same component the tenant's
- * public landing/auth pages use) with `surface="member"` (sticky/opaque, no
- * hero to overlay) and its default Staff/Member-login CTA replaced by the
- * signed-in member's own identity menu. `MemberNav`'s tab bar renders as its
- * own row below this one (see `member-gate.tsx`'s `Chrome`).
+ * The member area's header — `TenantHeader` (the exact same fixed,
+ * transparent-until-scroll header the tenant's public landing/auth pages use)
+ * with its default Staff/Member-login CTA replaced by the signed-in member's
+ * own identity menu. `MemberNav`'s tab bar renders as its own row below this
+ * one (see `member-gate.tsx`'s `Chrome`).
  */
 export function MemberHeader({
   tenantName,
@@ -32,7 +32,6 @@ export function MemberHeader({
       displayName={displayName}
       logoUrl={logoUrl}
       logoDarkUrl={logoDarkUrl}
-      surface="member"
       actions={
         <Row items="center" gap={2}>
           <Row className="sm:flex">

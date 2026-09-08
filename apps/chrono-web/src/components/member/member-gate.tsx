@@ -69,7 +69,9 @@ function Chrome({
 }) {
   const { member } = useMemberArea();
   return (
-    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+    // `MemberHeader` (`TenantHeader`) is fixed/80px, not sticky — content
+    // reserves its own top padding instead of relying on document flow.
+    <div className="flex min-h-screen flex-col pb-16 pt-20 md:pb-0">
       <MemberHeader
         tenantName={tenantName}
         displayName={displayName}

@@ -132,24 +132,15 @@ const TENANT_NAV = [
   { label: "Location", href: "/#location" },
 ];
 
-/** Sticky/opaque metrics for `surface="member"` — no hero to bleed behind, so
- * unlike `HEADER_PROPS` this reserves its own height rather than overlaying. */
-const MEMBER_HEADER_PROPS = {
-  maxWidth: "full",
-  position: "sticky",
-  containerClassName: "h-16",
-  navClassName: "gap-8",
-} as const;
-
 /**
  * The tenant-branded header. Same shell and metrics as `MarketingHeader` — the
  * only differences are the brand lockup (the tenant's logo/name, never Chrono's
  * owl) and that the CTA signs a customer in rather than booking a demo.
  *
- * `surface="member"` (the authenticated `/member/*` area) swaps the fixed,
- * transparent-until-scroll landing metrics for a sticky, always-opaque bar —
- * there's no hero for it to overlay — and `actions`, when supplied, fully
- * replaces the default Staff/Member-login CTA (e.g. with the signed-in
+ * Always fixed + transparent-until-scroll, on every tenant surface — the
+ * public landing page and the authenticated `/member/*` area alike — so the
+ * two surfaces share one header, pixel for pixel. `actions`, when supplied,
+ * fully replaces the default Staff/Member-login CTA (e.g. with the signed-in
  * member's own identity menu).
  */
 export function TenantHeader({
@@ -157,19 +148,17 @@ export function TenantHeader({
   displayName,
   logoUrl,
   logoDarkUrl,
-  surface = "landing",
   actions,
 }: {
   tenantName: string;
   displayName?: string | null;
   logoUrl?: string | null;
   logoDarkUrl?: string | null;
-  surface?: "landing" | "member";
   actions?: React.ReactNode;
 }) {
   return (
     <SiteHeader
-      {...(surface === "member" ? MEMBER_HEADER_PROPS : HEADER_PROPS)}
+      {...HEADER_PROPS}
       brand={
         <Link href="/" aria-label={`${displayName ?? tenantName} home`}>
           {logoUrl || logoDarkUrl ? (
