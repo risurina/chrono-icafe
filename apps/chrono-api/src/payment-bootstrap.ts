@@ -17,17 +17,27 @@
  * `auth-bootstrap.ts` is imported first.
  *
  * `registerCustomerPaymentFulfilment`'s `FulfilmentHandler` type resolves to
- * `Promise<void>`; the existing `fulfilCustomerPayment` resolves to a
- * `FulfilmentOutcome` union used by the per-tenant webhook route to decide
- * what to audit. This thin adapter discards that outcome — the shared
- * platform webhook route has no equivalent per-outcome audit step (see its
- * own file doc comment), so there is nothing for this handler to do with it
- * beyond letting the transaction commit or throw exactly as
- * `fulfilCustomerPayment` already does.
+ * `Promise<FulfilmentResult>` (`{ applied: true } | { applied: false; reason }`);
+ * the existing `fulfilCustomerPayment` resolves to a `FulfilmentOutcome` union
+ * used by the per-tenant webhook route to decide what to audit. This thin
+ * adapter maps that outcome to the shared route's narrower `applied` signal
+ * instead of discarding it: `"fulfilled"` and `"already_paid"` both mean the
+ * payment IS in a paid state (this delivery just credited it, or a PSP
+ * redelivery found it already credited), so the platform receivable ledger
+ * legitimately owes the tenant for it — `"missing"` (stale/unknown/non-pending
+ * row) and `"amount_mismatch"` (voided by `fulfilCustomerPayment`, see that
+ * file) never moved money, so the shared webhook route must not record a
+ * receivable for them. Any other error still propagates unchanged — letting
+ * the transaction throw and roll back exactly as `fulfilCustomerPayment`
+ * already does.
  */
 import { registerCustomerPaymentFulfilment } from "agora/customer-payments";
 import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
 
 registerCustomerPaymentFulfilment("chrono_payment", async (tx, args) => {
-  await fulfilCustomerPayment(tx, args);
+  const result = await fulfilCustomerPayment(tx, args);
+  if (result.outcome === "fulfilled" || result.outcome === "already_paid") {
+    return { applied: true };
+  }
+  return { applied: false, reason: result.outcome };
 });
