@@ -110,6 +110,7 @@ export const {
   customer,
   customerSession,
   customerToken,
+  customerOAuthAccount,
   apiKey,
   webhookEndpoint,
   twoFactor,

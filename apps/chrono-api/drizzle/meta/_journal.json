@@ -239,6 +239,13 @@
       "when": 1788794865185,
       "tag": "0033_add_member_session_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788853596534,
+      "tag": "0034_customer-oauth-accounts",
+      "breakpoints": true
     }
   ]
 }
