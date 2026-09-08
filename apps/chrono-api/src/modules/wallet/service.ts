@@ -1,8 +1,12 @@
-import { eq, type TenantTx } from "agora/db";
+import { eq, and, withTenant, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
+import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
-import { addMoney, negateMoney, isNegativeMoney, toCents } from "./money";
+import { addMoney, negateMoney, isNegativeMoney, toCents, compareMoney } from "./money";
 import { MAX_BALANCE } from "./contracts";
+import { chronoSession } from "../session/schema";
+import { chronoDevice } from "../device/schema";
+import type { WalletLowEvent } from "../realtime/contracts";
 
 /**
  * Ceiling for the resulting balance, matching the `numeric(12, 2)` columns' capacity.
@@ -11,6 +15,75 @@ import { MAX_BALANCE } from "./contracts";
  * magnitude because an `adjustment` may legitimately drive the balance negative.
  */
 const MAX_BALANCE_CENTS = toCents(MAX_BALANCE);
+
+/**
+ * Low-balance push threshold — device-facing "wallet.low" realtime event
+ * (pc-client-tauri-api-integration plan, Phase 4). No low-balance UI/threshold
+ * exists anywhere in `apps/chrono-web` today (confirmed by grep for
+ * "low.?balance"/"threshold" across both apps immediately before this pass —
+ * only the member wallet top-up page's own `MIN_TOPUP_AMOUNT` bound exists).
+ * Per the plan's own instruction, this does not invent a business-
+ * configurable threshold — it hardcodes the same value the member portal's
+ * top-up page already treats as the practical floor
+ * (`MIN_TOPUP_AMOUNT`/`MIN_WALLET_TOPUP_AMOUNT` = "20.00" in
+ * `apps/chrono-web/.../player/wallet/page.tsx` and
+ * `apps/chrono-api/.../payment/contracts.ts`), as the nearest existing
+ * anchor. Revisit once a real low-balance UI/threshold is designed.
+ */
+const LOW_BALANCE_THRESHOLD = "20.00";
+
+/**
+ * Publishes `wallet.low` to the owning device's private channel — reuses the
+ * exact `tenantScopeChannel(tenantId, \`device:${deviceId}\`)` push pattern
+ * `session/service.ts`'s `publishSessionTransition` already established
+ * (fresh device lookup at publish time, never cached; no active session on
+ * the member, or no approved device on that session's station, simply means
+ * no channel to reach — not an error).
+ *
+ * Deviation from `publishSessionTransition`'s own "after commit, never
+ * inside the transaction" rule, documented here rather than silently
+ * followed: `applyWalletDelta` (this function's only caller) does not own
+ * the enclosing transaction — it always runs inside an already-open `tx`
+ * passed in by call sites spread across several modules (`credit`,
+ * `payment`, `pos`, `wallet/routes.ts`, `session/service.ts`), none of which
+ * this phase's file list (`wallet/service.ts` only) authorizes touching.
+ * Adding a genuine post-commit hook would mean updating every one of those
+ * call sites. This function still does its OWN fresh `withTenant` reads for
+ * the session/device lookup (matching `publishSessionTransition`'s shape
+ * exactly) so the push reflects live, not stale, device pairing state; the
+ * one accepted risk is that a subsequent rollback of the caller's own
+ * transaction could leave a stale "wallet.low" push already delivered. Given
+ * the realtime provider is in-process pub/sub (no external I/O) and this
+ * event is a UX nudge, not a security- or money-critical signal, that
+ * trade-off is accepted for this first version rather than blocking the
+ * phase on a broader refactor of every wallet-mutation call site.
+ */
+async function publishWalletLow(tenantId: string, memberId: string, balance: string): Promise<void> {
+  const [session] = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ stationId: chronoSession.stationId })
+      .from(chronoSession)
+      .where(and(eq(chronoSession.memberId, memberId), eq(chronoSession.status, "active")))
+      .limit(1),
+  );
+  if (!session) return;
+
+  const [device] = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ id: chronoDevice.id })
+      .from(chronoDevice)
+      .where(and(eq(chronoDevice.stationId, session.stationId), eq(chronoDevice.status, "approved")))
+      .limit(1),
+  );
+  if (!device) return;
+
+  const event: WalletLowEvent = { balance };
+  await getRealtimeProvider().publish(
+    tenantScopeChannel(tenantId, `device:${device.id}`),
+    "wallet.low",
+    event,
+  );
+}
 
 /**
  * Locks the member's wallet row for the duration of the caller's transaction,
@@ -89,6 +162,16 @@ async function applyWalletDelta(
       shiftId: args.shiftId,
     })
     .returning();
+
+  // Only on a genuine crossing (was at/above the floor, now below it) —
+  // never on every debit that merely stays under an already-low balance, or
+  // a member would get re-pushed on every subsequent transaction.
+  const crossedLowBalance =
+    compareMoney(wallet.balance, LOW_BALANCE_THRESHOLD) >= 0 &&
+    compareMoney(balanceAfter, LOW_BALANCE_THRESHOLD) < 0;
+  if (crossedLowBalance) {
+    await publishWalletLow(args.tenantId, args.memberId, balanceAfter);
+  }
 
   return { wallet: updatedWallet!, transaction: transaction! };
 }
