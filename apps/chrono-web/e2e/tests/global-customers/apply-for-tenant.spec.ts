@@ -6,7 +6,27 @@ import { faker } from "../../utils/faker";
  * that self-service "applies" to become a tenant-scoped customer
  * (tenantMember, linked via customerId). See
  * .ai/plans/agora/active/global-customers/README.md.
+ *
+ * member-visitor-status-tier: visiting a tenant's `/member` alone already
+ * creates the tenantMember (silently, as a "visitor" — no lock/prompt to
+ * click through). A real application ("pending"/"approved", which the
+ * tenant's own Members list surfaces as an "Approve" action) still needs an
+ * explicit Apply — done here via a mutating control's inline `UnlockHint`.
  */
+
+async function applyToTenant(page: Page, base: string) {
+  await page.goto(`${base}/member/settings`);
+  await page.waitForLoadState("networkidle");
+  // First visit silently registers a "visitor" tenantMember — the profile
+  // save control stays disabled with an inline Apply affordance until an
+  // explicit apply promotes it to a real application.
+  const saveButton = page.getByRole("button", { name: "Save changes" });
+  await expect(saveButton).toBeDisabled({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Apply to unlock" }).first().click();
+  await expect(saveButton).toBeEnabled({ timeout: 15_000 });
+  await page.goto(`${base}/member`);
+  await expect(page.getByRole("heading", { name: /^Welcome/ })).toBeVisible({ timeout: 15_000 });
+}
 
 async function signUpNewWorkspace(page: Page): Promise<{ slug: string }> {
   const uniq = faker.string.alphanumeric({ length: 8, casing: "lower" });
@@ -51,22 +71,14 @@ test.describe("Global customer — apply to a tenant", () => {
     await page.waitForURL(/\/member$/, { timeout: 30_000 });
     await expect(page.getByText("Welcome, Global Test Customer")).toBeVisible();
 
-    // ── Apply to tenant A's portal (happy path) ──
-    // Since member-portal-guest-preview-banner, a not-yet-applied global
-    // customer no longer gets the old full-page ApplyForTenantPrompt takeover
-    // on /member/* — they see the normal Chrome (header + nav) with the top
-    // banner removed entirely; the Apply CTA now lives in
-    // `RequiresMembership`'s own locked-section card in place of live data.
-    await page.goto(`http://${slugA}.localtest.me:3000/member`);
-    await page.waitForLoadState("networkidle");
-    await expect(
-      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Apply" }).click();
-    // Reloads into the member area once the linked tenantMember exists.
-    await expect(
-      page.getByRole("heading", { name: /^Welcome/ }),
-    ).toBeVisible({ timeout: 15_000 });
+    // ── Visit tenant A's portal (happy path) ──
+    // Since member-visitor-status-tier, a not-yet-applied global customer is
+    // silently registered as a "visitor" on first visit — real Chrome
+    // (header + nav) and real data render immediately, no lock/takeover.
+    // Promoting to a real application ("pending"/"approved") still requires
+    // an explicit Apply, which now lives inline next to a locked mutating
+    // control (`UnlockHint`) rather than a full-page/section prompt.
+    await applyToTenant(page, `http://${slugA}.localtest.me:3000`);
 
     // ── Cross-tenant isolation: tenant A's owner session is still live —
     // the applied customer shows up in tenant A's Members list. Since
@@ -94,15 +106,7 @@ test.describe("Global customer — apply to a tenant", () => {
 
     // ── Apply to tenant B independently (same global identity, no
     // second global sign-up) ──
-    await page.goto(`http://${slugB}.localtest.me:3000/member`);
-    await page.waitForLoadState("networkidle");
-    await expect(
-      page.getByRole("heading", { name: "Join this business to see your live account data here." }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Apply" }).click();
-    await expect(
-      page.getByRole("heading", { name: /^Welcome/ }),
-    ).toBeVisible({ timeout: 15_000 });
+    await applyToTenant(page, `http://${slugB}.localtest.me:3000`);
 
     // Now tenant B's own list shows it too — a distinct row from tenant A's.
     await page.goto(`http://${slugB}.localtest.me:3000/admin/members`);
