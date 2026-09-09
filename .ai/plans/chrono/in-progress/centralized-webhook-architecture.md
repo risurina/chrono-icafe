@@ -24,22 +24,31 @@ existing `test:payment-fulfilment` suite (19/19, proving the legacy fulfilment p
 undisturbed). `app.ts` and the legacy webhook routes are untouched, as scoped. Phases
 3-5 remain sketched only.
 
-Phase 3 (promote the webhook ingress mechanism to `packages/agora`) is accepted and
-delegated to Jules — required before Phase 5 (formerly Phase 4) can wire foundation
-billing code onto this ingress without making the foundation depend on
-`apps/chrono-api`. Migration generation + `rls:proof` for the relocated table stay
-local (Jules has no DB/secrets). The old Phase 3 ("second provider," Maya/Paddle) is
-deferred by developer decision — building either from scratch is a bigger, more
-product-shaped task than an architecture proof warrants; the renumbered Phase 5 proves
-genericity instead by reusing Xendit's already-real billing vendor code. Phases 5-6 are
-sketched only.
+Phase 3 (promote the webhook ingress mechanism to `packages/agora`) implemented and
+committed (`2975f4f2` code, `ad0fc9b7` migration). Jules session 12927776704988416128
+completed successfully — a clean rename/relocation matching the plan exactly (git
+detected `contracts.ts`/`registry.ts`/`ingress.ts`/`webhook.test.ts` as renames).
+Verified directly: workspace-wide `pnpm typecheck` clean (all 5 packages, including
+the untouched `apps/agora-api` scaffold, proving the foundation change doesn't break
+the other app); both relocated/adjacent test suites pass unregressed (11/11, 14/14).
+Local-only steps (Jules has no DB/secrets) completed after pulling: generated
+`0037_add-webhook-events.sql` (single `CREATE TABLE` + FK + 2 indexes, reviewed before
+applying), `pnpm db:migrate` applied it, `pnpm --filter @agora/chrono-api rls:proof`
+passes — `WebhookEvents` correctly absent from the RLS-enforced table list. Required
+before Phase 5 (below) can wire foundation billing code onto this ingress without the
+foundation depending on `apps/chrono-api`. The old Phase 3 ("second provider,"
+Maya/Paddle) is deferred by developer decision — building either from scratch is a
+bigger, more product-shaped task than an architecture proof warrants; the renumbered
+Phase 5 proves genericity instead by reusing Xendit's already-real billing vendor code.
+Phases 5-6 are sketched only.
 
 **Sessions:**
 - Planning: current session
 - Implementation: current session (Phase 1: Jules attempt failed/deviated, fixed and
   committed locally via a fresh subagent per delegate-implementation. Phase 2: Jules
-  attempt succeeded as delegated, verified and committed directly. Phase 3: accepted,
-  claimed, delegated to Jules per delegate-implementation).
+  attempt succeeded as delegated, verified and committed directly. Phase 3: Jules
+  attempt succeeded as delegated; code verified/committed, then the local-only
+  migration + rls:proof steps completed directly).
 
 ## Why
 
