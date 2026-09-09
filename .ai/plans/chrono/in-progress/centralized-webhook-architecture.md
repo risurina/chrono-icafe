@@ -2,13 +2,21 @@
 
 ## Status
 
-Accepted. Phase 1 delegated to Jules for implementation. Phases 2-5 are sketched (from
-the original architecture draft's migration strategy) but each needs its own
-concreteness pass before it can be claimed/implemented.
+Phase 1 (Foundation) implemented and committed (`7d643923`). The Jules session
+(2508701978338411204) that was fired for this phase reported `Failed` and its diff
+deviated from the plan in several security-relevant ways (no idempotency constraint, no
+signature-verification call, snake_case naming, wrong adapter interface, raw
+headers/body persisted, superficial tests) — the diff was pulled for inspection, applied
+to the working tree, and fixed locally by a fresh subagent to match this file's Phase 1
+spec exactly before committing. See the ledger entry in `.ai/handover/jules-sessions.md`
+for the full detail. Phases 2-5 are sketched (from the original architecture draft's
+migration strategy) but each needs its own concreteness pass before it can be
+claimed/implemented.
 
 **Sessions:**
 - Planning: current session
-- Implementation: current session (Phase 1 delegated to Jules per delegate-implementation)
+- Implementation: current session (Phase 1: Jules attempt failed/deviated, fixed and
+  committed locally via a fresh subagent per delegate-implementation)
 
 ## Why
 
