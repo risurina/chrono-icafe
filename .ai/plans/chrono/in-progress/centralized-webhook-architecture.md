@@ -41,12 +41,28 @@ Maya/Paddle) is deferred by developer decision — building either from scratch 
 bigger, more product-shaped task than an architecture proof warrants; the renumbered
 Phase 5 proves genericity instead by reusing Xendit's already-real billing vendor code.
 
-Phase 5 (migrate Stripe/Xendit/PayMongo billing onto the ingress) is now accepted,
-concreteness-gated, and fired to Jules **fire-and-forget** (developer switching
-machines mid-run — no local background poller was started for this one; check
-`.ai/handover/jules-sessions.md` for the session id and `jules remote list --session`
-or the `jules:status` skill from any machine to see its state, then `jules remote pull`
-+ verify + commit once it's done). Phase 6 remains sketched only.
+Phase 5 (migrate Stripe/Xendit/PayMongo billing onto the ingress) implemented and
+committed (`0826a326`). Jules session 1419847206865583467 was fired fire-and-forget and
+picked back up in a later session: pulled, a stray `patch.diff` leftover from Jules's own
+internal patching mechanism was deleted (its content duplicated the already-applied
+`commerce/billing/index.ts` re-export, confirmed identical first). Review against the
+plan found three real issues, all fixed locally: a misleadingly-named `secretEnvVar`
+parameter that actually receives the secret value (renamed to `secret`); the `dispatch()`
+audit-logic block silently dropping the `status`/`plan` metadata fields on the
+subscription created/updated branch that `app.ts`'s existing handler writes (restored
+verbatim); and a genuine regression — the new file's top-level imports of the
+`agora/server`/`agora/audit`/`agora/webhooks/inbound` barrels closed a fresh
+module-load-time circular dependency back into `commerce/billing/index.ts` (via
+`core/server/retention.ts`'s pre-existing `PLAN_IDS`/`entitlementsFor` import from that
+same `index.ts`), crashing every real import of `agora/billing` with a `PLANS`
+before-initialization `ReferenceError`. `test:billing-webhook` (PGlite-only, never
+touches the real barrel) didn't catch this; `test:billing-transactions` did, which is
+exactly why the plan required running it as a regression check. Fixed by importing
+`HttpError`/`registerWebhookProvider` from their leaf modules directly instead of the
+barrels, and deferring `./server`/`agora/audit` into dynamic imports inside `dispatch()`.
+Verified after fixes: `pnpm typecheck` clean (5/5 packages), `test:billing-webhook`
+11/11, `test:billing-transactions` 49/49. `app.ts`'s `/billing/webhook` route is
+provably untouched (zero diff), as required. Phase 6 remains sketched only.
 
 **Sessions:**
 - Planning: current session
@@ -54,8 +70,10 @@ or the `jules:status` skill from any machine to see its state, then `jules remot
   committed locally via a fresh subagent per delegate-implementation. Phase 2: Jules
   attempt succeeded as delegated, verified and committed directly. Phase 3: Jules
   attempt succeeded as delegated; code verified/committed, then the local-only
-  migration + rls:proof steps completed directly. Phase 5: fired to Jules
-  fire-and-forget — NOT YET pulled/verified/committed, pick this up from the ledger).
+  migration + rls:proof steps completed directly. Phase 5: Jules attempt fired
+  fire-and-forget, pulled in a later session; three real issues found and fixed locally
+  (misnamed parameter, incomplete audit metadata, a genuine module-cycle regression),
+  verified and committed).
 
 ## Why
 
