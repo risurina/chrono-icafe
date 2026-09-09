@@ -200,3 +200,51 @@ side by side before editing.
 Once Phase 1 lands and verifies, move this plan from `draft/` (or `ready/`/
 `in-progress/`, whichever it has reached) to `.ai/plans/chrono/archive/
 member-apply-profile-autocreate/README.md` per `.ai/rules/feature-planning.md`.
+
+## Status
+
+Phase 1 shipped (`4bca7bd1`, "feat: phase 1 — wire Chrono membership apply
+into tenant join") and was carried forward, not superseded, by the later
+`feature/two-sided-growth-loop` initiative (`031f1b65`, "banner instead of
+blocking screen for guest/pending members"; merged to `main` at `6186d64b`).
+That initiative refactored the call site from `ApplyForTenantPrompt.onApply()`
+into a shared `useApplyForTenant()` hook (`apps/chrono-web/src/components/
+member/apply-for-tenant-prompt.tsx`) reused by both `ApplyForTenantPrompt` and
+a new `MemberAccessBanner` — a reasonable evolution of the mechanism, not a
+deviation from it.
+
+Re-verified against the current code (not git history alone) during this
+closure pass, every acceptance criterion still holds:
+
+- `useApplyForTenant()`'s `apply()` still calls `applyForTenantMembership()`
+  then `applyForMembership()` in sequence, exactly as this plan specified —
+  `apply-for-tenant-prompt.tsx:18-38`.
+- A failed Chrono apply is still best-effort: `profileError` is
+  `console.error`'d, never `toast.error`'d, and never blocks the subsequent
+  `track(...)` calls or `location.reload()` — `apply-for-tenant-prompt.tsx:28-37`.
+- The member portal home page (`(tenant-member)/player/page.tsx:112-119`) and
+  profile page (`.../player/profile/page.tsx:208`) still read
+  `onboarding.applicationStatus`/`onboarding?.applicationStatus ?? "pending"`
+  unchanged by the later redesign.
+- `/dashboard/members` still gates the Approve action on
+  `member.profileId && member.applicationStatus === "pending"`
+  (`(tenant-admin)/dashboard/members/page.tsx:451`), untouched by the
+  growth-loop work.
+- `apply-for-tenant.spec.ts` still carries both original scenarios (global
+  customer applies to two tenants independently; tenant-only signup
+  unaffected) plus this plan's own added assertion — an "Approve" button
+  visible on the applicant's row in tenant A's Members list
+  (`apply-for-tenant.spec.ts:100`) — with the comment this plan's Phase 1
+  called for, crediting `member-apply-profile-autocreate` by name
+  (lines 84-91). Per this plan's own step 6, the second-tenant assertion block
+  was judged unnecessary to duplicate; the mechanism is already proven once.
+
+`pnpm --filter @agora/chrono-web typecheck` passes clean. The e2e specs
+(`global-customers/apply-for-tenant.spec.ts`, `members/members.spec.ts`,
+`members/invite-customer.spec.ts`) were not headed-run in this pass — this
+sandbox has neither `pnpm dev` running nor a usable local Postgres role (the
+same pre-existing role-ownership constraint noted elsewhere this session), so
+this verification rests on the typecheck result plus the line-by-line code
+read above, not a live Playwright run.
+
+Archived as confirmed-shipped, no further work identified.
