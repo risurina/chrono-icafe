@@ -17,6 +17,8 @@ export type CreditGrant = {
   status: string;
   expiresAt: string | null;
   priority: number;
+  stationGroupId: string | null;
+  stationGroupName: string | null;
 };
 
 export type CreditBalance = { grants: CreditGrant[]; totalRemainingMinutes: number };

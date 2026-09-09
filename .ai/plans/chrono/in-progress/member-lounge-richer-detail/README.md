@@ -3,7 +3,7 @@
 **Sessions:**
 - Planning: current session
 - Audit: (unclaimed)
-- Implementation: Phase 1 landed — station-group DTO fields added
+- Implementation: Phase 1 landed — station-group DTO fields added; Phase 2 landed — member code + time-credits card
 
 ## Source
 
