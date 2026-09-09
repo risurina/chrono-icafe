@@ -9,14 +9,24 @@ signature-verification call, snake_case naming, wrong adapter interface, raw
 headers/body persisted, superficial tests) — the diff was pulled for inspection, applied
 to the working tree, and fixed locally by a fresh subagent to match this file's Phase 1
 spec exactly before committing. See the ledger entry in `.ai/handover/jules-sessions.md`
-for the full detail. Phases 2-5 are sketched (from the original architecture draft's
-migration strategy) but each needs its own concreteness pass before it can be
-claimed/implemented.
+for the full detail.
+
+Phase 2 has now been through its concreteness pass (see "Phase 2 — First real provider
+(PayMongo)" below) and surfaced a real architecture conflict — the new ingress's "one
+stable URL per provider" design is incompatible with PayMongo's per-tenant webhook
+secret unless signature verification internally peeks at unverified metadata to pick a
+candidate secret before the actual HMAC check. A resolution is proposed and written up
+in full, but **Phase 2 is NOT yet accepted or claimed — awaiting explicit developer
+sign-off on that design conflict before implementation starts.** One open sub-decision
+(the post-persist fulfilment-dispatch seam) is also flagged as needing to be resolved at
+the start of implementation, not silently invented mid-phase. Phases 3-5 remain sketched
+only.
 
 **Sessions:**
 - Planning: current session
 - Implementation: current session (Phase 1: Jules attempt failed/deviated, fixed and
-  committed locally via a fresh subagent per delegate-implementation)
+  committed locally via a fresh subagent per delegate-implementation). Phase 2: not yet
+  claimed — plan written, awaiting acceptance.
 
 ## Why
 
@@ -370,17 +380,216 @@ what Phase 1 above actually builds:
 
 ### Phase 2 — First real provider (PayMongo)
 
-Wire a real `WebhookProviderAdapter` for PayMongo, registered under `"paymongo"`,
-covering BOTH flows the legacy routes currently split across two URLs: platform-fallback
-(shared Chrono PayMongo account) and per-tenant (`tenant_integration` rows,
-`provider = "paymongo"`). This adapter **supersedes**
-`packages/agora/src/commerce/customer-payments/`'s existing PayMongo registry +
-`platformCustomerPaymentWebhookRoutes()` — decided, not left open — so this phase's
-concrete design must explicitly map: `tenant_integration` provider-account-id → tenant
-lookup (§7.A) for the per-tenant case, and the existing Chrono-payment-reference
-metadata path (§7.B) for the platform-fallback case, reusing
-`fulfilCustomerPayment`/the fulfilment-registry seam as the dispatch target so business
-logic isn't rewritten — only the ingress/verification/resolution layer moves.
+**Status: concreteness pass done below, NOT yet accepted — do not implement until the
+developer explicitly accepts this section** (per `.ai/rules/feature-planning.md`,
+Concreteness Gate + "Plan first. Do not implement until the plan is written and
+accepted").
+
+Wire a real `WebhookProviderAdapter` for PayMongo, registered under `"paymongo"` on the
+production registry (`registry.ts`'s shared instance — this is the first thing that ever
+populates it), covering BOTH flows the legacy routes currently split across two URLs:
+platform-fallback (shared Chrono PayMongo account, `POST
+/payments/customer/webhook/platform`) and per-tenant (`tenant_integration` rows,
+`category: "customerPayment"`, `provider: "paymongo"`, `POST
+/payments/customer/webhook/:token`). This adapter **supersedes**
+`packages/agora/src/commerce/customer-payments/`'s existing PayMongo webhook path — but
+per "Critical design conflict" below, the legacy routes are **not deleted or cut over to
+this phase**; that stays Phase 5, after Phase 4. Phase 2 builds and proves the adapter;
+provider dashboards keep pointing at the legacy URLs throughout.
+
+#### Critical design conflict: tenant resolution needs the secret, but signature
+verification needs to happen first
+
+The architecture's own acceptance criterion is "signature verification occurs before
+financial state changes" and Phase 1's adapter interface is `verifySignature(input) →
+parseEvent(input) → resolve(parsed)` — verify first, resolve (tenant) second. But
+PayMongo's webhook signing secret is **per-tenant** (each tenant's own PayMongo account
+has its own secret; the platform-fallback account has a separate one) — you cannot HMAC-
+verify a payload without already knowing *which* secret to check it against, and today
+that's solved by the URL itself carrying the tenant (`/payments/customer/webhook/:token`
+→ `findTenantByCustomerPaymentWebhookToken` resolves the tenant/secret from the URL,
+before touching the body at all). The new architecture's whole point is **one stable URL
+per provider, not per tenant** (`/api/v1/webhooks/paymongo`), which removes that
+URL-based channel entirely.
+
+**Decision**: the adapter's `verifySignature` performs its own untrusted, side-effect-
+free peek at the raw JSON body — `JSON.parse(raw)` to read
+`data.attributes.data.attributes.metadata.tenantId` (the same field
+`parsePaymongoCustomerPayment` already reads) purely to pick a **candidate** secret to
+verify against. This is not a trust decision on its own — the actual trust boundary
+remains "HMAC verifies against the specific secret registered to that tenant (or the
+platform)":
+
+1. Peek `metadata.tenantId` from the unverified body. Malformed JSON at this stage →
+   `HttpError(400, "Malformed payload.")` (parseEvent's job normally, but verification
+   can't proceed without a body shape to peek at, so this is an early, narrower
+   malformed-JSON check — `parseEvent` still does the full parse afterward and must
+   independently be able to throw on malformed JSON per its own contract).
+2. If `metadata.tenantId` is present: look up that tenant's `customerPayment`/`paymongo`
+   `tenantIntegration` row (`withAdmin`, same as `findTenantByCustomerPaymentWebhookToken`
+   today — no session exists pre-verification) and decrypt `config.webhookSecretEnc`. If
+   found, verify the HMAC (`verifyPaymongoSignature`, reused as-is from
+   `packages/agora/src/commerce/billing/vendors/paymongo.ts`) against **that tenant's**
+   secret only. Verification failure → `HttpError(400, "Invalid signature.")` — do
+   **not** fall back and retry against the platform secret; a mismatched tenant secret is
+   a hard failure, never a "try the next one."
+3. If `metadata.tenantId` is absent, or no enabled tenant row exists for it: verify
+   against the platform secret (`PLATFORM_CUSTOMER_PAYMENT_PAYMONGO_WEBHOOK_SECRET`, env).
+   Failure → `HttpError(400, "Invalid signature.")`.
+4. Store which secret/tenant candidate won verification in a private field on the
+   adapter's own closure state for this single request — **no**, adapters are
+   registered once and reused across requests/concurrent calls, so a mutable instance
+   field is a cross-request data race. Instead: `resolve()` independently re-derives the
+   same `metadata.tenantId` peek from the now-signature-verified `parsed` event (cheap,
+   pure, no I/O beyond the one tenant-row lookup it repeats) and re-confirms the same
+   tenant row exists and is enabled — this is deliberate double work, not an
+   optimization target, because it keeps `verifySignature` and `resolve` each
+   independently correct with no shared mutable state between them (Phase 1's adapter
+   interface has no return-value threading from `verifySignature` to later steps, and
+   this phase does not change that interface).
+5. `resolve()`'s output: tenant row found + enabled → `{scope: "tenant", tenantId,
+   integrationId: <tenantIntegration.id>, providerAccountId: null}` (PayMongo has no
+   merchant-id field surfaced to us — `providerAccountId` stays `null` for this
+   provider, consistent with `.ai/rules/database.md`'s "nullable when genuinely
+   unknown," not a placeholder). No tenant row / no `metadata.tenantId` → `{scope:
+   "platform", tenantId: null, integrationId: null, providerAccountId: null}`.
+   `resolve()` never returns `"unresolved"` for PayMongo specifically **only** when
+   signature verification already succeeded against a specific secret (tenant or
+   platform) — successful verification already proves which of the two accounts this
+   event belongs to, so "unresolved" is unreachable on this path and is not asserted as
+   a test case for the real adapter (it stays a Phase-1-only fake-adapter scenario).
+
+#### Dedup: `ChronoWebhookEvents` gates the NEW route only
+
+The legacy `chronoPaymentEvent` idempotency key (partial unique index on
+`(tenantId, idempotencyKey)`) keeps gating the **legacy** `:token` route unchanged — this
+phase does not touch `apps/chrono-api/src/app.ts`'s existing webhook handlers or
+`chronoPaymentEvent`. The **new** `/api/v1/webhooks/paymongo` route's dedup is
+`ChronoWebhookEvents`'s `(provider, providerEventId)` unique index from Phase 1,
+unchanged. Because provider dashboards are not repointed until Phase 5, the new route
+receives no live duplicate/replay traffic to reconcile against the legacy route in this
+phase — both mechanisms coexist without double-processing risk simply because only one
+of them is receiving real deliveries at any given time.
+
+#### Fulfilment dispatch — reuse, do not rewrite
+
+`normalize()` maps the verified PayMongo event into `CanonicalWebhookEvent`
+(`eventType: "checkout_session.payment.paid"`, `resourceType: "customer_payment"`,
+`resourceId: parsed.referenceId`). The ingress itself (`ingress.ts`, from Phase 1) stops
+at persist+ack — Phase 1 explicitly deferred "async processing/dispatch to a domain
+service" to Phase 2+. This phase adds that dispatch as a **second, explicit step inside
+the PayMongo route path** (not a generic ingress feature — the ingress stays
+provider-agnostic and un-opinionated about what happens after persistence, per §4's
+"provider code should only understand provider-specific concepts"): after the
+`ChronoWebhookEvents` row is inserted (not deduped), call `fulfilCustomerPayment` (tenant
+scope) or the existing registry-based `getCustomerPaymentFulfilment("chrono_payment")`
+path (platform scope, matching how the platform route already dispatches today) with the
+same `ParsedCustomerPayment` shape the legacy verifier already produces — no change to
+`fulfilCustomerPayment`'s signature or `FulfilmentOutcome` handling (amount-mismatch
+audit, wallet-low publish, degraded-purchase note) is needed; this phase only changes
+*how* a verified event reaches that function, never what it does with one.
+
+### Files to Create (Phase 2)
+
+- `apps/chrono-api/src/modules/webhook/adapters/paymongo.ts` — the
+  `WebhookProviderAdapter` implementation described above.
+- `apps/chrono-api/src/modules/webhook/adapters/paymongo.test.ts` — adapter-level tests
+  (see Acceptance Criteria) using real PayMongo-shaped fixtures and real HMAC signing
+  (compute a valid signature over a fixture body with a test secret, the same way
+  `packages/agora/src/commerce/customer-payments/paymongo.test.ts` already does — inspect
+  that file's fixture/signing helper and reuse it rather than inventing a second one).
+- A registration bootstrap: extend `apps/chrono-api/src/payment-bootstrap.ts` (imported
+  early in `src/index.ts`, already the home of the `registerCustomerPaymentFulfilment`
+  call) to also call `registerWebhookProvider("paymongo", paymongoWebhookAdapter)` —
+  keeps every startup-time registration in the one file already responsible for
+  "register before traffic."
+
+### Files to Update (Phase 2)
+
+- `apps/chrono-api/src/payment-bootstrap.ts` — add the registration call above.
+- None of `apps/chrono-api/src/app.ts`'s existing `/billing/webhook` or
+  `/payments/customer/webhook/*` handlers change in this phase.
+
+### Step-by-Step Tasks
+
+1. Read `packages/agora/src/commerce/customer-payments/paymongo.test.ts` for the
+   existing HMAC-fixture-signing test helper; reuse it in the new adapter test rather
+   than reimplementing signature generation.
+2. Write `adapters/paymongo.ts`: `verifySignature` (peek → secret lookup → HMAC verify,
+   per the design above), `parseEvent` (delegates to the existing
+   `parsePaymongoCustomerPayment`, throws `HttpError(400)` on `null`/malformed), `resolve`
+   (tenant-row lookup + scope decision, per the design above), `normalize` (→
+   `CanonicalWebhookEvent`).
+3. Wire the post-persist dispatch step described above — this is new code, not a Phase 1
+   reuse, since Phase 1's `ingress.ts` deliberately stops at ack. Decide the exact seam
+   (a small per-provider "on persisted" hook the PayMongo module registers, vs. a
+   PayMongo-specific route wrapper) **before writing code** — this is the one open
+   design point Phase 2 must resolve with a follow-up note in this file once chosen; do
+   not silently invent it during implementation.
+4. Register the adapter in `payment-bootstrap.ts`.
+5. Write `adapters/paymongo.test.ts` covering the Acceptance Criteria below.
+
+### Acceptance Criteria
+
+- A `checkout_session.payment.paid` event, correctly signed with a **tenant's**
+  configured PayMongo webhook secret and carrying that tenant's id in metadata, posted to
+  `/api/v1/webhooks/paymongo`, produces a `ChronoWebhookEvents` row with `scope:
+  "tenant"`, `tenantId` set, `processingStatus: "received"`, AND results in the same
+  `fulfilCustomerPayment` outcome (wallet credited / payment marked paid) the legacy
+  `:token` route would produce for the equivalent payload.
+- The same event signed with the **platform** fallback secret and no tenant metadata (or
+  metadata for a tenant with no enabled PayMongo integration) → `scope: "platform"`,
+  `tenantId: null`, and dispatches through the existing
+  `getCustomerPaymentFulfilment("chrono_payment")` registry path.
+- A payload signed with a **different tenant's** secret than the one implied by its own
+  metadata → `HttpError(400)`, no `ChronoWebhookEvents` row, no fulfilment call — proves
+  cross-tenant secret confusion is rejected, not silently retried against another key.
+- Replaying the identical signed payload twice → second call `{received: true, deduped:
+  true}`, exactly one `ChronoWebhookEvents` row, fulfilment invoked exactly once (not
+  twice) — proves the dedup gate sits before dispatch, not just before insert.
+- Malformed JSON body (still correctly HMAC-signed over the garbage bytes, so signature
+  verification alone can't catch it) → `HttpError(400)` from `parseEvent`, no row
+  written.
+- `pnpm typecheck` passes.
+- The legacy `/payments/customer/webhook/:token` and `/payments/customer/webhook/platform`
+  routes are provably untouched (no diff in `app.ts` beyond the Phase 1 mount already
+  committed) and their own existing tests still pass unchanged.
+- The production registry now has exactly one entry (`"paymongo"`) — verified by a test
+  asserting `getWebhookProvider("paymongo")` is non-null and `getWebhookProvider("maya")`
+  (or any other id) is still `null`.
+
+### Verification Commands
+
+```
+pnpm typecheck
+pnpm --filter @agora/chrono-api test:webhook
+pnpm --filter @agora/chrono-api test:payment-fulfilment
+```
+(Re-run the existing payment-fulfilment/customer-payments test scripts specifically to
+prove the legacy path is undisturbed — a regression there would mean this phase touched
+shared code it shouldn't have.)
+
+### Out of Scope (Phase 2)
+
+- Deleting or modifying the legacy `/payments/customer/webhook/:token` and
+  `/payments/customer/webhook/platform` routes, or `/billing/webhook` — Phase 4/5.
+- Repointing PayMongo's dashboard webhook URL configuration to the new
+  `/api/v1/webhooks/paymongo` endpoint — Phase 5, coordinated cutover only.
+- A second provider (Maya/Paddle) — Phase 3.
+- Any change to `fulfilCustomerPayment`'s signature, `FulfilmentOutcome` shape, or wallet-
+  crediting logic.
+- Any change to `chronoPaymentEvent`'s schema or the legacy route's own idempotency
+  index.
+- An admin UI surfacing the new table's rows.
+
+### Execution Start Point
+
+Resolve the one open design point flagged in Step-by-Step Task 3 (the post-persist
+dispatch seam) and record the decision in this file, THEN start with
+`adapters/paymongo.ts`'s `verifySignature`+`parseEvent` (portable from existing code,
+lowest risk), then `resolve`, then `normalize`, then the dispatch wiring, then
+`payment-bootstrap.ts`, then `adapters/paymongo.test.ts` last — mirroring Phase 1's
+"tests last, once the pieces they exercise all exist" ordering.
 
 ### Phase 3 — Second provider
 
