@@ -163,16 +163,17 @@ async function getMemberIdentity(
  * only `createCheckout` would ever call PayMongo, which this suite never
  * does). Staff-authed `page` must already be on the tenant's own host.
  *
- * The response's `webhookReveal.webhookUrl` is asserted to be the single,
+ * The response's `customerPayment.webhookUrl` is asserted to be the single,
  * stable, provider-wide ingress URL — every tenant configures the SAME URL
- * in their own PayMongo dashboard now (no more per-tenant `webhookToken` in
- * the URL; `customerPaymentWebhookUrl()`, `apps/chrono-api/src/routes/
- * rpc.ts`). Its host is whatever `AGORA_API_PUBLIC_URL` resolves to on the
- * running `chrono-api` process (not necessarily this Playwright process's own
- * `apiUrl`), so only the path is asserted. The reveal still carries a
- * `webhookToken` (vestigial — see this plan's Status follow-up #3 — the field
- * is no longer used to address the webhook route), which this helper
- * ignores. */
+ * in their own PayMongo dashboard now (no per-tenant token in the URL,
+ * `customerPaymentWebhookUrl()`, `apps/chrono-api/src/routes/rpc.ts`). Its
+ * host is whatever `AGORA_API_PUBLIC_URL` resolves to on the running
+ * `chrono-api` process (not necessarily this Playwright process's own
+ * `apiUrl`), so only the path is asserted. There is no more one-time
+ * `webhookReveal`/`webhookToken` — the vestigial per-tenant webhook-token
+ * mint/rotate mechanism was removed (this plan's Status follow-up #3);
+ * `webhookUrl` is now a plain, always-present field on `customerPayment`
+ * itself, not a secret. */
 async function configureCustomerPaymentGateway(
   page: Page,
   slug: string,
@@ -190,9 +191,10 @@ async function configureCustomerPaymentGateway(
     },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { webhookReveal?: { webhookUrl: string } };
-  expect(body.webhookReveal).toBeTruthy();
-  expect(body.webhookReveal!.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
+  const body = (await res.json()) as {
+    customerPayment: { webhookUrl: string | null };
+  };
+  expect(body.customerPayment.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
 }
 
 /** Creates a `pending` `online` payment for a member directly via the staff

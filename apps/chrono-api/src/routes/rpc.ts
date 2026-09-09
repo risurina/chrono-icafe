@@ -111,7 +111,6 @@ import {
   resolveEmailSender,
   resolveStorage,
   resolveCustomerPaymentGateway,
-  hashCustomerPaymentWebhookToken,
   type CustomerPaymentIntegrationConfig,
 } from "agora/server";
 import { createTenantLifecycle } from "agora/tenant-lifecycle";
@@ -1880,23 +1879,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
         );
       }
 
-      // Mint a brand-new webhook path token on first configure or explicit
-      // rotation; otherwise keep the existing hash. Revealed ONCE in the
-      // response — only the hash is ever persisted.
-      const mintToken = !existing || input.rotateWebhookToken;
-      const webhookToken = mintToken ? createId() : null;
-      const webhookTokenHash = mintToken
-        ? hashCustomerPaymentWebhookToken(webhookToken!)
-        : (existingConfig?.webhookTokenHash ?? null);
-      if (!webhookTokenHash) {
-        throw new HttpError(
-          400,
-          "No webhook token configured — save again to mint one.",
-        );
-      }
-
       const config: CustomerPaymentIntegrationConfig = {
-        webhookTokenHash,
         webhookSecretEnc,
         currency: input.currency,
         ...(input.statementLabel ? { statementLabel: input.statementLabel } : {}),
@@ -1928,14 +1911,6 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
       });
       return c.json({
         customerPayment: toCustomerPaymentIntegration(row!),
-        ...(webhookToken
-          ? {
-              webhookReveal: {
-                webhookUrl: customerPaymentWebhookUrl(),
-                webhookToken,
-              },
-            }
-          : {}),
       });
     },
   )
@@ -2118,10 +2093,10 @@ function toStorageIntegration(
 
 /**
  * Map a customer-payment integration row → wire contract. Never the API key,
- * never the webhook-secret ciphertext, never the raw webhook token — only
- * `hasApiKey`/`hasWebhookSecret` are the credential signals. `webhookUrl`
- * cannot be reconstructed from the stored hash, so it is only ever non-null
- * in the one-time reveal returned from the PUT that minted it.
+ * never the webhook-secret ciphertext — only `hasApiKey`/`hasWebhookSecret`
+ * are the credential signals. `webhookUrl` is the fixed, provider-wide
+ * ingress URL (same for every tenant, not a secret), so it is always
+ * returned once the integration row exists.
  */
 function toCustomerPaymentIntegration(
   row: typeof tenantIntegration.$inferSelect,
@@ -2137,7 +2112,7 @@ function toCustomerPaymentIntegration(
     enabled: row.enabled,
     hasApiKey: !!row.secretEnc,
     hasWebhookSecret: !!cfg.webhookSecretEnc,
-    webhookUrl: null,
+    webhookUrl: customerPaymentWebhookUrl(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

@@ -130,8 +130,11 @@ async function getMemberIdentity(
  * chooses — used only by the regression case below (a tenant WITH its own
  * gateway), never by the fallback case (the platform secret is not
  * tenant-configurable). Mirrors `online-checkout.spec.ts` exactly, including
- * the `webhookReveal.webhookUrl` assertion (the single stable ingress URL —
- * see that file's own helper doc for why only the path is checked). */
+ * the `customerPayment.webhookUrl` assertion (the single stable ingress URL,
+ * a plain always-present field — no more one-time `webhookReveal`/
+ * `webhookToken`; that vestigial mint/rotate mechanism was removed, this
+ * plan's Status follow-up #3 — see that file's own helper doc for why only
+ * the path is checked). */
 async function configureCustomerPaymentGateway(
   page: Page,
   slug: string,
@@ -149,9 +152,10 @@ async function configureCustomerPaymentGateway(
     },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { webhookReveal?: { webhookUrl: string } };
-  expect(body.webhookReveal).toBeTruthy();
-  expect(body.webhookReveal!.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
+  const body = (await res.json()) as {
+    customerPayment: { webhookUrl: string | null };
+  };
+  expect(body.customerPayment.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
 }
 
 /** Creates a `pending` `online` payment for a member directly via the staff

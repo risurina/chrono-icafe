@@ -94,10 +94,6 @@ export default function IntegrationsPage() {
   const [cpCurrency, setCpCurrency] = useState("php");
   const [cpStatementLabel, setCpStatementLabel] = useState("");
   const [cpEnabled, setCpEnabled] = useState(false);
-  const [cpReveal, setCpReveal] = useState<{
-    webhookUrl: string;
-    webhookToken: string;
-  } | null>(null);
 
   async function load() {
     const res = await api.rpc.integrations.$get();
@@ -261,14 +257,12 @@ export default function IntegrationsPage() {
     }
   }
 
-  async function saveCustomerPayment(rotateWebhookToken = false) {
-    setCpReveal(null);
+  async function saveCustomerPayment() {
     const json: Record<string, unknown> = {
       provider: cpProvider,
       currency: cpCurrency,
       statementLabel: cpStatementLabel || undefined,
       enabled: cpEnabled,
-      rotateWebhookToken,
     };
     // Only send a secret when the admin actually typed one (keeps the stored one).
     if (cpApiKey) json.apiKey = cpApiKey;
@@ -277,19 +271,10 @@ export default function IntegrationsPage() {
       json: json as never,
     });
     if (res.ok) {
-      const body = (await res.json()) as {
-        customerPayment: CustomerPaymentIntegration;
-        webhookReveal?: { webhookUrl: string; webhookToken: string };
-      };
       setCpApiKey("");
       setCpWebhookSecret("");
       await load();
-      if (body.webhookReveal) setCpReveal(body.webhookReveal);
-      toast.success(
-        rotateWebhookToken
-          ? "Webhook URL rotated — copy the new URL below now."
-          : "Customer-payment integration saved.",
-      );
+      toast.success("Customer-payment integration saved.");
     } else if ((res.status as number) === 403) {
       toast.error("Only admins can manage integrations.");
     } else if ((res.status as number) === 400) {
@@ -333,7 +318,6 @@ export default function IntegrationsPage() {
       setCpCurrency("php");
       setCpStatementLabel("");
       setCpEnabled(false);
-      setCpReveal(null);
       toast.success("Customer-payment integration removed.");
     } else {
       toast.error("Could not remove the customer-payment integration.");
@@ -622,19 +606,17 @@ export default function IntegrationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {cpReveal ? (
-            <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-4">
-              <p className="text-sm font-medium">
-                Webhook URL — shown only now, copy it before leaving this page
-              </p>
+          {customerPayment?.webhookUrl ? (
+            <div className="space-y-2 rounded-md border p-4">
+              <p className="text-sm font-medium">Webhook URL</p>
               <p className="text-xs text-muted-foreground">
-                Paste this into PayMongo → Developers → Webhooks. It cannot be
-                retrieved again after you navigate away; use &ldquo;Rotate webhook
-                URL&rdquo; below if you lose it.
+                Paste this into PayMongo → Developers → Webhooks. It&apos;s the same
+                URL for every tenant — PayMongo identifies you by your own webhook
+                signing secret below.
               </p>
               <Field>
                 <Label htmlFor="cpWebhookUrl">Webhook URL</Label>
-                <Input id="cpWebhookUrl" readOnly value={cpReveal.webhookUrl} />
+                <Input id="cpWebhookUrl" readOnly value={customerPayment.webhookUrl} />
               </Field>
             </div>
           ) : null}
@@ -728,15 +710,6 @@ export default function IntegrationsPage() {
               <Button type="button" variant="outline" onClick={testCustomerPayment}>
                 Test connection
               </Button>
-              {customerPayment ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => saveCustomerPayment(true)}
-                >
-                  Rotate webhook URL
-                </Button>
-              ) : null}
               {customerPayment ? (
                 <Button
                   type="button"
