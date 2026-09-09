@@ -129,6 +129,16 @@ export const portalPaymentDtoSchema = z.object({
 export const paymentGatewayStatusSchema = z.object({
   available: z.boolean(),
   currency: z.string(),
+  /**
+   * Which account a checkout would actually be created against —
+   * `"tenant"` (the tenant's own configured PayMongo integration) or
+   * `"platform"` (the platform's shared fallback account, used when the
+   * tenant hasn't configured its own). Omitted when `available` is `false`.
+   * Informational only — the web UI doesn't need to branch on it, but it
+   * keeps this status DTO honest about `resolveCustomerPaymentGateway`'s
+   * own two-scope outcome instead of collapsing it back to a bare boolean.
+   */
+  scope: z.enum(["tenant", "platform"]).optional(),
 });
 
 export type PaymentPurpose = z.infer<typeof paymentPurposeSchema>;

@@ -262,11 +262,21 @@ purchase at `/member/promos/[id]` uses `/portal/credits/purchase` instead — se
 `.ai/plans/chrono/archive/member-area/README.md`), via `modules/payment/portal-routes.ts`
 (mounted `/portal/payments`, `memberMiddleware()`-gated):
 
-- `GET /portal/payments/gateway` — `{ available, currency }`, read directly off
-  the tenant's `customerPayment` integration row (not through
-  `resolveCustomerPaymentGateway`, so it reports honestly even when no secret
-  key is configured). The web UI must disable the Buy button rather than show
-  a button that 400s.
+- `GET /portal/payments/gateway` — `{ available, currency, scope? }`, resolved
+  through `resolveCustomerPaymentGateway` (the same seam `POST /checkout`
+  uses) so `available` is `true` whenever a checkout would actually succeed —
+  either the tenant's own configured `customerPayment` integration row
+  (`scope: "tenant"`) or, when the tenant has none, the platform's shared
+  PayMongo fallback (`scope: "platform"`, see `.ai/plans/agora/in-progress/
+  platform-paymongo-customer-payment-fallback/README.md`). `currency` still
+  comes from the tenant's own row when one exists, else defaults to `"PHP"`.
+  This route used to read only the tenant's own row directly (bypassing
+  `resolveCustomerPaymentGateway`) so it would report honestly before the
+  platform fallback existed; once the fallback shipped that made the route
+  under-report availability — a fallback-only tenant's "Top up online" button
+  stayed disabled even though checkout would have worked. The web UI still
+  disables the Buy button whenever `available` is `false`, so a tenant with
+  neither gateway configured never sees a button that 400s.
 - `POST /portal/payments/checkout` — `{ purpose: "credit_purchase" | "wallet_topup", productId? | amount? }`.
   `memberId`/`tenantId` always come from `c.var.member`, never the body. A
   `credit_purchase` reads its price server-side from the product; a

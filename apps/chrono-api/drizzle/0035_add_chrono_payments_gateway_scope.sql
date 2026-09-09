@@ -1,0 +1,1 @@
+ALTER TABLE "ChronoPayments" ADD COLUMN "gatewayScope" text DEFAULT 'tenant' NOT NULL;

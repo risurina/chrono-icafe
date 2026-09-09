@@ -7,7 +7,12 @@ import { api, unwrap, type Result } from "./client";
  * `.ai/plans/chrono/active/member-credit-purchase/README.md`, Phase C5.
  */
 
-export type PaymentGatewayStatus = { available: boolean; currency: string };
+export type PaymentGatewayStatus = {
+  available: boolean;
+  currency: string;
+  /** Which account a checkout would use — informational only, the UI doesn't branch on it. */
+  scope?: "tenant" | "platform";
+};
 
 export type PortalPaymentStatus = "pending" | "paid" | "voided" | "refunded";
 export type PaymentPurpose = "credit_purchase" | "wallet_topup";
