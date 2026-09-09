@@ -14,6 +14,7 @@ import {
   voidCreditGrant,
   voidCreditPurchase,
 } from "./service";
+import { publishWalletLowIfCrossed } from "../wallet/service";
 import {
   createCreditProductSchema,
   updateCreditProductSchema,
@@ -335,6 +336,8 @@ export function creditRoutes() {
           });
         });
 
+        await publishWalletLowIfCrossed(result.walletLow);
+
         await recordStaffAudit(c, {
           action: "chronoCredit.purchased",
           targetType: "creditPurchase",
@@ -346,7 +349,7 @@ export function creditRoutes() {
             priceAmount: result.purchase.priceAmount,
           },
         });
-        return c.json(result, 201);
+        return c.json({ purchase: result.purchase, grant: result.grant }, 201);
       },
     )
 
@@ -531,12 +534,14 @@ export function creditRoutes() {
           return voidCreditPurchase(tx, purchase, grant, { tenantId, performedByUserId: userId });
         });
 
+        await publishWalletLowIfCrossed(result.walletLow);
+
         await recordStaffAudit(c, {
           action: "chronoCredit.purchaseVoided",
           targetType: "creditPurchase",
           targetId: id,
         });
-        return c.json(result);
+        return c.json({ purchase: result.purchase, walletTransaction: result.walletTransaction });
       },
     );
 }

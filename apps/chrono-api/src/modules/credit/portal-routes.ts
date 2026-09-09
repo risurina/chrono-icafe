@@ -22,6 +22,7 @@ import {
   toPortalCreditLedgerEntryDto,
 } from "./contracts";
 import { purchaseCreditProduct } from "./service";
+import { publishWalletLowIfCrossed } from "../wallet/service";
 import { requireAppliedMembership } from "../member/access";
 
 /**
@@ -207,6 +208,10 @@ export function creditPortalRoutes() {
         }
         throw err;
       }
+
+      // After the transaction has committed — never inside it — mirroring
+      // `session/service.ts`'s `publishSessionTransition` discipline.
+      await publishWalletLowIfCrossed(result.walletLow);
 
       // Best-effort, after commit — never rolls back or blocks the purchase.
       await recordAudit({

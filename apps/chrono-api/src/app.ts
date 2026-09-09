@@ -65,6 +65,7 @@ import { apiV1 } from "./routes/api-v1";
 import { deviceAuthRoutes } from "./modules/device/routes";
 import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
 import { appUsageDeviceRoutes } from "./modules/app-usage/routes";
+import { deviceStatusRoutes } from "./modules/device/status-routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
@@ -105,6 +106,7 @@ import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
 import { paymentPortalRoutes } from "./modules/payment/portal-routes";
 import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
+import { publishWalletLowIfCrossed } from "./modules/wallet/service";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -1052,6 +1054,10 @@ export const app = baseApp
 
     const result = await withTenant(tenantId, (tx) => fulfilCustomerPayment(tx, { tenantId, parsed }));
 
+    if (result.outcome === "fulfilled") {
+      await publishWalletLowIfCrossed(result.walletLow);
+    }
+
     if (result.outcome === "amount_mismatch") {
       await recordAudit({
         tenantId,
@@ -1179,6 +1185,13 @@ export const app = baseApp
   // realtime websocket above — mounted here, BEFORE the `/api/v1/*`
   // maintenance gate below, deliberately. Do not "fix" this ordering.
   .route("/api/v1/device", appUsageDeviceRoutes())
+  // Device-facing session/wallet status reads (pc-client-tauri-api-integration
+  // plan, Phase 4) — a cold-started kiosk's initial-state fetch on boot/
+  // reconnect. Same "must not lose a read to a maintenance window" reasoning
+  // as heartbeat/the realtime websocket/app-usage above — mounted here,
+  // BEFORE the `/api/v1/*` maintenance gate below, deliberately. Do not "fix"
+  // this ordering.
+  .route("/api/v1/device", deviceStatusRoutes())
   // Chrono: public QR scan resolve/consume (qr plan Phase 3) — no Better
   // Auth staff session; `/consume` gates on its own `memberMiddleware()`
   // (tenantMember/portal session) inside the router itself. Rate-limited

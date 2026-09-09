@@ -6,6 +6,7 @@ import { recordStaffAudit } from "agora/audit";
 import { chronoBranch } from "../branch/schema";
 import { chronoProduct, chronoSale, chronoSaleItem, chronoSalePayment } from "./schema";
 import { checkout, refundSale } from "./service";
+import { publishWalletLowIfCrossed } from "../wallet/service";
 import {
   createProductSchema,
   updateProductSchema,
@@ -384,6 +385,8 @@ export function posRoutes() {
         return checkoutResult;
       });
 
+      await publishWalletLowIfCrossed(result.walletLow);
+
       if (!wasIdempotentReplay) {
         await recordStaffAudit(c, {
           action: "chronoPos.saleCompleted",
@@ -393,7 +396,10 @@ export function posRoutes() {
       }
 
       const receiptNumber = result.sale.id.slice(-8).toUpperCase();
-      return c.json({ ...result, receiptNumber }, 201);
+      return c.json(
+        { sale: result.sale, items: result.items, payments: result.payments, receiptNumber },
+        201,
+      );
     })
 
     .post(
@@ -405,7 +411,7 @@ export function posRoutes() {
         const id = c.req.param("id");
         const input = c.req.valid("json");
 
-        const sale = await withTenant(tenantId, (tx) =>
+        const { sale, walletLow } = await withTenant(tenantId, (tx) =>
           refundSale(tx, {
             tenantId,
             saleId: id,
@@ -413,6 +419,8 @@ export function posRoutes() {
             performedByUserId: userId,
           }),
         );
+
+        await publishWalletLowIfCrossed(walletLow);
 
         await recordStaffAudit(c, {
           action: "chronoPos.saleRefunded",

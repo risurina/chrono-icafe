@@ -15,7 +15,7 @@ import { type TenantVars, HttpError, zValidator } from "agora/server";
 import { listQuerySchema } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoWallet, chronoWalletTransaction } from "./schema";
-import { creditWallet, debitWallet, adjustWalletBalance } from "./service";
+import { creditWallet, debitWallet, adjustWalletBalance, publishWalletLowIfCrossed } from "./service";
 import { creditWalletSchema, debitWalletSchema, adjustWalletSchema } from "./contracts";
 import { earnLoyaltyPoints } from "../loyalty/service";
 import { findOpenShiftForStaff } from "../shift/service";
@@ -231,13 +231,17 @@ export function walletRoutes() {
           return creditResult;
         });
 
+        // After the transaction has committed — never inside it — mirroring
+        // `session/service.ts`'s `publishSessionTransition` discipline.
+        await publishWalletLowIfCrossed(result.walletLow);
+
         await recordStaffAudit(c, {
           action: "chronoWallet.credited",
           targetType: "wallet",
           targetId: result.wallet.id,
           metadata: walletAuditMetadata(memberId, result),
         });
-        return c.json(result);
+        return c.json({ wallet: result.wallet, transaction: result.transaction });
       },
     )
 
@@ -271,13 +275,15 @@ export function walletRoutes() {
           });
         });
 
+        await publishWalletLowIfCrossed(result.walletLow);
+
         await recordStaffAudit(c, {
           action: "chronoWallet.debited",
           targetType: "wallet",
           targetId: result.wallet.id,
           metadata: walletAuditMetadata(memberId, result),
         });
-        return c.json(result);
+        return c.json({ wallet: result.wallet, transaction: result.transaction });
       },
     )
 
@@ -301,13 +307,15 @@ export function walletRoutes() {
           });
         });
 
+        await publishWalletLowIfCrossed(result.walletLow);
+
         await recordStaffAudit(c, {
           action: "chronoWallet.adjusted",
           targetType: "wallet",
           targetId: result.wallet.id,
           metadata: walletAuditMetadata(memberId, result),
         });
-        return c.json(result);
+        return c.json({ wallet: result.wallet, transaction: result.transaction });
       },
     );
 }

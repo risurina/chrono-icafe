@@ -75,6 +75,16 @@ export const sessionStateEventSchema = z.object({
 });
 export type SessionStateEvent = z.infer<typeof sessionStateEventSchema>;
 
+/** Published on a wallet balance crossing below the low-balance threshold
+ * (pc-client-tauri-api-integration plan, Phase 4), to the affected member's
+ * active session's station's approved device private channel only — never
+ * broadcast tenant/branch-wide, since a wallet balance is one member's own
+ * data. */
+export const walletLowEventSchema = z.object({
+  balance: z.string(),
+});
+export type WalletLowEvent = z.infer<typeof walletLowEventSchema>;
+
 // ---------------------------------------------------------------------------
 // Scope grammar (client -> server, via ?scope= on the upgrade request).
 // ---------------------------------------------------------------------------

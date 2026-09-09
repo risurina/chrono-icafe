@@ -5,7 +5,42 @@
 - Audit: Claude Code (plan-auditor agent a9ce88c3794cf82f2) — approved with conditions, folded in
 - Implementation: Claude Code (main session dispatching fresh subagents per phase,
   worktree `.ai/worktree/pc-client-tauri-api-integration`, branch
-  `feature/pc-client-tauri-api-integration`) — Phase 1 done, Phase 2/3/4 dispatched
+  `feature/pc-client-tauri-api-integration`) — Phases 1-4 DONE (Phase 2 in the
+  Tauri client's own repo/branch, see below). Phase 5 still blocked on its open
+  question; Phase 6 (e2e/manual smoke) not started.
+
+**Phase status:**
+- Phase 1 (contract audit) — DONE, no server changes needed (all client-side fixes).
+- Phase 2 (Rust realtime transport) — DONE. Repo: `/Users/risurina/karta/karta-tenant`
+  (not the stale Windows path this plan originally cited — corrected above). Branch
+  `feature/agora-realtime-transport`, commit `edbff4b4`. `cargo check`/`build` clean.
+- Phase 3 (device command dispatch) — DONE. This repo, worktree branch
+  `feature/pc-client-tauri-api-integration`, commit `ac5c67ea`. `typecheck` +
+  `rls:proof` (`pnpm --filter @agora/chrono-api rls:proof`, not `@agora/api`) both pass.
+- Phase 4 (device session/wallet status) — DONE, commit `2b8092da`, plus a follow-up
+  fix `c57e8799` (the wallet-low push originally fired inside the caller's open
+  transaction rather than after commit — violated the same rule
+  `publishSessionTransition` documents; refactored `applyWalletDelta` to return a
+  signal and moved every call site's publish to after its own `withTenant` resolves).
+  `typecheck` + `rls:proof` pass on both commits.
+- Phase 5 (kiosk login → session start) — DONE, commit `b73545ae`. Research
+  resolved the open question (no prior device-initiated session-start route existed);
+  new `POST /api/v1/device/session/start` reuses `startSession()` and a newly
+  exported `verifyMemberPassword` (`packages/agora/src/identity/member-auth/index.ts`
+  — renamed from an internal `verifyPassword`, no behavior change, both existing call
+  sites updated), gated by a new per-device `deviceSessionLoginLimiter` (20/15min)
+  alongside the per-account check. `typecheck` + `rls:proof` pass.
+- Phase 6 (e2e + verification) — NOT STARTED. Both branches (this repo's
+  `feature/pc-client-tauri-api-integration`, pushed; the Tauri repo's
+  `feature/agora-realtime-transport`, pushed) are up on their remotes but not merged.
+
+**Not yet done, before this plan can close:** open PRs / merge both branches; add the
+e2e spec for the new `/rpc/devices/:id/commands` + `/api/v1/device/{session,wallet,
+session/start}` routes per `.ai/rules/e2e-testing.md` (not yet written — this is the
+one hard gate `.ai/rules/e2e-testing.md` calls non-optional for a new tenant-scoped
+feature); and run the manual pairing→approve→heartbeat→realtime→command-roundtrip
+smoke test Phase 6 calls for (needs a running `pnpm dev` + a real Tauri build against
+the new branch — cannot be done from a coordinating session alone).
 
 **Correction**: the Tauri client repo is NOT at the Windows path this plan originally
 cited. It is locally reachable at `/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`
@@ -447,13 +482,50 @@ GET to know current state before the first push arrives).
    commands is deferred to a follow-up plan once the REST surface is proven. Phase 3
    above stays scoped to `apps/chrono-api` only, no `apps/chrono-web` files.
 
-### Phase 5 — Kiosk login → session start (this repo + Tauri client repo)
+### Phase 5 — Kiosk login → session start (this repo)
 
-- **Open question, not yet resolved**: does any existing route let a device (not a
-  `tenantMember` portal session) start a session tied to its own station via
-  QR/email+password entered on the kiosk itself? Not found in this pass. Needs its
-  own Pass 1/Pass 2 once Phases 1–4 are further along — do not start this phase
-  concretely until that's answered.
+**Resolved** (dedicated research pass): confirmed no device-initiated session-start
+route exists. `POST /rpc/sessions` requires a staff Better Auth session
+(`tenantMiddleware()`); `/portal/sessions/*` is read-only under `memberMiddleware()`;
+`reservation` only creates a member-scoped hold, consumed later through the normal
+member/staff paths — no QR-to-device-endpoint flow exists anywhere.
+
+- **Files to update**: `apps/chrono-api/src/modules/device/routes.ts` (or the Phase-4
+  sibling `status-routes.ts`) — new `POST /api/v1/device/session/start`,
+  device-bearer-gated via `requireDeviceBearerAuth()`; `apps/chrono-api/src/modules/device/contracts.ts`
+  (request schema: `{ memberEmail: string, memberPassword: string }`).
+- **Step-by-step tasks**: (1) resolve `tenantId`/`stationId` from `c.var.device`
+  ONLY — never a route param/body field; reject 404 if `device.stationId` is null
+  (unlinked/unapproved device); (2) verify the posted `memberEmail`/`memberPassword`
+  against `tenantMember` using the existing password-verify helper from
+  `packages/agora/src/identity/member-auth/index.ts` (reuse, do not
+  re-implement hashing/verification) — scoped to the device's own `tenantId`; (3) on
+  success, call `startSession()` (`session/service.ts` — its own doc comment already
+  names it "the ONLY code path that starts a session") inside `withTenant`, with
+  `startedByUserId: null` (same as the existing anticipated self-service path) and
+  `stationId: device.stationId`; (4) call `publishSessionTransition` after the
+  transaction commits, identical shape to the existing staff `POST /sessions` handler;
+  (5) **add a per-device rate limiter** (mirroring `deviceSecurityAlertLimiter`'s
+  per-`deviceId` bucket pattern in `device/routes.ts`) in addition to whatever
+  per-email bucket the existing member password-verify path already uses — a
+  kiosk-forwarded flow shares one IP bucket across every customer at that station, so
+  the per-device bucket is a REQUIRED addition, not optional hardening, to prevent one
+  kiosk's shared IP from locking out unrelated customers on a run of wrong guesses.
+- **Acceptance criteria**: a customer can start a session at a kiosk by entering
+  email+password, which starts a session scoped to that device's own station; wrong
+  credentials return 401 without leaking which field was wrong; a device with no
+  linked/approved station cannot start any session; the per-device rate limit trips
+  independently of the per-email one; `rls:proof` passes.
+- **Verification commands**: `pnpm --filter @agora/chrono-api typecheck`;
+  `pnpm --filter @agora/chrono-api rls:proof`.
+- **Out of scope**: QR-code claim variant (email+password only, this pass); any
+  Tauri-client UI beyond wiring the existing login form to this new endpoint instead
+  of whatever it calls today (a Tauri-side follow-up, not bundled into this phase).
+- **Execution start point**: read `apps/chrono-api/src/modules/session/service.ts`
+  (`startSession`), `packages/agora/src/identity/member-auth/index.ts` (password
+  verify), and `apps/chrono-api/src/modules/device/routes.ts`'s existing
+  `deviceSecurityAlertLimiter` pattern in full, then implement.
+- **Status**: READY.
 
 ### Phase 6 — E2E + verification
 

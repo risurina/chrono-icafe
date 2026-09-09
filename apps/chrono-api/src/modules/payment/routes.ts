@@ -6,6 +6,7 @@ import { listQuerySchema } from "agora";
 import { recordStaffAudit } from "agora/audit";
 import { chronoPayment } from "./schema";
 import { createPayment, markAsPaid, voidPayment, refundPayment } from "./service";
+import { publishWalletLowIfCrossed } from "../wallet/service";
 import {
   createPaymentSchema,
   payPaymentSchema,
@@ -131,7 +132,7 @@ export function paymentRoutes() {
       const id = c.req.param("id");
       const input = c.req.valid("json");
 
-      const { payment } = await withTenant(tenantId, (tx) =>
+      const { payment, walletLow } = await withTenant(tenantId, (tx) =>
         markAsPaid(tx, {
           tenantId,
           paymentId: id,
@@ -139,6 +140,8 @@ export function paymentRoutes() {
           performedByUserId: userId,
         }),
       );
+
+      await publishWalletLowIfCrossed(walletLow);
 
       await recordStaffAudit(c, {
         action: "chronoPayment.paid",
@@ -154,9 +157,11 @@ export function paymentRoutes() {
       const { tenantId, userId } = c.var.tenant;
       const id = c.req.param("id");
 
-      const payment = await withTenant(tenantId, (tx) =>
+      const { payment, walletLow } = await withTenant(tenantId, (tx) =>
         voidPayment(tx, { tenantId, paymentId: id, performedByUserId: userId }),
       );
+
+      await publishWalletLowIfCrossed(walletLow);
 
       await recordStaffAudit(c, {
         action: "chronoPayment.voided",
@@ -172,9 +177,11 @@ export function paymentRoutes() {
       const { tenantId, userId } = c.var.tenant;
       const id = c.req.param("id");
 
-      const payment = await withTenant(tenantId, (tx) =>
+      const { payment, walletLow } = await withTenant(tenantId, (tx) =>
         refundPayment(tx, { tenantId, paymentId: id, performedByUserId: userId }),
       );
+
+      await publishWalletLowIfCrossed(walletLow);
 
       await recordStaffAudit(c, {
         action: "chronoPayment.refunded",

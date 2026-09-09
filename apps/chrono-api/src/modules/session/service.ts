@@ -2,7 +2,7 @@ import { and, eq, sql, withTenant, type TenantTx } from "agora/db";
 import { HttpError } from "agora/server";
 import { createId } from "agora";
 import { getRealtimeProvider, tenantScopeChannel } from "agora/realtime";
-import { debitWallet } from "../wallet/service";
+import { debitWallet, type WalletLowSignal } from "../wallet/service";
 import { chronoWallet } from "../wallet/schema";
 import { consumeCredits, hasEligibleCreditBalance } from "../credit/service";
 import { chronoStation, chronoStationGroup } from "../station/schema";
@@ -283,7 +283,7 @@ export async function startSession(
 export async function closeSession(
   tx: TenantTx,
   args: { tenantId: string; sessionId: string; performedByUserId: string | null },
-): Promise<{ session: ChronoSessionRow; alreadyClosed: boolean }> {
+): Promise<{ session: ChronoSessionRow; alreadyClosed: boolean; walletLow: WalletLowSignal }> {
   const now = new Date();
 
   const [locked] = await tx
@@ -295,7 +295,7 @@ export async function closeSession(
     throw new HttpError(404, "Session not found.");
   }
   if (!["active", "paused"].includes(locked.status)) {
-    return { session: locked, alreadyClosed: true };
+    return { session: locked, alreadyClosed: true, walletLow: null };
   }
 
   // Station name for user-facing transaction copy below — never the raw
@@ -348,8 +348,9 @@ export async function closeSession(
   const amountCharged = capMoney(finalAmount, walletBalance);
 
   let walletTransactionId: string | null = null;
+  let walletLow: WalletLowSignal = null;
   if (Number(amountCharged) > 0) {
-    const { transaction } = await debitWallet(tx, {
+    const { transaction, walletLow: crossed } = await debitWallet(tx, {
       tenantId: args.tenantId,
       memberId: locked.memberId,
       amount: amountCharged,
@@ -359,6 +360,7 @@ export async function closeSession(
       performedByUserId: args.performedByUserId ?? undefined,
     });
     walletTransactionId = transaction.id;
+    walletLow = crossed;
   }
 
   const [session] = await tx
@@ -381,5 +383,5 @@ export async function closeSession(
     .set({ status: "available", updatedAt: now })
     .where(eq(chronoStation.id, locked.stationId));
 
-  return { session: session!, alreadyClosed: false };
+  return { session: session!, alreadyClosed: false, walletLow };
 }

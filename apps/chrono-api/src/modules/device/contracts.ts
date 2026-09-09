@@ -14,6 +14,14 @@ export const authDeviceSchema = z.object({
   provisioningToken: z.string().min(1),
 });
 
+// Kiosk login -> session start (pc-client-tauri-api-integration plan, Phase
+// 5). No tenantId/stationId here — both are resolved solely from the
+// authenticated device's own row (c.var.device), never client input.
+export const deviceSessionStartSchema = z.object({
+  memberEmail: z.string().email().max(255),
+  memberPassword: z.string().min(1).max(255),
+});
+
 export const heartbeatSchema = z.object({
   lockState: z.string().max(50).optional(),
   runtimeStatus: z.string().max(50).optional(),
@@ -53,10 +61,36 @@ export const deviceListQuerySchema = listQuerySchema([
   status: deviceStatusSchema.optional(),
 });
 
+// ── Device commands (Phase 3, remote command dispatch) ──
+
+export const deviceCommandTypeSchema = z.enum(["lock", "unlock", "reboot", "force_logout"]);
+
+export const deviceCommandStatusSchema = z.enum(["pending", "delivered", "acked", "expired"]);
+
+// Staff-facing: POST /rpc/devices/:id/commands body.
+export const issueDeviceCommandSchema = z.object({
+  type: deviceCommandTypeSchema,
+});
+
+// Device-facing inbound realtime frame: { type: "command-ack", commandId, result }
+// — the first real inbound frame type the device mount's `onFrame` handles
+// (`realtime-actor.ts`). Validated with `safeParse` against the raw inbound
+// frame data, not `zValidator` (there is no HTTP body here).
+export const deviceCommandAckSchema = z.object({
+  type: z.literal("command-ack"),
+  commandId: z.string().min(1),
+  result: z.record(z.string(), z.unknown()).optional(),
+});
+
 export type DeviceStatus = z.infer<typeof deviceStatusSchema>;
 export type PairDeviceInput = z.infer<typeof pairDeviceSchema>;
 export type AuthDeviceInput = z.infer<typeof authDeviceSchema>;
+export type DeviceSessionStartInput = z.infer<typeof deviceSessionStartSchema>;
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
 export type CreateProvisioningTokenInput = z.infer<typeof createProvisioningTokenSchema>;
 export type ApproveDeviceInput = z.infer<typeof approveDeviceSchema>;
 export type RelinkDeviceInput = z.infer<typeof relinkDeviceSchema>;
+export type DeviceCommandType = z.infer<typeof deviceCommandTypeSchema>;
+export type DeviceCommandStatus = z.infer<typeof deviceCommandStatusSchema>;
+export type IssueDeviceCommandInput = z.infer<typeof issueDeviceCommandSchema>;
+export type DeviceCommandAckInput = z.infer<typeof deviceCommandAckSchema>;
