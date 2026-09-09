@@ -49,19 +49,44 @@ investigation, listed honestly rather than silently swept under "done":
    verified end-to-end — the developer should run `pnpm --filter
    @agora/chrono-api test:e2e` in an environment where the test database role
    actually owns its tables to confirm.**
-2. **Two `apps/chrono-web` Playwright specs — `e2e/tests/member/
-   online-checkout.spec.ts` and `e2e/tests/member/fallback-online-checkout.spec.ts`
-   — post directly to the now-deleted per-tenant-token routes and were left
-   unmodified** (each now carries a `STALE` header comment explaining why).
-   These aren't a simple URL swap: the new ingress has no per-tenant URL token
-   at all (identity comes from brute-force-matching the signature against
-   every enabled tenant's own secret), so `online-checkout.spec.ts`'s
-   "isolation" test in particular tests a URL-vs-metadata mismatch that no
-   longer exists as a concept under the new model — the equivalent guarantee
-   is already proven at the adapter level by `paymongo.test.ts`'s "Mismatched
-   metadata" case, but the browser-level spec needs a real redesign, not a
-   guess, before it will pass again. Left for a follow-up rather than risking
-   a wrong, unverifiable rewrite of a security-sensitive isolation test.
+2. **Resolved, partially** (commit `90d7e30a`). Both `apps/chrono-web`
+   Playwright specs — `e2e/tests/member/online-checkout.spec.ts` and
+   `e2e/tests/member/fallback-online-checkout.spec.ts` — are redesigned around
+   the new model instead of URL-swapped: every webhook POST in both files now
+   targets the single stable `/api/v1/webhooks/paymongo` URL, and
+   `configureCustomerPaymentGateway()` asserts the `PUT /rpc/integrations/
+   customer-payment` reveal's `webhookUrl` actually points at that path (only
+   the path is asserted, not the host, since `AGORA_API_PUBLIC_URL` is
+   environment-dependent). `fallback-online-checkout.spec.ts`'s two separate
+   `postTenantWebhook`/`postPlatformWebhook` helpers collapsed into one
+   `postWebhook()` — both scopes share the one URL now, distinguished only by
+   which secret verifies. `online-checkout.spec.ts`'s "isolation" test is
+   fully rewritten, not just repointed: it now signs a payload with tenant A's
+   real configured secret, forges tenant B's real id (read via a new
+   `getStaffTenantId()` helper against `GET /rpc/me`) into the payload's own
+   `metadata.tenantId`, posts it to the shared URL, and asserts the system
+   resolves and fulfils tenant A's payment (wallet credited, payment row
+   `paid`) — proving payload metadata is informational only, never
+   load-bearing for identity — the same property `apps/chrono-api/src/
+   modules/webhook/adapters/paymongo.test.ts`'s "Mismatched tenant metadata"
+   case proves at the adapter level, now proven again at the browser/HTTP
+   level through the real running process. Confirmed the signing scheme
+   against `verifyPaymongoSignature`/`paymongoCustomerWebhookVerifier`
+   (`packages/agora/src/commerce/{billing,customer-payments}/vendors/
+   paymongo.ts`) and against `packages/agora/src/commerce/customer-payments/
+   paymongo.test.ts`'s own local `sign()` helper — both specs' existing
+   `signPaymongoPayload()` already matched that scheme exactly, so it was
+   reused unchanged rather than reinvented a third time. `pnpm --filter
+   @agora/chrono-web typecheck` is clean (both specs included — the app's
+   `tsconfig.json` covers `**/*.ts` with no e2e exclusion). **Not
+   headed-run against a live `pnpm dev` + real Postgres** — this sandbox has
+   the same real-Postgres-role constraint flagged in follow-up #1 above
+   (confirmed again before writing this line, not assumed), and standing up
+   both dev servers plus a working Playwright browser session was out of
+   scope for this pass. The developer should run `pnpm dev` then `pnpm
+   --filter @agora/chrono-web e2e:headed -- online-checkout fallback-online-checkout`
+   in an environment with a real Postgres the app role owns, to confirm these
+   two specs actually pass end-to-end.
 3. **The customer-payment integration settings route
    (`apps/chrono-api/src/routes/rpc.ts`, `PUT /rpc/integrations/customer-
    payment`) minted a per-tenant `webhookToken`/`webhookTokenHash` and
