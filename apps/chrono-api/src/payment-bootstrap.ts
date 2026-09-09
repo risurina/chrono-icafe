@@ -33,6 +33,8 @@
  */
 import { registerCustomerPaymentFulfilment } from "agora/customer-payments";
 import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
+import { registerWebhookProvider } from "./modules/webhook/registry";
+import { paymongoWebhookAdapter } from "./modules/webhook/adapters/paymongo";
 
 registerCustomerPaymentFulfilment("chrono_payment", async (tx, args) => {
   const result = await fulfilCustomerPayment(tx, args);
@@ -41,3 +43,5 @@ registerCustomerPaymentFulfilment("chrono_payment", async (tx, args) => {
   }
   return { applied: false, reason: result.outcome };
 });
+
+registerWebhookProvider("paymongo", paymongoWebhookAdapter);

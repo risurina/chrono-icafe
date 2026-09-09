@@ -52,4 +52,10 @@ export interface WebhookProviderAdapter {
 
   /** Normalize into the canonical shape once scope/tenant are known. */
   normalize(parsed: unknown, resolved: ResolvedWebhookScope): CanonicalWebhookEvent;
+
+  /**
+   * Optional dispatch to a domain service (Phase 2+), called synchronously
+   * after successful persistence.
+   */
+  dispatch?(canonical: CanonicalWebhookEvent): Promise<void>;
 }

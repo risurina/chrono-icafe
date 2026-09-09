@@ -65,9 +65,10 @@ export function webhookIngressRoutes() {
       return c.json({ received: true, deduped: true });
     }
 
-    // Phase 1 stops here: persisted + acknowledged. Async processing/dispatch
-    // to a domain service is Phase 2+, once a real provider exists to
-    // dispatch for.
+    // Phase 2: dispatch to a domain service synchronously before responding,
+    // if the adapter provides a dispatch method.
+    await adapter.dispatch?.(canonical);
+
     return c.json({ received: true });
   });
 }
