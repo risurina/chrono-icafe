@@ -65,8 +65,8 @@ async function main() {
   const { pool } = (await import("agora/db")) as any;
   const { eq } = await import("agora/db");
 
-  const { chronoWebhookEvent } = await import("../schema");
-  const { createWebhookProviderRegistry } = await import("../registry");
+  const { webhookEvent } = await import("../../../db/schema");
+  const { createWebhookProviderRegistry } = await import("agora/webhooks/inbound");
   const { HttpError } = await import("agora/server");
   const { withAdmin } = (await import("agora/db")) as any;
   const { encryptSecret } = await import("agora/server");
@@ -105,7 +105,7 @@ async function main() {
 
     const inserted = await withAdmin((tx: any) =>
       tx
-        .insert(chronoWebhookEvent)
+        .insert(webhookEvent)
         .values({
           provider: canonical.provider,
           providerEventId: canonical.providerEventId,
@@ -121,9 +121,9 @@ async function main() {
           payloadHash,
         })
         .onConflictDoNothing({
-          target: [chronoWebhookEvent.provider, chronoWebhookEvent.providerEventId],
+          target: [webhookEvent.provider, webhookEvent.providerEventId],
         })
-        .returning({ id: chronoWebhookEvent.id })
+        .returning({ id: webhookEvent.id })
     );
 
     if (inserted.length === 0) {
@@ -220,7 +220,7 @@ async function main() {
     check("Tenant match 200", res.status === 200, await res.text());
     
     // Check webhook row
-    const [whRow] = await withAdmin((tx: any) => tx.select().from(chronoWebhookEvent).where(eq(chronoWebhookEvent.providerEventId, "evt_1")));
+    const [whRow] = await withAdmin((tx: any) => tx.select().from(webhookEvent).where(eq(webhookEvent.providerEventId, "evt_1")));
     check("Tenant match webhook row scope=tenant", whRow?.scope === "tenant");
     check("Tenant match webhook row tenantId=acmeId", whRow?.tenantId === acmeId);
 
@@ -285,7 +285,7 @@ async function main() {
     }));
     check("Platform match 200", res.status === 200, await res.text());
     
-    const [whRow] = await withAdmin((tx: any) => tx.select().from(chronoWebhookEvent).where(eq(chronoWebhookEvent.providerEventId, "evt_2")));
+    const [whRow] = await withAdmin((tx: any) => tx.select().from(webhookEvent).where(eq(webhookEvent.providerEventId, "evt_2")));
     check("Platform match webhook row scope=platform", whRow?.scope === "platform");
     check("Platform match webhook row tenantId=null", whRow?.tenantId === null);
     
@@ -321,7 +321,7 @@ async function main() {
     }));
     
     check("Mismatched metadata match 200", res.status === 200, await res.text());
-    const [whRow] = await withAdmin((tx: any) => tx.select().from(chronoWebhookEvent).where(eq(chronoWebhookEvent.providerEventId, "evt_3")));
+    const [whRow] = await withAdmin((tx: any) => tx.select().from(webhookEvent).where(eq(webhookEvent.providerEventId, "evt_3")));
     check("Mismatched metadata scope=tenant", whRow?.scope === "tenant");
     check("Mismatched metadata tenantId=A (acmeId)", whRow?.tenantId === acmeId);
   }

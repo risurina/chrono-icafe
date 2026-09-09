@@ -34,7 +34,6 @@ import { chronoLandingPage } from "../modules/landing-page/schema";
 import { chronoAppUsageEvent } from "../modules/app-usage/schema";
 import { chronoBusinessLead } from "../modules/business-lead/schema";
 import { chronoCompanyInquiry } from "../modules/company-inquiry/schema";
-import { chronoWebhookEvent } from "../modules/webhook/schema";
 
 export {
   chronoBranch,
@@ -78,9 +77,6 @@ export {
   // Platform-global, NOT tenant-scoped — same treatment as chronoBusinessLead.
   // See modules/company-inquiry/schema.ts.
   chronoCompanyInquiry,
-  // Platform-global, NOT tenant-scoped — deliberately absent from
-  // APP_TENANT_TABLES below. See modules/webhook/schema.ts.
-  chronoWebhookEvent,
 };
 
 /**
@@ -146,6 +142,7 @@ export const {
   supportTicketMessage,
   tenantUsageQuota,
   tenantUsageCounter,
+  webhookEvent,
 } = base;
 
 /** EXAMPLE app resource — copy this pattern for your real tables. */

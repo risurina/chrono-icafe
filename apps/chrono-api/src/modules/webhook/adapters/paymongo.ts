@@ -8,7 +8,7 @@ import {
   paymongoCustomerWebhookVerifier,
 } from "agora/customer-payments";
 import type { ParsedCustomerPayment } from "agora/customer-payments";
-import type { CanonicalWebhookEvent, ResolvedWebhookScope, WebhookProviderAdapter } from "../contracts";
+import type { CanonicalWebhookEvent, ResolvedWebhookScope, WebhookProviderAdapter } from "agora/webhooks/inbound";
 import { getCustomerPaymentFulfilment } from "agora/customer-payments";
 import { fulfilCustomerPayment } from "../../payment/fulfilment";
 

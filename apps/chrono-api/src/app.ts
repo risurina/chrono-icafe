@@ -67,7 +67,7 @@ import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
 import { appUsageDeviceRoutes } from "./modules/app-usage/routes";
 import { deviceStatusRoutes } from "./modules/device/status-routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
-import { webhookIngressRoutes } from "./modules/webhook/ingress";
+import { webhookIngressRoutes } from "agora/webhooks/inbound";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
