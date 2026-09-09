@@ -9045,16 +9045,16 @@ async function main() {
     delete process.env.STRIPE_SECRET_KEY;
   }
 
-  // ── W0g. Xendit checkout: resolver refusal falls back to the legacy
-  // env-var amount, never blocks the checkout (unified-billing-price-source
-  // Phase 4 — deliberately non-blocking design, see billing/routes.ts). ──
+  // ── W0g. Xendit checkout: refuses when no plan_price row exists for the
+  // resolved currency (remove-billing-env-price-fallback — there is no more
+  // env-var fallback; a resolver refusal is now a hard 409). ──
   {
     process.env.BILLING_PROVIDER = "xendit";
     process.env.XENDIT_SECRET_KEY = "xnd_test_e2e";
-    process.env.XENDIT_PLAN_PRO = "150000"; // legacy env-var amount, whole IDR
     // Deliberately do NOT seed a plan_price row in a Xendit-supported currency
-    // (idr/php) for "pro" — this is what forces resolveCheckoutCurrency to
-    // refuse, so the test actually exercises the fallback path.
+    // (idr/php) for "pro" — W0f only seeded one in "usd", which
+    // providerSupportedCurrencies() excludes for Xendit — so
+    // resolveCheckoutCurrency refuses and the checkout must now hard-fail.
     let receivedAmount: number | undefined;
     let receivedCurrency: string | undefined;
     __setBillingProvider({
@@ -9073,8 +9073,10 @@ async function main() {
       json: { plan: "pro" },
     });
     check(
-      "checkout: Xendit resolver refusal falls back to the legacy path (200, not blocked)",
-      xenditCheckout.status === 200 &&
+      "checkout: Xendit refuses (409) with no priced currency available, never calls the provider",
+      xenditCheckout.status === 409 &&
+        typeof xenditCheckout.body?.error === "string" &&
+        xenditCheckout.body.error.includes("No priced currency is available") &&
         receivedAmount === undefined &&
         receivedCurrency === undefined,
       `status ${xenditCheckout.status} amount=${receivedAmount} currency=${receivedCurrency} body=${JSON.stringify(xenditCheckout.body)}`,
@@ -9083,7 +9085,6 @@ async function main() {
     // cleanup
     __setBillingProvider(null);
     delete process.env.XENDIT_SECRET_KEY;
-    delete process.env.XENDIT_PLAN_PRO;
     delete process.env.BILLING_PROVIDER;
   }
 
