@@ -40,7 +40,13 @@ foundation depending on `apps/chrono-api`. The old Phase 3 ("second provider,"
 Maya/Paddle) is deferred by developer decision — building either from scratch is a
 bigger, more product-shaped task than an architecture proof warrants; the renumbered
 Phase 5 proves genericity instead by reusing Xendit's already-real billing vendor code.
-Phases 5-6 are sketched only.
+
+Phase 5 (migrate Stripe/Xendit/PayMongo billing onto the ingress) is now accepted,
+concreteness-gated, and fired to Jules **fire-and-forget** (developer switching
+machines mid-run — no local background poller was started for this one; check
+`.ai/handover/jules-sessions.md` for the session id and `jules remote list --session`
+or the `jules:status` skill from any machine to see its state, then `jules remote pull`
++ verify + commit once it's done). Phase 6 remains sketched only.
 
 **Sessions:**
 - Planning: current session
@@ -48,7 +54,8 @@ Phases 5-6 are sketched only.
   committed locally via a fresh subagent per delegate-implementation. Phase 2: Jules
   attempt succeeded as delegated, verified and committed directly. Phase 3: Jules
   attempt succeeded as delegated; code verified/committed, then the local-only
-  migration + rls:proof steps completed directly).
+  migration + rls:proof steps completed directly. Phase 5: fired to Jules
+  fire-and-forget — NOT YET pulled/verified/committed, pick this up from the ledger).
 
 ## Why
 
@@ -890,18 +897,210 @@ if/when the business actually needs one.
 
 ### Phase 5 — Platform integrations (Stripe/Xendit/PayMongo billing)
 
+**Status: Accepted**, delegated to Jules fire-and-forget (developer switching
+machines — see the handover ledger for how to check back in).
+
 Move `/billing/webhook`'s Stripe/PayMongo/Xendit dispatch onto this same ingress (now
 foundation-hosted per Phase 3), reusing `packages/agora/src/commerce/billing/`'s
 existing `BillingWebhookProvider` (`verifyWebhook`/`parseEvent`/`parseTransactionEvent`/
 `identifyEvent`) and `applyWebhookEvent`/`recordTransactionEvent` unchanged — this phase
 changes how a verified event reaches those functions, never what they do with one,
 mirroring Phase 2's own "reuse, do not rewrite" stance toward `fulfilCustomerPayment`.
-Unlike PayMongo's per-tenant secret, billing providers use ONE static
+Unlike PayMongo customer-payments' per-tenant secret, billing providers use ONE static
 platform-wide secret/token per provider (env-configured) — no brute-force
-candidate-secret search needed; `verifySignature` is a direct single check. Not yet
-concreteness-gated — needs its own Pass 2 pass (exact adapter file, exact scope
-semantics for a billing event, exact migration path for the THREE billing providers vs.
-Phase 2's one) before it can be claimed.
+candidate-secret search needed; `verifySignature` is a direct single check.
+
+#### Design decisions (resolved here, so Jules has zero open questions)
+
+1. **Naming collision, resolved**: PayMongo is already registered as `"paymongo"` for
+   customer-payments (Phase 2). Billing's PayMongo option would collide. **Billing's
+   PayMongo adapter registers as `"paymongo-billing"`** (URL:
+   `/api/v1/webhooks/paymongo-billing`), a distinct id/adapter from the customer-payments
+   one — the two serve entirely different accounts/purposes and must never share a
+   registry key.
+2. **This code belongs in `packages/agora`, not `apps/chrono-api`.** Billing itself is
+   foundation-generic (`packages/agora/src/commerce/billing/`, used by `apps/agora-api`
+   too, per `.ai/plans/agora/archive/xendit-webhook-event-types/`). Unlike PayMongo's
+   customer-payments adapter (genuinely Chrono-specific business logic), a billing
+   webhook adapter is exactly the "a second business app would need it too" case Phase 3
+   was built to support — so it lives in the foundation and each app's own bootstrap
+   registers it, mirroring how `registerCustomerPaymentFulfilment` is called per-app
+   today.
+3. **Only ONE billing adapter is registered at boot, matching the active
+   `BILLING_PROVIDER` env value — not all three simultaneously.** `recordTransactionEvent`
+   internally calls `getBillingProviderId()` to stamp `payment_transaction.paymentProvider`
+   — it does NOT take the calling provider as a parameter. If multiple adapters were
+   registered at once and a webhook arrived on, say, `/api/v1/webhooks/xendit` while
+   `BILLING_PROVIDER=stripe`, the stored `paymentProvider` would be wrong. Registering
+   only the one adapter matching the current env value (exactly mirroring today's
+   single-driver behavior) keeps `getBillingProviderId()` and "the adapter actually
+   receiving traffic" in sync by construction, with zero changes to
+   `recordTransactionEvent`'s signature (explicitly out of scope, matching Phase 2's
+   stance on `fulfilCustomerPayment`).
+4. **One canonical event can trigger TWO downstream writes** — a single billing webhook
+   payload can carry both a subscription-state change (`applyWebhookEvent`) AND a
+   transaction record (`recordTransactionEvent`), and the legacy route deliberately runs
+   BOTH parse entrypoints unconditionally (see `app.ts`'s existing comment: "two DISJOINT
+   parse entrypoints, both run so neither is swallowed by the other's null"). The new
+   adapter's `dispatch()` preserves this exactly — it is not limited to one call.
+   `resourceType`/`resourceId` on the canonical event (used only for the audit
+   trail/idempotency row, never for dispatch logic) are set from whichever parse
+   succeeded: `"subscription"` if `parseEvent` produced a `ParsedSubscription`, else
+   `"transaction"` if `parseTransactionEvent` produced a `ParsedTransaction`, else
+   `null`/`null` if neither did (an event this driver doesn't care about — still
+   persisted, per Phase 1's "unknown/unsupported events must be recorded, not silently
+   discarded").
+5. **`scope` is always `"platform"`** for every billing adapter (Chrono's own single
+   account per provider — no tenant-owned billing accounts exist), with `tenantId: null`
+   on the canonical event, exactly like PayMongo's platform-fallback case in Phase 2.
+   `dispatch()` still resolves and mutates the REAL affected tenant internally (via
+   `parsed.tenantId`/`recordTransactionEvent`'s own customer-id fallback lookup) — the
+   canonical event's `tenantId: null` describes account ownership, not "no tenant is
+   affected."
+
+#### Files to Create
+
+- `packages/agora/src/commerce/billing/webhook-adapter.ts` — exports
+  `createBillingWebhookAdapter(driver: "stripe" | "xendit" | "paymongo", secretEnvVar:
+  string): WebhookProviderAdapter` (a factory, not a singleton — parameterized by which
+  vendor `BillingWebhookProvider` to wrap, via `getBillingWebhookProvider(driver)`) and
+  `registerActiveBillingWebhookProvider(): void`, which reads `getBillingProviderId()`,
+  picks the matching secret env var (`STRIPE_WEBHOOK_SECRET` /
+  `XENDIT_WEBHOOK_TOKEN` / `PAYMONGO_WEBHOOK_SECRET` — same env vars `app.ts`'s
+  `/billing/webhook` route already reads), computes the registry id (`driver === "paymongo"
+  ? "paymongo-billing" : driver`), and calls `registerWebhookProvider(id,
+  createBillingWebhookAdapter(driver, secretEnvVar))`. No-ops (does not register, does
+  not throw) if the matching secret env var is unset — mirrors the legacy route's own
+  `if (!secret) throw new HttpError(400, ...)` becoming "this adapter simply never
+  receives valid traffic" instead of a boot-time crash, since an unconfigured billing
+  webhook is a normal state in dev.
+- `packages/agora/src/commerce/billing/webhook-adapter.test.ts` — adapter-level tests
+  (see Acceptance Criteria), reusing whatever fixture/signing helpers
+  `packages/agora/src/commerce/billing/`'s existing test files (e.g. wherever
+  `billing-transactions.test.ts`-equivalent coverage lives for this package, per
+  `.ai/plans/agora/archive/xendit-webhook-event-types/README.md`'s own test file
+  reference) already use — inspect and reuse, don't reinvent signing/fixture code a
+  third time.
+
+#### Files to Update
+
+- `apps/chrono-api/src/payment-bootstrap.ts` — add a call to
+  `registerActiveBillingWebhookProvider()` (imported from `agora/billing` or
+  `agora/billing/server` — match whichever existing export path this new function is
+  added under; add it to the SAME barrel `getBillingProviderId`/`getBillingWebhookProvider`
+  already export from, not a new one).
+- `packages/agora/src/commerce/billing/index.ts` (or wherever `getBillingProviderId`/
+  `getBillingWebhookProvider` are currently exported from) — export
+  `registerActiveBillingWebhookProvider` alongside them.
+
+#### Files NOT Touched (explicit — this phase does not cut over production traffic)
+
+- `apps/chrono-api/src/app.ts`'s `/billing/webhook` route — untouched, still live,
+  still receiving real provider traffic. The new `/api/v1/webhooks/{stripe|xendit|
+  paymongo-billing}` routes exist alongside it, receiving no real traffic until Phase 6
+  repoints provider dashboards.
+- `applyWebhookEvent`, `recordTransactionEvent`, `getBillingProviderId`,
+  `getBillingWebhookProvider`, `BillingWebhookProvider`, or any `vendors/*.ts` file —
+  zero changes to any of these; this phase only adds a new caller.
+
+#### Step-by-Step Tasks
+
+1. Read `packages/agora/src/commerce/billing/types.ts` (already reviewed in this plan's
+   Pass 2 — `BillingWebhookProvider`'s exact 4 methods) and `apps/chrono-api/src/app.ts`'s
+   current `/billing/webhook` handler (~lines 829-953) side by side — the new adapter's
+   `verifySignature`/`parseEvent`/`resolve`/`normalize`/`dispatch` must reproduce that
+   handler's logic exactly, just restructured into the `WebhookProviderAdapter` shape.
+2. Write `webhook-adapter.ts`:
+   - `verifySignature(input)`: read the header the driver expects (`stripe-signature` /
+     `x-callback-token` / `paymongo-signature` — same mapping `app.ts` already has) and
+     call `provider.verifyWebhook({ payload: input.raw, header, secret })`; throw
+     `HttpError(400, "Invalid webhook signature.")` on failure.
+   - `parseEvent(input)`: call BOTH `provider.parseEvent(input.raw)` and
+     `provider.parseTransactionEvent(input.raw)`; throw `HttpError(400, "Invalid webhook
+     payload.")` only if the raw body itself is unparseable JSON (mirror `app.ts`'s own
+     `try { event = JSON.parse(payload) } catch { throw ... }` — reuse `identifyEvent`'s
+     own internal parse if it already surfaces this, don't parse JSON a third time).
+     Return `{ parsedSubscription, parsedTxn, eventId, eventType }` (from
+     `provider.identifyEvent(input.raw)`) as the opaque `parsed` object threaded to
+     `resolve`/`normalize`/`dispatch`.
+   - `resolve(parsed)`: always `{ scope: "platform", tenantId: null, integrationId:
+     null, providerAccountId: null }` — no I/O needed (unlike PayMongo customer-payments,
+     there's no candidate-secret search here; `verifySignature` already proved which
+     single account this is).
+   - `normalize(parsed, resolved)`: `provider` = the registry id used
+     (`"stripe"`/`"xendit"`/`"paymongo-billing"`), `providerEventId` = `parsed.eventId`,
+     `eventType` = `parsed.eventType`, `resourceType`/`resourceId` per design decision 4
+     above, `scope`/`tenantId`/`integrationId`/`providerAccountId` from `resolved`. Thread
+     `parsed.parsedSubscription`/`parsed.parsedTxn` to `dispatch` via the same
+     per-request `WeakMap`-keyed-by-canonical-event pattern Phase 2's PayMongo adapter
+     already established (`adapters/paymongo.ts`) — reuse that exact pattern, don't
+     invent a second mechanism.
+   - `dispatch(canonical)`: read the threaded `parsedTxn`/`parsedSubscription` from the
+     WeakMap. If `parsedTxn` is non-null, call `recordTransactionEvent(parsedTxn)`
+     (best-effort — it already skips-and-logs an unresolvable tenant internally, per its
+     own documented behavior). If `parsedSubscription` is non-null, call
+     `applyWebhookEvent(canonical.providerEventId, canonical.eventType,
+     parsedSubscription)` and reproduce `app.ts`'s existing post-call audit logic
+     (`recordAudit` for `billing.subscription_created`/`_updated`/`_canceled`/
+     `_webhook_suppressed`) verbatim — copy that block, don't summarize it.
+3. Add `registerActiveBillingWebhookProvider()` per "Files to Create" above.
+4. Wire it into `apps/chrono-api/src/payment-bootstrap.ts`.
+5. Write `webhook-adapter.test.ts` covering the Acceptance Criteria below.
+
+#### Acceptance Criteria
+
+- With `BILLING_PROVIDER=xendit` and `XENDIT_WEBHOOK_TOKEN` set, a validly-signed Xendit
+  invoice-paid callback posted to `/api/v1/webhooks/xendit` produces a `WebhookEvents`
+  row (`scope: "platform"`) AND results in the same subscription-state change
+  `/billing/webhook` would have produced for the equivalent payload (verified by reading
+  the tenant's `tenant_subscription` row after).
+- The same test repeated with `BILLING_PROVIDER=stripe`/`STRIPE_WEBHOOK_SECRET` against
+  `/api/v1/webhooks/stripe`, and `BILLING_PROVIDER=paymongo`/`PAYMONGO_WEBHOOK_SECRET`
+  against `/api/v1/webhooks/paymongo-billing`.
+- A charge/refund-shaped event (not a subscription event) produces a `payment_transaction`
+  row via `recordTransactionEvent`, with no `WebhookEvents.resourceType` claiming
+  `"subscription"`.
+- An invalid signature → `HttpError(400)`, no `WebhookEvents` row, no
+  `applyWebhookEvent`/`recordTransactionEvent` call.
+- Replaying the identical payload twice → second call deduped via `WebhookEvents`'s own
+  `(provider, providerEventId)` index; `applyWebhookEvent`'s OWN separate idempotency
+  (the `billingEvent` table) means even a bypassed dedup wouldn't double-apply — but the
+  test still asserts the outer dedup fires first, before `dispatch()` runs a second time.
+- With `BILLING_PROVIDER` unset/empty, `registerActiveBillingWebhookProvider()` does not
+  throw and does not register any adapter — `getWebhookProvider("stripe")` etc. all
+  return `null`.
+- `/billing/webhook` (the legacy route) is provably untouched — no diff in `app.ts`.
+- `pnpm typecheck` passes.
+
+#### Verification Commands
+
+```
+pnpm typecheck
+pnpm --filter @agora/chrono-api test:webhook
+```
+(Add whatever new test script invokes `webhook-adapter.test.ts` — following this
+package's/`packages/agora`'s existing convention for running a standalone `*.test.ts`
+file; inspect first rather than assuming a script name.)
+
+#### Out of Scope
+
+- Cutting over production traffic (repointing Stripe/Xendit/PayMongo dashboard webhook
+  URLs) — Phase 6.
+- Deleting `/billing/webhook` — Phase 6.
+- Any change to `applyWebhookEvent`, `recordTransactionEvent`, or any `vendors/*.ts`
+  file's own parsing logic.
+- Registering more than one billing adapter simultaneously — explicitly not needed
+  until/unless a future phase changes `recordTransactionEvent` to take an explicit
+  provider parameter instead of reading env.
+
+#### Execution Start Point
+
+Start with `webhook-adapter.ts`'s `verifySignature`+`parseEvent` (lowest risk, mirrors
+existing `app.ts` logic almost verbatim), then `resolve` (trivial, no I/O), then
+`normalize`, then `dispatch` (the largest piece — copy `app.ts`'s existing
+audit-logic block verbatim rather than re-deriving it), then
+`registerActiveBillingWebhookProvider`, then wire `payment-bootstrap.ts`, then
+`webhook-adapter.test.ts` last.
 
 ### Phase 6 — Legacy route deletion (mandatory, not optional)
 
