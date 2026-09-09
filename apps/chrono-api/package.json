@@ -44,6 +44,7 @@
     "test:app-usage-ingest": "tsx src/modules/app-usage/ingest.test.ts",
     "test:app-usage-retention": "tsx src/modules/app-usage/retention.test.ts",
     "test:branch-hours": "tsx src/modules/branch/hours.test.ts",
+    "test:webhook": "DB_DRIVER=pglite tsx src/modules/webhook/webhook.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts && tsx src/db/rls.run.ts",
     "db:push": "drizzle-kit push && tsx src/db/rls.run.ts",

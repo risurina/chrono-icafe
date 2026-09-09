@@ -67,6 +67,7 @@ import { deviceRealtimeRoutes } from "./modules/device/realtime-actor";
 import { appUsageDeviceRoutes } from "./modules/app-usage/routes";
 import { deviceStatusRoutes } from "./modules/device/status-routes";
 import { qrPublicRoutes } from "./modules/qr/public-routes";
+import { webhookIngressRoutes } from "./modules/webhook/ingress";
 import { inquiryPortalRoutes } from "./modules/inquiry/portal-routes";
 import { inquiryPublicRoutes } from "./modules/inquiry/public-routes";
 import { companyInquiryPublicRoutes } from "./modules/company-inquiry/public-routes";
@@ -1179,6 +1180,11 @@ export const app = baseApp
   // outside /rpc and outside apiV1, alongside /billing/webhook and the
   // /public/* family — see .ai/plans/chrono/active/devices/README.md.
   .route("/api/v1/device", deviceAuthRoutes())
+  // Inbound provider webhooks (centralized-webhook-architecture plan, Phase 1).
+  // Mounted before the maintenanceReadOnlyGate because provider webhook
+  // delivery retries are better captured and persisted directly rather than
+  // dropping them via 503 during a maintenance window.
+  .route("/api/v1/webhooks", webhookIngressRoutes())
   // Device-facing realtime websocket (realtime-updates plan, Phase 3). A
   // SEPARATE `.route()` call to the same `/api/v1/device` prefix, contributing
   // only `/ws` — kept in its own file/mount rather than folded into
