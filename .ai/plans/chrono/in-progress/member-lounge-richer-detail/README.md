@@ -3,7 +3,7 @@
 **Sessions:**
 - Planning: current session
 - Audit: (unclaimed)
-- Implementation: (unclaimed)
+- Implementation: Phase 1 landed — station-group DTO fields added
 
 ## Source
 
