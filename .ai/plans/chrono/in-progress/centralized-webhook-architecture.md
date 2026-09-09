@@ -87,18 +87,43 @@ investigation, listed honestly rather than silently swept under "done":
    --filter @agora/chrono-web e2e:headed -- online-checkout fallback-online-checkout`
    in an environment with a real Postgres the app role owns, to confirm these
    two specs actually pass end-to-end.
-3. **The customer-payment integration settings route
-   (`apps/chrono-api/src/routes/rpc.ts`, `PUT /rpc/integrations/customer-
-   payment`) minted a per-tenant `webhookToken`/`webhookTokenHash` and
-   revealed a webhook URL built from it** — this whole mechanism existed only
-   to serve the now-deleted `:token` route. Fixed the actual functional bug
-   (the revealed URL now points at the correct, stable `/api/v1/webhooks/
-   paymongo`, not a 404ing per-tenant path), but did NOT remove the now-
-   vestigial token-minting/"rotate webhook token" UI workflow itself
-   (`apps/chrono-web/.../settings/integrations/page.tsx`) — that's a UI/
-   contract redesign decision (drop the rotate-token feature entirely vs. keep
-   it as inert), not a mechanical deletion, and is flagged here as a follow-up
-   rather than decided unilaterally.
+3. **Resolved** (commit `efdeede7`). The developer decided explicitly to
+   remove the vestigial token-minting/"rotate webhook token" mechanism
+   entirely rather than leave it inert, since the new ingress has no
+   per-tenant token concept and the control did nothing useful anymore.
+   Grepped the whole workspace before deleting anything. Removed: the
+   "Rotate webhook URL" button, its confirmation/toast copy, and the
+   one-time `cpReveal` display state in
+   `apps/chrono-web/.../settings/integrations/page.tsx`; the
+   `mintToken`/`webhookToken`/`webhookTokenHash` minting logic and the
+   `webhookReveal` response shape from `PUT /rpc/integrations/customer-
+   payment` (`apps/chrono-api/src/routes/rpc.ts`); `rotateWebhookToken` from
+   `upsertCustomerPaymentIntegrationSchema` and the now-dead
+   `customerPaymentWebhookRevealSchema`/`CustomerPaymentWebhookReveal`
+   contract (`packages/agora/src/core/contracts/customer-payments.ts`); and
+   `hashCustomerPaymentWebhookToken` plus `CustomerPaymentIntegrationConfig`'s
+   `webhookTokenHash` field (`packages/agora/src/core/server/integrations.ts`)
+   — confirmed dead only after the mint logic above was removed, since it was
+   that logic's only caller. Because `webhookUrl` is no longer a secret under
+   the new model (every tenant configures the same stable URL), the route's
+   `toCustomerPaymentIntegration()` mapper now always returns it instead of
+   gating it behind the one-time reveal, and the settings page shows it as a
+   normal read-only field whenever the integration exists — a small
+   improvement beyond a literal deletion, since a one-time reveal with no
+   rotation left would have made the URL permanently unrecoverable in the UI
+   after the initial save. No DB migration: `webhookTokenHash` lived inside
+   `tenantIntegration.config` (jsonb), not a dedicated column, so stale hashes
+   in existing rows are harmless and simply stop being read/written.
+   Discovered mid-task that a concurrent session had independently redesigned
+   both webhook checkout e2e specs (follow-up #2, commit `90d7e30a`) around
+   the same webhookReveal shape this change removes; updated both specs'
+   `configureCustomerPaymentGateway()` helper to read `webhookUrl` off the
+   always-present `customerPayment` object instead. `pnpm typecheck` is clean
+   workspace-wide; `pnpm --filter @agora/chrono-web build` fails, but
+   confirmed via `git stash` to fail identically on `main` before this change
+   (a pre-existing `worker_threads`/Sentry client-bundle issue reached through
+   `apps/chrono-web/src/app/(saas-admin)/admin/billing/page.tsx`, unrelated to
+   this change).
 
 Provider-dashboard cutover (Stripe/Xendit/PayMongo webhook URL configuration)
 is explicitly deferred — there is no production deployment to repoint yet.
