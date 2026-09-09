@@ -1,1065 +1,410 @@
 # Chrono Centralized Webhook Architecture
 
 ## Status
-Draft
 
-## Goal
+Draft — Phase 1 is concreteness-gated and ready for developer acceptance. Phases 2-5
+are sketched (from the original architecture draft's migration strategy) but each needs
+its own concreteness pass before it can be claimed/implemented.
 
-Create one centralized webhook architecture for Chrono so integrations do **not** create spaghetti webhook URLs or provider-specific routes scattered throughout the application.
+**Sessions:**
+- Planning: current session
 
-The architecture must support:
+## Why
 
-- Platform-owned integrations.
-- Per-tenant integrations.
-- Payment providers in particular.
-- Multiple providers (PayMongo, Maya, Paddle, future PSPs, messaging, identity, etc.).
-- Provider-specific signature verification without leaking provider logic into business services.
-- Idempotent processing and safe retries.
-- Clear tenant isolation.
-- A canonical internal event model independent of provider payloads.
+The developer wants one centralized, provider-agnostic inbound webhook subsystem for
+Chrono so adding a new payment/messaging/identity provider never means a new
+tenant-specific route or scattered provider-specific business logic. This is being built
+**as originally designed** in the architecture draft (`/api/v1/webhooks/:provider`,
+a dedicated `integrations`-shaped resolver, a canonical event model, `webhook_events`
+persistence) — a deliberate choice to build the full mechanism rather than only closing
+gaps in what already exists.
 
-## Current repository context
+**Decided: every legacy webhook route is migrated onto the new architecture and then
+deleted outright — not kept running alongside it, not an optional Phase 5 judgment
+call.** There is no end state where two webhook systems coexist in this codebase.
 
-The repository is a monorepo containing `apps/chrono-api`, `apps/chrono-web`, `apps/chrono-docs`, and other Agora applications. The Chrono API is therefore the correct application boundary for inbound provider webhooks. Do not introduce webhook endpoints into the web application or create provider-specific endpoints across unrelated modules.
+**Important context found during planning** (so nobody rediscovers this mid-phase):
+Chrono already has *some* centralized webhook infrastructure, built for narrower
+purposes, all of which is in scope for migration-then-deletion by Phase 5:
 
-## Core decision
+- `POST /billing/webhook` (`apps/chrono-api/src/app.ts`) — platform-scope only,
+  dispatches via `getBillingWebhookProvider(driver)` (`agora/billing`) across
+  Stripe/PayMongo/Xendit for Chrono's own SaaS billing. No tenant resolution.
+- `POST /payments/customer/webhook/platform` and `POST /payments/customer/webhook/:token`
+  — the existing per-tenant and platform-fallback customer-payment webhooks, built on
+  `packages/agora/src/commerce/customer-payments/` (a provider registry +
+  fulfilment-registry seam that already implements the draft's §16/§19 asks, for the
+  customer-payments case specifically).
 
-Use **one webhook ingress pattern** in `chrono-api`:
+Each route's existing verification/parsing/tenant-resolution/fulfilment logic gets
+ported into a `WebhookProviderAdapter` on the new ingress (Phases 2-4), and the old
+route + its now-dead code is deleted once traffic is proven to work on the new path
+(Phase 5) — never left in place "just in case."
 
-```text
-POST /api/v1/webhooks/{provider}
+## Pass 1 — Workflow analysis
+
+- **Who uses this**: nobody directly today (backend-only foundation). It exists to make
+  the *next* Chrono payment/messaging provider integration cheap and safe, and to give
+  ops a single place to trace "why did this webhook not apply."
+- **Workflow enabled**: a new provider is added by writing one adapter + registering it
+  — no new route, no new tenant URL, no branching added to `app.ts`.
+- **Failure cases**: unknown provider → 404 before any DB work. Invalid signature → 400,
+  never persisted as verified. Duplicate delivery → deduped via a DB unique constraint,
+  not just an application-level check. Unparseable payload → 400. A body that parses but
+  carries no derivable event id → 400. Tenant resolution genuinely impossible → persisted
+  as `needs_resolution`, never guessed.
+- **Audit**: none in Phase 1 (no financial state changes yet — this phase persists and
+  acknowledges only). Audit wiring is a Phase 2 concern, once a real provider's
+  processing actually mutates tenant state.
+
+## Pass 2 — Technical research
+
+### Module convention
+
+`apps/chrono-api/src/modules/<domain>/` is mature (25 existing domains: `branch`,
+`payment`, `wallet`, `business-lead`, etc.), each with `schema.ts` / `contracts.ts` /
+`routes.ts` per `.ai/rules/business-app.md`. This plan adds a new domain, **`webhook`**
+(kebab-case, singular noun, per `.ai/rules/monorepo.md` naming) —
+`apps/chrono-api/src/modules/webhook/`. Do NOT use the original draft's illustrative
+`integrations/webhook/ingress/adapters/...` nested tree (§18 of the original draft
+explicitly says not to mechanically copy it when an established module convention
+exists).
+
+### Table shape and RLS scoping — platform-global, not RLS-scoped
+
+The closest existing precedent for a table that must record BOTH platform-scope rows
+(`tenantId: null`) and tenant-scope rows (`tenantId: <org>`), where the tenant isn't
+always known at insert time, is `ChronoBusinessLeads`
+(`apps/chrono-api/src/modules/business-lead/schema.ts`) and
+`platformCollectedPayment` (`packages/agora/src/commerce/customer-payments/`): both are
+**platform-global, NOT RLS-scoped, NOT in `APP_TENANT_TABLES`**, with `tenantId` as a
+plain nullable FK reference used for grouping/filtering, not an isolation boundary. The
+new `ChronoWebhookEvents` table follows the same shape — this is a deliberate,
+precedented exception to "every tenant-referencing table is RLS-forced," justified
+because an inbound webhook's tenant is sometimes unknown until the resolver runs
+(`scope = unresolved`), which forced RLS cannot express (RLS needs a `tenant_id` set on
+the connection *before* the row can even be written).
+
+### Mount point — mirror `/api/v1/device`, not the existing `/api/v1` `apiV1` Hono chain
+
+`apps/chrono-api/src/routes/api-v1.ts`'s `apiV1` Hono instance is tenant-authenticated
+(applies `tenantMiddleware()` — every route under it needs a resolved tenant + API key).
+An inbound provider webhook has neither. The working precedent for a real,
+production, unauthenticated route living under the `/api/v1/*` path prefix without
+going through `apiV1` is `/api/v1/device/*`
+(`apps/chrono-api/src/app.ts:1179-1202`): `deviceAuthRoutes()`, `deviceRealtimeRoutes()`,
+`appUsageDeviceRoutes()`, `deviceStatusRoutes()` are all `.route("/api/v1/device", ...)`
+calls mounted directly on `app.ts`, **before** `.use("/api/v1/*", maintenanceReadOnlyGate)`
+and `.route("/api/v1", apiV1)` (`app.ts:1247-1251`). The new webhook ingress follows
+this exact pattern: `.route("/api/v1/webhooks", webhookIngressRoutes())`, mounted in the
+same block, before the maintenance gate — a payment webhook must still land during
+platform maintenance/read-only mode, exactly like `/billing/webhook` and
+`/payments/customer/webhook/*` already do today (both mounted entirely outside
+`/api/v1` for the same reason).
+
+### Tenant/RLS impact
+
+New table (`ChronoWebhookEvents`), but it is explicitly NOT added to `APP_TENANT_TABLES`
+(see above) — so `rls:proof` does not need to (and cannot meaningfully) cover it, same
+stance as `ChronoBusinessLeads`. `pnpm typecheck` is required. No existing RLS-scoped
+table is touched in Phase 1.
+
+## Phase 1 — Foundation (table, canonical event contract, adapter registry, generic ingress)
+
+Builds the mechanism only. **No real provider is wired in this phase** — that is
+Phase 2. Verified end-to-end using a test-only fake adapter registered inside the test
+file, never exposed to the production registry.
+
+### Files to Create
+
+- `apps/chrono-api/src/modules/webhook/schema.ts`
+- `apps/chrono-api/src/modules/webhook/contracts.ts`
+- `apps/chrono-api/src/modules/webhook/registry.ts`
+- `apps/chrono-api/src/modules/webhook/ingress.ts`
+- `apps/chrono-api/src/modules/webhook/webhook.test.ts`
+
+### Files to Update
+
+- `apps/chrono-api/src/db/schema.ts` — export `chronoWebhookEvent` (composed alongside
+  every other Chrono module table). Do NOT add it to `APP_TENANT_TABLES`.
+- `apps/chrono-api/src/app.ts` — import `webhookIngressRoutes` from
+  `./modules/webhook/ingress` and mount `.route("/api/v1/webhooks", webhookIngressRoutes())`
+  in the same block as the existing `/api/v1/device` mounts (`app.ts:1179-1202`),
+  before `.use("/api/v1/*", maintenanceReadOnlyGate)`.
+
+### Step-by-Step Tasks
+
+1. **`schema.ts`** — define `ChronoWebhookEvents` (Drizzle table name `"ChronoWebhookEvents"`,
+   per business-app naming: business tables are app-prefixed):
+   ```ts
+   export const chronoWebhookEvent = pgTable("ChronoWebhookEvents", {
+     id: text("id").primaryKey().$defaultFn(createId),
+     provider: text("provider").notNull(),
+     providerEventId: text("providerEventId").notNull(),
+     providerAccountId: text("providerAccountId"),
+     scope: text("scope", { enum: ["platform", "tenant", "unresolved"] }).notNull(),
+     tenantId: text("tenantId").references(() => organization.id, { onDelete: "cascade" }),
+     integrationId: text("integrationId"),
+     eventType: text("eventType").notNull(),
+     resourceType: text("resourceType"),
+     resourceId: text("resourceId"),
+     signatureVerified: boolean("signatureVerified").notNull().default(false),
+     processingStatus: text("processingStatus", {
+       enum: ["received", "processing", "processed", "failed", "needs_resolution", "ignored"],
+     }).notNull().default("received"),
+     attemptCount: integer("attemptCount").notNull().default(0),
+     firstReceivedAt: timestamp("firstReceivedAt").notNull().defaultNow(),
+     lastReceivedAt: timestamp("lastReceivedAt").notNull().defaultNow(),
+     processedAt: timestamp("processedAt"),
+     lastError: text("lastError"),
+     payloadHash: text("payloadHash").notNull(),
+     rawPayloadRef: text("rawPayloadRef"),
+     createdAt: timestamp("createdAt").notNull().defaultNow(),
+     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+   }, (t) => ({
+     providerEventUq: uniqueIndex("chrono_webhook_event_provider_event_uq")
+       .on(t.provider, t.providerEventId),
+     tenantIdx: index("chrono_webhook_event_tenant_idx").on(t.tenantId),
+   }));
+   ```
+   `payloadHash` (sha256 of the raw body) exists for audit/debugging, NOT as the
+   idempotency key — the unique constraint is `(provider, providerEventId)`, per the
+   architecture's own §9 ("database uniqueness should enforce this, application-level
+   checks alone are insufficient under concurrency"). Import `organization` from
+   `agora/db/schema` and `createId` from `agora`, matching every other module.
+
+2. **`contracts.ts`** — canonical event shape + provider adapter interface, as
+   TypeScript types (not Zod — this is an internal server-side contract between the
+   ingress and adapters, never crosses the wire to a client, so `.ai/rules/dto.md`'s
+   "define wire shapes with Zod" doesn't apply here; it applies once a `/rpc` route
+   exposes these events to the dashboard, which is out of scope for this phase):
+   ```ts
+   export interface ProviderWebhookEvent {
+     raw: string;
+     headers: Record<string, string | string[] | undefined>;
+   }
+
+   export interface CanonicalWebhookEvent {
+     provider: string;
+     providerEventId: string;
+     providerAccountId: string | null;
+     scope: "platform" | "tenant" | "unresolved";
+     tenantId: string | null;
+     integrationId: string | null;
+     eventType: string;
+     resourceType: string | null;
+     resourceId: string | null;
+   }
+
+   export interface WebhookProviderAdapter {
+     /** Throws on an invalid signature. Never trust the payload before this passes. */
+     verifySignature(input: ProviderWebhookEvent): Promise<void>;
+     /** Parse the raw body into a provider-shaped event. Throws on malformed JSON. */
+     parseEvent(input: ProviderWebhookEvent): unknown;
+     /**
+      * Resolve scope/tenant/integration from the parsed event. Returns
+      * scope: "unresolved" (never guesses) when it cannot determine ownership.
+      */
+     resolve(parsed: unknown): Promise<{
+       scope: "platform" | "tenant" | "unresolved";
+       tenantId: string | null;
+       integrationId: string | null;
+       providerAccountId: string | null;
+     }>;
+     /** Normalize into the canonical shape once scope/tenant are known. */
+     normalize(
+       parsed: unknown,
+       resolved: { scope: "platform" | "tenant" | "unresolved"; tenantId: string | null; integrationId: string | null; providerAccountId: string | null },
+     ): CanonicalWebhookEvent;
+   }
+   ```
+
+3. **`registry.ts`** — a plain `Map`, not a growing switch statement (§19):
+   ```ts
+   const providers = new Map<string, WebhookProviderAdapter>();
+   export function registerWebhookProvider(id: string, adapter: WebhookProviderAdapter) {
+     if (providers.has(id)) throw new Error(`Webhook provider "${id}" is already registered.`);
+     providers.set(id, adapter);
+   }
+   export function getWebhookProvider(id: string): WebhookProviderAdapter | null {
+     return providers.get(id) ?? null;
+   }
+   ```
+   No providers are registered by production code in this phase — the registry starts
+   empty and `webhook.test.ts` registers a fake adapter for its own assertions only
+   (register into a fresh `Map` instance constructed in the test, NOT the shared
+   module-level singleton, so test registration can never leak into a real request).
+   To make that possible, export a factory `createWebhookProviderRegistry()` returning
+   `{ register, get }` bound to a private `Map`, and have `registry.ts`'s
+   module-level exports be one instance of that factory (`export const {
+   registerWebhookProvider, getWebhookProvider } = createWebhookProviderRegistry();`).
+   The test imports the factory directly, not the shared instance.
+
+4. **`ingress.ts`** — the thin controller, following the ingestion lifecycle (§8):
+   ```ts
+   export function webhookIngressRoutes() {
+     return new Hono().post("/:provider", async (c) => {
+       const providerId = c.req.param("provider");
+       const adapter = getWebhookProvider(providerId);
+       if (!adapter) throw new HttpError(404, "Unknown webhook provider.");
+
+       const raw = await c.req.text();
+       const headers = Object.fromEntries(c.req.raw.headers.entries());
+       const event = { raw, headers };
+
+       await adapter.verifySignature(event); // throws HttpError(400) on failure — adapter's job
+
+       const parsed = adapter.parseEvent(event); // throws HttpError(400) on malformed body
+       const resolved = await adapter.resolve(parsed);
+       const canonical = adapter.normalize(parsed, resolved);
+
+       const payloadHash = createHash("sha256").update(raw).digest("hex");
+
+       const inserted = await withAdmin((tx) =>
+         tx.insert(chronoWebhookEvent).values({
+           provider: canonical.provider,
+           providerEventId: canonical.providerEventId,
+           providerAccountId: canonical.providerAccountId,
+           scope: canonical.scope,
+           tenantId: canonical.tenantId,
+           integrationId: canonical.integrationId,
+           eventType: canonical.eventType,
+           resourceType: canonical.resourceType,
+           resourceId: canonical.resourceId,
+           signatureVerified: true,
+           processingStatus: canonical.scope === "unresolved" ? "needs_resolution" : "received",
+           payloadHash,
+         })
+         .onConflictDoNothing({ target: [chronoWebhookEvent.provider, chronoWebhookEvent.providerEventId] })
+         .returning({ id: chronoWebhookEvent.id }),
+       );
+
+       if (inserted.length === 0) {
+         return c.json({ received: true, deduped: true });
+       }
+       // Phase 1 stops here: persisted + acknowledged. Async processing/dispatch to a
+       // domain service is Phase 2+, once a real provider exists to dispatch for.
+       return c.json({ received: true });
+     });
+   }
+   ```
+   `verifySignature`/`parseEvent` throwing `HttpError` (from `agora/server`) is the
+   adapter's own responsibility, not the ingress's — keeps the ingress generic across
+   adapters with different failure shapes, matching §4's "provider code should only
+   understand provider-specific concepts."
+
+5. **`webhook.test.ts`** — using this module's own registry factory
+   (`createWebhookProviderRegistry()`), a hand-built Hono app mounting
+   `webhookIngressRoutes()`-equivalent logic wired to the test's private registry
+   instance (not the shared one), covering:
+   - Unknown provider → 404, before any DB call.
+   - Invalid signature (fake adapter throws) → 400, no row written.
+   - Valid event → row written with `processingStatus: "received"`.
+   - Same `(provider, providerEventId)` posted twice → second call returns
+     `{ deduped: true }`, exactly one row exists in `ChronoWebhookEvents`.
+   - Adapter resolving `scope: "unresolved"` → row written with
+     `processingStatus: "needs_resolution"`, never guessed into a tenant.
+   Use this app's existing test DB harness (the same one `business-lead`'s or
+   `payment`'s own `*.test.ts` files use — inspect one for the exact setup helper
+   before writing this file, since the plan should not invent a new one).
+
+### Acceptance Criteria
+
+- `ChronoWebhookEvents` exists, is exported from `db/schema.ts`, is NOT in
+  `APP_TENANT_TABLES`.
+- `POST /api/v1/webhooks/:provider` is reachable, mounted outside `/rpc` and outside
+  the tenant-authenticated `apiV1` chain, unaffected by maintenance/read-only mode.
+- An unknown `:provider` 404s before any DB work.
+- A registered fake adapter proves the full lifecycle: verify → parse → resolve →
+  normalize → persist → ack, including idempotent dedup on `(provider, providerEventId)`
+  enforced by the DB unique index (not just an application check).
+- An adapter that resolves `scope: "unresolved"` produces a `needs_resolution` row, not
+  a guessed tenant.
+- The production registry (`registry.ts`'s shared instance) starts empty — no adapters
+  registered by this phase.
+- `pnpm typecheck` passes.
+- The new `webhook.test.ts` suite passes.
+
+### Verification Commands
+
 ```
-
-Examples:
-
-```text
-POST /api/v1/webhooks/paymongo
-POST /api/v1/webhooks/maya
-POST /api/v1/webhooks/paddle
-POST /api/v1/webhooks/{future-provider}
+pnpm typecheck
+pnpm --filter @agora/chrono-api test:webhook
 ```
+(Add a `test:webhook` script to `apps/chrono-api/package.json` mirroring whatever
+existing per-module test script convention is used, e.g. `test:billing-transactions`
+in agora-api — inspect `apps/chrono-api/package.json` for the actual existing pattern
+before naming this one.)
 
-These are provider-level ingress endpoints, not tenant-level endpoints.
+### Out of Scope (Phase 1)
 
-Do **NOT** create routes such as:
+- Wiring any real provider (PayMongo, Maya, Paddle) — Phase 2.
+- Async/background processing, retries, dead-lettering (§21) — nothing in Phase 1
+  triggers business-domain side effects yet, so there is nothing to retry.
+- Migrating `/billing/webhook` or `/payments/customer/webhook/*` onto this mechanism —
+  Phase 4/5.
+- An admin UI for browsing `ChronoWebhookEvents` or resolving `needs_resolution` rows —
+  not designed yet; flag as a likely Phase 6 need once real unresolved events exist.
+- Any `/rpc` route exposing webhook events to the dashboard.
 
-```text
-/api/webhooks/{tenantId}/paymongo
-/api/webhooks/{tenantId}/maya
-/api/tenants/{tenantId}/payments/webhook
-/api/webhooks/paymongo/{tenantId}
-```
+### Execution Start Point
 
-The external URL must remain stable as tenants are created, migrated, suspended, or deleted.
-
-The tenant is resolved internally from the integration/account context and/or trusted payment metadata. The URL must never be the security boundary for tenant identification.
+Start with `contracts.ts` (no dependencies), then `schema.ts`, then `registry.ts`, then
+`ingress.ts`, then wire it into `db/schema.ts` and `app.ts`, then `webhook.test.ts` last.
 
 ---
 
-# 1. High-level architecture
-
-```text
-                    EXTERNAL PROVIDERS
-       ┌──────────────┬──────────────┬──────────────┐
-       │   PayMongo   │     Maya     │    Paddle    │
-       └──────┬───────┴──────┬───────┴──────┬───────┘
-              │               │              │
-              └───────────────┼──────────────┘
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Central Webhook Ingress │
-                 │ /api/v1/webhooks/:prov │
-                 └────────────┬────────────┘
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Provider Adapter Layer  │
-                 │ - verify signature      │
-                 │ - parse payload         │
-                 │ - normalize event       │
-                 └────────────┬────────────┘
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Integration Resolver    │
-                 │ - provider account      │
-                 │ - platform vs tenant    │
-                 │ - tenant_id             │
-                 │ - integration_id        │
-                 └────────────┬────────────┘
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Webhook Event Store     │
-                 │ idempotency + audit     │
-                 └────────────┬────────────┘
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Internal Event Router   │
-                 └────────────┬────────────┘
-                              ▼
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-   Payments Domain       Wallet Domain        Billing Domain
-        │                     │                     │
-        └─────────────────────┼─────────────────────┘
-                              ▼
-                    Tenant / Member state
-```
-
-The important separation is:
-
-**Ingress != Provider adapter != Tenant resolution != Business processing.**
-
-This prevents webhook code from becoming a collection of provider-specific business rules.
-
----
-
-# 2. Platform vs tenant webhook model
-
-Chrono should have two logical scopes, but **not two different URL systems**.
-
-## Platform scope
-
-A platform integration belongs to Chrono itself.
-
-Examples:
-
-- Chrono's own Paddle billing account.
-- Chrono's own email provider.
-- Chrono's own operational integrations.
-- A provider account used only for Chrono SaaS billing.
-
-The webhook is resolved as:
-
-```text
-scope = platform
-tenant_id = null
-integration_id = <platform integration>
-```
-
-## Tenant scope
-
-A tenant integration belongs to one Chrono tenant.
-
-Examples:
-
-- Tenant A connects its PayMongo account.
-- Tenant B connects its Maya account.
-- Tenant C connects its own future PSP account.
-
-The same external endpoint is used:
-
-```text
-POST /api/v1/webhooks/paymongo
-```
-
-The resolver determines:
-
-```text
-scope = tenant
-tenant_id = tenant_A
-integration_id = tenant_A_paymongo
-provider_account_id = <provider account>
-```
-
-### Critical rule
-
-Never accept `tenant_id` from the webhook URL as proof of tenant ownership.
-
-Never trust an arbitrary `tenant_id` supplied in an unverified payload.
-
-Tenant context must be derived from a trusted provider identity, a previously registered integration/account mapping, or verified payment metadata/reference created by Chrono.
-
----
-
-# 3. Payment architecture
-
-Payments are the most important case because a payment webhook can change money-related state.
-
-The preferred flow is:
-
-```text
-Member starts top-up / payment
-          │
-          ▼
-Chrono Payment Service
-          │
-          ├── tenant_id
-          ├── member_id
-          ├── payment_intent_id
-          ├── integration_id
-          └── provider metadata/reference
-          │
-          ▼
-Payment Provider
-          │
-          │ webhook
-          ▼
-/api/v1/webhooks/{provider}
-          │
-          ▼
-Verify + normalize + resolve integration
-          │
-          ▼
-Canonical payment event
-          │
-          ▼
-Payment domain
-          │
-          ├── mark payment succeeded/failed
-          ├── ledger transaction
-          ├── wallet credit/debit where applicable
-          └── notifications / downstream events
-```
-
-The browser/mobile client must **never** be the authority for final payment success.
-
-For example, the client may return from a checkout page saying `success`, but Chrono should only credit the wallet after a trusted provider event or a server-side provider verification confirms the payment.
-
----
-
-# 4. Provider adapter contract
-
-Each provider should implement the same internal interface.
-
-Conceptually:
-
-```ts
-interface WebhookProviderAdapter {
-  verifySignature(input: {
-    rawBody: string | Buffer;
-    headers: Record<string, string | string[] | undefined>;
-    integration: IntegrationContext;
-  }): Promise<void>;
-
-  parseEvent(input: {
-    rawBody: string | Buffer;
-    headers: Record<string, string | string[] | undefined>;
-  }): ProviderWebhookEvent;
-
-  resolveProviderAccount(event: ProviderWebhookEvent): string | null;
-
-  normalizeEvent(event: ProviderWebhookEvent): CanonicalWebhookEvent;
-}
-```
-
-Provider code should only understand provider-specific concepts.
-
-It should NOT directly:
-
-- modify wallet balances;
-- modify tenant records;
-- create ledger entries;
-- activate rentals;
-- send business notifications;
-- decide whether a payment is economically valid.
-
-Those belong to Chrono domain services.
-
----
-
-# 5. Canonical webhook event
-
-After verification and provider parsing, convert every webhook into a canonical internal event.
-
-Example:
-
-```ts
-interface CanonicalWebhookEvent {
-  id: string;
-  provider: string;
-  providerEventId: string;
-  providerAccountId: string | null;
-
-  scope: 'platform' | 'tenant';
-  tenantId: string | null;
-  integrationId: string;
-
-  category:
-    | 'payment'
-    | 'refund'
-    | 'payout'
-    | 'subscription'
-    | 'invoice'
-    | 'identity'
-    | 'communication'
-    | 'other';
-
-  type: string;
-  occurredAt: string;
-
-  resourceType: string | null;
-  resourceId: string | null;
-
-  payload: unknown;
-  rawPayloadRef: string | null;
-}
-```
-
-Business services consume this canonical event rather than provider-specific webhook JSON.
-
-This makes adding another PSP much cheaper.
-
----
-
-# 6. Integration registry
-
-Create a central integration registry/configuration model rather than hard-coding provider secrets throughout the application.
-
-Conceptual data model:
-
-```text
-integrations
--------------
-id
-scope                  platform | tenant
-tenant_id              nullable
-provider               paymongo | maya | paddle | ...
-provider_account_id    nullable
-status                 active | disabled | disconnected
-credentials_ref        secret reference only
-configuration          json/jsonb
-created_at
-updated_at
-```
-
-Recommended uniqueness rules:
-
-```text
-(scope, tenant_id, provider, provider_account_id)
-```
-
-with appropriate handling for platform records.
-
-Do not store raw provider secret keys in webhook events.
-
-Do not put provider secrets into URLs.
-
----
-
-# 7. How tenant resolution works
-
-Use the strongest available identifier in this order:
-
-### A. Provider account identity
-
-Best option when the tenant owns the provider account.
-
-```text
-provider = paymongo
-provider_account_id = acct_xxx
-                 │
-                 ▼
-integrations.provider_account_id
-                 │
-                 ▼
-tenant_id = tenant_123
-```
-
-### B. Verified Chrono payment reference / metadata
-
-For shared platform provider accounts, the payment created by Chrono must contain an immutable Chrono reference that maps back to the tenant.
-
-Example:
-
-```text
-chrono_payment_id = cp_01...
-tenant_id = tenant_123
-member_id = member_456
-```
-
-The webhook resolver looks up the Chrono payment using the provider resource ID/reference.
-
-### C. Provider-side resource lookup
-
-If a provider event does not include enough information, the provider adapter may retrieve the authoritative resource using the configured server-side credentials.
-
-### D. Unresolved event
-
-If tenant resolution is impossible, do **not guess**.
-
-Persist the event as:
-
-```text
-scope = unresolved
-processing_status = needs_resolution
-```
-
-and alert/queue it for investigation.
-
-A money event must never be assigned to an arbitrary tenant because a guessed identifier happens to match.
-
----
-
-# 8. Webhook ingestion lifecycle
-
-The HTTP endpoint should be intentionally thin.
-
-```text
-1. Receive request
-2. Capture raw body
-3. Identify provider
-4. Load candidate integration configuration
-5. Verify provider signature
-6. Parse provider event
-7. Resolve provider account / integration
-8. Resolve platform vs tenant scope
-9. Calculate idempotency key
-10. Persist inbound webhook
-11. Return provider acknowledgement quickly
-12. Process asynchronously
-```
-
-The endpoint should not perform long-running payment processing before acknowledging the provider.
-
----
-
-# 9. Idempotency
-
-Provider webhooks can be delivered multiple times.
-
-Create a unique key such as:
-
-```text
-(provider, provider_event_id)
-```
-
-or, where necessary:
-
-```text
-(provider, provider_account_id, provider_event_id)
-```
-
-Database uniqueness should enforce this. Application-level `if (!exists)` checks alone are insufficient under concurrency.
-
-Processing states should distinguish:
-
-```text
-received
-processing
-processed
-failed
-needs_resolution
-ignored
-```
-
-A duplicate event should be acknowledged safely without applying the financial side effect twice.
-
----
-
-# 10. Payment idempotency is separate from webhook idempotency
-
-This distinction is important.
-
-A webhook can be unique while the resulting business operation still needs protection.
-
-For example:
-
-```text
-provider event
-      ↓
-payment update
-      ↓
-ledger transaction
-      ↓
-wallet credit
-```
-
-The wallet credit must have its own durable idempotency/reference constraint tied to the Chrono payment/ledger operation.
-
-Never rely only on `webhook_events.provider_event_id` to protect a wallet balance.
-
-Use a ledger-first model where possible:
-
-```text
-payment -> ledger entry -> wallet balance projection
-```
-
-with a unique business reference for the financial transaction.
-
----
-
-# 11. Recommended database entities
-
-Names can be adapted to existing Chrono schema conventions, but the conceptual separation should remain.
-
-## `integrations`
-
-Stores platform and tenant provider connections.
-
-## `webhook_events`
-
-Stores the inbound provider event and processing state.
-
-Suggested fields:
-
-```text
-id
-provider
-provider_event_id
-provider_account_id
-integration_id
-scope
-tenant_id
-event_type
-resource_type
-resource_id
-signature_verified
-processing_status
-attempt_count
-first_received_at
-last_received_at
-processed_at
-last_error
-payload_hash
-raw_payload_ref
-created_at
-updated_at
-```
-
-Avoid exposing raw sensitive payloads unnecessarily.
-
-## `payment_transactions`
-
-Chrono's canonical payment record.
-
-## `ledger_entries`
-
-Immutable money movements.
-
-## `wallets` / wallet projection
-
-Current spendable balance derived from the ledger model.
-
-The exact existing schema should be reused where possible instead of introducing duplicate financial models.
-
----
-
-# 12. Platform and tenant processing example
-
-## Platform Paddle billing
-
-```text
-Paddle
-  ↓
-/api/v1/webhooks/paddle
-  ↓
-verify
-  ↓
-provider account = Chrono platform account
-  ↓
-scope = platform
-  ↓
-subscription/invoice domain
-```
-
-No tenant is involved.
-
-## Tenant A PayMongo
-
-```text
-Tenant A PayMongo account
-  ↓
-/api/v1/webhooks/paymongo
-  ↓
-verify
-  ↓
-provider account = acct_A
-  ↓
-integrations lookup
-  ↓
-tenant_id = Tenant A
-  ↓
-canonical payment event
-  ↓
-Tenant A payment / wallet / ledger
-```
-
-## Tenant B PayMongo
-
-Exactly the same URL:
-
-```text
-Tenant B PayMongo account
-  ↓
-/api/v1/webhooks/paymongo
-  ↓
-verify
-  ↓
-provider account = acct_B
-  ↓
-integrations lookup
-  ↓
-tenant_id = Tenant B
-```
-
-There is no Tenant B webhook route.
-
----
-
-# 13. Shared provider account case
-
-If Chrono temporarily operates a shared provider account for multiple tenants, the design must still avoid tenant-specific URLs.
-
-Example:
-
-```text
-PayMongo shared Chrono account
-          │
-          ├── payment A metadata → chrono_payment_A
-          ├── payment B metadata → chrono_payment_B
-          └── payment C metadata → chrono_payment_C
-```
-
-Each Chrono payment must have an immutable internal reference that can resolve:
-
-```text
-chrono_payment_id
-→ tenant_id
-→ member_id
-→ integration_id
-```
-
-Do not use email address, amount, description, or other ambiguous fields to infer ownership.
-
----
-
-# 14. Security requirements
-
-Webhook security should be treated as a payment-security boundary.
-
-Required:
-
-- Preserve the exact raw request body for signature verification.
-- Verify provider signatures before trusting payload content.
-- Use provider-specific signature implementations inside adapters.
-- Reject invalid signatures.
-- Enforce timestamp/replay protections when the provider supports them.
-- Apply request size limits.
-- Rate-limit where appropriate without breaking legitimate provider retries.
-- Never log secrets or authorization headers.
-- Redact payment/customer sensitive fields in logs.
-- Never allow tenant ID from the URL to determine authorization.
-- Never allow an unverified payload to select an integration secret.
-- Never mutate financial state before verification and idempotency checks.
-
-The resolver must also ensure that a provider account can only map to the integration that owns that account.
-
----
-
-# 15. Do not dynamically select secrets from arbitrary request fields
-
-A dangerous anti-pattern is:
-
-```ts
-const tenantId = req.body.tenant_id;
-const secret = getSecretForTenant(tenantId);
-verify(req, secret);
-```
-
-This creates an attacker-controlled secret-selection mechanism.
-
-Instead:
-
-```text
-provider
-   ↓
-trusted provider verification strategy
-   ↓
-registered integration/account candidates
-   ↓
-verify signature
-   ↓
-resolve exact integration
-```
-
-If a provider's signature scheme requires an account-specific secret, the candidate account must be identified from a trusted provider-level identifier or a safe registration mechanism—not from an untrusted tenant ID.
-
----
-
-# 16. Internal event routing
-
-After persistence, route canonical events by domain:
-
-```text
-CanonicalWebhookEvent
-        │
-        ├── payment.*       → PaymentService
-        ├── refund.*        → PaymentService
-        ├── subscription.*  → BillingService
-        ├── payout.*        → PayoutService
-        └── identity.*      → IdentityService
-```
-
-Provider adapters should never import wallet/rental/business modules directly.
-
-This keeps dependency direction clean:
-
-```text
-provider adapter
-      ↓
-canonical event
-      ↓
-domain service
-```
-
-not:
-
-```text
-PayMongo webhook
-  ↓
-wallet service
-  ↓
-rental service
-  ↓
-email service
-  ↓
-random tenant controller
-```
-
----
-
-# 17. Outbound webhooks are a separate concern
-
-If Chrono eventually allows tenants to receive webhooks from Chrono, use a separate outbound system.
-
-Do not confuse:
-
-```text
-Inbound provider webhooks
-```
-
-with:
-
-```text
-Chrono outbound tenant webhooks
-```
-
-Recommended future pattern:
-
-```text
-Chrono domain event
-      ↓
-Outbound Event Dispatcher
-      ↓
-Tenant webhook subscription
-      ↓
-Tenant's URL
-```
-
-This is the one place where tenant-specific URLs are appropriate because the tenant is the receiver.
-
-Example subscription:
-
-```text
-webhook_subscriptions
-----------------------
-tenant_id
-endpoint_url
-secret
-subscribed_events
-status
-```
-
-The inbound payment provider URL and outbound tenant webhook URL must remain conceptually and operationally separate.
-
----
-
-# 18. Suggested code organization
-
-The exact existing folder conventions must be inspected before implementation, but the architecture should converge toward something similar to:
-
-```text
-apps/chrono-api/src/
-  integrations/
-    webhook/
-      ingress/
-        webhook.controller.ts
-        webhook.service.ts
-      adapters/
-        paymongo/
-          paymongo.webhook.ts
-          paymongo.adapter.ts
-        maya/
-          maya.webhook.ts
-          maya.adapter.ts
-        paddle/
-          paddle.webhook.ts
-          paddle.adapter.ts
-      resolver/
-        integration-resolver.ts
-      events/
-        canonical-webhook-event.ts
-      processing/
-        webhook-processor.ts
-
-  domains/
-    payments/
-    wallet/
-    billing/
-    ledger/
-```
-
-Do not mechanically create this exact structure if the current Chrono API already has an established module convention. Adapt the architecture to existing conventions.
-
----
-
-# 19. Provider registration
-
-Use a registry rather than a growing controller switch statement.
-
-Conceptually:
-
-```ts
-const webhookProviders = new Map([
-  ['paymongo', paymongoWebhookAdapter],
-  ['maya', mayaWebhookAdapter],
-  ['paddle', paddleWebhookAdapter],
-]);
-```
-
-The ingress controller becomes generic:
-
-```text
-/webhooks/:provider
-       ↓
-provider registry
-       ↓
-adapter
-```
-
-Adding a new provider should normally require:
-
-1. New adapter.
-2. Provider configuration.
-3. Integration registration.
-4. Provider-specific tests.
-
-It should NOT require a new tenant route or changes to the payment domain.
-
----
-
-# 20. Observability
-
-Every webhook should carry a correlation chain:
-
-```text
-webhook_event_id
-      ↓
-provider_event_id
-      ↓
-integration_id
-      ↓
-tenant_id
-      ↓
-payment_transaction_id
-      ↓
-ledger_entry_id
-```
-
-This makes it possible to answer:
-
-> "Why did Tenant X's wallet change?"
-
-without searching through provider-specific logs.
-
-Recommended operational views:
-
-- Webhook received.
-- Signature verification result.
-- Integration resolved.
-- Tenant resolved.
-- Event processing status.
-- Retry count.
-- Last processing error.
-- Financial transaction reference.
-
----
-
-# 21. Failure handling
-
-Provider delivery should be acknowledged only after the event has been safely persisted, not after all business processing completes.
-
-Recommended pattern:
-
-```text
-HTTP request
-   ↓
-verify
-   ↓
-persist webhook event
-   ↓
-HTTP 2xx
-   ↓
-async processor
-   ↓
-retry with backoff
-```
-
-If processing fails:
-
-```text
-webhook_events.processing_status = failed
-attempt_count += 1
-last_error = sanitized error
-```
-
-Retryable failures should be retried.
-
-Permanent failures should be moved to a dead-letter/manual-review state.
-
-Payment events requiring tenant resolution should use `needs_resolution`, not generic `failed`.
-
----
-
-# 22. Testing strategy
-
-Every provider adapter must have tests for:
-
-### Signature
-
-- Valid signature accepted.
-- Invalid signature rejected.
-- Modified body rejected.
-- Missing signature rejected where required.
-- Replay protection where supported.
-
-### Routing
-
-- Platform integration resolves to platform scope.
-- Tenant A resolves to Tenant A.
-- Tenant B resolves to Tenant B.
-- Unknown provider account is not assigned to a tenant.
-- Cross-tenant provider account mapping is rejected.
-
-### Idempotency
-
-- Same provider event delivered twice results in one business effect.
-- Concurrent duplicate delivery remains safe.
-
-### Payments
-
-- Successful payment credits exactly once.
-- Failed payment does not credit wallet.
-- Refund creates the correct compensating financial event.
-- Out-of-order provider events do not corrupt final payment state.
-
-### Security
-
-- Tenant ID in payload cannot override resolved tenant.
-- Tenant ID in URL cannot exist as an authorization mechanism because tenant URLs are not used.
-- Provider secrets are never returned in API responses/logs.
-
----
-
-# 23. Migration strategy
-
-Do not rewrite all payment integrations at once.
-
-Recommended sequence:
-
-### Phase 1 — Foundation
-
-- Create integration registry abstraction.
-- Create webhook event persistence model.
-- Create canonical event model.
-- Create generic ingress route.
-- Create provider adapter registry.
-
-### Phase 2 — Payment provider
-
-Migrate the first payment provider, preferably the provider currently used most heavily by Chrono.
-
-- Implement signature verification.
-- Implement provider account resolution.
-- Implement tenant resolution.
-- Normalize payment events.
-- Connect to existing payment domain.
-- Add idempotency.
+## Later phases (sketched — each needs its own concreteness pass before being claimed)
+
+Carried over from the original architecture draft's migration strategy, adjusted for
+what Phase 1 above actually builds:
+
+### Phase 2 — First real provider (PayMongo)
+
+Wire a real `WebhookProviderAdapter` for PayMongo, registered under `"paymongo"`,
+covering BOTH flows the legacy routes currently split across two URLs: platform-fallback
+(shared Chrono PayMongo account) and per-tenant (`tenant_integration` rows,
+`provider = "paymongo"`). This adapter **supersedes**
+`packages/agora/src/commerce/customer-payments/`'s existing PayMongo registry +
+`platformCustomerPaymentWebhookRoutes()` — decided, not left open — so this phase's
+concrete design must explicitly map: `tenant_integration` provider-account-id → tenant
+lookup (§7.A) for the per-tenant case, and the existing Chrono-payment-reference
+metadata path (§7.B) for the platform-fallback case, reusing
+`fulfilCustomerPayment`/the fulfilment-registry seam as the dispatch target so business
+logic isn't rewritten — only the ingress/verification/resolution layer moves.
 
 ### Phase 3 — Second provider
 
-Migrate the next provider without changing the domain/payment architecture.
-
-The second integration is the proof that the architecture is genuinely provider-independent.
+Migrate a second, genuinely different provider (Maya or Paddle) with zero changes to
+the domain/payment architecture built in Phase 2 — the proof the architecture is
+provider-independent.
 
 ### Phase 4 — Platform integrations
 
-Move Chrono-owned billing integrations into the same centralized ingress pattern.
+Move `/billing/webhook`'s Stripe/PayMongo/Xendit dispatch onto this same ingress.
 
-### Phase 5 — Remove legacy webhook routes
+### Phase 5 — Legacy route deletion (mandatory, not optional)
 
-After traffic is migrated and verified:
+Delete `/billing/webhook`, `/payments/customer/webhook/platform`, and
+`/payments/customer/webhook/:token` from `app.ts` entirely, along with any code that
+existed only to serve them (e.g. `getBillingWebhookProvider` call sites specific to
+these routes, `findTenantByCustomerPaymentWebhookToken` if nothing else uses it,
+`platformCustomerPaymentWebhookRoutes()` if fully superseded). This only happens AFTER
+Phase 4 proves the new ingress handles the same three flows correctly against real
+provider traffic (Stripe/PayMongo/Xendit billing events, and PayMongo customer
+checkout events, both platform-fallback and per-tenant). Update provider dashboards
+(Stripe/Xendit/PayMongo webhook URL config) to point at the new
+`/api/v1/webhooks/:provider` URLs as part of this phase — the external URL change is
+itself a coordinated cutover step, not an afterthought.
 
-- Disable old provider-specific routes.
-- Remove duplicated handlers.
-- Remove tenant-specific inbound webhook URLs.
-- Update provider dashboards/configurations.
+## Acceptance criteria for the whole initiative (from the original draft, unchanged)
 
----
-
-# 24. Acceptance criteria
-
-The implementation is successful when:
-
-- There is one centralized inbound webhook subsystem in `chrono-api`.
-- There is one stable webhook URL pattern per provider, not per tenant.
+- One centralized inbound webhook subsystem in `chrono-api`.
+- One stable webhook URL pattern per provider, not per tenant.
 - Platform and tenant integrations use the same ingress architecture.
-- A tenant can connect/disconnect a provider without creating application routes.
-- Payment webhooks resolve the correct tenant internally.
-- Tenant resolution does not trust arbitrary tenant IDs from requests.
-- Provider signature verification occurs before financial state changes.
+- Tenant resolution never trusts arbitrary tenant IDs from requests.
+- Signature verification occurs before financial state changes.
 - Duplicate provider events cannot duplicate financial effects.
 - Provider payloads are normalized before reaching payment/business domains.
-- Payment domain code does not contain PayMongo/Maya/Paddle webhook parsing.
 - Adding another provider does not require creating tenant-specific routes.
-- Unresolved financial events are retained for safe manual resolution rather than guessed.
-- Platform and tenant financial data remain isolated.
-- Logs and audit records can trace a webhook to the resulting payment and ledger transaction.
-
----
-
-# 25. Recommended final mental model
-
-The simplest rule for the team is:
-
-> **Providers send events to Chrono. Chrono identifies the integration. The integration identifies the tenant. The canonical event identifies the business action. The domain owns the money.**
-
-So the architecture becomes:
-
-```text
-                    PROVIDER
-                       │
-                       ▼
-             /api/v1/webhooks/:provider
-                       │
-                       ▼
-               WEBHOOK INGRESS
-                       │
-                       ▼
-              PROVIDER ADAPTER
-                       │
-                       ▼
-             SIGNATURE VERIFIED
-                       │
-                       ▼
-            INTEGRATION RESOLVER
-                 │           │
-                 │           └── platform
-                 │
-                 └────────────── tenant
-                       │
-                       ▼
-               CANONICAL EVENT
-                       │
-                       ▼
-                DOMAIN SERVICE
-                       │
-              ┌────────┴────────┐
-              ▼                 ▼
-           PAYMENT           LEDGER
-              │                 │
-              └────────┬────────┘
-                       ▼
-                    WALLET
-```
-
-This is the pattern Chrono should standardize on before adding more payment providers.
+- Unresolved financial events are retained for manual resolution, never guessed.
