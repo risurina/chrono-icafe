@@ -268,12 +268,9 @@ async function main() {
   const { verifyWebhookSignature, registerEmailQueueJob } = await import("agora/server");
   const { runQueueOnce } = await import("agora/queue");
   const { registerWebhookQueueJob } = await import("agora/webhooks");
-  const {
-    signStripePayload,
-    getBillingWebhookProvider,
-    __setBillingProvider,
-    registerActiveBillingWebhookProvider,
-  } = await import("agora/billing");
+  const { signStripePayload, getBillingWebhookProvider, __setBillingProvider } =
+    await import("agora/billing");
+  const { registerActiveBillingWebhookProvider } = await import("agora/billing/server");
   const { registerWebhookProvider } = await import("agora/webhooks/inbound");
   const { paymongoWebhookAdapter } = await import("../modules/webhook/adapters/paymongo");
 
