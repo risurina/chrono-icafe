@@ -186,7 +186,6 @@ test.describe("Member dashboard", () => {
     await expect(page.getByTestId("membership-card")).toBeVisible();
     await expect(page.getByTestId("premium-store")).toBeVisible();
     await expect(page.getByText(/Welcome, Dash Member/)).toBeVisible();
-    await expect(page.getByText("bronze")).toBeVisible();
 
     // Manual Refresh re-fetches without polling (the plan's "no realtime for
     // members" decision) — clicking it must not error or navigate away.
@@ -215,6 +214,10 @@ test.describe("Member dashboard", () => {
     await expect(page.getByTestId("time-credits-card").getByText("Any station")).toBeVisible();
     await expect(page.getByTestId("time-credits-card").getByText("1h 30m")).toBeVisible();
     await expect(page.getByTestId("membership-card").getByText(/^Code: /)).toBeVisible();
+    // The tier badge itself is gated on `approved && loyalty` (player/page.tsx)
+    // — it only renders once the application is approved, not on the
+    // brand-new zero-state dashboard checked above.
+    await expect(page.getByTestId("membership-card").getByText("bronze")).toBeVisible();
 
     await ownerCtx.close();
   });
