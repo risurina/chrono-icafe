@@ -2,12 +2,13 @@
 
 ## Status
 
-Draft — Phase 1 is concreteness-gated and ready for developer acceptance. Phases 2-5
-are sketched (from the original architecture draft's migration strategy) but each needs
-its own concreteness pass before it can be claimed/implemented.
+Accepted. Phase 1 delegated to Jules for implementation. Phases 2-5 are sketched (from
+the original architecture draft's migration strategy) but each needs its own
+concreteness pass before it can be claimed/implemented.
 
 **Sessions:**
 - Planning: current session
+- Implementation: current session (Phase 1 delegated to Jules per delegate-implementation)
 
 ## Why
 
