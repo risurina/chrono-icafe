@@ -3,16 +3,22 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
- * STALE (centralized-webhook-architecture plan, Phase 6): both routes this
- * spec posts to — `POST /payments/customer/webhook/platform` and
- * `POST /payments/customer/webhook/:token` — were deleted. Platform-fallback
+ * Redesigned for the centralized-webhook-architecture plan's Phase 6 cutover
+ * (see `.ai/plans/chrono/in-progress/centralized-webhook-architecture.md`,
+ * "Status" follow-up #2, and `online-checkout.spec.ts`'s own header for the
+ * full model). Both routes this spec used to post to —
+ * `POST /payments/customer/webhook/platform` and
+ * `POST /payments/customer/webhook/:token` — are deleted. Platform-fallback
  * and per-tenant PayMongo customer-payment webhooks now share the single
- * centralized ingress URL `/api/v1/webhooks/paymongo`
+ * centralized ingress URL `POST /api/v1/webhooks/paymongo`
  * (`apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`'s `dispatch()`
- * branches on `canonical.scope` instead of two separate mount points). This
- * file was left unmodified rather than guessed at — see
- * `online-checkout.spec.ts`'s own header for why a URL swap alone isn't
- * enough. This spec needs a real redesign before it will pass again.
+ * branches on `canonical.scope` — `"platform"` vs `"tenant"` — instead of two
+ * separate mount points). Identity for BOTH scopes is proven the same way:
+ * brute-force-matching the request's HMAC signature against every enabled
+ * tenant's own configured secret, plus the platform fallback secret
+ * (`PLATFORM_CUSTOMER_PAYMENT_PAYMONGO_WEBHOOK_SECRET`) — whichever one
+ * verifies is the resolved scope/tenant, never anything read from the
+ * payload's own `metadata`.
  */
 
 /**
@@ -39,16 +45,17 @@ import { faker } from "../../utils/faker";
  * time this suite was written — a gap worth closing there, not here).
  *
  * What THIS suite proves instead, deterministically, with no external PSP
- * dependency: the shared platform webhook route
- * (`POST /payments/customer/webhook/platform`, mounted in `app.ts`) is
- * correctly wired end-to-end through the REAL running `chrono-api` process —
- * `payment-bootstrap.ts`'s `registerCustomerPaymentFulfilment("chrono_payment", ...)`
+ * dependency: the centralized webhook ingress's `"paymongo"` adapter,
+ * `POST /api/v1/webhooks/paymongo` (`apps/chrono-api/src/modules/webhook/
+ * adapters/paymongo.ts`, registered at boot in `payment-bootstrap.ts`), is
+ * correctly wired end-to-end through the REAL running `chrono-api` process for
+ * the PLATFORM scope — `registerCustomerPaymentFulfilment("chrono_payment", ...)`
  * actually fires, the wallet is credited exactly once even under replay, and
  * the existing PER-TENANT flow (a tenant with its own configured gateway) is
- * completely unaffected by the new route/registry existing alongside it.
- * Signature verification is pure local HMAC — no PayMongo network call is
- * needed for the webhook side, only for checkout creation, so this is a
- * legitimate, non-flaky, offline-capable proof of the Phase 3/4 wiring.
+ * completely unaffected by the platform scope existing alongside it on the
+ * SAME URL. Signature verification is pure local HMAC — no PayMongo network
+ * call is needed for the webhook side, only for checkout creation, so this is
+ * a legitimate, non-flaky, offline-capable proof of the ingress wiring.
  *
  * The fallback test below needs
  * `PLATFORM_CUSTOMER_PAYMENT_PAYMONGO_WEBHOOK_SECRET` to be set to the SAME
@@ -122,13 +129,15 @@ async function getMemberIdentity(
 /** Configures a `customerPayment` integration with a webhook secret THIS TEST
  * chooses — used only by the regression case below (a tenant WITH its own
  * gateway), never by the fallback case (the platform secret is not
- * tenant-configurable). Mirrors `online-checkout.spec.ts` exactly. */
+ * tenant-configurable). Mirrors `online-checkout.spec.ts` exactly, including
+ * the `webhookReveal.webhookUrl` assertion (the single stable ingress URL —
+ * see that file's own helper doc for why only the path is checked). */
 async function configureCustomerPaymentGateway(
   page: Page,
   slug: string,
   tag: string,
   webhookSecret: string,
-): Promise<{ webhookToken: string }> {
+): Promise<void> {
   const res = await page.request.put(`${apiUrl}/rpc/integrations/customer-payment`, {
     headers: { "x-tenant-slug": slug, "x-forwarded-for": xff(tag) },
     data: {
@@ -140,9 +149,9 @@ async function configureCustomerPaymentGateway(
     },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { webhookReveal?: { webhookToken: string } };
+  const body = (await res.json()) as { webhookReveal?: { webhookUrl: string } };
   expect(body.webhookReveal).toBeTruthy();
-  return { webhookToken: body.webhookReveal!.webhookToken };
+  expect(body.webhookReveal!.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
 }
 
 /** Creates a `pending` `online` payment for a member directly via the staff
@@ -197,12 +206,18 @@ function signPaymongoPayload(payload: string, secret: string): string {
   return `t=${t},te=${sig}`;
 }
 
-/** A `checkout_session.payment.paid` event body carrying the extra
- * `referenceType` metadata field the shared PLATFORM route requires (the
- * per-tenant route infers it implicitly since only Chrono payments ever flow
- * through a tenant's own token) — see
- * `packages/agora/src/commerce/customer-payments/platform-webhook-route.test.ts`'s
- * own fixture, which this mirrors. */
+/** A `checkout_session.payment.paid` event body. `referenceType` is kept as
+ * an optional field for parity with `parsePaymongoCustomerPayment`
+ * (`packages/agora/src/commerce/customer-payments/vendors/paymongo.ts`,
+ * which still reads it into `ParsedCustomerPayment.referenceType`), but the
+ * NEW centralized adapter's `dispatch()` for `scope: "platform"`
+ * (`apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`) no longer
+ * branches on it — it resolves the platform fulfilment handler unconditionally
+ * as `"chrono_payment"` (this app is the only registrant), unlike the deleted
+ * shared `platformCustomerPaymentWebhookRoutes()` this spec used to exercise,
+ * which needed `referenceType` to pick a handler across possibly-multiple
+ * business apps. Included here anyway for realism/parity with a real PayMongo
+ * payload, not because the new adapter requires it. */
 function buildPaidEventPayload(opts: {
   eventId: string;
   tenantId: string;
@@ -241,25 +256,14 @@ function buildPaidEventPayload(opts: {
   });
 }
 
-async function postTenantWebhook(
-  page: Page,
-  webhookToken: string,
-  tag: string,
-  payload: string,
-  secret: string,
-) {
-  return page.request.post(`${apiUrl}/payments/customer/webhook/${webhookToken}`, {
-    headers: {
-      "content-type": "application/json",
-      "paymongo-signature": signPaymongoPayload(payload, secret),
-      "x-forwarded-for": xff(tag),
-    },
-    data: payload,
-  });
-}
-
-async function postPlatformWebhook(page: Page, tag: string, payload: string, secret: string) {
-  return page.request.post(`${apiUrl}/payments/customer/webhook/platform`, {
+/** Both the tenant-secret path and the platform-fallback path now share this
+ * ONE stable URL — the adapter resolves which scope a request belongs to
+ * purely from which candidate secret verifies the signature (see this file's
+ * header). `secret` picks the scope: a tenant's own configured secret
+ * resolves `scope: "tenant"`; `PLATFORM_CUSTOMER_PAYMENT_PAYMONGO_WEBHOOK_SECRET`
+ * resolves `scope: "platform"`. */
+async function postWebhook(page: Page, tag: string, payload: string, secret: string) {
+  return page.request.post(`${apiUrl}/api/v1/webhooks/paymongo`, {
     headers: {
       "content-type": "application/json",
       "paymongo-signature": signPaymongoPayload(payload, secret),
@@ -348,7 +352,7 @@ test.describe("Member online checkout: platform PayMongo fallback", () => {
       currency: "PHP",
     });
 
-    const firstWebhook = await postPlatformWebhook(page, uniq, payload, PLATFORM_WEBHOOK_SECRET!);
+    const firstWebhook = await postWebhook(page, uniq, payload, PLATFORM_WEBHOOK_SECRET!);
     expect(firstWebhook.ok(), await firstWebhook.text()).toBeTruthy();
     const firstBody = (await firstWebhook.json()) as { received: boolean; ignored?: boolean };
     expect(firstBody.received).toBe(true);
@@ -366,7 +370,7 @@ test.describe("Member online checkout: platform PayMongo fallback", () => {
     // Replay: PayMongo redelivering the SAME event is a no-op — the wallet is
     // credited exactly once (fulfilCustomerPayment's own `already_paid` guard),
     // and the response never claims a second fulfilment.
-    const replay = await postPlatformWebhook(page, uniq, payload, PLATFORM_WEBHOOK_SECRET!);
+    const replay = await postWebhook(page, uniq, payload, PLATFORM_WEBHOOK_SECRET!);
     expect(replay.ok(), await replay.text()).toBeTruthy();
 
     const finalRes = await pageMember.request.get(`${apiUrl}/portal/wallet/balance`, {
@@ -392,7 +396,7 @@ test.describe("Member online checkout: platform PayMongo fallback", () => {
 
     await isolateClientIp(page, uniq);
     await signUpBusiness(page, { name: "Fallback Regress Owner", email: ownerEmail, slug });
-    const { webhookToken } = await configureCustomerPaymentGateway(page, slug, uniq, webhookSecret);
+    await configureCustomerPaymentGateway(page, slug, uniq, webhookSecret);
 
     const ctxMember = await browser.newContext();
     const pageMember = await ctxMember.newPage();
@@ -418,9 +422,11 @@ test.describe("Member online checkout: platform PayMongo fallback", () => {
       currency: "PHP",
     });
 
-    // Delivered on the EXISTING per-tenant path, not the new platform one —
-    // proves the two routes stay independent.
-    const webhookRes = await postTenantWebhook(pageMember, webhookToken, uniq, payload, webhookSecret);
+    // Delivered on the SAME shared URL, but signed with the TENANT's own
+    // secret (not the platform one) — proves the two scopes stay independent
+    // even though they now share one route: the adapter resolves this as
+    // `scope: "tenant"`, never `"platform"`, purely from which secret verifies.
+    const webhookRes = await postWebhook(pageMember, uniq, payload, webhookSecret);
     expect(webhookRes.ok(), await webhookRes.text()).toBeTruthy();
 
     const afterRes = await pageMember.request.get(`${apiUrl}/portal/wallet/balance`, {

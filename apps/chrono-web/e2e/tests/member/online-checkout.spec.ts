@@ -3,22 +3,29 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
- * STALE (centralized-webhook-architecture plan, Phase 6): the API route this
- * spec posts to (`POST /payments/customer/webhook/:token`) was deleted —
- * inbound PayMongo customer-payment webhooks now go through the centralized
- * ingress at a single stable `/api/v1/webhooks/paymongo` URL (no per-tenant
- * URL token at all; the tenant is identified by brute-force-matching the
- * request's HMAC signature against every enabled tenant's own secret — see
- * `apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`). This file was
- * left unmodified rather than guessed at: the "isolation" test's whole premise
- * (a URL-token tenant vs. a payload-metadata tenant mismatching) no longer
- * applies under the new model, where the verified secret alone decides
- * identity — the equivalent guarantee ("a payload signed with tenant A's real
- * secret resolves to tenant A regardless of what its metadata claims") is
- * already proven at the adapter level by
- * `apps/chrono-api/src/modules/webhook/adapters/paymongo.test.ts`'s
- * "Mismatched metadata" case. This browser-level spec needs a real redesign,
- * not a URL swap, before it will pass again.
+ * Redesigned for the centralized-webhook-architecture plan's Phase 6 cutover
+ * (see `.ai/plans/chrono/in-progress/centralized-webhook-architecture.md`,
+ * "Status" follow-up #2). Inbound PayMongo customer-payment webhooks now go
+ * through the centralized ingress at a single stable
+ * `POST /api/v1/webhooks/paymongo` URL, shared by every tenant — there is no
+ * per-tenant URL token at all. Identity is proven by brute-force-matching the
+ * request's HMAC signature against every enabled tenant's own configured
+ * secret (plus the platform fallback secret); whichever secret produces a
+ * matching signature is the verified tenant
+ * (`apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`,
+ * `getCandidateSecrets()`/`resolve()`).
+ *
+ * The old "isolation" test asserted a URL-token-vs-payload-metadata mismatch
+ * that no longer exists as a concept under this model. Its replacement below
+ * asserts the actual guarantee that took its place: a payload signed with
+ * tenant A's real secret, whose `metadata.tenantId` claims tenant B, still
+ * resolves to and fulfils tenant A's payment — payload metadata is
+ * informational only, never load-bearing for identity. This mirrors, at the
+ * browser/HTTP level, `apps/chrono-api/src/modules/webhook/adapters/
+ * paymongo.test.ts`'s "Mismatched tenant metadata" case (which signs with
+ * `acmeId`'s real secret, claims `org_other` in `metadata.tenantId`, and
+ * asserts the resulting `webhookEvent` row still resolves `scope: "tenant"`,
+ * `tenantId: acmeId`).
  */
 
 /**
@@ -115,6 +122,18 @@ async function memberSignUp(
   await page.waitForURL(`${base}/member`, { timeout: 15_000 });
 }
 
+/** A signed-in staff actor's own tenant id, via `GET /rpc/me` — used to get
+ * tenant B's real id for the isolation test below without needing a member
+ * account on tenant B (the owner's own staff session already carries it). */
+async function getStaffTenantId(page: Page, slug: string, tag: string): Promise<string> {
+  const res = await page.request.get(`${apiUrl}/rpc/me`, {
+    headers: { "x-tenant-slug": slug, "x-forwarded-for": xff(tag) },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const body = (await res.json()) as { tenantId: string };
+  return body.tenantId;
+}
+
 /** The member's own `tenantMember` id + tenant id — needed to create a
  * staff-side payment row for this member and to stamp the webhook metadata.
  * `/portal/members/me` returns `profile: null` until the member explicitly
@@ -142,13 +161,24 @@ async function getMemberIdentity(
 /** Configures a `customerPayment` integration with a webhook secret THIS
  * TEST chooses (never validated against the real PSP at configure time —
  * only `createCheckout` would ever call PayMongo, which this suite never
- * does). Staff-authed `page` must already be on the tenant's own host. */
+ * does). Staff-authed `page` must already be on the tenant's own host.
+ *
+ * The response's `webhookReveal.webhookUrl` is asserted to be the single,
+ * stable, provider-wide ingress URL — every tenant configures the SAME URL
+ * in their own PayMongo dashboard now (no more per-tenant `webhookToken` in
+ * the URL; `customerPaymentWebhookUrl()`, `apps/chrono-api/src/routes/
+ * rpc.ts`). Its host is whatever `AGORA_API_PUBLIC_URL` resolves to on the
+ * running `chrono-api` process (not necessarily this Playwright process's own
+ * `apiUrl`), so only the path is asserted. The reveal still carries a
+ * `webhookToken` (vestigial — see this plan's Status follow-up #3 — the field
+ * is no longer used to address the webhook route), which this helper
+ * ignores. */
 async function configureCustomerPaymentGateway(
   page: Page,
   slug: string,
   tag: string,
   webhookSecret: string,
-): Promise<{ webhookToken: string }> {
+): Promise<void> {
   const res = await page.request.put(`${apiUrl}/rpc/integrations/customer-payment`, {
     headers: { "x-tenant-slug": slug, "x-forwarded-for": xff(tag) },
     data: {
@@ -160,9 +190,9 @@ async function configureCustomerPaymentGateway(
     },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { webhookReveal?: { webhookToken: string } };
+  const body = (await res.json()) as { webhookReveal?: { webhookUrl: string } };
   expect(body.webhookReveal).toBeTruthy();
-  return { webhookToken: body.webhookReveal!.webhookToken };
+  expect(body.webhookReveal!.webhookUrl).toMatch(/\/api\/v1\/webhooks\/paymongo$/);
 }
 
 /** Creates a `pending` `online` payment for a member directly via the staff
@@ -237,16 +267,14 @@ function buildPaidEventPayload(opts: {
 }
 
 /** The webhook is unauthenticated (no session, no `x-tenant-slug`) — it
- * still gets the `x-forwarded-for` isolation since it is itself rate-limited
- * (120/min per IP, `customerPaymentWebhookLimiter` in `app.ts`). */
-async function postWebhook(
-  page: Page,
-  webhookToken: string,
-  tag: string,
-  payload: string,
-  secret: string,
-) {
-  return page.request.post(`${apiUrl}/payments/customer/webhook/${webhookToken}`, {
+ * still gets the `x-forwarded-for` isolation, and it still posts to the ONE
+ * stable, provider-wide URL every tenant shares
+ * (`POST /api/v1/webhooks/paymongo`, `agora/webhooks/inbound`'s
+ * `webhookIngressRoutes()`, mounted in `apps/chrono-api/src/app.ts`). There is
+ * no per-tenant token in the path anymore — the `secret` argument is what
+ * proves which tenant this request belongs to. */
+async function postWebhook(page: Page, tag: string, payload: string, secret: string) {
+  return page.request.post(`${apiUrl}/api/v1/webhooks/paymongo`, {
     headers: {
       "content-type": "application/json",
       "paymongo-signature": signPaymongoPayload(payload, secret),
@@ -358,7 +386,7 @@ test.describe("Member online checkout (PayMongo)", () => {
     // `POST /rpc/payments` call needs that session. The member gets its own
     // browser context.
     await signUpBusiness(page, { name: "Happy Owner", email: ownerEmail, slug });
-    const { webhookToken } = await configureCustomerPaymentGateway(page, slug, uniq, webhookSecret);
+    await configureCustomerPaymentGateway(page, slug, uniq, webhookSecret);
 
     const ctxMember = await browser.newContext();
     const pageMember = await ctxMember.newPage();
@@ -396,7 +424,7 @@ test.describe("Member online checkout (PayMongo)", () => {
       currency: "PHP",
     });
 
-    const firstWebhook = await postWebhook(pageMember, webhookToken, uniq, payload, webhookSecret);
+    const firstWebhook = await postWebhook(pageMember, uniq, payload, webhookSecret);
     expect(firstWebhook.ok(), await firstWebhook.text()).toBeTruthy();
 
     await pageMember.reload();
@@ -411,7 +439,7 @@ test.describe("Member online checkout (PayMongo)", () => {
     expect(Number(after.balance)).toBeCloseTo(Number(before.balance) + Number(amount), 2);
 
     // Replay: PayMongo redelivering the SAME event id is a no-op.
-    const replay = await postWebhook(pageMember, webhookToken, uniq, payload, webhookSecret);
+    const replay = await postWebhook(pageMember, uniq, payload, webhookSecret);
     expect(replay.ok(), await replay.text()).toBeTruthy();
     const replayBody = (await replay.json()) as { deduped?: boolean };
     expect(replayBody.deduped).toBe(true);
@@ -426,10 +454,18 @@ test.describe("Member online checkout (PayMongo)", () => {
     await ctxMember.close();
   });
 
-  test("isolation: a webhook resolved to tenant B cannot fulfil tenant A's payment", async ({
+  test("isolation: a payload signed with tenant A's real secret resolves to tenant A, not the tenant its metadata claims (B)", async ({
     page,
     browser,
   }) => {
+    // The new security property (centralized-webhook-architecture plan, Phase
+    // 2 "Decided" list, point 8): `metadata.tenantId` is informational only,
+    // never load-bearing for identity. There is one shared URL for every
+    // tenant now, so the old "URL-token tenant vs. payload tenant mismatch →
+    // reject" test no longer has anything to mismatch against — the only
+    // thing that can prove identity is which tenant's secret produced a
+    // valid HMAC. This drives that proof for real: tenant A's own secret,
+    // tenant B's id forged into the payload, tenant A's own payment credited.
     const uniq = faker.string.alphanumeric(8).toLowerCase();
     const slugA = `e2eckoutisoa${uniq}`;
     const slugB = `e2eckoutisob${uniq}`;
@@ -446,64 +482,70 @@ test.describe("Member online checkout (PayMongo)", () => {
     // Owner A stays signed in on `page` for the whole test — the staff
     // `POST /rpc/payments` call needs that session.
     await signUpBusiness(page, { name: "Iso Owner A", email: emailA, slug: slugA });
-    const { webhookToken: tokenA } = await configureCustomerPaymentGateway(
-      page,
-      slugA,
-      uniq,
-      secretA,
-    );
+    await configureCustomerPaymentGateway(page, slugA, uniq, secretA);
 
     const ctxMemberA = await browser.newContext();
     const pageMemberA = await ctxMemberA.newPage();
     await isolateClientIp(pageMemberA, uniq);
     await memberSignUp(pageMemberA, baseA, { name: "Iso Member A", email: memberEmailA });
-    const { memberId: memberAId, tenantId: tenantAId } = await getMemberIdentity(
-      pageMemberA,
-      slugA,
-      uniq,
-    );
+    const { memberId: memberAId } = await getMemberIdentity(pageMemberA, slugA, uniq);
 
     const paymentAId = await createPendingPayment(page, slugA, uniq, {
       memberId: memberAId,
       amount,
     });
 
+    // Tenant B exists purely as the OTHER real tenant whose id gets forged
+    // into the payload below — its own secret (`secretB`) is configured but
+    // deliberately never used to sign anything in this test, proving the
+    // attack succeeds (or fails) purely on whose secret verifies the
+    // signature, never on which tenant merely exists or has its own gateway.
     const ctxOwnerB = await browser.newContext();
     const pageOwnerB = await ctxOwnerB.newPage();
     await isolateClientIp(pageOwnerB, uniq);
     await signUpBusiness(pageOwnerB, { name: "Iso Owner B", email: emailB, slug: slugB });
-    const { webhookToken: tokenB } = await configureCustomerPaymentGateway(
-      pageOwnerB,
-      slugB,
-      uniq,
-      secretB,
-    );
+    await configureCustomerPaymentGateway(pageOwnerB, slugB, uniq, secretB);
+    const tenantBId = await getStaffTenantId(pageOwnerB, slugB, uniq);
 
-    // An attacker (or a misdirected retry) carries tenant A's real payment
-    // id into tenant B's own webhook token, signed with tenant B's own real
-    // secret. The path-resolved tenant (B, from the token) never matches the
-    // payload's own tenantId (A) — refused before any fulfilment runs.
+    const beforeRes = await pageMemberA.request.get(`${apiUrl}/portal/wallet/balance`, {
+      headers: { "x-tenant-slug": slugA, "x-forwarded-for": xff(uniq) },
+    });
+    const before = (await beforeRes.json()) as { balance: string };
+
+    // The forged payload: tenant A's real payment id as the reference, but
+    // `metadata.tenantId` claims tenant B — yet it is signed with tenant A's
+    // OWN real secret (`secretA`), posted to the single shared ingress URL.
     const eventId = faker.string.uuid();
     const forgedPayload = buildPaidEventPayload({
       eventId,
-      tenantId: tenantAId,
+      tenantId: tenantBId,
       referenceId: paymentAId,
       amount,
       currency: "PHP",
     });
-    const crossRes = await postWebhook(pageOwnerB, tokenB, uniq, forgedPayload, secretB);
-    expect(crossRes.status()).toBe(400);
+    const res = await postWebhook(pageOwnerB, uniq, forgedPayload, secretA);
+    expect(res.ok(), await res.text()).toBeTruthy();
 
-    // Tenant A's payment was never touched by the refused cross-tenant call.
-    const stillPending = await pageMemberA.request.get(`${apiUrl}/portal/payments/${paymentAId}`, {
+    // Resolved and fulfilled as TENANT A — despite the payload's own claim.
+    const paidRes = await pageMemberA.request.get(`${apiUrl}/portal/payments/${paymentAId}`, {
       headers: { "x-tenant-slug": slugA, "x-forwarded-for": xff(uniq) },
     });
-    const stillPendingBody = (await stillPending.json()) as { status: string };
-    expect(stillPendingBody.status).toBe("pending");
+    const paidBody = (await paidRes.json()) as { status: string };
+    expect(paidBody.status).toBe("paid");
 
-    // tokenA is exercised only to prove it's a distinct, valid token for
-    // tenant A (never used above, since the attack targets tenant B's URL).
-    expect(tokenA).not.toBe(tokenB);
+    const afterRes = await pageMemberA.request.get(`${apiUrl}/portal/wallet/balance`, {
+      headers: { "x-tenant-slug": slugA, "x-forwarded-for": xff(uniq) },
+    });
+    const after = (await afterRes.json()) as { balance: string };
+    expect(Number(after.balance)).toBeCloseTo(Number(before.balance) + Number(amount), 2);
+
+    // Tenant B never held this payment id at all — no cross-tenant leak of
+    // the record, and nothing in tenant B was created or touched by a
+    // payload merely claiming its id.
+    const crossRes = await pageOwnerB.request.get(`${apiUrl}/rpc/payments/${paymentAId}`, {
+      headers: { "x-tenant-slug": slugB, "x-forwarded-for": xff(uniq) },
+    });
+    expect(crossRes.status()).toBe(404);
 
     await ctxMemberA.close();
     await ctxOwnerB.close();
