@@ -3,7 +3,7 @@
 **Sessions:**
 - Planning: current session
 - Audit: (unclaimed)
-- Implementation: Phase 1 landed — station-group DTO fields added; Phase 2 landed — member code + time-credits card
+- Implementation: Phase 1 landed — station-group DTO fields added; Phase 2 landed — member code + time-credits card; Phase 3 landed — e2e coverage. Plan complete, archived.
 
 ## Source
 
@@ -175,3 +175,21 @@ feature is additive to an already-covered page.
 Phase 1, starting with reading the current full body of `apps/chrono-api/src/modules/credit/
 portal-routes.ts`'s `GET /balance` handler and `apps/chrono-api/src/modules/station/schema.ts`'s
 `chronoStationGroup` table (`id`, `name` columns) to confirm the exact query shape to copy.
+
+## Status: complete
+
+All 3 phases landed:
+
+- Phase 1 (backend DTO fields) — commit `a5f56e72`.
+- Phase 2 (frontend member code + Time Credits card) — commit `9ed1ef36`.
+- Phase 3 (e2e coverage) — this commit.
+
+**Deliberate deviation from the plan as written**: Phase 2's plan text said the new
+`time-credits-card` should be "entirely absent" when `!approved`. What actually shipped
+instead follows the same pattern as this page's pre-existing Wallet card: the card is
+always rendered for any signed-in member with a `tenantMember` row, showing a locked
+message ("Time credits unlock once your application is approved.") when `!approved`, and
+real grouped-by-station-group content only once approved. Phase 3's e2e spec
+(`apps/chrono-web/e2e/tests/member/dashboard.spec.ts`) was written and audited against
+this actual shipped behavior — the role-gate test asserts the locked message rather than
+the card's absence.
