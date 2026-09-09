@@ -260,6 +260,13 @@
       "when": 1788917744429,
       "tag": "0036_chrono-device-commands",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788951479980,
+      "tag": "0037_add-webhook-events",
+      "breakpoints": true
     }
   ]
 }
