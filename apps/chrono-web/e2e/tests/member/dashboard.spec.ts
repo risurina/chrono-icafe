@@ -83,7 +83,7 @@ async function applyAndApprove(
 
   await ownerPage.goto(`${base}/admin/members`);
   await ownerPage.waitForLoadState("networkidle");
-  const row = ownerPage.getByRole("row", { name: new RegExp(memberEmail) });
+  const row = ownerPage.getByRole("row", { name: new RegExp(memberEmail, "i") });
   await row.getByRole("button", { name: "Approve" }).click();
   await expect(ownerPage.getByText("Application approved.")).toBeVisible();
 }
