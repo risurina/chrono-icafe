@@ -3,6 +3,25 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
+ * STALE (centralized-webhook-architecture plan, Phase 6): the API route this
+ * spec posts to (`POST /payments/customer/webhook/:token`) was deleted —
+ * inbound PayMongo customer-payment webhooks now go through the centralized
+ * ingress at a single stable `/api/v1/webhooks/paymongo` URL (no per-tenant
+ * URL token at all; the tenant is identified by brute-force-matching the
+ * request's HMAC signature against every enabled tenant's own secret — see
+ * `apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`). This file was
+ * left unmodified rather than guessed at: the "isolation" test's whole premise
+ * (a URL-token tenant vs. a payload-metadata tenant mismatching) no longer
+ * applies under the new model, where the verified secret alone decides
+ * identity — the equivalent guarantee ("a payload signed with tenant A's real
+ * secret resolves to tenant A regardless of what its metadata claims") is
+ * already proven at the adapter level by
+ * `apps/chrono-api/src/modules/webhook/adapters/paymongo.test.ts`'s
+ * "Mismatched metadata" case. This browser-level spec needs a real redesign,
+ * not a URL swap, before it will pass again.
+ */
+
+/**
  * Member online checkout (`/member/wallet` top-up, `/member/promos/[id]`
  * "Buy online") — `.ai/plans/chrono/active/member-credit-purchase/README.md`,
  * Phase C6, the follow-up pass once the Phase C5 web UI landed.

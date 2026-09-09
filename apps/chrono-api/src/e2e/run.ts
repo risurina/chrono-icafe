@@ -190,9 +190,10 @@ async function main() {
   // Custom-domain provisioning: local no-op provider; internal recheck secret.
   process.env.DOMAIN_PROVIDER = "noop";
   process.env.INTERNAL_JOB_TOKEN = "e2e-internal-token";
-  // Billing: a webhook signing secret (so /billing/webhook verifies signatures)
-  // but NO STRIPE_SECRET_KEY — isBillingEnabled() stays false, so checkout/portal
-  // are inert while webhook sync + entitlements are fully exercised.
+  // Billing: a webhook signing secret (so the centralized ingress's "stripe"
+  // adapter, registered below, verifies signatures) but NO STRIPE_SECRET_KEY —
+  // isBillingEnabled() stays false, so checkout/portal are inert while
+  // webhook sync + entitlements are fully exercised.
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_e2e_test_secret";
   // Social sign-in: dummy Google credentials so the provider counts as
   // CONFIGURED and the flag/gate round trip is exercised for real. Facebook is
@@ -267,14 +268,44 @@ async function main() {
   const { verifyWebhookSignature, registerEmailQueueJob } = await import("agora/server");
   const { runQueueOnce } = await import("agora/queue");
   const { registerWebhookQueueJob } = await import("agora/webhooks");
-  const { signStripePayload, getBillingWebhookProvider, __setBillingProvider } =
-    await import("agora/billing");
+  const {
+    signStripePayload,
+    getBillingWebhookProvider,
+    __setBillingProvider,
+    registerActiveBillingWebhookProvider,
+  } = await import("agora/billing");
+  const { registerWebhookProvider } = await import("agora/webhooks/inbound");
+  const { paymongoWebhookAdapter } = await import("../modules/webhook/adapters/paymongo");
 
   // The e2e harness imports `../app` directly (never `index.ts`), so — same as
   // that real bootstrap — job handlers must be registered before any
   // `runQueueOnce(...)` call below can process a dispatched job.
   registerEmailQueueJob();
   registerWebhookQueueJob();
+
+  // Centralized webhook ingress (centralized-webhook-architecture plan,
+  // Phase 6 — the legacy `/billing/webhook` and `/payments/customer/webhook/*`
+  // routes this suite used to drive directly are deleted; every provider
+  // webhook now goes through `/api/v1/webhooks/:provider`). `payment-
+  // bootstrap.ts` is never imported here (same reason job handlers are
+  // registered by hand just above), so its registrations are reproduced here:
+  // "stripe" (STRIPE_WEBHOOK_SECRET is already set above, and BILLING_PROVIDER
+  // is still unset/defaults to "stripe" at this point) and "paymongo-billing"
+  // (registered under its own distinct id by briefly flipping BILLING_PROVIDER
+  // to "paymongo" with a test secret, then restoring both env vars — each
+  // driver gets its own fixed-secret adapter instance for the rest of this
+  // run, matching how a real deployment only ever registers the one driver
+  // that's actually live). Xendit is exercised only via direct
+  // `getBillingWebhookProvider("xendit")` calls below (no HTTP route), so it
+  // needs no adapter registration. The customer-payments "paymongo" adapter
+  // (Phase 2) is registered the same way `payment-bootstrap.ts` does it.
+  registerActiveBillingWebhookProvider(); // "stripe"
+  process.env.BILLING_PROVIDER = "paymongo";
+  process.env.PAYMONGO_WEBHOOK_SECRET = "whsec_e2e_paymongo";
+  registerActiveBillingWebhookProvider(); // "paymongo-billing"
+  delete process.env.BILLING_PROVIDER;
+  delete process.env.PAYMONGO_WEBHOOK_SECRET;
+  registerWebhookProvider("paymongo", paymongoWebhookAdapter);
 
   const appSchema = await import("../db/schema");
   const tables = Object.values(appSchema).filter((v) => is(v, PgTable)) as PgTable[];
@@ -1814,7 +1845,7 @@ async function main() {
   check("invite blocked at free seat cap (402)", seatBlocked.status === 402, `status ${seatBlocked.status}`);
 
   // Webhook with a bad signature is rejected.
-  const badHook = await fetch(`${base}/billing/webhook`, {
+  const badHook = await fetch(`${base}/api/v1/webhooks/stripe`, {
     method: "POST",
     headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=deadbeef" },
     body: JSON.stringify({ id: "evt_bad", type: "checkout.session.completed", data: { object: {} } }),
@@ -1837,7 +1868,7 @@ async function main() {
   const evtPayload = JSON.stringify(evt);
   const sig = signStripePayload(evtPayload, "whsec_e2e_test_secret");
   async function postHook(payload: string, signature: string) {
-    const res = await fetch(`${base}/billing/webhook`, {
+    const res = await fetch(`${base}/api/v1/webhooks/stripe`, {
       method: "POST",
       headers: { "content-type": "application/json", "stripe-signature": signature },
       body: payload,
@@ -6266,12 +6297,12 @@ async function main() {
     process.env.STRIPE_SECRET_KEY = "sk_test_e2e";
     process.env.BILLING_PROVIDER = "stripe";
 
-    // Signed Stripe webhook helper — drives the real /billing/webhook route
-    // (the mirror's only write path), exactly as Stripe would.
+    // Signed Stripe webhook helper — drives the real centralized ingress
+    // route (the mirror's only write path), exactly as Stripe would.
     async function sendStripeEvent(event: unknown): Promise<number> {
       const payload = JSON.stringify(event);
       const sig = signStripePayload(payload, "whsec_e2e_test_secret");
-      const res = await fetch(`${base}/billing/webhook`, {
+      const res = await fetch(`${base}/api/v1/webhooks/stripe`, {
         method: "POST",
         headers: { "content-type": "application/json", "stripe-signature": sig },
         body: payload,
@@ -8912,7 +8943,8 @@ async function main() {
     );
   }
 
-  // ── W0e. PayMongo synthetic webhook — end-to-end through the real app.ts route. ──
+  // ── W0e. PayMongo synthetic webhook — end-to-end through the real centralized
+  // ingress route, registered under "paymongo-billing" (see setup above). ──
   {
     process.env.PAYMONGO_WEBHOOK_SECRET = "whsec_e2e_paymongo";
     process.env.BILLING_PROVIDER = "paymongo";
@@ -8949,7 +8981,7 @@ async function main() {
       .digest("hex");
     const header = `t=${t},te=${te},li=`;
 
-    const res = await fetch(`${base}/billing/webhook`, {
+    const res = await fetch(`${base}/api/v1/webhooks/paymongo-billing`, {
       method: "POST",
       headers: { "content-type": "application/json", "paymongo-signature": header },
       body: evtPayload,
@@ -8972,7 +9004,7 @@ async function main() {
     );
 
     const badHeader = `t=${t},te=bad,li=`;
-    const resBad = await fetch(`${base}/billing/webhook`, {
+    const resBad = await fetch(`${base}/api/v1/webhooks/paymongo-billing`, {
       method: "POST",
       headers: { "content-type": "application/json", "paymongo-signature": badHeader },
       body: evtPayload,

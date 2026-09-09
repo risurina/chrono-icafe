@@ -9,8 +9,10 @@ import { test, expect } from "@playwright/test";
  * double-refund / cross-tenant-isolation matrix (which needs billing actually
  * enabled + a signed synthetic webhook) is exercised end-to-end in the enforced
  * offline suite `apps/api/src/e2e/run.ts` (block "W0d"), per the plan's Phase 5
- * — that suite can toggle billing on and drive `/billing/webhook`, which a
- * headed browser against a fixed dev env cannot.
+ * — that suite can toggle billing on and drive the centralized webhook
+ * ingress (`/api/v1/webhooks/stripe`, since the legacy `/billing/webhook`
+ * route was deleted in Phase 6), which a headed browser against a fixed dev
+ * env cannot.
  *
  * Same conventions as `billing.spec.ts` — real dev DB,
  * `platform@agora.test` (seeded platformRole: "admin") as the acting staff.

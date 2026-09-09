@@ -307,9 +307,17 @@ export function tenantHostUrl(slug: string, path: string): string {
  * AGORA_API_PUBLIC_URL is introduced here, defaulting to the local dev API
  * port for parity with the web app's own localhost default.
  */
-function customerPaymentWebhookUrl(token: string): string {
+// Fixed, provider-wide URL — the centralized webhook ingress
+// (`agora/webhooks/inbound`, mounted at `/api/v1/webhooks/:provider`)
+// identifies the tenant by brute-force-matching the request's signature
+// against every enabled tenant's own secret, not by a per-tenant URL token
+// (centralized-webhook-architecture plan, Phase 6 — the legacy per-tenant
+// `/payments/customer/webhook/:token` route this URL used to build is
+// deleted). Every tenant configures the SAME URL in their own PayMongo
+// dashboard.
+function customerPaymentWebhookUrl(): string {
   const base = process.env.AGORA_API_PUBLIC_URL ?? "http://localhost:8787";
-  return `${base.replace(/\/$/, "")}/payments/customer/webhook/${token}`;
+  return `${base.replace(/\/$/, "")}/api/v1/webhooks/paymongo`;
 }
 
 /**
@@ -1923,7 +1931,7 @@ export const rpc = new Hono<{ Variables: TenantVars }>()
         ...(webhookToken
           ? {
               webhookReveal: {
-                webhookUrl: customerPaymentWebhookUrl(webhookToken),
+                webhookUrl: customerPaymentWebhookUrl(),
                 webhookToken,
               },
             }

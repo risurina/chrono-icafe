@@ -1,11 +1,15 @@
 /**
- * Registers Chrono's fulfilment handler for the shared platform
- * customer-payment webhook route (`packages/agora`'s
- * `platformCustomerPaymentWebhookRoutes()`), which cannot call into a
+ * Registers Chrono's fulfilment handler for platform-scope PayMongo
+ * customer-payment events. Originally consumed by `packages/agora`'s shared
+ * `platformCustomerPaymentWebhookRoutes()` (which could not call into a
  * business app's own fulfilment function directly — `packages/agora` is
- * business-domain-neutral (`.ai/rules/architecture.md`). See
+ * business-domain-neutral, `.ai/rules/architecture.md`); that route was
+ * deleted in the centralized-webhook-architecture plan's Phase 6, and the
+ * platform-scope branch of `apps/chrono-api/src/modules/webhook/adapters/
+ * paymongo.ts`'s `dispatch()` (the new ingress) is now the sole caller of
+ * `getCustomerPaymentFulfilment("chrono_payment")`. See
  * `agora/customer-payments`'s `registerCustomerPaymentFulfilment()` and
- * `.ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md`,
+ * `.ai/plans/agora/archive/platform-paymongo-customer-payment-fallback/README.md`,
  * Phase 4.
  *
  * Unlike `auth-bootstrap.ts`, this registry freezes on first CALL to

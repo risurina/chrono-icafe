@@ -26,19 +26,12 @@ import {
   getStorage,
   localAssetPath,
   hashApiKey,
-  resolveCustomerPaymentWebhookSecret,
-  findTenantByCustomerPaymentWebhookToken,
 } from "agora/server";
-import {
-  getCustomerPaymentWebhookVerifier,
-  platformCustomerPaymentWebhookRoutes,
-} from "agora/customer-payments";
 import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
 import { createCustomerAuthRoutes, createCustomerApplyRoutes } from "agora/customer-auth";
 import { checkReadiness } from "agora/health";
-import { withAdmin, withTenant, eq, count, inArray, sql } from "agora/db";
-import { chronoPaymentEvent } from "./modules/payment/schema";
+import { withAdmin, withTenant, eq, count, inArray } from "agora/db";
 import {
   createId,
   acceptInviteSchema,
@@ -50,8 +43,6 @@ import {
 import {
   PlanRequiredError,
   PortalNotSupportedError,
-  getBillingProviderId,
-  getBillingWebhookProvider,
 } from "agora/billing";
 import {
   rpc,
@@ -87,7 +78,6 @@ import { acceptInvite } from "agora/invites";
 import { recordAudit, recordPlatformAuditFailure } from "agora/audit";
 import { emitTenantEvent } from "agora/webhooks";
 import { recheckDomains } from "agora/domains";
-import { applyWebhookEvent, recordTransactionEvent } from "agora/billing/server";
 import {
   platformAdminRoutes,
   appReportsRoutes,
@@ -106,8 +96,6 @@ import { activityPortalRoutes } from "./modules/activity/routes";
 import { loyaltyPortalRoutes } from "./modules/loyalty/portal-routes";
 import { promoPortalRoutes } from "./modules/promo/portal-routes";
 import { paymentPortalRoutes } from "./modules/payment/portal-routes";
-import { fulfilCustomerPayment } from "./modules/payment/fulfilment";
-import { publishWalletLowIfCrossed } from "./modules/wallet/service";
 
 const webOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -193,17 +181,6 @@ const deviceAuthTokenLimiter = createRateLimiter(5, 15 * 60 * 1000, "device-auth
 // (matches the general shape of a page-load, not a login attempt), still
 // bounded per apps/chrono-api/AGENTS.md's "Unauthenticated routes" convention.
 const landingPageIpLimiter = createRateLimiter(60, 60 * 1000, "landing-page-ip"); // 60 / min
-
-// Customer-payment webhook (member-credit-purchase plan, Phase C4) — PSP
-// retries a delivery on any non-2xx/timeout, so this is sized like a
-// legitimate-retry-storm ceiling, per-IP (the PSP's own egress IPs), same
-// shape as the existing /billing/webhook (which has no separate limiter
-// because it long predates this convention — not a precedent to copy).
-const customerPaymentWebhookLimiter = createRateLimiter(
-  120,
-  60 * 1000,
-  "customer-payment-webhook",
-); // 120 / min
 
 // Platform Maintenance / global read-only enforcement (System Settings, spec
 // #14), shared by both tenant surfaces: the internal `/rpc/*` client and the
@@ -827,284 +804,6 @@ export const app = baseApp
     const result = await recheckDomains();
     return c.json(result);
   })
-  // Billing webhook (public, raw body, signature/token-verified). Mounted
-  // outside /rpc so no tenant/body middleware consumes the raw payload the HMAC
-  // is computed over. Provider-agnostic: the active provider (Stripe or Xendit)
-  // supplies both the verification scheme and the payload parser. Idempotent by
-  // event id; the tenant is resolved from the event's metadata/external id,
-  // never from a session. Respond 2xx fast.
-  .post("/billing/webhook", async (c) => {
-    const driver = getBillingProviderId();
-    const provider = getBillingWebhookProvider(driver);
-    const secret =
-      driver === "paymongo"
-        ? process.env.PAYMONGO_WEBHOOK_SECRET
-        : driver === "xendit"
-          ? process.env.XENDIT_WEBHOOK_TOKEN
-          : process.env.STRIPE_WEBHOOK_SECRET;
-    if (!secret) throw new HttpError(400, "Billing webhook is not configured.");
-    const payload = await c.req.text();
-    // Stripe signs via the `stripe-signature` header; Xendit sends a shared
-    // `x-callback-token`. Pass whichever the active provider expects.
-    const header =
-      driver === "paymongo"
-        ? c.req.header("paymongo-signature")
-        : driver === "xendit"
-          ? c.req.header("x-callback-token")
-          : c.req.header("stripe-signature");
-    if (!provider.verifyWebhook({ payload, header, secret })) {
-      throw new HttpError(400, "Invalid webhook signature.");
-    }
-    let event: {
-      id?: string;
-      type?: string;
-      status?: string;
-      data?: {
-        id?: string;
-        attributes?: { type?: string; [key: string]: unknown };
-        object?: Record<string, unknown>;
-      };
-    };
-    try {
-      event = JSON.parse(payload);
-    } catch {
-      throw new HttpError(400, "Invalid webhook payload.");
-    }
-    // Idempotency key + audit label. Stripe carries `id`/`type`; a Xendit invoice
-    // callback carries the invoice `id` + `status`, so derive an equivalent pair.
-    const eventId =
-      driver === "paymongo"
-        ? typeof event.data?.id === "string"
-          ? event.data.id
-          : null
-        : typeof event.id === "string"
-          ? driver === "xendit"
-            ? `${event.id}:${String(event.status ?? "")}`
-            : event.id
-          : null;
-    const eventType =
-      driver === "paymongo"
-        ? typeof event.data?.attributes?.type === "string"
-          ? event.data.attributes.type
-          : ""
-        : driver === "xendit"
-          ? `invoice.${String(event.status ?? "").toLowerCase()}`
-          : typeof event.type === "string"
-            ? event.type
-            : "";
-    if (!eventId) throw new HttpError(400, "Missing event id.");
-
-    // Two DISJOINT parse entrypoints, both run so neither is swallowed by the
-    // other's null: `parseEvent` maps subscription events
-    // (checkout.session.completed / customer.subscription.*), and
-    // `parseTransactionEvent` maps charge/refund/invoice events into the
-    // `payment_transaction` mirror. For Stripe the two event-type sets are
-    // disjoint (exactly one is non-null); for a Xendit PAID callback BOTH fire
-    // (it both activates the subscription and records the payment), each
-    // idempotent on its own key. The old `if (!parsed) return ignored` early
-    // return discarded charge/invoice/refund events entirely — restructured so
-    // they reach `recordTransactionEvent`.
-    const parsed = provider.parseEvent(payload);
-    const parsedTxn = provider.parseTransactionEvent(payload);
-
-    if (parsedTxn) {
-      // Best-effort mirror; idempotent by the (provider, object id) unique
-      // index. An unresolvable tenant is skipped-and-logged inside, never
-      // thrown, so a stray charge can't 500 the webhook.
-      await recordTransactionEvent(parsedTxn);
-    }
-
-    if (!parsed) {
-      return c.json({ received: true, ignored: !parsedTxn });
-    }
-
-    const result = await applyWebhookEvent(eventId, eventType, parsed);
-    // Checked BEFORE the non-suppressed branch (Condition 2) — a suppressed
-    // event never reused billing.subscription_updated/_created/_canceled,
-    // since no such change actually happened to the row.
-    if (result.ok && !result.deduped && result.suppressed) {
-      await recordAudit({
-        tenantId: result.tenantId,
-        actorType: "system",
-        action: "billing.subscription_webhook_suppressed",
-        targetType: "subscription",
-        targetId: result.tenantId,
-        metadata: {
-          eventType,
-          attemptedPlan: parsed.plan,
-          attemptedStatus: parsed.status,
-        },
-      });
-    } else if (result.ok && !result.deduped && !result.suppressed) {
-      const action = result.created
-        ? "billing.subscription_created"
-        : result.status === "canceled"
-          ? "billing.subscription_canceled"
-          : "billing.subscription_updated";
-      await recordAudit({
-        tenantId: result.tenantId,
-        actorType: "system",
-        action,
-        targetType: "subscription",
-        targetId: result.tenantId,
-        metadata: { eventType, status: result.status, plan: parsed.plan },
-      });
-    }
-    return c.json({ received: true });
-  })
-  // Platform PayMongo fallback webhook — the counterpart to the per-tenant
-  // route below, for payments collected through the platform's shared
-  // PayMongo account on behalf of a tenant with no configured integration of
-  // its own. Mounted OUTSIDE /rpc for the same reason as the per-tenant
-  // route (no session on an inbound webhook). Its own fulfilment dispatch is
-  // registered via `payment-bootstrap.ts` (imported early in `index.ts`),
-  // not a direct import here — see
-  // .ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md,
-  // Phase 4.
-  //
-  // Registered BEFORE the per-tenant `:token` route below on purpose: Hono
-  // matches routes in registration order, so a static path segment
-  // ("platform") must be registered ahead of the dynamic `:token` sibling
-  // route or the dynamic route greedily matches token="platform" first and
-  // this route never runs (confirmed live — every delivery 404'd with the
-  // `:token` handler's own "Unknown webhook." error). Do not reorder this
-  // below the `:token` route again.
-  .route("/payments/customer/webhook/platform", platformCustomerPaymentWebhookRoutes())
-  // Customer-payment webhook (member-credit-purchase plan, Phase C4) —
-  // fulfils a member-initiated online payment. Mounted OUTSIDE /rpc, per
-  // AGENTS.md's "Unauthenticated routes": no session exists, so /rpc's
-  // tenantMiddleware()/maintenance gates would refuse or misbehave on it.
-  // Raw body read via c.req.text() before any body-consuming middleware, so
-  // the HMAC is computed over the exact bytes PayMongo signed. Order of
-  // operations matters (see the plan's Pass 2, "Webhook"): token → tenant,
-  // THEN signature, THEN payload parse, THEN idempotency insert BEFORE any
-  // fulfilment — the idempotency gate is what makes a PSP retry a no-op.
-  .post("/payments/customer/webhook/:token", async (c) => {
-    const ip = clientIp(c);
-    const retryAfter = await customerPaymentWebhookLimiter.blockedFor(ip);
-    if (retryAfter !== null) {
-      return c.json({ error: "Too many requests." }, 429, { "Retry-After": String(retryAfter) });
-    }
-    await customerPaymentWebhookLimiter.record(ip);
-
-    const token = c.req.param("token");
-    const resolved = await findTenantByCustomerPaymentWebhookToken(token);
-    if (!resolved) throw new HttpError(404, "Unknown webhook.");
-    const { tenantId } = resolved;
-
-    const secret = await resolveCustomerPaymentWebhookSecret(tenantId);
-    if (!secret) throw new HttpError(400, "Customer payments are not configured for this tenant.");
-
-    const payload = await c.req.text();
-    // Only "paymongo" exists in CUSTOMER_PAYMENT_PROVIDERS today — a second
-    // vendor would need the tenant's own configured provider id here
-    // (mirrors the /billing/webhook driver switch above), not a hardcoded
-    // pick. Documented deviation from the plan, which didn't need to name a
-    // provider since only one exists (agora/customer-payments' own registry
-    // is the seam for a second one — see .ai/rules/providers.md).
-    const verifier = getCustomerPaymentWebhookVerifier("paymongo");
-    const header = c.req.header("paymongo-signature");
-    if (!verifier.verify({ payload, header, secret })) {
-      throw new HttpError(400, "Invalid webhook signature.");
-    }
-
-    const parsed = verifier.parse(payload);
-    if (!parsed) {
-      // Unparseable, or an event type this handler doesn't care about —
-      // 200 so the PSP doesn't retry forever over something we intentionally
-      // ignore.
-      return c.json({ received: true, ignored: true });
-    }
-    if (parsed.tenantId && parsed.tenantId !== tenantId) {
-      throw new HttpError(400, "Tenant mismatch.");
-    }
-    if (parsed.status !== "paid") {
-      return c.json({ received: true, ignored: true });
-    }
-    if (!parsed.referenceId) {
-      // No payment row to fulfil against — `chronoPaymentEvent.paymentId`
-      // has a NOT NULL FK to ChronoPayments, so this must never reach the
-      // insert below. 200 so the PSP doesn't retry over an event this
-      // integration never created a checkout for.
-      return c.json({ received: true, ignored: true });
-    }
-
-    let inserted: { id: string }[];
-    try {
-      inserted = await withTenant(tenantId, (tx) =>
-        tx
-          .insert(chronoPaymentEvent)
-          .values({
-            id: createId(),
-            tenantId,
-            paymentId: parsed.referenceId!,
-            eventType: "received",
-            idempotencyKey: parsed.eventId,
-            payloadJson: JSON.parse(payload),
-          })
-          // The matching `where` predicate is required: `chrono_payment_event_
-          // idempotency_uq` (modules/payment/schema.ts) is a PARTIAL unique
-          // index (`.where(sql\`"idempotencyKey" is not null\`)`), and Postgres
-          // only accepts a partial index as an ON CONFLICT arbiter when the
-          // inference specification's own predicate matches it exactly —
-          // omitting it 500s every real delivery with "there is no unique or
-          // exclusion constraint matching the ON CONFLICT specification"
-          // (caught below as a bare exception, silently masquerading as an
-          // ignored/unrecognized event). Found while building this plan's
-          // Phase C6 e2e spec, which is the first thing to ever drive this
-          // insert against a real Postgres unique index end-to-end.
-          .onConflictDoNothing({
-            target: [chronoPaymentEvent.tenantId, chronoPaymentEvent.idempotencyKey],
-            where: sql`"idempotencyKey" is not null`,
-          })
-          .returning({ id: chronoPaymentEvent.id }),
-      );
-    } catch {
-      // referenceId doesn't reference a real ChronoPayments row (the FK
-      // rejects it) — nothing this tenant created a checkout for. 200 so
-      // the PSP doesn't retry over an event we can never fulfil.
-      return c.json({ received: true, ignored: true });
-    }
-    if (inserted.length === 0) {
-      // Idempotency gate: this event id was already recorded — a PSP
-      // replay, not a new payment. No-op, before any fulfilment runs.
-      return c.json({ received: true, deduped: true });
-    }
-
-    const result = await withTenant(tenantId, (tx) => fulfilCustomerPayment(tx, { tenantId, parsed }));
-
-    if (result.outcome === "fulfilled") {
-      await publishWalletLowIfCrossed(result.walletLow);
-    }
-
-    if (result.outcome === "amount_mismatch") {
-      await recordAudit({
-        tenantId,
-        actorType: "system",
-        action: "chronoPayment.amount_mismatch_voided",
-        targetType: "chronoPayment",
-        targetId: result.paymentId,
-        metadata: {
-          expectedAmount: result.expectedAmount,
-          expectedCurrency: result.expectedCurrency,
-          gotAmountMinorUnits: result.gotAmountMinorUnits,
-          gotCurrency: result.gotCurrency,
-        },
-      });
-    } else if (result.outcome === "fulfilled") {
-      await recordAudit({
-        tenantId,
-        actorType: "member",
-        actorId: result.memberId,
-        action: result.degraded ? "chronoPayment.fulfilled_degraded" : "chronoPayment.fulfilled",
-        targetType: "chronoPayment",
-        targetId: result.paymentId,
-        metadata: { purpose: result.purpose, fulfilmentNote: result.fulfilmentNote },
-      });
-    }
-
-    return c.json({ received: true });
-  })
   // Throttle the unauthenticated device pairing/auth endpoints
   // (security-hardening Phase 1). Keyed per-IP AND per-secret-being-guessed
   // (pairingCode for /pair, the presented provisioning-token hash for /auth)
@@ -1177,8 +876,8 @@ export const app = baseApp
   // No Better Auth session, no tenant membership row — the device itself
   // authenticates via its own module-local bearer middleware
   // (requireDeviceBearerAuth()), independently of tenantMiddleware(). Mounted
-  // outside /rpc and outside apiV1, alongside /billing/webhook and the
-  // /public/* family — see .ai/plans/chrono/active/devices/README.md.
+  // outside /rpc and outside apiV1, alongside the inbound webhook ingress and
+  // the /public/* family — see .ai/plans/chrono/active/devices/README.md.
   .route("/api/v1/device", deviceAuthRoutes())
   // Inbound provider webhooks (centralized-webhook-architecture plan, Phase 1).
   // Mounted before the maintenanceReadOnlyGate because provider webhook

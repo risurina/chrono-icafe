@@ -3,6 +3,19 @@ import { test, expect, type Page } from "@playwright/test";
 import { faker } from "../../utils/faker";
 
 /**
+ * STALE (centralized-webhook-architecture plan, Phase 6): both routes this
+ * spec posts to — `POST /payments/customer/webhook/platform` and
+ * `POST /payments/customer/webhook/:token` — were deleted. Platform-fallback
+ * and per-tenant PayMongo customer-payment webhooks now share the single
+ * centralized ingress URL `/api/v1/webhooks/paymongo`
+ * (`apps/chrono-api/src/modules/webhook/adapters/paymongo.ts`'s `dispatch()`
+ * branches on `canonical.scope` instead of two separate mount points). This
+ * file was left unmodified rather than guessed at — see
+ * `online-checkout.spec.ts`'s own header for why a URL swap alone isn't
+ * enough. This spec needs a real redesign before it will pass again.
+ */
+
+/**
  * Platform-level PayMongo fallback for member online checkout —
  * `.ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md`,
  * Phase 6. This is the sibling of `online-checkout.spec.ts` (read that file's
