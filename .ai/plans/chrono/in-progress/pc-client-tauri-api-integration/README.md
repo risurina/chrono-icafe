@@ -30,17 +30,27 @@
   — renamed from an internal `verifyPassword`, no behavior change, both existing call
   sites updated), gated by a new per-device `deviceSessionLoginLimiter` (20/15min)
   alongside the per-account check. `typecheck` + `rls:proof` pass.
-- Phase 6 (e2e + verification) — NOT STARTED. Both branches (this repo's
-  `feature/pc-client-tauri-api-integration`, pushed; the Tauri repo's
-  `feature/agora-realtime-transport`, pushed) are up on their remotes but not merged.
+- Phase 6 (e2e spec) — DONE: `apps/chrono-web/e2e/tests/devices/{device-commands,
+  device-status,device-session-start}.spec.ts`, written not run (see commit
+  `fa2f393b`). This repo's `feature/pc-client-tauri-api-integration` was merged into
+  `main` directly (commit `d831329e`, developer-requested direct merge, not a PR) after
+  syncing with main's own concurrent `platform-paymongo-customer-payment-fallback`
+  merge (migration renumbered `0035`→`0036` for `chrono-device-commands`, no other
+  conflicts — see merge commit `d472cb5f`). The worktree and local feature branch have
+  been cleaned up per `.ai/rules/ai-agent.md`.
 
-**Not yet done, before this plan can close:** open PRs / merge both branches; add the
-e2e spec for the new `/rpc/devices/:id/commands` + `/api/v1/device/{session,wallet,
-session/start}` routes per `.ai/rules/e2e-testing.md` (not yet written — this is the
-one hard gate `.ai/rules/e2e-testing.md` calls non-optional for a new tenant-scoped
-feature); and run the manual pairing→approve→heartbeat→realtime→command-roundtrip
-smoke test Phase 6 calls for (needs a running `pnpm dev` + a real Tauri build against
-the new branch — cannot be done from a coordinating session alone).
+**Still open before this plan is fully closed:**
+1. The Tauri client repo's `feature/agora-realtime-transport` branch (`karta-tenant`,
+   commit `edbff4b4`) is pushed but **not yet merged** — that's a separate repo/decision,
+   not done as part of this merge.
+2. **The manual smoke test itself has not been run**: pairing → approve → heartbeat →
+   realtime connect → command round-trip, end-to-end against a real `pnpm dev` +
+   built Tauri client on the new code. Nothing in this plan has executed against a
+   live server — every verification so far is `typecheck`/`rls:proof`/`cargo check`
+   plus unrun e2e specs.
+3. Do not move this plan to `archive/` until both of the above are resolved — per
+   `.ai/rules/feature-planning.md`'s "Plan Closure," archiving is for a *fully*
+   implemented plan, and the live/manual proof this feature needs has not happened.
 
 **Correction**: the Tauri client repo is NOT at the Windows path this plan originally
 cited. It is locally reachable at `/Users/risurina/karta/karta-tenant/apps/chrono-pc-client-tauri`
