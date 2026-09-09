@@ -951,6 +951,24 @@ export const app = baseApp
     }
     return c.json({ received: true });
   })
+  // Platform PayMongo fallback webhook — the counterpart to the per-tenant
+  // route below, for payments collected through the platform's shared
+  // PayMongo account on behalf of a tenant with no configured integration of
+  // its own. Mounted OUTSIDE /rpc for the same reason as the per-tenant
+  // route (no session on an inbound webhook). Its own fulfilment dispatch is
+  // registered via `payment-bootstrap.ts` (imported early in `index.ts`),
+  // not a direct import here — see
+  // .ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md,
+  // Phase 4.
+  //
+  // Registered BEFORE the per-tenant `:token` route below on purpose: Hono
+  // matches routes in registration order, so a static path segment
+  // ("platform") must be registered ahead of the dynamic `:token` sibling
+  // route or the dynamic route greedily matches token="platform" first and
+  // this route never runs (confirmed live — every delivery 404'd with the
+  // `:token` handler's own "Unknown webhook." error). Do not reorder this
+  // below the `:token` route again.
+  .route("/payments/customer/webhook/platform", platformCustomerPaymentWebhookRoutes())
   // Customer-payment webhook (member-credit-purchase plan, Phase C4) —
   // fulfils a member-initiated online payment. Mounted OUTSIDE /rpc, per
   // AGENTS.md's "Unauthenticated routes": no session exists, so /rpc's
@@ -1086,16 +1104,6 @@ export const app = baseApp
 
     return c.json({ received: true });
   })
-  // Platform PayMongo fallback webhook — the counterpart to the per-tenant
-  // route above, for payments collected through the platform's shared
-  // PayMongo account on behalf of a tenant with no configured integration of
-  // its own. Mounted OUTSIDE /rpc for the same reason as the per-tenant
-  // route (no session on an inbound webhook). Its own fulfilment dispatch is
-  // registered via `payment-bootstrap.ts` (imported early in `index.ts`),
-  // not a direct import here — see
-  // .ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md,
-  // Phase 4.
-  .route("/payments/customer/webhook/platform", platformCustomerPaymentWebhookRoutes())
   // Throttle the unauthenticated device pairing/auth endpoints
   // (security-hardening Phase 1). Keyed per-IP AND per-secret-being-guessed
   // (pairingCode for /pair, the presented provisioning-token hash for /auth)
