@@ -11,24 +11,24 @@ to the working tree, and fixed locally by a fresh subagent to match this file's 
 spec exactly before committing. See the ledger entry in `.ai/handover/jules-sessions.md`
 for the full detail.
 
-Phase 2 has been through its concreteness pass (see "Phase 2 — First real provider
-(PayMongo)" below). It surfaced a real architecture conflict — the new ingress's "one
-stable URL per provider" design is incompatible with PayMongo's per-tenant webhook
-secret unless `verifySignature` resolves which secret to check some other way than a
-per-tenant URL. **Resolved (developer, explicit): try every candidate secret** — brute-
-force HMAC-check the payload against every enabled tenant's PayMongo secret plus the
-platform secret, first match wins; a payload's own `metadata.tenantId` is never
-load-bearing for identity, only the verified signature is. The post-persist
-fulfilment-dispatch seam is also resolved: an optional `dispatch?()` method added to
-Phase 1's `WebhookProviderAdapter` interface, called synchronously by `ingress.ts` after
-a successful non-deduped insert. Phase 2 has zero open decisions and is accepted —
-claimed and delegated to Jules. Phases 3-5 remain sketched only.
+Phase 2 (PayMongo adapter) implemented and committed (`591534ca`). Jules session
+15002365596214251384 completed successfully this time — the diff matched the plan's
+decided design closely (brute-force candidate-secret verification, the `dispatch()`
+seam threading the parsed event via a per-request `WeakMap` keyed off the canonical
+event object) and needed no local fixes. Verified directly (not just trusting the
+session's self-report): `pnpm --filter @agora/chrono-api typecheck` clean; the new
+`test:webhook` script (Phase 1's `webhook.test.ts`, unregressed, 11/11) plus the new
+`adapters/paymongo.test.ts` (14/14, covering tenant match + fulfilment, platform match +
+fulfilment, dedup, metadata-is-not-load-bearing, invalid signature, malformed JSON); the
+existing `test:payment-fulfilment` suite (19/19, proving the legacy fulfilment path is
+undisturbed). `app.ts` and the legacy webhook routes are untouched, as scoped. Phases
+3-5 remain sketched only.
 
 **Sessions:**
 - Planning: current session
 - Implementation: current session (Phase 1: Jules attempt failed/deviated, fixed and
-  committed locally via a fresh subagent per delegate-implementation). Phase 2: accepted,
-  claimed, delegated to Jules per delegate-implementation.
+  committed locally via a fresh subagent per delegate-implementation. Phase 2: Jules
+  attempt succeeded as delegated, verified and committed directly).
 
 ## Why
 
