@@ -38,6 +38,7 @@
     "test:host-status-filter": "tsx src/modules/landing-page/host-status-filter.test.ts",
     "test:report-aggregation": "tsx src/modules/report/aggregation.test.ts",
     "test:billing-transactions": "tsx src/e2e/billing-transactions.test.ts",
+    "test:billing-webhook": "DB_DRIVER=pglite tsx ../../packages/agora/src/commerce/billing/webhook-adapter.test.ts",
     "test:billing-pricing": "DB_DRIVER=pglite tsx src/e2e/billing-pricing.test.ts",
     "test:notification-templates": "tsx src/e2e/notification-templates.test.ts",
     "test:feature-resolution": "tsx src/e2e/feature-resolution.test.ts",
