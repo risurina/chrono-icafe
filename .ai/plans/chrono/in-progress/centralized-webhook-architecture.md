@@ -2,6 +2,82 @@
 
 ## Status
 
+Phase 6 (legacy route deletion) implemented directly (not via Jules — a
+deletion/verification-heavy phase) and committed (`e043dcc0`). Investigated
+concretely before deleting anything, per this file's own Phase 6 section: read
+the exact current line ranges in `app.ts`, then grepped the whole workspace for
+every remaining call site before removing anything. Deleted `/billing/webhook`,
+`/payments/customer/webhook/platform`, and `/payments/customer/webhook/:token`
+from `apps/chrono-api/src/app.ts`, plus the code confirmed dead by that grep:
+the shared `platformCustomerPaymentWebhookRoutes()` route factory and its test
+(`packages/agora/src/commerce/customer-payments/platform-webhook-route.{ts,test.ts}`)
+and the per-tenant webhook-token/secret helpers
+(`findTenantByCustomerPaymentWebhookToken`, `resolveCustomerPaymentWebhookSecret`,
+`packages/agora/src/core/server/integrations.ts`). Confirmed NOT dead, and kept
+unchanged: `getBillingWebhookProvider`/`getBillingProviderId`/`applyWebhookEvent`/
+`recordTransactionEvent` (still called by the new `packages/agora/src/commerce/
+billing/webhook-adapter.ts` and by `apps/agora-api`'s own untouched
+`/billing/webhook`), `getCustomerPaymentWebhookVerifier` (generic registry
+accessor, kept per `.ai/rules/providers.md`), and `hashCustomerPaymentWebhookToken`
+(still called from `apps/chrono-api/src/routes/rpc.ts`'s integration-settings
+route). The developer explicitly waived Phase 5's "prove on real traffic first"
+gate for this initiative — there is no production deployment yet — so Phase 6
+proceeded on the existing PGlite adapter suites (`test:billing-webhook`,
+11/11; `apps/chrono-api/src/modules/webhook/adapters/paymongo.test.ts` +
+the ingress's own `webhook.test.ts` via `test:webhook`, 11/11 + 14/14;
+`test:payment-fulfilment`, 19/19 unregressed) rather than real provider
+traffic. `pnpm typecheck` is clean workspace-wide (5/5 packages).
+
+Two real, not-yet-closed follow-ups surfaced during Phase 6's own
+investigation, listed honestly rather than silently swept under "done":
+
+1. **The enforced e2e suite (`apps/chrono-api/src/e2e/run.ts`, `test:e2e`)
+   drove `/billing/webhook` directly in three blocks (bad-signature/webhook-
+   sync, the W0d transactions-mirror block, and the W0e synthetic-PayMongo
+   block)** — none of this was mentioned in the original Phase 6 sketch. Fixed
+   by registering the new ingress's `"stripe"` and `"paymongo-billing"`
+   billing adapters directly inside `run.ts`'s own setup (mirroring
+   `payment-bootstrap.ts`, which `run.ts` never imports — it imports `../app`
+   directly) and repointing the four `fetch()` calls at `/api/v1/webhooks/
+   stripe` and `/api/v1/webhooks/paymongo-billing`. `pnpm typecheck` passes on
+   this file and the crash point (a pre-existing "must be owner of table
+   Accounts" Postgres role error against this sandbox's `TEST_DATABASE_URL`,
+   confirmed via `git stash` to predate this phase entirely and unrelated to
+   any code changed here) is unchanged before and after, meaning the new setup
+   code executes without throwing but the suite could not be run far enough in
+   this environment to see the webhook assertions themselves execute. **Not
+   verified end-to-end — the developer should run `pnpm --filter
+   @agora/chrono-api test:e2e` in an environment where the test database role
+   actually owns its tables to confirm.**
+2. **Two `apps/chrono-web` Playwright specs — `e2e/tests/member/
+   online-checkout.spec.ts` and `e2e/tests/member/fallback-online-checkout.spec.ts`
+   — post directly to the now-deleted per-tenant-token routes and were left
+   unmodified** (each now carries a `STALE` header comment explaining why).
+   These aren't a simple URL swap: the new ingress has no per-tenant URL token
+   at all (identity comes from brute-force-matching the signature against
+   every enabled tenant's own secret), so `online-checkout.spec.ts`'s
+   "isolation" test in particular tests a URL-vs-metadata mismatch that no
+   longer exists as a concept under the new model — the equivalent guarantee
+   is already proven at the adapter level by `paymongo.test.ts`'s "Mismatched
+   metadata" case, but the browser-level spec needs a real redesign, not a
+   guess, before it will pass again. Left for a follow-up rather than risking
+   a wrong, unverifiable rewrite of a security-sensitive isolation test.
+3. **The customer-payment integration settings route
+   (`apps/chrono-api/src/routes/rpc.ts`, `PUT /rpc/integrations/customer-
+   payment`) minted a per-tenant `webhookToken`/`webhookTokenHash` and
+   revealed a webhook URL built from it** — this whole mechanism existed only
+   to serve the now-deleted `:token` route. Fixed the actual functional bug
+   (the revealed URL now points at the correct, stable `/api/v1/webhooks/
+   paymongo`, not a 404ing per-tenant path), but did NOT remove the now-
+   vestigial token-minting/"rotate webhook token" UI workflow itself
+   (`apps/chrono-web/.../settings/integrations/page.tsx`) — that's a UI/
+   contract redesign decision (drop the rotate-token feature entirely vs. keep
+   it as inert), not a mechanical deletion, and is flagged here as a follow-up
+   rather than decided unilaterally.
+
+Provider-dashboard cutover (Stripe/Xendit/PayMongo webhook URL configuration)
+is explicitly deferred — there is no production deployment to repoint yet.
+
 Phase 1 (Foundation) implemented and committed (`7d643923`). The Jules session
 (2508701978338411204) that was fired for this phase reported `Failed` and its diff
 deviated from the plan in several security-relevant ways (no idempotency constraint, no
@@ -73,7 +149,11 @@ provably untouched (zero diff), as required. Phase 6 remains sketched only.
   migration + rls:proof steps completed directly. Phase 5: Jules attempt fired
   fire-and-forget, pulled in a later session; three real issues found and fixed locally
   (misnamed parameter, incomplete audit metadata, a genuine module-cycle regression),
-  verified and committed).
+  verified and committed. Phase 6: implemented directly (not via Jules) in the current
+  session — a deletion/verification-heavy phase, investigated via workspace-wide grep
+  before deleting anything; two follow-up gaps (the `test:e2e` webhook rewiring
+  unverified in this sandbox, two stale `apps/chrono-web` Playwright specs needing
+  redesign) recorded honestly in Status rather than silently closed).
 
 ## Why
 
