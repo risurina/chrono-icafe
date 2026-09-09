@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { withTenant, eq, and, isNull, or, asc, desc, count } from "agora/db";
+import { withTenant, eq, and, isNull, or, asc, desc, count, type TenantTx } from "agora/db";
 import { buildPaginationMeta } from "agora";
 import { gt } from "drizzle-orm";
 import {
@@ -15,6 +15,7 @@ import {
   chronoCreditGrantLedgerEntry,
   chronoCreditPurchase,
 } from "./schema";
+import { chronoStationGroup } from "../station/schema";
 import {
   creditLedgerListQuerySchema,
   portalPurchaseCreditProductSchema,
@@ -56,13 +57,27 @@ function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
 }
 
+/**
+ * Resolves the tenant's station-group id -> name map, for enriching portal
+ * credit-grant DTOs with a human-readable `stationGroupName`. Run inside the
+ * same `withTenant` transaction as the grant read/write it's supporting, one
+ * query for the whole tenant rather than a per-grant lookup.
+ */
+async function loadStationGroupNames(tx: TenantTx, tenantId: string): Promise<Map<string, string>> {
+  const rows = await tx
+    .select({ id: chronoStationGroup.id, name: chronoStationGroup.name })
+    .from(chronoStationGroup)
+    .where(eq(chronoStationGroup.tenantId, tenantId));
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
 export function creditPortalRoutes() {
   return new Hono<{ Variables: MemberVars }>()
     .use("*", memberMiddleware())
     .get("/balance", async (c) => {
       const { tenantId, memberId } = c.var.member;
-      const grants = await withTenant(tenantId, (tx) =>
-        tx
+      const { grants, stationGroupNames } = await withTenant(tenantId, async (tx) => {
+        const grants = await tx
           .select()
           .from(chronoCreditGrant)
           .where(
@@ -74,13 +89,17 @@ export function creditPortalRoutes() {
               or(isNull(chronoCreditGrant.expiresAt), gt(chronoCreditGrant.expiresAt, new Date())),
             ),
           )
-          .orderBy(asc(chronoCreditGrant.expiresAt), asc(chronoCreditGrant.priority)),
-      );
+          .orderBy(asc(chronoCreditGrant.expiresAt), asc(chronoCreditGrant.priority));
+        const stationGroupNames = await loadStationGroupNames(tx, tenantId);
+        return { grants, stationGroupNames };
+      });
       // Empty list, not an error, if none exist — mirrors wallet's own
       // no-side-effecting-auto-create-on-a-read pattern.
       const totalRemainingMinutes = grants.reduce((sum, g) => sum + g.remainingQuantity, 0);
       return c.json({
-        grants: grants.map(toPortalCreditGrantDto),
+        grants: grants.map((g) =>
+          toPortalCreditGrantDto(g, g.stationGroupId ? stationGroupNames.get(g.stationGroupId) ?? null : null),
+        ),
         totalRemainingMinutes,
       });
     })
@@ -156,9 +175,14 @@ export function creditPortalRoutes() {
       const findByIdempotencyKey = (key: string) =>
         withTenant(tenantId, (tx) =>
           tx
-            .select({ purchase: chronoCreditPurchase, grant: chronoCreditGrant })
+            .select({
+              purchase: chronoCreditPurchase,
+              grant: chronoCreditGrant,
+              stationGroupName: chronoStationGroup.name,
+            })
             .from(chronoCreditPurchase)
             .innerJoin(chronoCreditGrant, eq(chronoCreditPurchase.grantId, chronoCreditGrant.id))
+            .leftJoin(chronoStationGroup, eq(chronoCreditGrant.stationGroupId, chronoStationGroup.id))
             .where(
               and(
                 eq(chronoCreditPurchase.tenantId, tenantId),
@@ -173,7 +197,10 @@ export function creditPortalRoutes() {
         const existing = await findByIdempotencyKey(idempotencyKey);
         if (existing) {
           return c.json(
-            { purchase: existing.purchase, grant: toPortalCreditGrantDto(existing.grant) },
+            {
+              purchase: existing.purchase,
+              grant: toPortalCreditGrantDto(existing.grant, existing.stationGroupName ?? null),
+            },
             200,
           );
         }
@@ -188,10 +215,13 @@ export function creditPortalRoutes() {
       await purchaseLimiter.record(`${tenantId}:${memberId}`);
 
       let result;
+      let stationGroupNames: Map<string, string>;
       try {
-        result = await withTenant(tenantId, (tx) =>
-          purchaseCreditProduct(tx, { tenantId, memberId, productId, idempotencyKey }),
-        );
+        ({ result, stationGroupNames } = await withTenant(tenantId, async (tx) => {
+          const result = await purchaseCreditProduct(tx, { tenantId, memberId, productId, idempotencyKey });
+          const stationGroupNames = await loadStationGroupNames(tx, tenantId);
+          return { result, stationGroupNames };
+        }));
       } catch (err) {
         // Two concurrent requests carrying the same key both missed the
         // lookup above and both reached the insert — the loser's unique
@@ -201,7 +231,10 @@ export function creditPortalRoutes() {
           const existing = await findByIdempotencyKey(idempotencyKey);
           if (existing) {
             return c.json(
-              { purchase: existing.purchase, grant: toPortalCreditGrantDto(existing.grant) },
+              {
+                purchase: existing.purchase,
+                grant: toPortalCreditGrantDto(existing.grant, existing.stationGroupName ?? null),
+              },
               200,
             );
           }
@@ -224,6 +257,15 @@ export function creditPortalRoutes() {
         metadata: { channel: "portal", productId },
       });
 
-      return c.json({ purchase: result.purchase, grant: toPortalCreditGrantDto(result.grant) }, 201);
+      return c.json(
+        {
+          purchase: result.purchase,
+          grant: toPortalCreditGrantDto(
+            result.grant,
+            result.grant.stationGroupId ? stationGroupNames.get(result.grant.stationGroupId) ?? null : null,
+          ),
+        },
+        201,
+      );
     });
 }

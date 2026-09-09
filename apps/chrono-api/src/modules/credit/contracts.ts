@@ -137,6 +137,8 @@ export const portalCreditGrantDtoSchema = z.object({
   remainingQuantity: z.number().int(),
   expiresAt: z.string().nullable(),
   createdAt: z.string(),
+  stationGroupId: z.string().nullable(),
+  stationGroupName: z.string().nullable(),
 });
 export type PortalCreditGrantDto = z.infer<typeof portalCreditGrantDtoSchema>;
 
@@ -158,9 +160,20 @@ type CreditGrantRow = {
   remainingQuantity: number;
   expiresAt: Date | null;
   createdAt: Date;
+  stationGroupId: string | null;
 };
 
-export function toPortalCreditGrantDto(row: CreditGrantRow): PortalCreditGrantDto {
+/**
+ * Pure mapping — no DB query here. `stationGroupName` is resolved by the
+ * caller (a route handler) from an `id -> name` lookup built once per
+ * request, since a grant row only carries the id. `null` in either field
+ * means "any_station" (unscoped) — never fabricated as "Any station" text
+ * here; that's a frontend rendering concern.
+ */
+export function toPortalCreditGrantDto(
+  row: CreditGrantRow,
+  stationGroupName: string | null = null,
+): PortalCreditGrantDto {
   return {
     id: row.id,
     productId: row.productId,
@@ -169,6 +182,8 @@ export function toPortalCreditGrantDto(row: CreditGrantRow): PortalCreditGrantDt
     remainingQuantity: row.remainingQuantity,
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+    stationGroupId: row.stationGroupId,
+    stationGroupName: row.stationGroupId ? stationGroupName : null,
   };
 }
 

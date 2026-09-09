@@ -25,7 +25,7 @@ import { formatMinutes, formatCurrency, formatDate, formatDateTime } from "@/lib
 import { getMySessionSummary, type SessionSummary } from "@/lib/member/session";
 import { getMyWalletBalance, getLastTopUp, type WalletBalance, type WalletTransaction } from "@/lib/member/wallet";
 import { getMyLoyalty, type LoyaltyMe } from "@/lib/member/loyalty";
-import { getCreditProducts, type CreditProduct } from "@/lib/member/credits";
+import { getCreditProducts, getMyCreditBalance, type CreditProduct, type CreditGrant } from "@/lib/member/credits";
 import {
   getMyReservation,
   getPublicStations,
@@ -56,7 +56,7 @@ function formatReservationWhen(reservation: PortalReservation): string {
 }
 
 export default function MemberDashboardPage() {
-  const { member, onboarding, approved } = useMemberArea();
+  const { member, profile, onboarding, approved } = useMemberArea();
 
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
@@ -65,6 +65,7 @@ export default function MemberDashboardPage() {
   const [products, setProducts] = useState<CreditProduct[]>([]);
   const [reservation, setReservation] = useState<PortalReservation | null>(null);
   const [branches, setBranches] = useState<PublicBranch[]>([]);
+  const [creditGrants, setCreditGrants] = useState<CreditGrant[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -75,7 +76,7 @@ export default function MemberDashboardPage() {
       setLoading(false);
       return;
     }
-    const [s, w, t, l, p, r, stationsRes] = await Promise.all([
+    const [s, w, t, l, p, r, stationsRes, cb] = await Promise.all([
       getMySessionSummary(),
       getMyWalletBalance(),
       getLastTopUp(),
@@ -83,6 +84,7 @@ export default function MemberDashboardPage() {
       getCreditProducts(),
       getMyReservation(),
       getPublicStations(),
+      getMyCreditBalance(),
     ]);
     if (s.data) setSession(s.data);
     if (w.data) setWallet(w.data);
@@ -91,6 +93,7 @@ export default function MemberDashboardPage() {
     if (p.data) setProducts(p.data);
     if (r.data) setReservation(r.data.reservation);
     if (stationsRes) setBranches(stationsRes.branches);
+    if (cb.data) setCreditGrants(cb.data.grants);
     setLoading(false);
   }, [member]);
 
@@ -291,7 +294,12 @@ export default function MemberDashboardPage() {
           <CardHeader>
             <Row items="center" className="justify-between">
               <CardTitle>Membership</CardTitle>
-              {approved && loyalty ? <TierBadge tier={loyalty.level.tier} /> : null}
+              <Row items="center" gap={2}>
+                {approved && loyalty ? <TierBadge tier={loyalty.level.tier} /> : null}
+                {approved && profile?.memberCode ? (
+                  <Badge variant="outline">Code: {profile.memberCode}</Badge>
+                ) : null}
+              </Row>
             </Row>
             <CardDescription>
               {approved && loyalty?.memberSince ? `Member since ${formatDate(loyalty.memberSince)}` : ""}
@@ -317,6 +325,68 @@ export default function MemberDashboardPage() {
           </CardContent>
         </Card>
       </Grid>
+
+      {/* Time Credits — grants grouped by station scope */}
+      <Card data-testid="time-credits-card">
+        <CardHeader>
+          <CardTitle>Time Credits</CardTitle>
+          <CardDescription>Your remaining play minutes, by station.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : !approved ? (
+            <p className="text-sm text-muted-foreground">
+              Time credits unlock once your application is approved.
+            </p>
+          ) : (
+            (() => {
+              const activeGrants = creditGrants.filter((g) => g.status === "granted");
+              if (activeGrants.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground">
+                    No active time credits — visit the store below.
+                  </p>
+                );
+              }
+              const groups = new Map<string, { remainingQuantity: number; expiresAt: string | null }>();
+              for (const grant of activeGrants) {
+                const label = grant.stationGroupName ?? "Any station";
+                const existing = groups.get(label);
+                const soonestExpiry =
+                  existing?.expiresAt && grant.expiresAt
+                    ? existing.expiresAt < grant.expiresAt
+                      ? existing.expiresAt
+                      : grant.expiresAt
+                    : (existing?.expiresAt ?? grant.expiresAt ?? null);
+                groups.set(label, {
+                  remainingQuantity: (existing?.remainingQuantity ?? 0) + grant.remainingQuantity,
+                  expiresAt: soonestExpiry,
+                });
+              }
+              return (
+                <Stack gap={3}>
+                  {Array.from(groups.entries()).map(([label, group]) => (
+                    <Row key={label} items="center" className="justify-between">
+                      <Stack gap={0}>
+                        <span className="text-sm font-medium">{label}</span>
+                        {group.expiresAt ? (
+                          <span className="text-xs text-muted-foreground">
+                            Expires {formatDate(group.expiresAt)}
+                          </span>
+                        ) : null}
+                      </Stack>
+                      <span className="text-sm font-semibold">
+                        {formatMinutes(group.remainingQuantity)}
+                      </span>
+                    </Row>
+                  ))}
+                </Stack>
+              );
+            })()
+          )}
+        </CardContent>
+      </Card>
 
       {/* Premium store strip — top 3 sellable credit products */}
       <Card data-testid="premium-store">
