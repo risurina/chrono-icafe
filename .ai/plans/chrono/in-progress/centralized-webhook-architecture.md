@@ -24,11 +24,22 @@ existing `test:payment-fulfilment` suite (19/19, proving the legacy fulfilment p
 undisturbed). `app.ts` and the legacy webhook routes are untouched, as scoped. Phases
 3-5 remain sketched only.
 
+Phase 3 (promote the webhook ingress mechanism to `packages/agora`) is accepted and
+delegated to Jules — required before Phase 5 (formerly Phase 4) can wire foundation
+billing code onto this ingress without making the foundation depend on
+`apps/chrono-api`. Migration generation + `rls:proof` for the relocated table stay
+local (Jules has no DB/secrets). The old Phase 3 ("second provider," Maya/Paddle) is
+deferred by developer decision — building either from scratch is a bigger, more
+product-shaped task than an architecture proof warrants; the renumbered Phase 5 proves
+genericity instead by reusing Xendit's already-real billing vendor code. Phases 5-6 are
+sketched only.
+
 **Sessions:**
 - Planning: current session
 - Implementation: current session (Phase 1: Jules attempt failed/deviated, fixed and
   committed locally via a fresh subagent per delegate-implementation. Phase 2: Jules
-  attempt succeeded as delegated, verified and committed directly).
+  attempt succeeded as delegated, verified and committed directly. Phase 3: accepted,
+  claimed, delegated to Jules per delegate-implementation).
 
 ## Why
 
@@ -642,24 +653,255 @@ code, lowest risk), then `resolve`, then `normalize`, then `dispatch`, then
 `adapters/paymongo.test.ts` last — mirroring Phase 1's "tests last, once the pieces they
 exercise all exist" ordering.
 
-### Phase 3 — Second provider
+### Phase 3 — Promote the webhook ingress to `packages/agora` (foundation)
+
+**Status: Accepted** (developer, explicit — chose "promote first" over "stay
+Chrono-local" when the conflict below was surfaced). Delegated to Jules for the
+code-relocation portion; migration generation + `rls:proof` run locally (Jules's VM has
+no DB/secrets).
+
+**Why**: Phase 4 (next) needs to migrate `/billing/webhook`'s dispatch — which lives in
+**foundation** code (`packages/agora/src/commerce/billing/`, shared by every business
+app, not Chrono-specific) — onto this ingress. But the ingress itself
+(`ChronoWebhookEvents`, the adapter contracts, the registry, `webhookIngressRoutes()`)
+was built in Phases 1-2 entirely inside `apps/chrono-api/src/modules/webhook/`, a
+Chrono-only location. Wiring foundation billing code onto a Chrono-app-local mechanism
+would make shared foundation code depend on business-app infrastructure — backwards per
+`.ai/rules/architecture.md`'s "if a second business app would need it too, it goes in
+the foundation." This phase moves the mechanism (not PayMongo's adapter, which stays
+Chrono-specific business logic) into `packages/agora`, mirroring how the OUTBOUND
+webhook mechanism (`agora/webhooks` — `webhookEndpoint`/`webhookDelivery`,
+`emit.ts`/`job.ts`/`routes.ts`) already lives in the foundation while its callers
+(`emitTenantEvent(...)`) are sprinkled through business-app code.
+
+**Confirmed foundation conventions this phase follows** (checked directly, not
+assumed): `agora/webhooks`' own outbound tables are physically defined in
+`packages/agora/src/core/db/schema/tenant.ts` (NOT co-located with the outbound
+module's own `src/events/webhooks/*.ts` logic files) and re-exported through
+`packages/agora/src/core/db/schema/index.ts`'s `export * from "./tenant"` — the
+module's *logic* and its *Drizzle table definition* live in different, established
+locations. Every app's own `db/schema.ts` re-exports the ENTIRE foundation schema via
+`export const { ...tables } = base;` (`base = import * as base from "agora/db/schema"`)
+so drizzle-kit (pointed at each app's own `db/schema.ts`) picks up foundation tables
+too — this is how `apiKey`/`webhookEndpoint`/`tenantIntegration`/`billingEvent`/
+`paymentTransaction` already reach `apps/chrono-api/drizzle/*.sql` today (confirmed:
+`apps/chrono-api/src/db/schema.ts` lines 95-149, `export const { user, ..., billingEvent,
+paymentTransaction, ..., tenantIntegration, ... } = base;`). `webhookEvent` (renamed from
+`chronoWebhookEvent` — foundation tables are unprefixed) follows the exact same path:
+physically defined in `packages/agora/src/core/db/schema/platform.ts` (it's
+platform-global/non-RLS, same category as `platform_integration`), re-exported through
+the barrel, then re-exported again from each app's own `db/schema.ts`.
+
+**No existing migration to reconcile**: `ChronoWebhookEvents` was never migrated to a
+real database (`grep -rl "ChronoWebhookEvents" apps/chrono-api/drizzle` returns
+nothing) — Phases 1-2 only ever ran against PGlite in tests. So this phase generates
+ONE fresh migration for the relocated, renamed table, not a rename-migration.
+
+#### Files to Create
+
+- `packages/agora/src/events/webhooks/inbound/contracts.ts` — moved verbatim from
+  `apps/chrono-api/src/modules/webhook/contracts.ts` (no content changes — the types
+  are already generic, no Chrono-specific naming).
+- `packages/agora/src/events/webhooks/inbound/registry.ts` — moved verbatim from
+  `apps/chrono-api/src/modules/webhook/registry.ts` (no content changes).
+- `packages/agora/src/events/webhooks/inbound/ingress.ts` — moved from
+  `apps/chrono-api/src/modules/webhook/ingress.ts`, with its `chronoWebhookEvent` import
+  changed to `import { webhookEvent } from "agora/db/schema";` and every
+  `chronoWebhookEvent` reference in the file renamed to `webhookEvent`.
+- `packages/agora/src/events/webhooks/inbound/index.ts` — new barrel:
+  ```ts
+  export type {
+    ProviderWebhookEvent,
+    CanonicalWebhookEvent,
+    ResolvedWebhookScope,
+    WebhookProviderAdapter,
+  } from "./contracts";
+  export {
+    createWebhookProviderRegistry,
+    registerWebhookProvider,
+    getWebhookProvider,
+  } from "./registry";
+  export { webhookIngressRoutes } from "./ingress";
+  ```
+  (Match the registry.ts's actual exported names exactly — inspect the file first
+  rather than assuming these names verbatim.)
+- `packages/agora/src/events/webhooks/inbound/webhook.test.ts` — moved from
+  `apps/chrono-api/src/modules/webhook/webhook.test.ts`, with its `chronoWebhookEvent`
+  import changed to `import { webhookEvent } from "agora/db/schema";` and every
+  reference renamed. The test's own PGlite DDL bootstrap (table/index creation from
+  Drizzle table configs) must still work — this table now needs to be part of
+  whatever schema-introspection list that test uses; if it currently imports the
+  Chrono app's `db/schema.ts` module for that list, it must now instead import from
+  `agora/db/schema` (or wherever this moved test's own harness resolves its table set
+  from — inspect the current test's setup before assuming which).
+
+#### Files to Update
+
+- `packages/agora/src/core/db/schema/platform.ts` — add the `webhookEvent` table
+  definition (moved from `apps/chrono-api/src/modules/webhook/schema.ts`, table name
+  `"ChronoWebhookEvents"` → `"WebhookEvents"`, Drizzle export name `chronoWebhookEvent`
+  → `webhookEvent`, `NewChronoWebhookEvent`/`ChronoWebhookEventRow` types →
+  `NewWebhookEvent`/`WebhookEventRow`). Every column, the unique index on
+  `(provider, providerEventId)`, and the `tenantId` index stay identical — only names
+  change. Import `organization` from the sibling `./auth.ts` in this same schema
+  directory (not `agora/db/schema`, since this file IS part of that barrel — check how
+  `platform.ts`'s other tables import `organization` today and match that exact
+  import path).
+- `packages/agora/src/core/db/schema/index.ts` — already does `export * from
+  "./platform"`; no change needed here (confirm `platform.ts`'s new table is a plain
+  named export, not something requiring an additional explicit re-export).
+- `packages/agora/package.json` — add `"./webhooks/inbound":
+  "./src/events/webhooks/inbound/index.ts"` to the `exports` map, alongside the
+  existing `"./webhooks": "./src/events/webhooks/index.ts"` entry.
+- `apps/chrono-api/src/db/schema.ts` — remove the `import { chronoWebhookEvent } from
+  "../modules/webhook/schema";` line and its corresponding entry in the `export {
+  ... }` block (currently commented "Platform-global, NOT tenant-scoped — deliberately
+  absent from APP_TENANT_TABLES below"); add `webhookEvent` to the destructured
+  `export const { user, ..., tenantIntegration, ... } = base;` block instead (it now
+  arrives via the foundation, exactly like `tenantIntegration`/`billingEvent`).
+- `apps/chrono-api/src/app.ts` — change `import { webhookIngressRoutes } from
+  "./modules/webhook/ingress";` to `import { webhookIngressRoutes } from
+  "agora/webhooks/inbound";`. The `.route("/api/v1/webhooks", webhookIngressRoutes())`
+  mount itself is unchanged.
+- `apps/chrono-api/src/payment-bootstrap.ts` — change `import { registerWebhookProvider
+  } from "./modules/webhook/registry";` to `import { registerWebhookProvider } from
+  "agora/webhooks/inbound";`.
+- `apps/chrono-api/src/modules/webhook/adapters/paymongo.ts` — change `import type {
+  CanonicalWebhookEvent, ResolvedWebhookScope, WebhookProviderAdapter } from
+  "../contracts";` to `from "agora/webhooks/inbound";`. No other change — PayMongo's
+  own adapter logic is business-specific and stays in `apps/chrono-api`.
+- `apps/chrono-api/src/modules/webhook/adapters/paymongo.test.ts` — update its import
+  of `createWebhookProviderRegistry` (currently `from "../registry"`) to `from
+  "agora/webhooks/inbound"`, and its import of `chronoWebhookEvent`/`webhookEvent`
+  (currently `from "../schema"`) to wherever it now resolves via the app's own
+  `db/schema.ts` (it already imports `appSchema` from `"../../../db/schema"` for its
+  PGlite table-creation loop — that import path is unchanged, since `webhookEvent`
+  will now flow through `base` into that same module).
+
+#### Files to Delete
+
+- `apps/chrono-api/src/modules/webhook/schema.ts`
+- `apps/chrono-api/src/modules/webhook/contracts.ts`
+- `apps/chrono-api/src/modules/webhook/registry.ts`
+- `apps/chrono-api/src/modules/webhook/ingress.ts`
+- `apps/chrono-api/src/modules/webhook/webhook.test.ts`
+
+(`apps/chrono-api/src/modules/webhook/adapters/` — PayMongo's adapter + its test —
+is NOT deleted; it stays, only its import paths change, per "Files to Update" above.)
+
+#### Step-by-Step Tasks
+
+1. Read the current content of every file listed in "Files to Delete" and
+   "Files to Update" before touching anything, to copy exact current logic rather than
+   reconstructing from memory.
+2. Create the four files under `packages/agora/src/events/webhooks/inbound/`
+   (contracts, registry, ingress, index barrel) per "Files to Create" above.
+3. Add `webhookEvent` to `packages/agora/src/core/db/schema/platform.ts`, matching this
+   plan's Phase 1 column list exactly (just renamed).
+4. Add the `"./webhooks/inbound"` export to `packages/agora/package.json`.
+5. Update `apps/chrono-api/src/db/schema.ts`, `app.ts`, `payment-bootstrap.ts`,
+   `modules/webhook/adapters/paymongo.ts`, `modules/webhook/adapters/paymongo.test.ts`
+   per "Files to Update" above.
+6. Delete the five files listed in "Files to Delete".
+7. Move `apps/chrono-api/src/modules/webhook/webhook.test.ts`'s content into
+   `packages/agora/src/events/webhooks/inbound/webhook.test.ts`, fixing its imports.
+8. Run `pnpm typecheck` across the whole workspace (not just chrono-api — this touches
+   `packages/agora`, which every app depends on) and fix anything that breaks.
+9. Do NOT run `pnpm db:generate`/`pnpm db:migrate`/`pnpm --filter @agora/api rls:proof`
+   — these require `DATABASE_URL_ADMIN` and a real Postgres connection this
+   environment does not have. Leave the schema change uncommitted-to-DB; the developer
+   runs migration generation locally as a separate step after this phase's code lands
+   (see "Execution Start Point").
+
+#### Acceptance Criteria
+
+- `packages/agora/src/events/webhooks/inbound/` exists with the four moved/created
+  files; `apps/chrono-api/src/modules/webhook/` contains ONLY `adapters/` afterward.
+- `webhookEvent` is defined once, in `packages/agora/src/core/db/schema/platform.ts`,
+  and reachable as `agora/db/schema`'s `webhookEvent` export.
+- `apps/chrono-api/src/db/schema.ts` no longer has its own webhook table — it gets
+  `webhookEvent` via the `base` destructure, exactly like `tenantIntegration`.
+- No file outside `packages/agora` still imports from
+  `apps/chrono-api/src/modules/webhook/{schema,contracts,registry,ingress}` (deleted).
+- `apps/chrono-api/src/modules/webhook/adapters/paymongo.ts` and its test import the
+  adapter contract types/registry/ingress from `agora/webhooks/inbound`, not a local
+  relative path.
+- `pnpm typecheck` (workspace-wide) passes.
+- The relocated `webhook.test.ts` (now in `packages/agora`) and
+  `paymongo.test.ts` (still in `apps/chrono-api`) both still pass against PGlite,
+  proving the move didn't change runtime behavior.
+
+#### Verification Commands
+
+```
+pnpm typecheck
+pnpm --filter @agora/chrono-api test:webhook
+```
+(`test:webhook`'s script definition may need its path updated if the moved test file's
+new location changes how it's invoked — e.g. if package.json's script for the
+foundation-side test needs to live under `packages/agora`'s own `package.json` instead;
+resolve this concretely during implementation by checking whether `packages/agora` has
+any existing test-script convention for its own `*.test.ts` files, or whether Chrono's
+`test:webhook` script should simply point its `tsx` invocation at the new
+`packages/agora` path — pick whichever matches how `packages/agora`'s existing code,
+if any, runs its own standalone tests today.)
+
+#### Out of Scope
+
+- Generating or applying the actual database migration (`db:generate`/`db:migrate`) —
+  done locally, after this phase's code is pulled and verified (see below).
+- `rls:proof` — also run locally, after migration.
+- Any change to PayMongo's adapter logic, Phase 2's acceptance criteria, or
+  `fulfilCustomerPayment`.
+- Promoting anything else besides this webhook ingress mechanism to the foundation.
+
+#### Execution Start Point
+
+Delegate the file-move + import-path-fix work above to Jules (it needs no DB/secrets).
+Once pulled and `pnpm typecheck` passes locally, the developer (this session) runs,
+locally, in this order: `pnpm db:generate --name add-webhook-events` (review the
+generated SQL — it should be a single `CREATE TABLE "WebhookEvents"` plus its two
+indexes, nothing else), `pnpm db:migrate`, then `pnpm --filter @agora/api rls:proof` to
+confirm the unrelated schema-file change didn't disturb tenant isolation elsewhere —
+this is the one step this phase cannot outsource to Jules.
+
+### Phase 4 — Second provider
 
 Migrate a second, genuinely different provider (Maya or Paddle) with zero changes to
 the domain/payment architecture built in Phase 2 — the proof the architecture is
-provider-independent.
+provider-independent. **Deferred by developer decision** (2026-09-09): building a real
+second PSP integration from scratch (no existing Maya/Paddle code, credentials, or
+signing-scheme research in this repo) is a materially bigger, more product-shaped task
+than an architecture proof warrants. Phase 5 (below) proves genericity instead, by
+moving the foundation's own Stripe/Xendit/PayMongo billing providers onto this ingress
+— reusing Xendit's already-real vendor code
+(`packages/agora/src/commerce/billing/vendors/xendit.ts`) rather than building a new
+provider from nothing. Revisit a genuine Maya/Paddle customer-payment integration later
+if/when the business actually needs one.
 
-### Phase 4 — Platform integrations
+### Phase 5 — Platform integrations (Stripe/Xendit/PayMongo billing)
 
-Move `/billing/webhook`'s Stripe/PayMongo/Xendit dispatch onto this same ingress.
+Move `/billing/webhook`'s Stripe/PayMongo/Xendit dispatch onto this same ingress (now
+foundation-hosted per Phase 3), reusing `packages/agora/src/commerce/billing/`'s
+existing `BillingWebhookProvider` (`verifyWebhook`/`parseEvent`/`parseTransactionEvent`/
+`identifyEvent`) and `applyWebhookEvent`/`recordTransactionEvent` unchanged — this phase
+changes how a verified event reaches those functions, never what they do with one,
+mirroring Phase 2's own "reuse, do not rewrite" stance toward `fulfilCustomerPayment`.
+Unlike PayMongo's per-tenant secret, billing providers use ONE static
+platform-wide secret/token per provider (env-configured) — no brute-force
+candidate-secret search needed; `verifySignature` is a direct single check. Not yet
+concreteness-gated — needs its own Pass 2 pass (exact adapter file, exact scope
+semantics for a billing event, exact migration path for the THREE billing providers vs.
+Phase 2's one) before it can be claimed.
 
-### Phase 5 — Legacy route deletion (mandatory, not optional)
+### Phase 6 — Legacy route deletion (mandatory, not optional)
 
 Delete `/billing/webhook`, `/payments/customer/webhook/platform`, and
 `/payments/customer/webhook/:token` from `app.ts` entirely, along with any code that
 existed only to serve them (e.g. `getBillingWebhookProvider` call sites specific to
 these routes, `findTenantByCustomerPaymentWebhookToken` if nothing else uses it,
 `platformCustomerPaymentWebhookRoutes()` if fully superseded). This only happens AFTER
-Phase 4 proves the new ingress handles the same three flows correctly against real
+Phase 5 proves the new ingress handles the same three flows correctly against real
 provider traffic (Stripe/PayMongo/Xendit billing events, and PayMongo customer
 checkout events, both platform-fallback and per-tenant). Update provider dashboards
 (Stripe/Xendit/PayMongo webhook URL config) to point at the new
