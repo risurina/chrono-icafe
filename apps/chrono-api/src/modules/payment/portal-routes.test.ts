@@ -187,10 +187,15 @@ async function main() {
   const tenantB = await seedTenant("payment-route-test-b");
 
   // Stub the PSP: `createCheckout` returns a fake URL/ref, no network call.
-  __setCustomerPaymentGateway(async () => ({
+  // Wrapped shape: `resolveCustomerPaymentGateway` now returns
+  // `{ gateway, scope }`, not a bare gateway. `null` here (not set yet)
+  // simulates neither the tenant's own row nor the platform fallback being
+  // configured, so section 2 below can prove GET /gateway is honest about
+  // that starting state before section 3 injects a resolvable gateway.
+  const fakeGateway = {
     id: "paymongo" as const,
     createCheckout: async () => ({ url: "https://paymongo.test/checkout/fake", providerRef: "cs_fake_123" }),
-  }));
+  };
 
   const app = new Hono().route(
     "/portal/payments",
@@ -259,12 +264,30 @@ async function main() {
     `got ${anonCheckout.status}`,
   );
 
-  console.log("\n2) Gateway status: unconfigured tenant reports unavailable, honestly.\n");
-  const gatewayStatus = await call("/portal/payments/gateway", { tenant: tenantA });
+  console.log(
+    "\n2) Gateway status: reflects resolveCustomerPaymentGateway, not just the tenant's\n" +
+      "   own row — neither configured -> unavailable; platform fallback only -> available.\n",
+  );
+  __setCustomerPaymentGateway(async () => null);
+  const gatewayStatusNone = await call("/portal/payments/gateway", { tenant: tenantA });
   check(
-    "gateway status: available is false with no integration row",
-    gatewayStatus.body?.available === false,
-    JSON.stringify(gatewayStatus.body),
+    "gateway status: available is false when neither tenant nor platform gateway resolves",
+    gatewayStatusNone.body?.available === false && gatewayStatusNone.body?.scope === undefined,
+    JSON.stringify(gatewayStatusNone.body),
+  );
+  __setCustomerPaymentGateway(async () => ({ gateway: fakeGateway, scope: "platform" as const }));
+  const gatewayStatusPlatform = await call("/portal/payments/gateway", { tenant: tenantA });
+  check(
+    "gateway status: available is true off the platform fallback alone (scope: platform)",
+    gatewayStatusPlatform.body?.available === true && gatewayStatusPlatform.body?.scope === "platform",
+    JSON.stringify(gatewayStatusPlatform.body),
+  );
+  __setCustomerPaymentGateway(async () => ({ gateway: fakeGateway, scope: "tenant" as const }));
+  const gatewayStatusTenant = await call("/portal/payments/gateway", { tenant: tenantA });
+  check(
+    "gateway status: available is true with a tenant-configured gateway (scope: tenant)",
+    gatewayStatusTenant.body?.available === true && gatewayStatusTenant.body?.scope === "tenant",
+    JSON.stringify(gatewayStatusTenant.body),
   );
 
   console.log(

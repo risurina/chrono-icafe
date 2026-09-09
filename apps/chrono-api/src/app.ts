@@ -29,7 +29,10 @@ import {
   resolveCustomerPaymentWebhookSecret,
   findTenantByCustomerPaymentWebhookToken,
 } from "agora/server";
-import { getCustomerPaymentWebhookVerifier } from "agora/customer-payments";
+import {
+  getCustomerPaymentWebhookVerifier,
+  platformCustomerPaymentWebhookRoutes,
+} from "agora/customer-payments";
 import { readFile } from "node:fs/promises";
 import { createMemberAuthRoutes } from "agora/member-auth";
 import { createCustomerAuthRoutes, createCustomerApplyRoutes } from "agora/customer-auth";
@@ -1083,6 +1086,16 @@ export const app = baseApp
 
     return c.json({ received: true });
   })
+  // Platform PayMongo fallback webhook — the counterpart to the per-tenant
+  // route above, for payments collected through the platform's shared
+  // PayMongo account on behalf of a tenant with no configured integration of
+  // its own. Mounted OUTSIDE /rpc for the same reason as the per-tenant
+  // route (no session on an inbound webhook). Its own fulfilment dispatch is
+  // registered via `payment-bootstrap.ts` (imported early in `index.ts`),
+  // not a direct import here — see
+  // .ai/plans/agora/in-progress/platform-paymongo-customer-payment-fallback/README.md,
+  // Phase 4.
+  .route("/payments/customer/webhook/platform", platformCustomerPaymentWebhookRoutes())
   // Throttle the unauthenticated device pairing/auth endpoints
   // (security-hardening Phase 1). Keyed per-IP AND per-secret-being-guessed
   // (pairingCode for /pair, the presented provisioning-token hash for /auth)

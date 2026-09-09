@@ -250,8 +250,15 @@
     {
       "idx": 35,
       "version": "7",
-      "when": 1788889150548,
-      "tag": "0035_chrono-device-commands",
+      "when": 1788881317127,
+      "tag": "0035_add_chrono_payments_gateway_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788917744429,
+      "tag": "0036_chrono-device-commands",
       "breakpoints": true
     }
   ]

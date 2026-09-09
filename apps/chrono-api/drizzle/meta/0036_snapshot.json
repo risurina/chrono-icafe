@@ -1,6 +1,6 @@
 {
-  "id": "20e1f1c1-991d-482b-9140-d26bae8c214b",
-  "prevId": "46970672-e0fc-492d-b8b8-92017f920c07",
+  "id": "2178529c-f2ea-4357-8be6-85fd8e4e70f2",
+  "prevId": "20e1f1c1-991d-482b-9140-d26bae8c214b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2511,6 +2511,158 @@
           "tableTo": "Users",
           "columnsFrom": [
             "approvedByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ChronoDeviceCommands": {
+      "name": "ChronoDeviceCommands",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deviceId": {
+          "name": "deviceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "issuedByUserId": {
+          "name": "issuedByUserId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issuedAt": {
+          "name": "issuedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deliveredAt": {
+          "name": "deliveredAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ackedAt": {
+          "name": "ackedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "chrono_device_command_tenant_idx": {
+          "name": "chrono_device_command_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenantId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "chrono_device_command_device_idx": {
+          "name": "chrono_device_command_device_idx",
+          "columns": [
+            {
+              "expression": "deviceId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ChronoDeviceCommands_tenantId_Organizations_id_fk": {
+          "name": "ChronoDeviceCommands_tenantId_Organizations_id_fk",
+          "tableFrom": "ChronoDeviceCommands",
+          "tableTo": "Organizations",
+          "columnsFrom": [
+            "tenantId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ChronoDeviceCommands_deviceId_ChronoDevices_id_fk": {
+          "name": "ChronoDeviceCommands_deviceId_ChronoDevices_id_fk",
+          "tableFrom": "ChronoDeviceCommands",
+          "tableTo": "ChronoDevices",
+          "columnsFrom": [
+            "deviceId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ChronoDeviceCommands_issuedByUserId_Users_id_fk": {
+          "name": "ChronoDeviceCommands_issuedByUserId_Users_id_fk",
+          "tableFrom": "ChronoDeviceCommands",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "issuedByUserId"
           ],
           "columnsTo": [
             "id"
