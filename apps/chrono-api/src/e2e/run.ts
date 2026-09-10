@@ -630,6 +630,13 @@ async function main() {
     const meRes = await req("GET", "/portal/auth/me", { slug: "acme", cookie: memberCk });
     const memberId: string = meRes.body?.member?.memberId;
 
+    // member-visitor-status-tier: a fresh signup has no chronoMemberProfile
+    // row yet, so `requireAppliedMembership` (guarding /portal/credits/purchase
+    // below) would refuse every mutation until the member applies. Apply now
+    // so the rest of this section's mutating calls succeed.
+    const mApply = await req("POST", "/portal/members/apply", { slug: "acme", cookie: memberCk, json: {} });
+    check("portal member apply (201, pending)", mApply.status === 201 && mApply.body?.profile?.applicationStatus === "pending", JSON.stringify(mApply.body));
+
     // Loyalty — no earn history yet → account null, bronze/0%.
     const loyaltyMe = await req("GET", "/portal/loyalty/me", { slug: "acme", cookie: memberCk });
     check(
@@ -745,6 +752,7 @@ async function main() {
     const purchaseNoFunds = await req("POST", "/portal/credits/purchase", {
       slug: "acme",
       cookie: memberCk,
+      headers: { "x-member-action": "1" },
       json: { productId: activeProduct!.id },
     });
     check("credits/purchase: insufficient balance (422)", purchaseNoFunds.status === 422, `status ${purchaseNoFunds.status} ${JSON.stringify(purchaseNoFunds.body)}`);
@@ -754,6 +762,7 @@ async function main() {
     const purchaseOk = await req("POST", "/portal/credits/purchase", {
       slug: "acme",
       cookie: memberCk,
+      headers: { "x-member-action": "1" },
       json: { productId: activeProduct!.id },
     });
     check("credits/purchase: succeeds with sufficient balance (201)", purchaseOk.status === 201, `status ${purchaseOk.status} ${JSON.stringify(purchaseOk.body)}`);
