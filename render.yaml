@@ -1,0 +1,65 @@
+# Render Blueprint for apps/chrono-api (the Hono API server).
+# Create via Render dashboard: New + -> Blueprint -> point at this repo. Enable
+# "Include submodules" so packages/agora (the Agora foundation, a git submodule) checks
+# out too — the build needs it.
+# apps/chrono-web deploys separately to Vercel (see README.md "Deploying").
+#
+# `rootDir: .` is required (not apps/chrono-api): the build needs the pnpm workspace so
+# `agora` (packages/agora/packages/agora) resolves; `--filter @agora/chrono-api` scopes
+# the actual build/start to this app.
+#
+# Vars marked `sync: false` must be filled in via the Render dashboard
+# (Environment tab) after the service is created — never commit real secrets
+# here. Every other optional var (billing, webhooks, storage, social sign-in,
+# Cloudinary, etc.) is documented in apps/chrono-api/.env.example; add it in the
+# dashboard only once that feature is actually enabled for this deployment.
+services:
+  - type: web
+    name: chrono-api
+    runtime: node
+    plan: starter
+    region: oregon
+    branch: main
+    rootDir: .
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @agora/chrono-api build
+    # Applies any pending Drizzle migrations (+ re-applies FORCE RLS) before the new
+    # instance takes traffic — catches schema/migration drift here instead of a live
+    # request 500ing on a table that was never migrated.
+    preDeployCommand: pnpm --filter @agora/chrono-api db:migrate
+    startCommand: pnpm --filter @agora/chrono-api start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render assigns and injects its own PORT; apps/chrono-api/src/index.ts reads
+      # process.env.PORT ?? 8787, so this only needs to exist.
+      - key: PORT
+        value: "10000"
+
+      # ─── Database (Neon) ───────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_ADMIN
+        sync: false
+
+      # ─── Better Auth ────────────────────────────────────────────
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      # Set to this service's real Render/custom URL once known.
+      - key: BETTER_AUTH_URL
+        value: https://REPLACE-ME.onrender.com
+      - key: APP_DOMAIN
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+
+      # ─── Secrets-at-rest encryption key (tenant SSO / integrations) ─────
+      - key: SSO_ENC_KEY
+        sync: false
+
+      # ─── Transactional email (console driver = safe default) ───
+      - key: EMAIL_PROVIDER
+        value: console
+      - key: EMAIL_FROM
+        sync: false
