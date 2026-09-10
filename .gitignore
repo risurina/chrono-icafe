@@ -1,0 +1,62 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.next/
+.next-*/
+out/
+build/
+.turbo/
+
+# env
+.env
+.env.*
+!.env.example
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# drizzle
+packages/db/drizzle/meta/_journal.json.bak
+
+# misc
+*.tsbuildinfo
+coverage/
+
+# ai agent worktrees
+.ai/worktree/
+
+# locally-stored branding uploads (local storage driver)
+.uploads/
+
+# Next.js 16 auto-generates per-app agent rule files (every *-web app: the
+# scaffold and every business app cloned from it). Never hand-author these —
+# authored business-app docs live in apps/<name>-api/AGENTS.md instead, see
+# .ai/rules/business-app.md.
+apps/*-web/AGENTS.md
+apps/*-web/CLAUDE.md
+
+# Playwright
+test-results/
+playwright-report/
+.last-run.json
+qa-status.html
+
+# /feature run dashboards
+.claude/feature-runs/
+.ai/orchestration-progress.html
+.ai/plans/index.html
+.ai/plans/index.html
+/.playwright-mcp
