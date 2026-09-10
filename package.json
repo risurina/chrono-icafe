@@ -1,0 +1,31 @@
+{
+  "name": "chrono-icafe",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"@agora/chrono-api\" --filter \"@agora/chrono-web\" dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rimraf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "pnpm --filter @agora/chrono-api db:generate",
+    "db:migrate": "pnpm --filter @agora/chrono-api db:migrate",
+    "db:push": "pnpm --filter @agora/chrono-api db:push",
+    "db:studio": "pnpm --filter @agora/chrono-api db:studio",
+    "db:seed": "pnpm --filter @agora/chrono-api seed",
+    "db:app-role": "pnpm --filter @agora/chrono-api db:app-role",
+    "db:rls:proof": "pnpm --filter @agora/chrono-api rls:proof",
+    "test:e2e": "pnpm --filter @agora/chrono-api test:e2e"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "rimraf": "6.1.3",
+    "turbo": "2.10.9",
+    "typescript": "5.9.3"
+  }
+}

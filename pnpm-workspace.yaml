@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/agora/packages/agora"
+allowBuilds:
+  '@sentry/cli': false
+  esbuild: true
+  sharp: true
+overrides:
+  # Pin to the exact better-auth patch that `packages/agora` (v0.1.0) was built
+  # and typechecked against. Its own package.json uses a caret range
+  # (^1.6.28); with no committed lockfile in THIS repo yet, a fresh install
+  # otherwise resolves the newest satisfying patch, which has since introduced
+  # a breaking type change (MFA enable response, organization.unlinkAccount).
+  better-auth: 1.6.28

@@ -1,0 +1,3 @@
+[submodule "packages/agora"]
+	path = packages/agora
+	url = https://github.com/risurina/agora.git

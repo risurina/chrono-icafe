@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["apps/*/.env"],
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_URL_ADMIN",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "APP_DOMAIN",
+    "NEXT_PUBLIC_APP_DOMAIN",
+    "NEXT_PUBLIC_API_URL",
+    "NODE_ENV",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT",
+    "SENTRY_AUTH_TOKEN",
+    "NEXT_PUBLIC_SENTRY_DSN",
+    "NEXT_PUBLIC_SENTRY_ENVIRONMENT"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    # Throwaway Postgres for the e2e. We connect as a NON-superuser role
+    # (provisioned below) so RLS is genuinely enforced — just like on Neon.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Uses the pnpm version pinned in package.json's "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision non-superuser test database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE app_test LOGIN PASSWORD 'app_test' NOSUPERUSER NOCREATEDB NOBYPASSRLS;
+          CREATE DATABASE chrono_test OWNER app_test;
+          SQL
+          psql -h localhost -U postgres -d chrono_test -v ON_ERROR_STOP=1 \
+            -c "ALTER SCHEMA public OWNER TO app_test;"
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: E2E (real Postgres)
+        env:
+          # Non-superuser role → RLS enforced. The db name contains "test", so
+          # the e2e's destructive-reset guard is satisfied.
+          TEST_DATABASE_URL: postgres://app_test:app_test@localhost:5432/chrono_test
+        run: pnpm test:e2e
