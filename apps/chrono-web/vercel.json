@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "npx turbo-ignore @agora/chrono-web --fallback=HEAD^"
+  "ignoreCommand": "npx turbo-ignore @agora/chrono-web --fallback=HEAD^",
+  "installCommand": "bash ../../scripts/vercel-install.sh"
 }
