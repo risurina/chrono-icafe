@@ -13,6 +13,14 @@ if [ -n "${AGORA_SUBMODULE_TOKEN:-}" ]; then
   git config --global url."https://x-access-token:${AGORA_SUBMODULE_TOKEN}@github.com/risurina/agora.git".insteadOf "https://github.com/risurina/agora.git"
 fi
 
+# Vercel's own implicit pre-install clone step already tried (and, for a private
+# submodule, failed with 403) to fetch packages/agora using its GitHub App token —
+# that failed attempt still leaves a non-empty directory behind, which then makes
+# our own `git submodule update` below fail with "already exists and is not an
+# empty directory". Clear it first so the clone below starts from a clean slate.
+git submodule deinit -f -- packages/agora 2>/dev/null || true
+rm -rf packages/agora
+
 git submodule update --init --recursive
 
 pnpm install --frozen-lockfile
